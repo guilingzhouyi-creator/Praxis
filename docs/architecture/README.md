@@ -77,6 +77,7 @@ flowchart TB
 | L3 | [l3-memory.md](l3-memory.md) | 4-ring memory + side-channels (Mer / R5 / User Profile) + injection |
 | L3 | [l3a-central.md](l3a-central.md) | L3A decision layer: the central office (sessions, ask, cardwrite, profile) |
 | L3 | [l3-tools.md](l3-tools.md) | 20 tool implementations + tool system (spec/registry/policy/pipeline) |
+| L3 | [l3-tool-presentation.md](l3-tool-presentation.md) | Code Mode / PTC: presentation modes (native/code/both), run_code transport, per-Cell program cache |
 | L3 | [l3-bus.md](l3-bus.md) | IPC protocol (20+ message types) + buses + ReferenceChannel causal recorder |
 | L3 | [security-evidence.md](security-evidence.md) | Attack-posture evidence chains: fixity-verified records, verdicts, bypass audit API |
 | L3 | [l3-cell-os.md](l3-cell-os.md) | Cell SoC components (ICache/MMU/PMU/Watchdog/…), boot, lifecycle |
@@ -94,9 +95,9 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 63 files / 17,517 lines |
+| L1 Kernel | 63 files / 17,565 lines |
 | L2 Shell | 34 files / 4,207 lines |
-| L3 Cell | 319 files / 67,289 lines |
+| L3 Cell | 322 files / 67,902 lines |
 | L4 Bridge | 107 files / 21,490 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 24 files / 6,136 lines |
@@ -104,11 +105,11 @@ flowchart TB
 | L3 Card | 27 files / 6,439 lines |
 | L3 Services | 43 files / 11,062 lines |
 | L3 Bus | 17 files / 4,380 lines |
-| L3 Agent | 29 files / 5,949 lines |
+| L3 Agent | 29 files / 5,986 lines |
 | L4 Handlers | 33 files / 5,635 lines |
 | API routes | 316 (`/api/v2/*` versioned) |
 | Route domains | 45 (largest: skill=19, security=18, provider=17, l3a=14, approval=14) |
-| Params modules / constants | 8 / 1,180 |
+| Params modules / constants | 8 / 1,195 |
 | Health | 0.612 (grade B) |
 
 ## Reading path

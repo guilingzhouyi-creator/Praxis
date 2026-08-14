@@ -219,3 +219,43 @@ TOOL_REGISTRY_DEFAULT_CATEGORY: Final[str] = "dynamic"
 DVG_MAX_TOOLS: Final[int] = 256
 # Max dependency depth allowed before availability is considered broken
 DVG_MAX_DEPTH: Final[int] = 8
+
+
+# ── Tool presentation (Code Mode / PTC) ──
+# How the tool registry presents tools to the model. ``native`` is the
+# OpenAI-style function-calling schemas; ``code`` exposes only the reserved
+# ``run_code`` transport plus a generated SDK (the model writes a program to
+# compose multi-step tool calls); ``both`` presents native schemas and the
+# transport together.
+TOOL_PRESENTATION_NATIVE: Final[str] = "native"
+TOOL_PRESENTATION_CODE: Final[str] = "code"
+TOOL_PRESENTATION_BOTH: Final[str] = "both"
+# Default presentation mode when none is configured
+TOOL_PRESENTATION_DEFAULT: Final[str] = TOOL_PRESENTATION_NATIVE
+# All recognized presentation modes
+TOOL_PRESENTATION_MODES: Final[tuple[str, ...]] = (
+    TOOL_PRESENTATION_NATIVE,
+    TOOL_PRESENTATION_CODE,
+    TOOL_PRESENTATION_BOTH,
+)
+# Config key read through get_tool_config for the static presentation mode
+TOOL_PRESENTATION_CONFIG_KEY: Final[str] = "tool_presentation_mode"
+
+# Max program characters accepted by run_code
+CODE_RUN_MAX_CHARS: Final[int] = 16_000
+# Max seconds a run_code program may execute before being killed
+CODE_RUN_TIMEOUT: Final[float] = 60.0
+# Max result characters returned to the model context from one run_code
+CODE_RUN_MAX_RESULT_CHARS: Final[int] = 8_000
+# Default language for the generated SDK when no renderer is configured
+CODE_RUN_DEFAULT_LANGUAGE: Final[str] = "python"
+# Max program entries kept in one Cell's run_code cache area
+CODE_RUN_CACHE_MAX_ENTRIES: Final[int] = 64
+# Seconds a cached run_code program stays valid before TTL reclamation
+CODE_RUN_CACHE_TTL: Final[float] = 900.0
+# Similarity floor for reusing a cached program (tf-idf cosine, 0..1)
+CODE_RUN_SIMILARITY_MIN_SCORE: Final[float] = 0.35
+# TieredCache layer used for per-Cell run_code program storage
+CODE_RUN_CACHE_LAYER: Final[str] = "L1"
+# TieredCache key prefix for run_code program entries
+CODE_RUN_CACHE_KEY_PREFIX: Final[str] = "run_code:"
