@@ -119,6 +119,25 @@ jobs:
       - name: Circular import check
         run: python scripts/py/import-cycle-check.py
 
+  judge-stats:
+    # CompletionJudge effectiveness report: aggregates local judge runs
+    # (.praxis/judge-runs.jsonl) into a completion-rate / failure-
+    # distribution summary. CI runners have no local runs, so the JSON is
+    # reported as-is (empty → "no data"); the same command works on a
+    # developer machine where verify-completion.sh has been run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[test]"
+      - name: Judge effectiveness (JSON summary)
+        run: |
+          echo "## CompletionJudge effectiveness (nightly)" >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/sh/judge-stats.sh --json >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
   notify-failure:
     # Nightly drift notification: if any nightly job failed, file an issue
     # (idempotent — skip when an open issue with the same title exists, so
