@@ -23,8 +23,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHANGELOG = ROOT / "CHANGELOG.md"
 
+# Commit-type whitelist comes from the SINGLE source of truth
+# (config/discovery/commits.yaml) via commit_scan.py — never hardcode the
+# type list here. The section mapping below is render-only.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from commit_scan import load_policy  # noqa: E402
+
+_TYPES = load_policy().get("types", [])
+_TYPE_SET = frozenset(_TYPES)
+
 # Conventional-commit type -> Keep-a-Changelog section (Chinese, matching the
-# existing CHANGELOG headers). Subjects not in this map are dropped.
+# existing CHANGELOG headers). Subjects not in the policy whitelist are
+# dropped.
 TYPE_TO_SECTION = {
     "feat": "新增",
     "fix": "修复",
@@ -57,7 +67,12 @@ def scan_subjects() -> list[str]:
 
 
 def group_subjects(subjects: list[str]) -> dict[str, list[str]]:
-    """Group conventional subjects by Keep-a-Changelog section (ordered)."""
+    """Group conventional subjects by Keep-a-Changelog section (ordered).
+
+    The type whitelist comes from config/discovery/commits.yaml (via
+    commit_scan.load_policy) — a type removed there stops appearing in the
+    changelog even if a section mapping still exists.
+    """
     grouped: dict[str, list[str]] = {}
     for subj in subjects:
         if _SKIP_RE.match(subj):
@@ -65,12 +80,15 @@ def group_subjects(subjects: list[str]) -> dict[str, list[str]]:
         m = _SUBJECT_RE.match(subj)
         if not m:
             continue
-        section = TYPE_TO_SECTION.get(m.group(1))
+        ctype = m.group(1)
+        if ctype not in _TYPE_SET:
+            continue  # type not in the policy whitelist — dropped
+        section = TYPE_TO_SECTION.get(ctype)
         if section is None:
             continue
         summary = m.group(3).strip()
         scope = f" ({m.group(2)})" if m.group(2) else ""
-        grouped.setdefault(section, []).append(f"- **{m.group(1).capitalize()}{scope}**: {summary}")
+        grouped.setdefault(section, []).append(f"- **{ctype.capitalize()}{scope}**: {summary}")
     return grouped
 
 

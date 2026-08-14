@@ -84,24 +84,46 @@ else
 fi
 
 # ── 2. Subject check: English + Conventional Commits ──────────────────────
+# Delegated to scripts/py/commit_scan.py (single source of truth:
+# config/discovery/commits.yaml — type whitelist, registered scopes,
+# placeholder guard, branch-type policy). Exit codes:
+#   0 = OK; 1 = violation; 2 = runtime unavailable (legacy regex fallback).
 echo "[verify-pr-merge] ── 2. Subject check (English + Conventional Commits) ──"
 SUBJECT_RE='^(feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert)(\([a-z0-9_.-]+\))?!?: '
-BAD_SUBJECT="$(git log --format='%h|%s' "$RANGE" | while IFS='|' read -r h s; do
-  case "$s" in
-    Merge\ *|Revert\ *) continue ;;  # git-generated subjects are exempt
+SCAN_RC=0
+SCAN_OUT=""
+if [ -f scripts/py/commit_scan.py ]; then
+  SCAN_OUT="$(python scripts/py/commit_scan.py --git-range "$RANGE" --branch "$BRANCH" 2>&1 || true)"
+  case "$SCAN_OUT" in
+    *VIOLATIONS*) SCAN_RC=1 ;;
   esac
-  if printf '%s' "$s" | grep -qP '[\x{4e00}-\x{9fa5}]'; then
-    echo "$h|CJK subject: $s"
-  elif ! printf '%s' "$s" | grep -qE "$SUBJECT_RE"; then
-    echo "$h|non-conventional subject: $s"
-  fi
-done)"
-if [ -n "$BAD_SUBJECT" ]; then
+fi
+if [ "$SCAN_RC" = "1" ]; then
   echo "[verify-pr-merge] ❌ subject violations:" >&2
-  printf '%s\n' "$BAD_SUBJECT" | sed 's/^/     ✗ /' >&2
+  printf '%s\n' "$SCAN_OUT" | sed 's/^/     /' >&2
   echo "[verify-pr-merge]    Subjects must be English Conventional Commits" >&2
-  echo "[verify-pr-merge]    (\`type(scope): summary\`). Fix the branch or squash-merge." >&2
+  echo "[verify-pr-merge]    (\`type(scope): summary\` + registered scope). Fix the branch or squash-merge." >&2
   exit 2
+fi
+if [ "$SCAN_RC" != "0" ]; then
+  # runtime unavailable (2) or script absent — legacy inline regex fallback.
+  BAD_SUBJECT="$(git log --format='%h|%s' "$RANGE" | while IFS='|' read -r h s; do
+    case "$s" in
+      Merge\ *|Revert\ *) continue ;;  # git-generated subjects are exempt
+    esac
+    if printf '%s' "$s" | grep -qP '[\x{4e00}-\x{9fa5}]'; then
+      echo "$h|CJK subject: $s"
+    elif ! printf '%s' "$s" | grep -qE "$SUBJECT_RE"; then
+      echo "$h|non-conventional subject: $s"
+    fi
+  done)"
+  if [ -n "$BAD_SUBJECT" ]; then
+    echo "[verify-pr-merge] ❌ subject violations:" >&2
+    printf '%s\n' "$BAD_SUBJECT" | sed 's/^/     ✗ /' >&2
+    echo "[verify-pr-merge]    Subjects must be English Conventional Commits" >&2
+    echo "[verify-pr-merge]    (\`type(scope): summary\`). Fix the branch or squash-merge." >&2
+    exit 2
+  fi
 fi
 echo "[verify-pr-merge] ✅ all subjects English + Conventional Commits."
 

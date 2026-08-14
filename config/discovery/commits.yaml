@@ -1,0 +1,126 @@
+# Commit-scan policy — SINGLE SOURCE OF TRUTH for commit message gates.
+#
+# Consumed by the commit scanners so the type/scope whitelist lives in ONE
+# place instead of drifting across scripts:
+#   - scripts/py/commit_scan.py   (policy engine, used by all gates below)
+#   - .githooks/commit-msg        (local commit gate)
+#   - scripts/sh/verify-pr-merge.sh (remote PR merge gate)
+#   - scripts/py/generate_changelog.py (CHANGELOG typing)
+#   - .github/workflows/pr-review.yml (PR advisory comment)
+#
+# Three-layer config: params/*.py (compile-time) ← this file (structural)
+# ← config/praxis.yaml (deployment overrides). Adding a type or scope here
+# is the ONLY change needed to teach every gate about it.
+
+# Conventional-Commits type whitelist. Subjects with a type outside this
+# list are rejected by every gate.
+types:
+  - feat
+  - fix
+  - perf
+  - docs
+  - refactor
+  - style
+  - test
+  - chore
+  - build
+  - ci
+  - revert
+
+# Registered scopes. A `type(scope):` whose scope is NOT listed here is a
+# violation under `strict` mode (warned under `relaxed`). Keep this list in
+# sync with the subsystems registered in AGENTS.md / docs/architecture/.
+scopes:
+  # kernel (L1)
+  - kernel
+  - sync
+  - event
+  - constitution
+  - gatechain
+  - vfs
+  - ipc
+  - process
+  - allocator
+  - params
+  - ports
+  - prompts
+  # shell (L2)
+  - l2
+  - shell
+  - i18n
+  # cell / agents / memory (L3)
+  - l3
+  - cell
+  - agent
+  - agents
+  - memory
+  - cards
+  - card
+  - scheduler
+  - discussion
+  - subagent
+  - l3a
+  - session
+  - skill
+  - tools
+  - tool
+  - error-bus
+  - bus
+  # bridge (L4)
+  - api
+  - llm
+  - sandbox
+  - mcp
+  - search
+  - lsp
+  - vault
+  - ws
+  - rpc
+  - sse
+  - supervisor
+  - security
+  - harness
+  # user (L5)
+  - l5
+  - cli
+  # cross-cutting / infra
+  - docs
+  - config
+  - scripts
+  - tests
+  - infra
+  - ci
+  - deps
+  - docker
+  - bench
+  - judge
+  - stats
+  - release
+  - git
+  - hooks
+  - agents-doc
+
+# Placeholder-subject guard — rejects subjects that carry no real content.
+placeholder:
+  reject_empty_summary: true   # "feat: " or "feat:" with nothing after
+  reject_cjk_summary: true     # "feat: 准备构建" — CJK placeholder subjects
+  min_summary_chars: 10        # shorter summaries are flagged as suspicious
+                               # (advisory under strict, reported only)
+
+# Strictness levels:
+#   strict (default) — full contract: scope registration + placeholder +
+#                       branch-type policy + summary-length advisory.
+#   relaxed          — scope registration and branch-type policy are
+#                       downgraded to warnings; used for migration/legacy.
+strictness: strict
+
+# Branch-type policy: commits landing on a branch matching a pattern may
+# only use the allowed types. `fix*` branches are fix-only (they carry
+# targeted defect repairs and are exempt from the accumulation gate — the
+# commit scan enforces the same discipline at message level).
+branch_policy:
+  patterns:
+    - pattern: "fix*"
+      allowed_types: [fix]
+    - pattern: "feature/*"
+      allowed_types: [feat, fix, perf, docs, refactor, style, test, chore, build, ci]

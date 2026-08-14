@@ -60,8 +60,17 @@ jobs:
               *) sig_ok="UNSIGNED"; BAD=1 ;;
             esac
             case "$subj" in
-              feat\(*|fix\(*|refactor\(*|ci\(*|docs\(*|test\(*|chore\(*|merge*|Merge*) msg_ok="conventional" ;;
-              *) msg_ok="NON-CONVENTIONAL"; BAD=1 ;;
+              Merge*|Revert*) msg_ok="conventional" ;;  # git-generated exempt
+              *)
+                # Policy verdict from commit_scan.py (single source of truth:
+                # config/discovery/commits.yaml — type whitelist, registered
+                # scopes, placeholder guard, branch-type policy).
+                if python scripts/py/commit_scan.py --subject "$subj" --branch "${{ github.head_ref }}" >/dev/null 2>&1; then
+                  msg_ok="conventional"
+                else
+                  msg_ok="POLICY-VIOLATION"; BAD=1
+                fi
+                ;;
             esac
             printf -v VERDICT '%s- %s [%s / %s]\n' "$VERDICT" "$subj" "$sig_ok" "$msg_ok"
           done < <(git log --format="%G? %s" "$BASE..$HEAD" 2>/dev/null)

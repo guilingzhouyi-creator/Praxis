@@ -181,6 +181,16 @@ Posture is a load-bearing security lever — never weaken it silently.
 
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
   merge is gated on diff scope — see `## Dependency management`.
+- **Commit-scan policy — single source of truth**: the Conventional-Commits
+  contract (type whitelist, registered scopes, placeholder guard, branch-type
+  policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
+  `scripts/py/commit_scan.py`. All gates consume it — `.githooks/commit-msg`,
+  `scripts/sh/verify-pr-merge.sh`, `scripts/py/generate_changelog.py`,
+  `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
+  script; add a type/scope to `commits.yaml` and every gate learns it.
+  `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
+  `fix*` branches allow only `fix` commits (matches the accumulation-gate
+  exemption).
 - **Hook mechanics**: `commit-msg` runs BEFORE the commit object exists, so
   HEAD still points at the previous commit; merge gates read `.git/MERGE_HEAD`
   (git removes it after commit), falling back to `HEAD^2` for manual post-merge
