@@ -434,6 +434,20 @@ def memory_rc_analysis(body: dict | None = None) -> dict:
     return analyze_rc_correlation(limit=int((body or {}).get("limit", 100) or 100))
 
 
+def memory_context_audit(body: dict | None = None) -> dict:
+    """Audit per-agent context pressure across a Cell (execution layer).
+
+    Args:
+        body: optional dict with ``cell_id`` (empty = all registered loops).
+
+    Returns:
+        dict with per-agent snapshots and Cell totals.
+    """
+    from l3.agent.agent_loop import audit_cell_context
+
+    return audit_cell_context(cell_id=str((body or {}).get("cell_id", "") or ""))
+
+
 def memory_digest_get(body: dict | None = None) -> dict:
     """Conversation digest-cache switch state (B1)."""
     from l3.agent.digest_cache import digest_status

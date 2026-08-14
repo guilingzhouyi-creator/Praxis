@@ -316,6 +316,12 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
         ".memory_rc_analysis",
         "Correlate reference-channel memory events with refined records",
     ),
+    (
+        "GET",
+        "/api/v2/memory/context-audit",
+        ".memory_context_audit",
+        "Audit per-agent context pressure across a Cell (execution layer)",
+    ),
     ("GET", "/api/v2/memory/digest", ".memory_digest_get", "Conversation digest-cache switch state (B1)"),
     ("PUT", "/api/v2/memory/digest", ".memory_digest_set", "Enable/disable conversation digest cache (B1)"),
     ("GET", "/api/v2/memory/tool-result", ".memory_tool_result_get", "Tool-result offload switch state (B2)"),

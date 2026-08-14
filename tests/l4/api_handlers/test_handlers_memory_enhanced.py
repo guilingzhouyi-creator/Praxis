@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from l3.agent.agent_loop import reset_loop_registry
 from l3.agent.compression_guard import reset_guard
 from l3.agent.digest_cache import reset_digest
 from l3.agent.sensitive_detect import reset_sensitive
@@ -9,6 +10,7 @@ from l3.agent.tool_result_cache import reset_tool_result
 from l4.api_handlers.api_handlers_security import (
     memory_compression_guard_get,
     memory_compression_guard_set,
+    memory_context_audit,
     memory_corpus_export,
     memory_digest_get,
     memory_digest_set,
@@ -76,3 +78,15 @@ def test_compression_guard_get_and_set():
         assert after["breaker_enabled"] is False
     finally:
         reset_guard()
+
+
+def test_context_audit_returns_aggregate():
+    reset_loop_registry()
+    try:
+        r = memory_context_audit({"cell_id": "cell-9"})
+        assert r["success"] is True
+        assert "agents" in r
+        assert "total_trail_messages" in r
+        assert "per_agent" in r
+    finally:
+        reset_loop_registry()

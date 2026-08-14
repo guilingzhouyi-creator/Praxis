@@ -77,6 +77,14 @@ def _cmd_memory(args: list[str]) -> dict:
             if arg.startswith("max_chars=") and arg[10:].isdigit():
                 return set_tool_result_switches(max_chars=int(arg[10:]))
         return tool_result_status()
+    # Execution-layer context audit: /memory context-audit [cell_id] —
+    # per-agent context pressure across a Cell (management surface for
+    # context isolation). Global op.
+    if op == "context-audit":
+        from l3.agent.agent_loop import audit_cell_context
+
+        cell_id = rest[1] if len(rest) >= 2 else ""
+        return audit_cell_context(cell_id=cell_id)
     # Phase 3.1 B6: /memory sensitive [on|off] — bypass sensitive-info
     # detection on the compression path (default ON). Global op.
     if op == "sensitive":

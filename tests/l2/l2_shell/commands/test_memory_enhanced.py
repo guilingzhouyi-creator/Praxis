@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from l2.l2_shell.commands.memory import _cmd_memory
+from l3.agent.agent_loop import reset_loop_registry
 from l3.agent.compression_guard import reset_guard
 from l3.agent.digest_cache import reset_digest
 from l3.agent.sensitive_detect import reset_sensitive
@@ -64,3 +65,13 @@ def test_compression_guard_op_switch():
         assert st["recursion_threshold"] == 5
     finally:
         reset_guard()
+
+
+def test_context_audit_op():
+    reset_loop_registry()
+    try:
+        r = _cmd_memory(["context-audit", "cell-9"])
+        assert r["success"] is True
+        assert "per_agent" in r
+    finally:
+        reset_loop_registry()
