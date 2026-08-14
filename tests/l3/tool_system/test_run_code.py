@@ -128,6 +128,34 @@ def test_run_code_binding_parent_chain_linked():
         reset_tool_chain()
 
 
+def test_run_code_writes_back_successful_result_to_cache():
+    """A successful run_code caches program + result for later reuse."""
+    reset_run_code_cache()
+    try:
+        result = run_code({"program": "print(6 * 7)", "cell_id": "cell-wb"}, agent_id="w")
+        assert result["success"] is True
+        assert result.get("cached_writeback") is True
+        cache = get_run_code_cache()
+        entry = cache.lookup("cell-wb", "print(6 * 7)")
+        assert entry is not None
+        assert entry["result"] == "42\n"
+        assert entry["language"] == "python"
+    finally:
+        reset_run_code_cache()
+
+
+def test_run_code_does_not_cache_failure():
+    """Failed programs are not cached (only successful results are)."""
+    reset_run_code_cache()
+    try:
+        result = run_code({"program": 'raise ValueError("boom")', "cell_id": "cell-wb2"}, agent_id="w")
+        assert result["success"] is False
+        cache = get_run_code_cache()
+        assert cache.lookup("cell-wb2", 'raise ValueError("boom")') is None
+    finally:
+        reset_run_code_cache()
+
+
 def test_pipeline_code_only_rejects_native_tools():
     """tools:code-only — code presentation blocks native tool names."""
     from l3.tool_system.tool_pipeline import get_pipeline, reset_pipeline

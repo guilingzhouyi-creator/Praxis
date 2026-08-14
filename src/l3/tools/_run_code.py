@@ -195,4 +195,18 @@ def run_code(args: dict, agent_id: str) -> dict:
         return {"success": False, "error": f"cannot prepare program: {e}"}
 
     timeout = float(get_tool_config("code_run_timeout", CODE_RUN_TIMEOUT))
-    return _exec_backend(backend, program_path, program, agent_id, timeout, cache_dir)
+    result = _exec_backend(backend, program_path, program, agent_id, timeout, cache_dir)
+    # Phase 1.5 write-back: cache successful programs + results so a later
+    # approximate hit reuses them (input/output savings). Failures are not
+    # cached. Degrades to a no-op on cache errors (bypass-free side channel).
+    if result.get("success"):
+        try:
+            cache.store(
+                cell_id,
+                program,
+                {"result": result.get("result", ""), "language": language},
+            )
+            result["cached_writeback"] = True
+        except Exception:
+            logger.debug("run_code: cache write-back skipped", exc_info=True)
+    return result
