@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from l3.agent.digest_cache import (
     digest_status,
     fold_messages,
@@ -52,8 +50,8 @@ def test_disabled_after_enable_returns_empty():
         reset_digest()
 
 
-def test_reclaim_sweeps_expired_digests():
-    """reclaim physically drops expired digests (per-Cell sweep)."""
+def test_reclaim_clears_cell_digests():
+    """reclaim drops this Cell's digests (physical delete, teardown)."""
     from l3.memory.tiered_cache import get_tiered_cache, reset_tiered_cache
 
     reset_tiered_cache()
@@ -61,28 +59,25 @@ def test_reclaim_sweeps_expired_digests():
     try:
         set_digest_switches(enabled=True)
         fold_messages("cell-A", "card-1", [{"role": "user", "content": "x"}])
-        # Force expiry: rewrite the stored timestamp into the past.
-        cache = get_tiered_cache()
-        for key in cache.keys("L2"):
-            value, _ts = cache._layers["L2"][key]
-            cache._layers["L2"][key] = (value, time.time() - 9999)
-        assert reclaim("cell-A") == 1
-        assert cache.keys("L2") == []
+        fold_messages("cell-A", "card-2", [{"role": "user", "content": "y"}])
+        assert reclaim("cell-A") == 2
+        assert get_tiered_cache().keys("L2") == []
     finally:
         reset_digest()
         reset_tiered_cache()
 
 
-def test_reclaim_keeps_fresh_digests():
-    """reclaim leaves non-expired digests untouched."""
+def test_reclaim_isolates_other_cell():
+    """reclaim(cell-A) leaves cell-B's digests untouched."""
     from l3.memory.tiered_cache import reset_tiered_cache
 
     reset_tiered_cache()
     reset_digest()
     try:
         set_digest_switches(enabled=True)
+        fold_messages("cell-A", "card-1", [{"role": "user", "content": "x"}])
         fold_messages("cell-B", "card-2", [{"role": "user", "content": "y"}])
-        assert reclaim("cell-B") == 0
+        assert reclaim("cell-A") == 1
         assert get_digest("cell-B", "card-2") != ""
     finally:
         reset_digest()

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from l3.agent.tool_result_cache import (
     fetch_result,
     maybe_offload,
@@ -49,8 +47,8 @@ def test_small_result_not_offloaded():
         reset_tool_result()
 
 
-def test_reclaim_sweeps_expired_offloaded_results():
-    """reclaim physically drops expired offloaded results (per-Cell sweep)."""
+def test_reclaim_clears_cell_offloaded_results():
+    """reclaim drops this Cell's offloaded results (register + buffer)."""
     from l3.memory.tiered_cache import get_tiered_cache, reset_tiered_cache
 
     reset_tiered_cache()
@@ -58,28 +56,25 @@ def test_reclaim_sweeps_expired_offloaded_results():
     try:
         set_tool_result_switches(enabled=True)
         offload_result("cell-A", "c1", "scan", {"content": "big" * 100})
-        # Force expiry: rewrite the stored timestamp into the past.
-        cache = get_tiered_cache()
-        for key in cache.keys("L1"):
-            value, _ts = cache._layers["L1"][key]
-            cache._layers["L1"][key] = (value, time.time() - 9999)
-        assert reclaim("cell-A") == 1
-        assert cache.keys("L1") == []
+        offload_result("cell-A", "c2", "scan", {"content": "big" * 100})
+        assert reclaim("cell-A") == 2
+        assert get_tiered_cache().keys("L1") == []
     finally:
         reset_tool_result()
         reset_tiered_cache()
 
 
-def test_reclaim_keeps_fresh_offloaded_results():
-    """reclaim leaves non-expired offloaded results untouched."""
+def test_reclaim_isolates_other_cell():
+    """reclaim(cell-A) leaves cell-B's offloaded results untouched."""
     from l3.memory.tiered_cache import reset_tiered_cache
 
     reset_tiered_cache()
     reset_tool_result()
     try:
         set_tool_result_switches(enabled=True)
+        offload_result("cell-A", "c1", "scan", {"content": "big" * 100})
         offload_result("cell-B", "c2", "read", {"content": "ok"})
-        assert reclaim("cell-B") == 0
+        assert reclaim("cell-A") == 1
         assert fetch_result("cell-B", "c2").get("tool") == "read"
     finally:
         reset_tool_result()

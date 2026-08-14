@@ -66,14 +66,24 @@ def reset_tool_result() -> None:
     with _lock:
         _state["enabled"] = TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT
         _state["max_chars"] = TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT
+    _register.clear()
 
 
 def _key(cell_id: str, call_id: str) -> str:
     return f"cell:{cell_id}::tool:{call_id}"
 
 
+# In-memory register (fast path): offloaded results live here as a
+# structured (cell_id, call_id) → {tool, result} view, mirroring the
+# tiered-cache L1 buffer (durable path). Cell entities are highly
+# structured execution units, so their offloaded results are kept
+# structured in both layers — register for O(1) in-process access,
+# tiered cache for recovery across restarts / Cell re-entry.
+_register: dict[tuple[str, str], dict[str, Any]] = {}
+
+
 def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> bool:
-    """Offload a large structured tool result to the per-Cell cache.
+    """Offload a large structured tool result to the register + cache.
 
     Args:
         cell_id: producing Cell (cache scope).
@@ -89,10 +99,13 @@ def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> 
         enabled = bool(_state["enabled"])
     if not enabled:
         return False
+    entry = {"tool": tool_name, "result": result}
+    # Register fast path first (structured in-memory view).
+    _register[(cell_id, call_id)] = entry
     try:
         from l3.memory.tiered_cache import get_tiered_cache
 
-        get_tiered_cache().set("L1", _key(cell_id, call_id), {"tool": tool_name, "result": result})
+        get_tiered_cache().set("L1", _key(cell_id, call_id), entry)
         return True
     except Exception as e:
         logger.debug("tool_result_cache: offload skipped: %s", e)
@@ -100,11 +113,18 @@ def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> 
 
 
 def fetch_result(cell_id: str, call_id: str) -> dict:
-    """Recover an offloaded tool result ({} when absent/disabled)."""
+    """Recover an offloaded tool result ({} when absent/disabled).
+
+    Register first (O(1) in-process); falls back to the tiered-cache L1
+    buffer (cross-restart recovery) when the register misses.
+    """
     with _lock:
         enabled = bool(_state["enabled"])
     if not enabled:
         return {}
+    cached = _register.get((cell_id, call_id))
+    if cached is not None:
+        return cached
     try:
         from l3.memory.tiered_cache import get_tiered_cache
 
@@ -116,35 +136,47 @@ def fetch_result(cell_id: str, call_id: str) -> dict:
 
 
 def reclaim(cell_id: str = "") -> int:
-    """Explicitly evict expired offloaded results (per-Cell or global).
+    """Explicitly evict offloaded results (per-Cell or global).
 
-    The tiered-cache ``get`` path already drops expired entries lazily
-    (physical delete); this sweep matches Cell shutdown / on-demand cleanup
-    semantics (same pattern as ``run_code_cache.reclaim``). Returns the
-    number of expired entries reclaimed.
+    Used at Cell teardown / on demand: drops this Cell's entries from BOTH
+    layers (in-memory register + tiered-cache L1 buffer) so the offloaded
+    results live and die with the Cell. The two layers mirror each other —
+    a logical entry is counted ONCE even though it exists in both.
 
     Args:
         cell_id: when given, only this Cell's offloaded results are swept
             (keys ``cell:{cell_id}::tool:*``); empty sweeps all.
 
     Returns:
-        Count of expired entries dropped.
+        Count of logical entries dropped (deduplicated across layers).
     """
+    cleared: set[tuple[str, str]] = set()
+    # Register sweep (in-memory view, same lifecycle as the L1 buffer).
+    with _lock:
+        for reg_cell, reg_call in list(_register.keys()):
+            if cell_id and reg_cell != cell_id:
+                continue
+            _register.pop((reg_cell, reg_call), None)
+            cleared.add((reg_cell, reg_call))
     try:
         from l3.memory.tiered_cache import get_tiered_cache
 
         cache = get_tiered_cache()
-        evicted = 0
         prefix = _key(cell_id, "") if cell_id else "cell:"
         for key in cache.keys("L1"):
-            if key.startswith(prefix) and "::tool:" in key and cache.get("L1", key) is None:
-                # get() lazily drops expired entries; a None after a
-                # key-scan hit means the entry expired and was reclaimed.
-                evicted += 1
-        return evicted
+            if key.startswith(prefix) and "::tool:" in key:
+                cache.invalidate("L1", key)
+                # Parse "cell:{cid}::tool:{call_id}" — skip pairs already
+                # counted from the register (mirror, not a second entry).
+                parts = key.split("::")
+                if len(parts) == 2 and parts[0].startswith("cell:") and parts[1].startswith("tool:"):
+                    pair = (parts[0][5:], parts[1][5:])
+                    if pair not in cleared:
+                        cleared.add(pair)
+        return len(cleared)
     except Exception as e:
         logger.debug("tool_result_cache: reclaim failed: %s", e)
-        return 0
+        return len(cleared)
 
 
 def maybe_offload(cell_id: str, call_id: str, tool_name: str, result: dict) -> dict:
