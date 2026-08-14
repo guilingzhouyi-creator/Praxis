@@ -246,6 +246,39 @@ class MemoryIngestMixin:
 
         return {"success": True, "entry_id": new_id, "from_ring": source_ring, "to_ring": target_ring}
 
+    def auto_promote(self, min_importance: float, from_ring: int = 1, to_ring: int = 2) -> int:
+        """Batch-promote entries whose importance clears the threshold.
+
+        Ring-promotion production hook (P1-①): scans the source ring once
+        and promotes every entry with ``importance >= min_importance`` to
+        the target ring — the memory-generalization ladder
+        (R1→R2→R3→R4) is driven by measured importance, not by manual
+        calls. One scan per call keeps the per-tick cost linear.
+
+        Args:
+            min_importance: minimum importance to promote.
+            from_ring: source ring (1 working / 2 short / 3 long).
+            to_ring: target ring.
+
+        Returns:
+            Number of promoted entries.
+        """
+        layers = {1: self.working, 2: self.short, 3: self.long}
+        source = layers.get(from_ring)
+        if source is None:
+            return 0
+        with source._lock:
+            candidates = [e for e in list(source._entries) if (e.importance or 0) >= min_importance]
+        promoted = 0
+        for e in candidates:
+            try:
+                r = self.promote(e.id, to_ring)
+                if r.get("success"):
+                    promoted += 1
+            except Exception:
+                logger.debug("memory: auto_promote failed for %s", e.id)
+        return promoted
+
     def get_entry(self, entry_id: str) -> MemEntry | None:
         """Look up a single entry by id across all rings (early-exit scan).
 

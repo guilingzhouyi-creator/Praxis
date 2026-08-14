@@ -71,6 +71,22 @@ class SkillGeneralizeMixin:
                 continue
             by_tool.setdefault(tool, []).append(s)
 
+        # P0-①: session-JSON supply — the decision-layer JSON trio feeds
+        # the same per-tool consolidation (memory→skill pipeline): tool
+        # failures (*_tools.json) join their tool's lean cases, thought
+        # chains (*_thoughts.json) form a "thought" lesson group. Cached
+        # reads (dir-mtime) keep this cheap on every tick.
+        try:
+            from .r4_skill_supply import load_thought_lessons, load_tool_failure_cases
+
+            for c in load_tool_failure_cases():
+                by_tool.setdefault(c["tool"], []).append(c)
+            thought_lessons = load_thought_lessons()
+            if thought_lessons:
+                by_tool.setdefault("thought", []).extend(thought_lessons)
+        except Exception:
+            logger.debug("r4: session-JSON supply skipped")
+
         generalized = 0
         for tool, cases in by_tool.items():
             # Reflexion-style attribution (non-blocking): distill the tool's
@@ -139,6 +155,13 @@ class SkillGeneralizeMixin:
                     self._archive_before_evolve(gen_name, existing)
                 except Exception as e:
                     logger.warning("R4Agent: archive generalized skill failed: %s", e)
+            # P0-②: the generalized skill inherits the case layer — tool
+            # failures (supply layer "exec") vs thought lessons (layer
+            # "decision"); legacy lean cases default to the execution layer.
+            try:
+                gen_layer = str((cases[0] or {}).get("layer", "") or "exec")
+            except (IndexError, AttributeError):
+                gen_layer = "exec"
             sm.create(
                 name=gen_name,
                 description=desc,
@@ -147,6 +170,7 @@ class SkillGeneralizeMixin:
                 procedures=procs,
                 tags=["evolved", tool],
                 allowed_tools=[tool],
+                layer=gen_layer,
                 internal=True,
             )
             try:

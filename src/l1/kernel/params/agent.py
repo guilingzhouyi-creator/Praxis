@@ -591,6 +591,14 @@ R4_LEAN_CASES_DEFAULT: Final[int] = 5  # default limit for get_lean_cases
 R4_EVOLVED_SKILLS_DEFAULT: Final[int] = 3  # default limit for get_evolved_skills / graph diffusion
 R4_LEAN_GENERALIZE_THRESHOLD: Final[int] = 5  # per-tool lean cases → auto-generalize into one lessons skill
 
+# ── Generalization verify gate (P1-④) ──
+# Generalized skills start as candidates; card-outcome signals accumulate
+# skill-level verified/hit counters, and the gate PROMOTES to active once
+# verified >= PROMOTE, or ROLLS BACK to deprecated (with archive) once
+# hit >= ROLLBACK — a confidence loop for generalization quality.
+R4_VERIFY_PROMOTE_THRESHOLD: Final[int] = 3
+R4_VERIFY_ROLLBACK_THRESHOLD: Final[int] = 5
+
 # ── R4Agent lesson summarization (LLM) ──
 R4_SUMMARIZE_COOLDOWN: Final[float] = 3600.0  # min gap between LLM summaries per tool (s)
 R4_SUMMARIZE_MIN_INTERVAL: Final[float] = 60.0  # min gap between ANY two LLM summaries (s)

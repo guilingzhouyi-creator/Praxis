@@ -30,6 +30,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -328,6 +330,7 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
         stages: list[dict] | None = None,
         next_skills: list[str] | None = None,
         knowledge: dict | None = None,
+        layer: str = "",
         agent_id: str = "",
         role: str = "",
         internal: bool = False,
@@ -336,6 +339,9 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
 
         ``internal=True`` allows identity-less writes from system processes
         (boot loading, R4Agent); external callers must pass an identity.
+        ``layer`` tags the generalization layer (``"exec"`` execution-layer
+        tool skills / ``"decision"`` decision-layer reasoning skills; "" =
+        unlayered), indexed by ``list_skills(layer=...)`` (P0-②).
         """
         ok, who = self.authorize_write(agent_id, role, internal=internal)
         if not ok:
@@ -358,6 +364,7 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             "source": "evolved",
             "loaded_at": __import__("time").time(),
             "useful_count": 0,
+            "layer": layer if layer in ("exec", "decision") else "",
         }
         return self.register(name, data, agent_id=agent_id, role=role, internal=internal)
 
@@ -399,7 +406,20 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             current = self._skills[name].get(key, 0) or 0
             self._skills[name][key] = current + 1
             self._skills[name]["last_used"] = time.time()
-            return {"success": True, "skill": name, key: current + 1}
+        self._emit_usage_feedback(name)
+        return {"success": True, "skill": name, key: current + 1}
+
+    def _emit_usage_feedback(self, name: str) -> None:
+        """Notify the registered skill→memory feedback hooks (P1-③).
+
+        The feedback hooks (installed by the L3 skill-memory feedback
+        module) batch skill-usage events into R3 memory writes
+        (entry_type=skill_usage). Bypass: a failing hook never affects the
+        usage bump itself.
+        """
+        for fn in list(_USAGE_FEEDBACK_HOOKS):
+            with suppress(Exception):  # bypass: never affect the usage bump
+                fn(name)
 
     def bump_usage_for_tools(self, tool_names: list[str], key: str = "useful_count") -> dict:
         """Atomically bump usage for every skill whose name matches a tool.
@@ -475,6 +495,17 @@ _manager_lock = threading.Lock()
 # use_skill (on-demand) instead of context injection.
 _AUDIENCE_TAGS: Final[tuple[str, ...]] = ("strategy", "execution")
 _AUDIENCE_STRATEGY_AGENTS: Final[frozenset[str]] = frozenset({"l3a"})
+
+# ── Skill→memory feedback hooks (P1-③) ──
+# L3's skill-memory feedback module registers its batcher here; L1 never
+# imports upper layers — the hook keeps the dependency direction L3 → L1.
+_USAGE_FEEDBACK_HOOKS: list[Callable[[str], None]] = []
+
+
+def register_usage_feedback_hook(fn: Callable[[str], None]) -> None:
+    """Register a skill-usage feedback hook (L3 skill-memory feedback)."""
+    if fn not in _USAGE_FEEDBACK_HOOKS:
+        _USAGE_FEEDBACK_HOOKS.append(fn)
 
 
 def audience_of(agent_id: str) -> str:
