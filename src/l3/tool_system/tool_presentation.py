@@ -207,6 +207,32 @@ def get_presentation_mode() -> str:
     return static if static in TOOL_PRESENTATION_MODES else TOOL_PRESENTATION_DEFAULT
 
 
+def assemble_code_prompt(system: str, sdk: str, usage: str) -> str:
+    """Assemble the stable-prefix section for Code Mode / PTC prompts.
+
+    The system prompt, the usage instructions, and the generated SDK form
+    the STABLE PREFIX of every request in code presentation: the SDK is
+    deterministic (sorted tools), so the prefix is byte-stable and hits
+    vendor KV caches (DeepSeek/OpenAI ``prompt_cache_retention``,
+    Anthropic ``cache_breakpoints``). The incremental suffix (program /
+    patch / results) is appended by the caller AFTER this prefix.
+
+    Args:
+        system: base system prompt (identity/constitution/…).
+        sdk: deterministic SDK declarations (``backend.render_sdk``).
+        usage: language-specific usage instructions (``backend.render_usage``
+            or a praxis.yaml override).
+
+    Returns:
+        Combined stable-prefix text (system + usage + sdk, in that order).
+    """
+    parts: list[str] = []
+    for section in (system, usage, sdk):
+        if section:
+            parts.append(section)
+    return "\n\n".join(parts)
+
+
 def set_presentation_mode(mode: str, source: str = "api") -> dict:
     """Switch the tool presentation mode at runtime.
 

@@ -236,10 +236,13 @@ class AgentLoopContextMixin:
                 # Language-specific usage from the backend; a praxis.yaml
                 # prompt override (agent_loop.run_code_usage) wins if present.
                 usage = get_prompt("agent_loop.run_code_usage", "") or backend.render_usage()
-                if usage:
-                    system = (system + "\n\n" + usage) if system else usage
-                if sdk:
-                    system = (system + "\n\n" + sdk) if system else sdk
+                # Stable-prefix assembly: system + usage + SDK form the
+                # byte-stable prefix every request reuses (vendor KV-cache
+                # hits); the incremental suffix (program/patch/results) is
+                # appended later by the conversation.
+                from l3.tool_system.tool_presentation import assemble_code_prompt
+
+                system = assemble_code_prompt(system, sdk, usage)
         return system, wrapped_tools, read_only_tools, model_kwargs
 
     def _inject_extra_context(self, system: str) -> str:
