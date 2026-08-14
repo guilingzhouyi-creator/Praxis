@@ -300,6 +300,24 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
             if digest_status().get("enabled"):
                 card_idx = str(self.task or self._card_nature or "card")
                 digest = fold_messages(self._cell_id, card_idx, old)
+                # Sensitive-info scan on the digest write path: the folded
+                # span may contain API keys / bearer tokens / private keys,
+                # and is persisted at rest in the cross-Cell cache.  The
+                # documented default-ON baseline guard must run here too
+                # (session_compress already scans its own fold).
+                if digest:
+                    try:
+                        from l3.agent.sensitive_detect import scan_text
+
+                        hits = scan_text(digest)
+                        if hits:
+                            logger.warning(
+                                "agent_loop: sensitive content in digest span (%s) — %s",
+                                card_idx,
+                                ", ".join(h.get("type", "?") for h in hits),
+                            )
+                    except Exception:
+                        logger.debug("agent_loop: digest sensitive scan skipped", exc_info=True)
                 summary = digest or "[HISTORY TRUNCATED] (digest buffer unavailable)"
         except Exception:
             logger.debug("agent_loop: digest fold skipped", exc_info=True)

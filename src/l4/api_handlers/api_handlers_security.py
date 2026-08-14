@@ -7,6 +7,36 @@ Module-level functions consumed by the ApiHandlers mixin in
 from __future__ import annotations
 
 
+def _strict_bool(value):
+    """Parse a boolean flag string-aware (query params are always strings).
+
+    ``bool("false")`` is True — which would silently invert an operator's
+    intent (e.g. ``?enabled=false`` ENABLES the switch). Accept only the
+    explicit true/false spellings; anything ambiguous is an error.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("true", "1", "on"):
+            return True
+        if v in ("false", "0", "off"):
+            return False
+    raise ValueError(f"invalid boolean value: {value!r}")
+
+
+def _strict_int(value):
+    """Parse an integer with validation (no raw ``int()`` on user input)."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid integer value: {value!r}") from None
+
+
 def security_check(body: dict) -> dict:
     """Run a full security check for an action."""
     from l3.services.central_security import get_center
@@ -521,12 +551,12 @@ def memory_digest_set(body: dict) -> dict:
     """Enable/disable the conversation digest cache (B1)."""
     from l3.agent.digest_cache import set_digest_switches
 
-    enabled = body.get("enabled")
-    max_chars = body.get("max_chars")
-    return set_digest_switches(
-        enabled=None if enabled is None else bool(enabled),
-        max_chars=None if max_chars is None else int(max_chars),
-    )
+    try:
+        enabled = _strict_bool(body.get("enabled"))
+        max_chars = _strict_int(body.get("max_chars"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_digest_switches(enabled=enabled, max_chars=max_chars)
 
 
 def memory_tool_result_get(body: dict | None = None) -> dict:
@@ -540,12 +570,12 @@ def memory_tool_result_set(body: dict) -> dict:
     """Enable/disable the tool-result offload cache (B2)."""
     from l3.agent.tool_result_cache import set_tool_result_switches
 
-    enabled = body.get("enabled")
-    max_chars = body.get("max_chars")
-    return set_tool_result_switches(
-        enabled=None if enabled is None else bool(enabled),
-        max_chars=None if max_chars is None else int(max_chars),
-    )
+    try:
+        enabled = _strict_bool(body.get("enabled"))
+        max_chars = _strict_int(body.get("max_chars"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_tool_result_switches(enabled=enabled, max_chars=max_chars)
 
 
 def memory_sensitive_get(body: dict | None = None) -> dict:
@@ -559,8 +589,11 @@ def memory_sensitive_set(body: dict) -> dict:
     """Enable/disable sensitive-info bypass detection (B6)."""
     from l3.agent.sensitive_detect import set_sensitive_switches
 
-    enabled = body.get("enabled")
-    return set_sensitive_switches(enabled=None if enabled is None else bool(enabled))
+    try:
+        enabled = _strict_bool(body.get("enabled"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_sensitive_switches(enabled=enabled)
 
 
 def memory_compression_guard_get(body: dict | None = None) -> dict:
@@ -574,9 +607,9 @@ def memory_compression_guard_set(body: dict) -> dict:
     """Set the recursion threshold / breaker switch (B6)."""
     from l3.agent.compression_guard import set_guard_switches
 
-    threshold = body.get("recursion_threshold")
-    breaker = body.get("breaker_enabled")
-    return set_guard_switches(
-        recursion_threshold=None if threshold is None else int(threshold),
-        breaker_enabled=None if breaker is None else bool(breaker),
-    )
+    try:
+        threshold = _strict_int(body.get("recursion_threshold"))
+        breaker = _strict_bool(body.get("breaker_enabled"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_guard_switches(recursion_threshold=threshold, breaker_enabled=breaker)

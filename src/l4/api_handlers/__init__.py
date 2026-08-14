@@ -667,6 +667,35 @@ class ApiHandlers:
     def _memory_filter_set(self, body: dict) -> dict:
         return memory_filter_set(body)
 
+    # memory upgrade (5-level compression surface): corpus / digest /
+    # tool-result / sensitive / compression-guard switches
+    def _memory_corpus_export(self, body: dict | None = None) -> dict:
+        return memory_corpus_export(body)
+
+    def _memory_digest_get(self, body: dict | None = None) -> dict:
+        return memory_digest_get(body)
+
+    def _memory_digest_set(self, body: dict) -> dict:
+        return memory_digest_set(body)
+
+    def _memory_tool_result_get(self, body: dict | None = None) -> dict:
+        return memory_tool_result_get(body)
+
+    def _memory_tool_result_set(self, body: dict) -> dict:
+        return memory_tool_result_set(body)
+
+    def _memory_sensitive_get(self, body: dict | None = None) -> dict:
+        return memory_sensitive_get(body)
+
+    def _memory_sensitive_set(self, body: dict) -> dict:
+        return memory_sensitive_set(body)
+
+    def _memory_compression_guard_get(self, body: dict | None = None) -> dict:
+        return memory_compression_guard_get(body)
+
+    def _memory_compression_guard_set(self, body: dict) -> dict:
+        return memory_compression_guard_set(body)
+
     # phase2d (D2): decision-layer role + delegate
     def _l3a_decision_layer_get(self, body: dict | None = None) -> dict:
         return l3a_decision_layer_get(body)
