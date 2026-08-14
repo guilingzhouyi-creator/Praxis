@@ -109,6 +109,15 @@ class AgentLoopGuardMixin:
                 trail_tokens = sum(_estimate_tokens(str(m.get("content", ""))) for m in self._context_trail)
             est_total = est_tokens + len(system) // 4 + CONTEXT_BUILD_MAX_TOKENS + trail_tokens
             ratio = est_total / ctx_window
+            # Expose the measured pressure to the prompt-library injection
+            # (3.2): _context_pressure drives the Cell dynamic-doc auto-hit;
+            # _system_load is approximated from the same ratio so the global
+            # performance sub-library also engages under load.
+            try:
+                self._context_pressure = ratio
+                self._system_load = ratio
+            except AttributeError:
+                pass
 
             # Phase 1: Try compression first (WARN → then MEDIUM escalation)
             if ratio >= CONTEXT_PRESSURE_WARN:

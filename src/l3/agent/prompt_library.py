@@ -152,6 +152,16 @@ def resolve_cell_prompt(cell_id: str, pressure: float = 0.0) -> str:
         base = _shared_base.get(cell_id, "")
         if not enabled:
             return ""
+    # Layered-key fallback: when no Cell base was written yet, fall back to
+    # the ``cell.shared.base`` layered prompt key (3.2, P2-①) so the
+    # system default is injected even before a Cell-specific write.
+    if not base:
+        try:
+            from l1.kernel.prompts import get_prompt
+
+            base = get_prompt("cell.shared.base", "")
+        except Exception:
+            base = ""
     # Auto-hit: under high pressure, append the Cell's dynamic doc.
     if pressure >= PROMPT_LIBRARY_PRESSURE_HIGH:
         doc_key = f"Agent-{cell_id}.md"
