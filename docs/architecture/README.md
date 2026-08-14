@@ -95,22 +95,22 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 63 files / 17,654 lines |
-| L2 Shell | 35 files / 4,294 lines |
-| L3 Cell | 327 files / 69,193 lines |
-| L4 Bridge | 107 files / 21,617 lines |
+| L1 Kernel | 63 files / 17,833 lines |
+| L2 Shell | 35 files / 4,358 lines |
+| L3 Cell | 330 files / 69,993 lines |
+| L4 Bridge | 107 files / 21,761 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 24 files / 6,226 lines |
-| L3 Memory | 41 files / 8,624 lines |
+| L3 Memory | 41 files / 8,680 lines |
 | L3 Card | 27 files / 6,439 lines |
 | L3 Services | 43 files / 11,140 lines |
 | L3 Bus | 17 files / 4,380 lines |
-| L3 Agent | 33 files / 6,554 lines |
-| L4 Handlers | 33 files / 5,735 lines |
-| API routes | 327 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=22, skill=19, security=18, provider=17, l3a=14) |
-| Params modules / constants | 8 / 1,208 |
-| Health | 0.592 (grade C) |
+| L3 Agent | 36 files / 7,286 lines |
+| L4 Handlers | 33 files / 5,825 lines |
+| API routes | 336 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=31, skill=19, security=18, provider=17, l3a=14) |
+| Params modules / constants | 8 / 1,215 |
+| Health | 0.572 (grade C) |
 
 ## Reading path
 
