@@ -15,6 +15,16 @@
 | Security gates | `GateChain` G1-G5 (constitution → clearance → audit) |
 | Boot sequence | 7-step topological bootstrap + health check |
 
+**Capability areas** (added across the memory/compression/prompt/session
+upgrades):
+
+| Area | Highlights |
+|---|---|
+| Memory | 4-ring memory + M1 domain filter (R4 gated), M2 refinery (classify→dedup→clean→score→refine→transform), M3 supply chain (R5 graph, generalized skills, re-injection), M4 correction corpus, reference-channel correlation |
+| Compression | five-level progressive pipeline (raw/summarized/retained/skeleton/headline), ratio baseline, fingerprint dedup, digest + tool-result offload caches, sensitive-info bypass scan, recursion threshold + circuit breaker |
+| System prompts | layered architecture: Cell-domain shared library (two-layer, pressure auto-hit) + global library (security/performance/extension sub-libraries), versioning (snapshot/rollback), bypass monitor (usage/success/failure + RC) |
+| Sessions | session-management: dual identity (session_id ↔ process_id), real-time monitor, anomaly auto-reload, decision-layer JSON trio (conversation/thought/tool-failures), history + dynamic loader |
+
 ## Quick start
 
 ```bash
