@@ -24,7 +24,7 @@ For each target `.py` file:
 - Find CJK characters (Unicode ranges U+4E00–U+9FFF, U+3400–U+4DBF, U+F900–U+FAFF)
   appearing inside `#` comments or `"""` docstrings.
 - Ignore CJK inside string literals that are intentional data (i18n dicts,
-  injection-detection keywords in `injection.py`).
+  injection-detection keywords).
 - Report file:line with the offending snippet.
 
 ### 3. Module Docstring Check

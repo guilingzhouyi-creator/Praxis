@@ -66,17 +66,12 @@ def test_add_negative():
 # Run with: pytest test_example.py
 ```
 
-## Detailed patterns and worked examples
-
-Detailed pattern documentation lives in `references/details.md`. Read that file when the navigation tier above is insufficient.
-
 ## Testing Best Practices
 
 ### Test Organization
 
 ```python
 # tests/
-#   __init__.py
 #   conftest.py           # Shared fixtures
 #   test_unit/            # Unit tests
 #     test_models.py
@@ -274,5 +269,3 @@ pytest --cov=myapp --cov-fail-under=80 tests/
 # Show missing lines
 pytest --cov=myapp --cov-report=term-missing tests/
 ```
-
-For advanced patterns (async testing, monkeypatching, property-based testing, database testing, CI/CD integration, and configuration), see [references/advanced-patterns.md](references/advanced-patterns.md)
