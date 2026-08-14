@@ -354,3 +354,47 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
 
         wrapped.__name__ = tool_name
         return wrapped
+
+    def context_snapshot(self) -> dict:
+        """Return this agent's precise context view (per-entity isolation).
+
+        The execution layer keeps one AgentLoop per agent entity, so this
+        snapshot contains ONLY this agent's data — never another agent's
+        trail (context isolation). It reports the conversation trail size,
+        an estimated token count, and the driving card tags/nature, plus
+        any folded-span digest reference (see digest_cache) so the operator
+        can audit exact per-agent context pressure.
+
+        Returns:
+            dict with agent/cell identity, trail stats, token estimate,
+            card tags/nature, and digest reference (if the digest cache is
+            enabled and a fold happened).
+        """
+        trail = self._context_trail or []
+        trail_tokens = 0
+        try:
+            from l3.memory.memory_ring import _estimate_tokens
+
+            for msg in trail:
+                trail_tokens += _estimate_tokens(str(msg.get("content", "") or ""))
+        except Exception:
+            logger.debug("agent_loop: context token estimate skipped", exc_info=True)
+        digest_ref = ""
+        try:
+            from l3.agent.digest_cache import digest_status, get_digest
+
+            if digest_status().get("enabled"):
+                digest_ref = get_digest(self._cell_id, str(self.task or self._card_nature or "card"))
+        except Exception:
+            logger.debug("agent_loop: digest ref lookup skipped", exc_info=True)
+        return {
+            "agent_id": self.agent_id,
+            "cell_id": self._cell_id,
+            "role": self._role,
+            "trail_messages": len(trail),
+            "trail_tokens": trail_tokens,
+            "card_tags": list(self._card_tags),
+            "card_nature": self._card_nature,
+            "digest_ref": digest_ref,
+            "isolated": True,  # per-agent instance: only this entity's data
+        }
