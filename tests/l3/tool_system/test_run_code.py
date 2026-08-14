@@ -30,10 +30,14 @@ def test_run_code_rejects_oversized_program():
     assert "exceeds" in result["error"]
 
 
-def test_run_code_rejects_unsupported_language():
-    result = run_code({"program": "print(1)", "language": "typescript", "cell_id": "cell-t"}, agent_id="tester")
+def test_run_code_rejects_unregistered_language():
+    # TypeScript is a roadmap slot with no backend registered yet — the
+    # handler must reject gracefully, listing the available backends (never
+    # a hardcoded "unsupported language" branch tied to Python).
+    result = run_code({"program": "console.log(1)", "language": "typescript", "cell_id": "cell-t"}, agent_id="tester")
     assert result["success"] is False
-    assert "unsupported language" in result["error"]
+    assert "no language backend" in result["error"]
+    assert "python" in result["error"]  # available backends are listed
 
 
 def test_run_code_times_out_on_hot_loop():

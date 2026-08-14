@@ -185,12 +185,14 @@ class AgentLoopContextMixin:
         # the presentation mode and inject the run_code SDK + usage when the
         # transport is exposed. ``native`` (default) hides run_code; ``code``
         # exposes only it (tools:code-only); ``both`` exposes everything.
+        # The language backend owns the SDK and usage text — the framework
+        # never hardcodes a language.
         from l1.kernel.params.tool import (
             TOOL_PRESENTATION_BOTH,
             TOOL_PRESENTATION_CODE,
             TOOL_PRESENTATION_NATIVE,
         )
-        from l3.tool_system.tool_presentation import get_presentation_mode, get_renderer
+        from l3.tool_system.tool_presentation import get_language_backend, get_presentation_mode
 
         presentation = get_presentation_mode()
         code_mode = presentation in (TOOL_PRESENTATION_CODE, TOOL_PRESENTATION_BOTH)
@@ -216,9 +218,9 @@ class AgentLoopContextMixin:
             if t.parallel_safe:
                 read_only_tools.append(wrapped)
         if code_mode:
-            renderer = get_renderer()
-            if renderer is not None:
-                sdk = renderer.render_sdk(
+            backend = get_language_backend()
+            if backend is not None:
+                sdk = backend.render_sdk(
                     [
                         {
                             "name": t.name,
@@ -231,7 +233,9 @@ class AgentLoopContextMixin:
                         for t in self._tools
                     ]
                 )
-                usage = get_prompt("agent_loop.run_code_usage", "")
+                # Language-specific usage from the backend; a praxis.yaml
+                # prompt override (agent_loop.run_code_usage) wins if present.
+                usage = get_prompt("agent_loop.run_code_usage", "") or backend.render_usage()
                 if usage:
                     system = (system + "\n\n" + usage) if system else usage
                 if sdk:

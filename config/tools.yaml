@@ -363,8 +363,8 @@ layer_3:
       description: "Execute a model-written program that composes tool calls (Code Mode / PTC)"
       handler: l3.tools._run_code.run_code
       params:
-        - {name: program, type: string, required: true, description: "Python program that composes tool calls via the generated SDK"}
-        - {name: language, type: string, optional: true, default: "python", description: "Program language (python is the shipped renderer)"}
+        - {name: program, type: string, required: true, description: "Program (in the target language backend) that composes tool calls via the generated SDK"}
+        - {name: language, type: string, optional: true, default: "python", description: "Target language backend (must have a registered backend)"}
         - {name: cell_id, type: string, optional: true, description: "Cell owning the per-Cell program cache area"}
     db_migrate:
       description: "Run database migration scripts"

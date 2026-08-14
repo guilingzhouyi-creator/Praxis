@@ -247,7 +247,9 @@ CODE_RUN_MAX_CHARS: Final[int] = 16_000
 CODE_RUN_TIMEOUT: Final[float] = 60.0
 # Max result characters returned to the model context from one run_code
 CODE_RUN_MAX_RESULT_CHARS: Final[int] = 8_000
-# Default language for the generated SDK when no renderer is configured
+# Default language backend for run_code when none is requested (config
+# default; any registered CodeLanguageBackend is a valid target, not just
+# this one — see tool_presentation.get_language_backend)
 CODE_RUN_DEFAULT_LANGUAGE: Final[str] = "python"
 # Max program entries kept in one Cell's run_code cache area
 CODE_RUN_CACHE_MAX_ENTRIES: Final[int] = 64

@@ -19,7 +19,7 @@ re-entering and re-executing near-identical programs.
 
 | Module | Role |
 |---|---|
-| `l3/tool_system/tool_presentation.py` | Presentation-mode runtime switch (`native`/`code`/`both`), `CodeRenderer` seam, Python renderer, per-Cell program cache dir |
+| `l3/tool_system/tool_presentation.py` | Presentation-mode runtime switch (`native`/`code`/`both`), language-agnostic `CodeLanguageBackend` composite (SDK render / usage / file suffix / execute), Python backend, per-Cell program cache dir |
 | `l3/tool_system/run_code_cache.py` | Per-Cell program cache: tiered-cache storage, tf-idf similarity, TTL renewal, incremental-patch evidence, reclamation |
 | `l3/tools/_run_code.py` | `run_code` tool handler: validate → cache-hit check → sandboxed subprocess execution |
 | `l1/kernel/params/tool.py` | `TOOL_PRESENTATION_*` / `CODE_RUN_*` constants (modes, limits, cache TTL/floor) |
@@ -64,9 +64,13 @@ submit program → validate (size/language) → per-Cell cache similarity hit?
 - `run_code` tool params: `program` (required str), `language` (default
   "python"), `cell_id` (optional). Registered under `layer_3/system` in
   `config/tools.yaml` (DANGER-3 posture, pipeline gates apply).
-- `CodeRenderer` seam: `language` property + `render_sdk(tools)` +
-  `render_usage()`; Python ships as the first renderer, TypeScript/Rust
-  slots reserved (multi-language roadmap).
+- `CodeLanguageBackend` composite: `language` + `file_suffix` properties,
+  `render_sdk(tools)` + `render_usage()` for the prompt, and `execute(path,
+  timeout)` for execution. Python ships as the first backend; TypeScript /
+  Rust slots are reserved (see
+  `docs/design/praxis-multilang-migration.md` for the conversion path). The
+  framework only calls `get_language_backend()` — it never hardcodes a
+  language.
 - Renderer output is deterministic (sorted, byte-stable) so the SDK section
   forms a stable prompt prefix for vendor KV-cache hits
   (DeepSeek/OpenAI `prompt_cache_retention`, Anthropic `cache_breakpoints`).

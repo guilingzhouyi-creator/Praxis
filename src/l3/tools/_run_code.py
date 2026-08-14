@@ -2,16 +2,20 @@
 
 The ``run_code`` tool is the Code Mode / PTC transport: under the ``code``
 presentation mode the registry exposes only this reserved tool plus a
-generated SDK, so the model writes a program (Python today; TypeScript /
-Rust slots are open on the multi-language roadmap) that composes multi-step
-tool calls in one sandboxed execution instead of one tool-call per step.
-Only the program's printed output and return value re-enter the model
-context; every tool call the program makes is still recorded on the tool
-audit chain by the pipeline.
+generated SDK, so the model writes a program in the configured language
+backend (Python today; TypeScript / Rust slots per the multi-language
+roadmap) that composes multi-step tool calls in one sandboxed execution
+instead of one tool-call per step. Only the program's printed output and
+return value re-enter the model context; every tool call the program makes
+is still recorded on the tool audit chain by the pipeline.
+
+The framework is LANGUAGE-AGNOSTIC: the language backend owns the file
+suffix and the execution command (``backend.execute``), and a language is
+rejected only when no backend is registered for it — never by name.
 
 The program is written into the caller's per-Cell program cache area
-(``tool_presentation.cell_program_dir``) and executed as a subprocess with
-a hard timeout, mirroring the terminal tool's execution posture.
+(``tool_presentation.cell_program_dir``) and executed with a hard timeout,
+mirroring the terminal tool's execution posture.
 """
 
 from __future__ import annotations
@@ -19,7 +23,6 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-import sys
 
 from l1.kernel.discovery import get_tool_config
 from l1.kernel.params.tool import (
@@ -28,7 +31,6 @@ from l1.kernel.params.tool import (
     CODE_RUN_MAX_RESULT_CHARS,
     CODE_RUN_TIMEOUT,
 )
-from l1.kernel.platform import run_shell
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +47,8 @@ def run_code(args: dict, agent_id: str) -> dict:
 
     Args:
         args: dict with ``program`` (required), ``language`` (optional,
-            default "python"), and ``cell_id`` (optional, for the per-Cell
-            program cache area).
+            defaults to the configured language backend), and ``cell_id``
+            (optional, for the per-Cell program cache area).
         agent_id: calling agent id (audit attribution).
 
     Returns:
@@ -55,18 +57,26 @@ def run_code(args: dict, agent_id: str) -> dict:
     program = str(args.get("program", "") or "")
     language = str(args.get("language", "") or CODE_RUN_DEFAULT_LANGUAGE).lower()
     cell_id = str(args.get("cell_id", "") or "")
+
+    from l3.tool_system.tool_presentation import (
+        cell_program_dir,
+        get_language_backend,
+        presentation_status,
+    )
+
+    backend = get_language_backend(language)
     error = ""
     if not program.strip():
         error = "program is required"
     elif len(program) > CODE_RUN_MAX_CHARS:
         error = f"program exceeds {CODE_RUN_MAX_CHARS} chars"
-    elif language != "python":
-        error = f"unsupported language: {language} (python is the shipped renderer)"
+    elif backend is None:
+        available = ", ".join(presentation_status()["languages"]) or "none"
+        error = f"no language backend for '{language}' (available: {available})"
     if error:
         return {"success": False, "error": error}
 
     from l3.tool_system.run_code_cache import get_run_code_cache
-    from l3.tool_system.tool_presentation import cell_program_dir
 
     # Phase 1.5: reuse a cached program when an approximate hit exists — the
     # caller then supplies only an incremental patch instead of the full
@@ -86,7 +96,7 @@ def run_code(args: dict, agent_id: str) -> dict:
         }
 
     cache_dir = cell_program_dir(cell_id)
-    program_path = cache_dir / f"run_{agent_id.replace(os.sep, '_')}.py"
+    program_path = cache_dir / f"run_{agent_id.replace(os.sep, '_')}{backend.file_suffix}"
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
         program_path.write_text(program, encoding="utf-8")
@@ -94,9 +104,8 @@ def run_code(args: dict, agent_id: str) -> dict:
         return {"success": False, "error": f"cannot prepare program: {e}"}
 
     timeout = float(get_tool_config("code_run_timeout", CODE_RUN_TIMEOUT))
-    cmd = f"{sys.executable} {program_path}"
     try:
-        proc = run_shell(cmd, timeout=timeout)
+        proc = backend.execute(program_path, timeout=timeout)
         stdout = _snip(proc.stdout or "", CODE_RUN_MAX_RESULT_CHARS)
         stderr = _snip(proc.stderr or "", CODE_RUN_MAX_RESULT_CHARS // 4)
         return {
