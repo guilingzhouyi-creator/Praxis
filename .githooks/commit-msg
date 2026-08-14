@@ -70,10 +70,27 @@ if printf '%s' "$msg" | grep -qP '[\x{4e00}-\x{9fa5}]'; then
   exit 1
 fi
 
-# 2. Co-Authored-By attribution required
-if ! printf '%s' "$msg" | grep -q "Co-Authored-By:"; then
+# 2. Co-Authored-By attribution required — exactly one, well-formed
+#    Pattern: Co-Authored-By: <Agent> (<model>) <noreply@domain>
+#    - exactly ONE trailer (no stacking multiple agents on one commit)
+#    - a real name + parenthesized model + noreply email (no bare names)
+CAB_COUNT=$(printf '%s' "$msg" | grep -c "Co-Authored-By:")
+if [ "$CAB_COUNT" -lt 1 ]; then
   echo "❌ Commit must include a Co-Authored-By trailer for attribution." >&2
-  echo "   Example: Co-Authored-By: OpenCode (deepseek-v4-flash) <noreply@opencode.ai>" >&2
+  echo "   Example: Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >&2
+  echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
+  exit 1
+fi
+if [ "$CAB_COUNT" -gt 1 ]; then
+  echo "❌ Exactly ONE Co-Authored-By trailer is allowed (found $CAB_COUNT)." >&2
+  echo "   Stacking multiple agents on one commit inflates attribution —" >&2
+  echo "   split the work across commits or pick the primary authoring agent." >&2
+  echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
+  exit 1
+fi
+if ! printf '%s' "$msg" | grep -qE '^Co-Authored-By: [^:<>]+ \([^()]+\) <noreply@[a-z0-9.-]+>$'; then
+  echo "❌ Co-Authored-By must match: \`Co-Authored-By: <Agent> (<model>) <noreply@domain>\`" >&2
+  echo "   Example: Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >&2
   echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
   exit 1
 fi
