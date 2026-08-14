@@ -128,7 +128,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // Stable title (no date) so a persistent failure suppresses
