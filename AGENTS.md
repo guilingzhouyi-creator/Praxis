@@ -313,6 +313,17 @@ ALWAYS run `bash scripts/sh/check-worktree.sh` (exit 0 required) before any
 merges; never leave uncommitted changes on it. A plan comes before the branch;
 the branch comes before the edit. (Per-agent multi-tree: `## Parallel collaboration`.)
 
+**Worktree venv — no isolated environment.** A worktree is a separate
+checkout and has NO `.venv/` of its own — the repo venv lives only on the
+main tree. Tests, hooks, and scripts run inside a worktree MUST target the
+main tree's venv: activate it first (`source <main-tree>/.venv/bin/activate`)
+or prefix every command with its absolute path (e.g.
+`<main-tree>/.venv/bin/python -m pytest ...`). Never call a bare `python` or
+a worktree-local `.venv/bin/python` from inside a worktree — `python: command
+not found` (pre-commit/commit-msg hooks, `verify-completion.sh`) and
+`.venv/bin/python: No such file or directory` (pytest) are the two symptoms
+of this exact mistake.
+
 **Architecture doc sync — mandatory with architecture-level changes.** Any
 architecture-level adjustment (new layer/module/service, changed contract,
 renamed subsystem, moved path, new parameter domain) MUST update the
