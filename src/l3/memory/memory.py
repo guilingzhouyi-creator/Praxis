@@ -53,6 +53,10 @@ class MemoryManager(MemoryPersistMixin, MemoryIngestMixin, MemoryQueryMixin, Mem
         # Shared lock for the persist/ingest mixins (memory_persist /
         # memory_ingest acquire self._lock on their write paths).
         self._lock = threading.Lock()
+        # P0-②: entry_id → ring index (O(1) promote lookups). Maintained by
+        # remember/promote; a stale entry falls back to the cross-ring scan
+        # (correctness is never compromised).
+        self._entry_ring: dict[str, int] = {}
 
     def set_persist_dir(self, path: str) -> None:
         """Set the persistence directory for Ring 2 (JSONL) and Ring 3 (SQLite).

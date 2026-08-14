@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 _lock = threading.RLock()
 # skill name -> usage count pending flush
 _pending: dict[str, int] = {}
+# Total pending events (O(1) threshold check — no per-event sum, P1-③).
+_total_pending: int = 0
 _last_flush: float = 0.0
 _installed: bool = False
 
@@ -31,10 +33,11 @@ _FLUSH_INTERVAL = 60.0  # or when this many seconds elapsed
 
 def _flush() -> int:
     """Flush the pending skill-usage events into R3 memory (one batch)."""
-    global _pending, _last_flush
+    global _pending, _total_pending, _last_flush
     with _lock:
         batch = dict(_pending)
         _pending = {}
+        _total_pending = 0
         _last_flush = time.time()
     if not batch:
         return 0
@@ -64,11 +67,12 @@ def _flush() -> int:
 
 def _on_usage(skill_name: str) -> None:
     """Usage hook: aggregate the event, flush when threshold/interval hit."""
-    global _pending, _last_flush
+    global _pending, _total_pending, _last_flush
     with _lock:
         _pending[skill_name] = _pending.get(skill_name, 0) + 1
-        pending_total = sum(_pending.values())
-        due = pending_total >= _BATCH_SIZE or (time.time() - _last_flush >= _FLUSH_INTERVAL)
+        _total_pending += 1
+        # O(1) threshold via the running total — no per-event sum (P1-③).
+        due = _total_pending >= _BATCH_SIZE or (time.time() - _last_flush >= _FLUSH_INTERVAL)
     if due:
         _flush()
 
@@ -90,16 +94,17 @@ def install_feedback_hook() -> bool:
 
 
 def feedback_pending() -> int:
-    """Pending un-flushed usage events (diagnostics / tests)."""
+    """Pending un-flushed usage events (O(1) via the running total)."""
     with _lock:
-        return sum(_pending.values())
+        return _total_pending
 
 
 def reset_feedback() -> None:
     """Reset the queue + installed flag (tests / lifecycle)."""
-    global _pending, _installed, _last_flush
+    global _pending, _total_pending, _installed, _last_flush
     with _lock:
         _pending = {}
+        _total_pending = 0
         _installed = False
         # Anchor the flush clock to now so a fresh reset never triggers an
         # immediate time-based flush on the very first usage event.
