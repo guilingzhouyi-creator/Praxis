@@ -194,6 +194,16 @@ Posture is a load-bearing security lever — never weaken it silently.
   enforcement is NOT enabled on this repository (`Aplese/Praxis`), so
   unsigned commits are accepted. Keep `commit.gpgsign` off by default;
   signing is only required if a GitCode hook is later re-enabled.
+- **CompletionJudge decides "done", not the agent** (machine verdict):
+  before declaring a task complete, run
+  `bash scripts/sh/verify-completion.sh` — the machine checks 11
+  dimensions (tests / coverage / net delta / doc-stats / lint /
+  dependency CVEs / complexity / import cycles / singleton drift /
+  CHANGELOG freshness / doc-index consistency). Only a `COMPLETE`
+  verdict authorizes "done"; `INCOMPLETE` returns the evidence gap and
+  the agent MUST continue working (ratchet property: a pass never
+  reopens). Every run is logged to `.praxis/judge-runs.jsonl` and the
+  aggregate dashboard to `docs/judge-stats.md` (see `judge-stats.sh`).
 - **Remote PRs (GitHub mirror) usually carry unsigned / non-conventional
   commits** — run `bash scripts/sh/verify-pr-merge.sh <branch>` BEFORE merging
   (signature + English Conventional-Commits subject + conflict pre-check). If
@@ -214,6 +224,27 @@ Posture is a load-bearing security lever — never weaken it silently.
   branches on the same merge-base so changes can be aligned before merging
   (conflicts are reviewed by the merge Agent afterwards). Override the base
   with `MAIN_BASE=<ref>` if `origin/main` is not the intended comparison.
+
+  **After a rejection — the required agent behavior (MANDATORY):**
+  1. **Re-examine, do not shortcut**: review the work and ask "is it
+     REALLY done?" — the gate rejected it for a reason; re-check against
+     the CompletionJudge verdict and Definition of done before touching
+     anything.
+  2. **Never self-waive**: do NOT bypass the gate with `MERGE_GATE_SKIP=1`
+     (or any other bypass) on your own judgment. A waiver is the human's
+     decision, not the agent's — if you believe the rejection is wrong,
+     present the case and ask the user for explicit instruction.
+  3. **Keep accumulating on YOUR worktree branch**: continue committing on
+     the same feature worktree branch you started from until the net delta
+     qualifies (≥ 1000) and the gate passes — do not start a new branch
+     from main to dodge the accumulation rule, and do not try alternate
+     merge paths.
+  4. **Ask the user when growth stalls**: if the net delta cannot grow
+     further (work is genuinely complete but below threshold), STOP and
+     report to the user with an explicit question ("should this land
+     despite being below the threshold?") — never decide for them.
+  5. **Every subsequent commit goes through the same gate** until it
+     passes; a rejection is not a free pass for the next attempt.
 
 ## Remote strategy & CI
 
@@ -293,6 +324,9 @@ registered in `## Key conventions`, `## Contract versioning`, and
 the docs (and `params/` where applicable) FIRST — never introduce one silently.
 
 **Definition of done (before merge).** A change is merge-ready only when ALL hold:
+- **Machine verdict first**: `bash scripts/sh/verify-completion.sh` reports
+  `COMPLETE` (11-dimension gate; `INCOMPLETE` → keep working, do NOT declare
+  done). This is the machine's answer to "is it really finished?".
 - **Worktree clean**: branch committed, no in-flight edits on main
   (`scripts/sh/check-worktree.sh` exit 0 before any switch).
 - **Docs synced**: architecture-level changes ship with their
