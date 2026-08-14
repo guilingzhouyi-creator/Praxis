@@ -109,8 +109,17 @@ class PythonLanguageBackend(CodeLanguageBackend):
         return ".py"
 
     def render_sdk(self, tools: list[dict]) -> str:
-        """Render a Python SDK: one typed callable per visible tool."""
-        lines = ["# Generated tool SDK — call these bindings from your program.", "from typing import Any"]
+        """Render a Python SDK: one typed callable per visible tool.
+
+        Each binding routes through the injected ``_praxis_call`` global,
+        which the run_code executor wires to the tool pipeline (every call
+        is recorded on the audit chain with the run_code call as parent).
+        """
+        lines = [
+            "# Generated tool SDK — call these bindings from your program.",
+            "# Each binding executes the real tool through the pipeline.",
+            "from typing import Any",
+        ]
         for tool in sorted(tools, key=lambda t: t.get("name", "")):
             name = tool.get("name", "")
             desc = tool.get("description", "")
@@ -118,7 +127,11 @@ class PythonLanguageBackend(CodeLanguageBackend):
             args = ", ".join(f"{p.get('name', 'arg')}: Any" for p in params)
             lines.append(f"def {name}({args}) -> Any:")
             lines.append(f'    """{desc}"""')
-            lines.append("    ...")
+            if params:
+                kw = ", ".join(f"{p.get('name', 'arg')}={p.get('name', 'arg')}" for p in params)
+                lines.append(f"    return _praxis_call({name!r}, {kw})")
+            else:
+                lines.append(f"    return _praxis_call({name!r})")
         return "\n".join(lines)
 
     def render_usage(self) -> str:

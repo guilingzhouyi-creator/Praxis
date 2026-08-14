@@ -75,6 +75,59 @@ def test_cache_miss_executes_fresh_program():
     reset_run_code_cache()
 
 
+def test_run_code_wires_bindings_to_pipeline():
+    """Python programs run in-process: SDK bindings execute the real tool.
+
+    ``_praxis_call`` must route through the pipeline (audit chain), not be a
+    no-op stub — a call to an unregistered tool surfaces the pipeline result.
+    """
+    reset_run_code_cache()
+    try:
+        # read_file is not registered in this unit context, but the binding
+        # must still execute through the pipeline (UNKNOWN/error surfaced).
+        result = run_code(
+            {
+                "program": 'r = _praxis_call("read_file", path="/tmp/nope.txt")\nprint("done", r.get("success"))',
+                "cell_id": "cell-wire",
+            },
+            agent_id="w",
+        )
+        assert result["success"] is True
+        assert result.get("bindings_wired") is True
+        assert "done" in result["result"]
+    finally:
+        reset_run_code_cache()
+
+
+def test_run_code_binding_parent_chain_linked():
+    """The binding call inherits the run_code call as parent on the chain.
+
+    In production the pipeline wraps the run_code handler in
+    ``trace_scope(call_id)``; here we simulate that scope so the binding's
+    parent id resolves to the run_code call id.
+    """
+    from l1.kernel.tool_chain import get_tool_chain, reset_tool_chain
+    from l3.error_bus.trace import trace_scope
+
+    reset_tool_chain()
+    reset_run_code_cache()
+    try:
+        with trace_scope("rc-parent"):
+            run_code(
+                {"program": '_praxis_call("read_file", path="/tmp/x")', "cell_id": "cell-pc"},
+                agent_id="w",
+            )
+        chain = get_tool_chain()
+        calls = chain.recent(limit=10)
+        names = [c["tool"] for c in calls]
+        assert "read_file" in names
+        rf = next(c for c in calls if c["tool"] == "read_file")
+        assert rf["call_id"].startswith("rc-parent") or rf["depth"] >= 1
+    finally:
+        reset_run_code_cache()
+        reset_tool_chain()
+
+
 def test_pipeline_code_only_rejects_native_tools():
     """tools:code-only — code presentation blocks native tool names."""
     from l3.tool_system.tool_pipeline import get_pipeline, reset_pipeline

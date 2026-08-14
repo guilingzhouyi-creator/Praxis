@@ -42,6 +42,97 @@ def _snip(text: str, limit: int) -> str:
     return text[:limit] + f"...[truncated {len(text) - limit} chars]"
 
 
+def _make_binding(agent_id: str):
+    """Build the ``_praxis_call`` binding injected into run_code programs.
+
+    The binding executes the named tool through the real pipeline so every
+    call lands on the audit chain, linked to the run_code call as parent
+    (the pipeline wraps this handler in ``trace_scope(call_id)``, so the
+    current trace id IS the run_code call id).
+    """
+    from l3.error_bus.core import get_trace_id
+    from l3.tool_system.tool_pipeline import get_pipeline
+
+    def _praxis_call(tool_name: str, **kwargs) -> dict:
+        return get_pipeline().execute(
+            tool_name,
+            agent_id,
+            args=kwargs or {},
+            _parent_call_id=get_trace_id() or "",
+        )
+
+    return _praxis_call
+
+
+def _exec_program_inline(program: str, agent_id: str, timeout: float) -> dict:
+    """Execute a Python program in-process with injected tool bindings.
+
+    The program runs under a hard timeout; its stdout is captured and only
+    the captured output re-enters the model context. Every SDK binding call
+    (``_praxis_call``) executes the real tool through the pipeline and is
+    recorded on the audit chain.
+    """
+    import io
+    import signal
+    from contextlib import redirect_stdout
+
+    namespace: dict = {"_praxis_call": _make_binding(agent_id), "__name__": "__main__"}
+    buf = io.StringIO()
+
+    def _timeout_handler(_signum, _frame):
+        raise TimeoutError(f"run_code program timed out after {timeout}s")
+
+    old_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(max(1, int(timeout)))
+    try:
+        with redirect_stdout(buf):
+            exec(compile(program, "<run_code>", "exec"), namespace)  # noqa: S102 - DANGER-3 tool
+        return {"success": True, "stdout": buf.getvalue()}
+    except TimeoutError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:  # program error — report, do not crash the pipeline
+        return {"success": False, "error": f"program error: {e}", "stdout": buf.getvalue()}
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
+def _exec_backend(backend, program_path, program: str, agent_id: str, timeout: float, cache_dir) -> dict:
+    """Execute a program via the language backend.
+
+    Python programs run in-process with injected tool bindings so every SDK
+    binding call executes the real tool through the pipeline (audit chain,
+    run_code call as parent). Other languages fall back to ``backend.execute``
+    (subprocess).
+    """
+    if backend.language == "python":
+        res = _exec_program_inline(program, agent_id, timeout)
+        success = res.get("success", False)
+        return {
+            "success": success,
+            "result": _snip(res.get("stdout", ""), CODE_RUN_MAX_RESULT_CHARS),
+            "error": res.get("error", ""),  # surfaced alongside logs for parity
+            "logs": _snip(res.get("error", ""), CODE_RUN_MAX_RESULT_CHARS // 4),
+            "exit_code": 0 if success else 1,
+            "cache_dir": str(cache_dir),
+            "bindings_wired": True,
+        }
+    try:
+        proc = backend.execute(program_path, timeout=timeout)
+        return {
+            "success": proc.returncode == 0,
+            "result": _snip(proc.stdout or "", CODE_RUN_MAX_RESULT_CHARS),
+            "logs": _snip(proc.stderr or "", CODE_RUN_MAX_RESULT_CHARS // 4),
+            "exit_code": proc.returncode,
+            "cache_dir": str(cache_dir),
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"program timed out after {timeout}s", "cache_dir": str(cache_dir)}
+    except Exception as e:  # pragma: no cover - defensive at the boundary
+        return {"success": False, "error": str(e), "cache_dir": str(cache_dir)}
+
+
 def run_code(args: dict, agent_id: str) -> dict:
     """Execute a model-written program that composes tool calls.
 
@@ -104,22 +195,4 @@ def run_code(args: dict, agent_id: str) -> dict:
         return {"success": False, "error": f"cannot prepare program: {e}"}
 
     timeout = float(get_tool_config("code_run_timeout", CODE_RUN_TIMEOUT))
-    try:
-        proc = backend.execute(program_path, timeout=timeout)
-        stdout = _snip(proc.stdout or "", CODE_RUN_MAX_RESULT_CHARS)
-        stderr = _snip(proc.stderr or "", CODE_RUN_MAX_RESULT_CHARS // 4)
-        return {
-            "success": proc.returncode == 0,
-            "result": stdout,
-            "logs": stderr,
-            "exit_code": proc.returncode,
-            "cache_dir": str(cache_dir),
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": f"program timed out after {timeout}s",
-            "cache_dir": str(cache_dir),
-        }
-    except Exception as e:  # pragma: no cover - defensive at the boundary
-        return {"success": False, "error": str(e), "cache_dir": str(cache_dir)}
+    return _exec_backend(backend, program_path, program, agent_id, timeout, cache_dir)
