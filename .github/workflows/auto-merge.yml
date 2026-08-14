@@ -91,14 +91,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR="${{ steps.pr.outputs.pr_number }}"
+          # Labels are auxiliary — a missing label must never fail the
+          # evaluate job (sync PRs are created without any of these labels).
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" \
             --remove-label "auto-merge-ready,needs-review,merge-conflict" || true
           if [ "${{ steps.mergeable.outputs.mergeable_state }}" = "CONFLICTING" ]; then
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "merge-conflict"
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "merge-conflict" || true
           elif [ "${{ steps.classify.outputs.is_large }}" = "True" ]; then
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "needs-review"
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "needs-review" || true
           else
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "auto-merge-ready"
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "auto-merge-ready" || true
           fi
 
       - name: Comment verdict
