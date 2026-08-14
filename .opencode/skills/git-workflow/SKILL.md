@@ -43,28 +43,10 @@ Checklist for the Praxis git governance process. AGENTS.md (`## Remote strategy`
   - Merge/Revert commits are exempt (use git's default `Merge ...`/`Revert ...` message — a hand-typed lowercase `merge:` gets full checks).
   - Dependabot merge gate reads `.git/MERGE_HEAD` — see the dependabot-merge skill.
 
-## CompletionJudge — Machine Decides "Done" (Run BEFORE Declaring Done)
+## CompletionJudge & Net-Delta Gate
 
-- `bash scripts/sh/verify-completion.sh` — 11-dimension completion gate. Only a `COMPLETE` verdict authorizes "done"; `INCOMPLETE` returns the missing evidence and the agent MUST continue working (ratchet: a pass never reopens).
-- Dimensions: tests / coverage (≥60) / net delta (mainline gate) / doc-stats drift / lint+mypy / pip-audit CVEs / complexity (long_functions >200) / import cycles / singleton drift / CHANGELOG freshness / doc-index consistency.
-- Per-check skip: `COMPLETION_TESTS=0` etc.; batch skip: `--skip=tests,coverage` (push-both uses this fast mode).
-- Every run logs a machine-readable record to `.praxis/judge-runs.jsonl` (gitignored); `bash scripts/sh/judge-stats.sh` aggregates it and `docs/judge-stats.md` is the committed dashboard (auto-refreshed on main pushes).
-
-## Mainline Net-Delta Gate (verify-main-merge-gate.sh)
-
-`bash scripts/sh/verify-main-merge-gate.sh` (auto-run by `push-both.sh main`; override base with `MAIN_BASE=<ref>`) — main must not be inflated by repeated tiny commits. The gate computes the NET code delta (added − deleted, code only) of `origin/main..main` with three locks:
-
-- **LOCK 1 — comment stripping**: added comment lines are subtracted from the delta; comment padding cannot pass.
-- **LOCK 2 — symmetric deletion gate**: net deletions are NOT an automatic exemption — they must accumulate to the same threshold (≥ 1000) as additions; small add+delete churn is rejected.
-- **LOCK 3 — hygiene ceiling**: ≥ 60% added lines being comments → rejected outright.
-- Thresholds: net < 600 → reject; 600 ≤ net < 1000 → reject; net ≥ 1000 → allow; net ≤ 0 with deletions ≥ 1000 → allow; docs-only ≤ 5000 → allow.
-
-**After a rejection (MANDATORY behavior):**
-1. Re-examine the work — the gate rejected it for a reason; re-check the CompletionJudge verdict and Definition of done.
-2. **Never self-waive** (`MERGE_GATE_SKIP=1` or any other bypass) on your own judgment — a waiver is the human's decision. If the rejection is wrong, present the case and ask the user.
-3. Keep accumulating on YOUR worktree branch until the net delta qualifies — no new branch from main to dodge the accumulation rule, no alternate merge paths.
-4. If the work is genuinely complete but below threshold, STOP and ask the user ("should this land despite being below the threshold?") — never decide for them.
-5. Every subsequent commit goes through the same gate until it passes.
+- **Declaration of done**: run `bash scripts/sh/verify-completion.sh` before declaring any task complete — only a `COMPLETE` verdict authorizes "done". Full 11-dimension breakdown: see the **completion-judge** skill.
+- **Mainline merges**: `verify-main-merge-gate.sh` (auto-run by `push-both.sh main`) gates the net code delta with three locks (comment stripping / symmetric deletion / hygiene ceiling). Thresholds + mandatory post-rejection behavior: see the **net-delta-gate** skill.
 
 ## Push Discipline
 
