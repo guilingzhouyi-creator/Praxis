@@ -72,3 +72,42 @@ def test_to_dict_snapshot():
     dvg.register_tool_deps("tool_a", ["tool_b"])
     dvg.register_tool_deps("tool_b", [])
     assert dvg.to_dict() == {"tool_a": ["tool_b"], "tool_b": []}
+
+
+def test_register_tool_with_deps_wires_dvg_edge():
+    """register_tool_with_deps registers the spec AND the DVG edge at once."""
+    from l3.tool_system.tool_registry import get_registry, reset_registry
+    from l3.tool_system.tool_spec import ToolSpec
+
+    reset_registry()
+    try:
+        reg = get_registry()
+        reg.register(ToolSpec(name="base", description="b", category="sys", ring="ring_1", danger=0, parameters=[]))
+        get_dvg().register_tool_deps("base", [])
+        ok = reg.register_tool_with_deps(
+            ToolSpec(name="comp", description="c", category="sys", ring="ring_1", danger=0, parameters=[]),
+            deps=["base"],
+        )
+        assert ok is True
+        assert reg.get("comp") is not None
+        assert get_dvg().to_dict().get("comp") == ["base"]
+        assert get_dvg().can_run("comp") is True
+    finally:
+        reset_registry()
+
+
+def test_register_tool_with_deps_missing_prereq_false():
+    """can_run stays False when the DVG prerequisite is absent."""
+    from l3.tool_system.tool_registry import get_registry, reset_registry
+    from l3.tool_system.tool_spec import ToolSpec
+
+    reset_registry()
+    try:
+        reg = get_registry()
+        reg.register_tool_with_deps(
+            ToolSpec(name="orphan", description="x", category="sys", ring="ring_1", danger=0, parameters=[]),
+            deps=["missing"],
+        )
+        assert get_dvg().can_run("orphan") is False
+    finally:
+        reset_registry()

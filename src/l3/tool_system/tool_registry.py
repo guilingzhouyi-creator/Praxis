@@ -66,6 +66,33 @@ class ToolRegistry:
         """Register a tool spec; returns True on success."""
         return self._registry.register(spec, source=source)
 
+    def register_tool_with_deps(self, spec: ToolSpec, deps: list[str], *, source: str = "code") -> bool:
+        """Register a tool spec AND its DVG dependency edges in one call.
+
+        Convenience for the config-driven tool set: a tool that declares
+        ``deps`` in ``config/discovery/dvg.yaml`` is registered here with its
+        prerequisites, so the tool pipeline's ``can_run`` preflight sees the
+        dependency immediately. A DVG cycle is rejected by the graph (the
+        edge is dropped, spec registration still succeeds) — never fatal.
+
+        Args:
+            spec: tool spec to register.
+            deps: prerequisite tool names for the DVG edge.
+            source: registration source tag.
+
+        Returns:
+            True when the spec was registered (DVG edge success is best-effort).
+        """
+        ok = self._registry.register(spec, source=source)
+        if ok and deps:
+            try:
+                from l3.tool_system.dvg import get_dvg
+
+                get_dvg().register_tool_deps(spec.name, list(deps))
+            except Exception:
+                logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
+        return ok
+
     def unregister(self, name: str) -> bool:
         """Remove a tool by name; returns True if it was registered."""
         return self._registry.unregister(name)

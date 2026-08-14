@@ -397,3 +397,31 @@ layer_3:
       description: "Reset workspace to initial state"
       handler: l3.tools._env.reset_workspace
       params: [{name: workspace, type: string, required: true}]
+
+  attack:
+    http_probe:
+      description: "Probe an HTTP(S) URL with HEAD/GET (security-test posture only)"
+      handler: l3.tools._attack.http_probe
+      params:
+        - {name: url, type: string, required: true, description: "http(s):// target"}
+        - {name: method, type: string, optional: true, default: "HEAD", description: "HEAD|GET"}
+        - {name: domain, type: string, optional: true, description: "Offensive domain owning the call (whitelist scope)"}
+    tcp_scan:
+      description: "TCP connect-scan a host over a bounded port list (security-test posture only)"
+      handler: l3.tools._attack.tcp_scan
+      params:
+        - {name: host, type: string, required: true}
+        - {name: ports, type: string, required: true, description: "comma-separated port list (max 64)"}
+        - {name: domain, type: string, optional: true}
+    dns_lookup:
+      description: "Resolve a hostname to A/AAAA records (security-test posture only)"
+      handler: l3.tools._attack.dns_lookup
+      params:
+        - {name: host, type: string, required: true}
+        - {name: domain, type: string, optional: true}
+    url_fetch:
+      description: "Fetch a URL body with size cap (security-test posture only)"
+      handler: l3.tools._attack.url_fetch
+      params:
+        - {name: url, type: string, required: true, description: "http(s):// target"}
+        - {name: domain, type: string, optional: true}

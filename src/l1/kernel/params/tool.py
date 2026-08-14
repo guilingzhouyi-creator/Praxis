@@ -308,3 +308,12 @@ CODE_RUN_SIMILARITY_MIN_SCORE: Final[float] = 0.35
 CODE_RUN_CACHE_LAYER: Final[str] = "L1"
 # TieredCache key prefix for run_code program entries
 CODE_RUN_CACHE_KEY_PREFIX: Final[str] = "run_code:"
+
+
+# ── Attack-posture tool suite (recon / scan / fetch) ──
+# Seconds allowed for a single probe/scan/lookup network op
+ATTACK_PROBE_TIMEOUT: Final[float] = 5.0
+# Max body bytes returned by url_fetch (truncated beyond)
+ATTACK_FETCH_MAX_BYTES: Final[int] = 8_192
+# Max ports scanned per tcp_scan call (bounded)
+ATTACK_SCAN_MAX_PORTS: Final[int] = 64

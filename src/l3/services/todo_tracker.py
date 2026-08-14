@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 
 from l1.kernel.params.system import LOG_TRUNC_40, LOG_TRUNC_60
 from l1.kernel.paths import get_paths as _gp
@@ -323,3 +324,80 @@ class TodoTracker:
             if t["content"] == content:
                 return t
         return None
+
+
+class TodoRegister:
+    """In-memory register of per-executor TodoTrackers (multi-AgentLoop view).
+
+    Every AgentLoop execution body (L3A session loop, subagents, scouts)
+    creates its own TodoTracker; the register keeps them all visible from
+    one place so a Cell can see the cross-executor TODO table (agent_id →
+    tasks) without touching the JSON state files. The register is pure
+    memory — the JSON files remain the persistence layer (lossless across
+    restarts); this layer is the fast shared view.
+    """
+
+    def __init__(self) -> None:
+        self._trackers: dict[str, TodoTracker] = {}
+        self._lock = threading.RLock()
+
+    def register(self, agent_id: str, tracker: TodoTracker) -> bool:
+        """Register an executor's tracker (first registration wins)."""
+        with self._lock:
+            if agent_id in self._trackers:
+                return False
+            self._trackers[agent_id] = tracker
+            return True
+
+    def get(self, agent_id: str) -> TodoTracker | None:
+        """Return the tracker for an executor, or None."""
+        with self._lock:
+            return self._trackers.get(agent_id)
+
+    def unregister(self, agent_id: str) -> bool:
+        """Drop an executor's tracker."""
+        with self._lock:
+            return self._trackers.pop(agent_id, None) is not None
+
+    def snapshot(self, agent_id: str = "") -> dict:
+        """Aggregate TODO view: executor → status/iteration/task counts.
+
+        Args:
+            agent_id: filter to one executor when given.
+
+        Returns:
+            dict mapping executor id → its tracker.stats() (or summary).
+        """
+        with self._lock:
+            ids = [agent_id] if agent_id else sorted(self._trackers.keys())
+            out: dict[str, dict] = {}
+            for aid in ids:
+                tracker = self._trackers.get(aid)
+                if tracker is not None:
+                    out[aid] = tracker.stats()
+            return out
+
+    def clear(self) -> None:
+        """Drop all trackers (tests / Cell teardown)."""
+        with self._lock:
+            self._trackers.clear()
+
+
+_register: TodoRegister | None = None
+_register_lock = threading.RLock()
+
+
+def get_todo_register() -> TodoRegister:
+    """Get the process-wide TodoRegister singleton."""
+    global _register
+    with _register_lock:
+        if _register is None:
+            _register = TodoRegister()
+        return _register
+
+
+def reset_todo_register() -> None:
+    """Reset the TodoRegister singleton (tests / lifecycle)."""
+    global _register
+    with _register_lock:
+        _register = None
