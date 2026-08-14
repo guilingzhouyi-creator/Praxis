@@ -358,6 +358,51 @@ def file_patch(args: dict, agent_id: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def str_replace_editor(args: dict, agent_id: str) -> dict:
+    """RING_2_5: Exact string replacement in a file (str_replace_editor).
+
+    Mirrors dsh's ``str_replace_editor`` semantics used by the ``minimal``
+    harness toolset: replace occurrences of ``old_string`` with
+    ``new_string`` (optionally limited by ``replace_count``). The edit goes
+    through the resource buffer so it stays reversible and auditable.
+
+    Args:
+        args: dict with ``path`` (required), ``old_string`` (required),
+            ``new_string`` (default ""), and optional ``replace_count``
+            (int, default -1 = replace all).
+        agent_id: calling agent id (audit attribution).
+
+    Returns:
+        dict with success flag, path, buffered flag, and replacement count.
+    """
+    path = args.get("path", "")
+    old = args.get("old_string", "")
+    new = args.get("new_string", "")
+    if not path or old == "":
+        return {"success": False, "error": "path and old_string are required"}
+    try:
+        count = int(args.get("replace_count", -1))
+    except (TypeError, ValueError):
+        count = -1
+    try:
+        from l3.resource_buffer.manager import get_manager
+
+        current = get_manager().read(path)
+        if old not in current:
+            return {"success": False, "error": "old_string not found", "path": path}
+        replacements = current.count(old)
+        updated = current.replace(old, new, count) if count >= 0 else current.replace(old, new)
+        get_manager().stage(path, updated, op="edit")
+        return {
+            "success": True,
+            "path": path,
+            "buffered": True,
+            "replacements": replacements,
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e), "path": path}
+
+
 def file_diff_structured(args: dict, agent_id: str) -> dict:
     """RING_1: Get structured diff for a sandbox-staged file.
 

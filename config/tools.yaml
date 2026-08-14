@@ -241,6 +241,15 @@ layer_2:
       danger: 1
       handler: l3.tools._files.file_patch
       params: [{name: path, type: string, required: true}, {name: diff, type: string, required: true}]
+    str_replace_editor:
+      description: "Exact string replacement in a file (str_replace_editor) — replace occurrences of old_string with new_string, optionally limited by replace_count"
+      danger: 1
+      handler: l3.tools._files.str_replace_editor
+      params:
+        - {name: path, type: string, required: true}
+        - {name: old_string, type: string, required: true, description: "Exact text to find"}
+        - {name: new_string, type: string, optional: true, default: "", description: "Replacement text"}
+        - {name: replace_count, type: int, optional: true, default: -1, description: "Max replacements (-1 = all)"}
     file_move:
       description: "Move/rename file"
       danger: 1

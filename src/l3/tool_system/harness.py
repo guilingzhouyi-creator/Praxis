@@ -20,6 +20,7 @@ from l1.kernel.discovery import get_tool_config
 from l1.kernel.params.tool import (
     HARNESS_MODE_DEFAULT,
     HARNESS_MODES,
+    HARNESS_PRESETS,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,16 @@ def set_harness_mode(mode: str, confirmed: bool = False, source: str = "api") ->
     with _lock:
         _state["mode"] = mode
         _state["source"] = source
+    # Unified control bar: keep the presentation mode in lockstep with the
+    # harness level (code → run_code programmatic presentation; the other
+    # levels → native function-calling).
+    try:
+        from l3.tool_system.tool_presentation import set_presentation_mode as _set_presentation
+
+        _pres = str(HARNESS_PRESETS.get(mode, {}).get("presentation", "native"))
+        _set_presentation(_pres, source="harness")
+    except Exception:
+        logger.debug("harness: presentation sync skipped", exc_info=True)
     # Evidence chain: a confirmed minimal downgrade opens a "downgrade" chain.
     try:
         from l3.tool_system.security_evidence import DECISION_CHANGE, get_evidence, record_evidence

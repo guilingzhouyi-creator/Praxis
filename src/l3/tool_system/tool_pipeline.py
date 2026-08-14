@@ -25,9 +25,6 @@ from l1.kernel.gatechain import get_gatechain as _get_gatechain  # noqa: F401 �
 from l1.kernel.params.kernel import RING_1 as _RING_1
 from l1.kernel.params.kernel import RING_NUM_MAP
 from l1.kernel.params.tool import (
-    HARNESS_MODE_DEFAULT,
-    HARNESS_MODE_STEPS,
-    HARNESS_MODES,
     TOOL_EXEC_TOKEN_BUDGET,
     TOOL_PIPELINE_RECORD_STEPS,
 )
@@ -140,34 +137,54 @@ class ToolPipeline(PipelineStepsMixin):
         tool_ring_num = ring_map.get(tool_ring_str, 1)
 
         tool_danger = spec.danger if spec else 0
-        # Code Mode / PTC (tools:code-only): under ``code`` presentation the
-        # model may call ONLY the reserved run_code transport directly; any
-        # other tool name resolves to UNKNOWN_TOOL before the gating chain
-        # runs (defense-in-depth over the model-facing filter in
-        # agent_loop_context). ``native`` and ``both`` are unrestricted.
-        from l1.kernel.params.tool import TOOL_PRESENTATION_CODE
+        # ── Unified harness control bar ──
+        # One read of the active harness level yields the process-step skip
+        # table, the presentation mode, and the toolset whitelist. The bottom
+        # line (constitution, gatechain, sandbox, reference-channel recording)
+        # is never skipped; only process steps (approval/rate/pool) can be
+        # dropped, and the open class (minimal) additionally restricts the
+        # model-visible toolset.
+        from l1.kernel.params.tool import (
+            HARNESS_MODE_DEFAULT,
+            HARNESS_MODES,
+            HARNESS_PRESETS,
+            TOOL_PRESENTATION_CODE,
+        )
+        from l3.tool_system.harness import get_harness_mode
         from l3.tool_system.tool_presentation import get_presentation_mode
 
-        if get_presentation_mode() == TOOL_PRESENTATION_CODE and tool_name != "run_code":
+        harness_mode = get_harness_mode()
+        if harness_mode not in HARNESS_MODES:
+            harness_mode = HARNESS_MODE_DEFAULT
+        preset = HARNESS_PRESETS[harness_mode]
+        _skip = set(preset["steps"])  # type: ignore[arg-type]
+        _toolset: tuple[str, ...] | None = preset["toolset"]  # type: ignore[assignment]
+        _presentation: str = preset["presentation"]  # type: ignore[assignment]
+
+        # Code Mode / PTC (tools:code-only): under ``code`` presentation (from
+        # the harness preset or an explicit runtime switch) the model may call
+        # ONLY the reserved run_code transport directly; any other tool name
+        # resolves to UNKNOWN_TOOL before the gating chain runs.
+        code_only = _presentation == TOOL_PRESENTATION_CODE or get_presentation_mode() == TOOL_PRESENTATION_CODE
+        if code_only and tool_name != "run_code":
             return {
                 "success": False,
                 "error": f"UNKNOWN_TOOL: {tool_name} is not exposed under code presentation (tools:code-only)",
                 "tool": tool_name,
                 "agent": agent_id,
             }
+        # Open-class toolset whitelist (e.g. minimal = bash + string editor):
+        # tools outside the whitelist are not model-visible at this level.
+        if _toolset is not None and tool_name not in _toolset:
+            return {
+                "success": False,
+                "error": f"UNKNOWN_TOOL: {tool_name} is not exposed at harness level {harness_mode}",
+                "tool": tool_name,
+                "agent": agent_id,
+            }
         call_id = chain.start(tool_name, agent_id, ring=tool_ring_num, parent_id=_parent_call_id)
         # Step tracing toggle — off skips per-phase gate traces on the hot path.
         record_steps = bool(get_tool_config("record_steps", TOOL_PIPELINE_RECORD_STEPS))
-        # Harness mode: governed | semi | minimal (runtime override → config).
-        # Process steps (approval / rate / pool) may be skipped; the safety
-        # bottom line (constitution, gatechain, sandbox, reference-channel
-        # recording) is never skipped.
-        from l3.tool_system.harness import get_harness_mode
-
-        harness_mode = get_harness_mode()
-        if harness_mode not in HARNESS_MODES:
-            harness_mode = HARNESS_MODE_DEFAULT
-        _skip = set(HARNESS_MODE_STEPS[harness_mode])
         # Token budget read once per execution (used across alloc/free paths).
         token_budget = get_tool_config("exec_token_budget", TOOL_EXEC_TOKEN_BUDGET)
         result: dict[str, Any] = {

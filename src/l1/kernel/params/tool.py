@@ -106,13 +106,20 @@ TOOL_PIPELINE_RECORD_STEPS: Final[bool] = True
 
 
 # ── Harness modes (tool pipeline gate matrix) ──
-# Three deployment modes trade throughput against safety. The bottom line —
-# constitution, gatechain (identity/territory), sandbox (reversibility) and
-# reference-channel recording (causal audit) — is NEVER skipped in any mode;
-# only process steps (approval, rate limit, pool) can be dropped.
+# Unified tool-usage control bar: two classes split by a CONTROL LINE (the
+# approval gate). The bottom line — constitution, gatechain (identity/
+# territory), sandbox (reversibility) and reference-channel recording
+# (causal audit) — is NEVER skipped in any mode; only process steps
+# (approval, rate limit, pool) can be dropped.
+#   guarded class (above the line): governed / code / semi
+#   open class (below the line):    minimal — no process control, but the
+#                                   bottom-line recording still applies.
 # Risk of `minimal` is user-assumed (explicit config, see harness.mode).
 HARNESS_MODE_GOVERNED: Final[str] = "governed"
 HARNESS_MODE_SEMI: Final[str] = "semi"
+# PTC / Code Mode level: programmatic presentation, guards kept (same steps
+# as governed — full control, presentation switches to run_code).
+HARNESS_MODE_CODE: Final[str] = "code"
 # Most relaxed mode: drops approval and rate limiting too
 HARNESS_MODE_MINIMAL: Final[str] = "minimal"
 # Default deployment mode when none is configured
@@ -121,12 +128,21 @@ HARNESS_MODE_DEFAULT: Final[str] = HARNESS_MODE_GOVERNED
 HARNESS_MODE_STEPS: Final[dict[str, tuple[str, ...]]] = {
     # mode → process steps that are SKIPPED (safety bottom line is implicit)
     HARNESS_MODE_GOVERNED: (),
+    HARNESS_MODE_CODE: (),
     HARNESS_MODE_SEMI: ("approval", "pool"),
     HARNESS_MODE_MINIMAL: ("approval", "rate", "pool"),
 }
-# All recognized harness modes, in governance order
+# CONTROL LINE: modes that KEEP the approval gate (guarded class, above the
+# line). semi keeps rate limiting but drops approval; minimal drops all
+# process control — both sit below the line.
+HARNESS_CONTROL_LINE: Final[tuple[str, ...]] = (
+    HARNESS_MODE_GOVERNED,
+    HARNESS_MODE_CODE,
+)
+# All recognized harness modes, in governance order (guarded → open)
 HARNESS_MODES: Final[tuple[str, ...]] = (
     HARNESS_MODE_GOVERNED,
+    HARNESS_MODE_CODE,
     HARNESS_MODE_SEMI,
     HARNESS_MODE_MINIMAL,
 )
@@ -240,6 +256,37 @@ TOOL_PRESENTATION_MODES: Final[tuple[str, ...]] = (
 )
 # Config key read through get_tool_config for the static presentation mode
 TOOL_PRESENTATION_CONFIG_KEY: Final[str] = "tool_presentation_mode"
+
+# Unified harness control bar: per-level preset = (steps to SKIP, presentation
+# mode, toolset whitelist). ``toolset`` None = all tools; a tuple restricts
+# the model-visible tools (open class, e.g. minimal). ``presentation`` selects
+# how tools are presented (native function-calling vs run_code programmatic).
+HARNESS_PRESETS: Final[dict[str, dict[str, object]]] = {
+    # guarded class (above the CONTROL LINE — approval kept)
+    HARNESS_MODE_GOVERNED: {
+        "steps": (),
+        "presentation": TOOL_PRESENTATION_NATIVE,
+        "toolset": None,
+    },
+    # PTC / Code Mode: full control + programmatic presentation
+    HARNESS_MODE_CODE: {
+        "steps": (),
+        "presentation": TOOL_PRESENTATION_CODE,
+        "toolset": None,
+    },
+    HARNESS_MODE_SEMI: {
+        "steps": ("approval", "pool"),
+        "presentation": TOOL_PRESENTATION_NATIVE,
+        "toolset": None,
+    },
+    # open class (below the line — no process control, but bottom-line
+    # recording still applies); toolset restricted to bash + string editor.
+    HARNESS_MODE_MINIMAL: {
+        "steps": ("approval", "rate", "pool"),
+        "presentation": TOOL_PRESENTATION_NATIVE,
+        "toolset": ("run_in_terminal", "str_replace_editor"),
+    },
+}
 
 # Max program characters accepted by run_code
 CODE_RUN_MAX_CHARS: Final[int] = 16_000
