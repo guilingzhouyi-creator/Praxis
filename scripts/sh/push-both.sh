@@ -122,16 +122,47 @@ fi
 
 FAIL=0
 
+# ── Push-safety pre-check (dual-push reliability) ────────────────────────
+# Before pushing, surface how many local commits are NOT yet on origin —
+# a silent skip here is the #1 cause of the "local != origin" drift that
+# parallel worktrees produce. Also warn when origin has moved past local
+# (concurrent push): the push below would be rejected non-fast-forward.
+echo "[push-both] ── push-safety pre-check ────────────────────────────────"
+AHEAD_ORIGIN=$(git rev-list --count "origin/$BRANCH..$BRANCH" 2>/dev/null || echo 0)
+BEHIND_ORIGIN=$(git rev-list --count "$BRANCH..origin/$BRANCH" 2>/dev/null || echo 0)
+echo "[push-both] local ahead of origin: $AHEAD_ORIGIN commit(s); behind: $BEHIND_ORIGIN"
+if [ "$BEHIND_ORIGIN" -gt 0 ]; then
+  echo "[push-both] ⚠️  local is BEHIND origin by $BEHIND_ORIGIN (concurrent push?) — push may be rejected." >&2
+  echo "[push-both]    Run: git fetch origin && git rebase origin/$BRANCH (or merge) first." >&2
+fi
+
 echo "[push-both] -> git push origin $BRANCH"
 if ! git push origin "$BRANCH"; then
   echo "[push-both] ERROR: push to origin (GitCode) failed" >&2
+  echo "[push-both]    if rejected as non-fast-forward: git fetch origin && git rebase origin/$BRANCH" >&2
   FAIL=1
 fi
 
 echo "[push-both] -> git push github $BRANCH"
 if ! git push github "$BRANCH"; then
   echo "[push-both] ERROR: push to github (CI mirror) failed" >&2
+  echo "[push-both]    if rejected as non-fast-forward: git fetch github && git rebase github/$BRANCH" >&2
   FAIL=1
+fi
+
+# ── Post-push verification: the two remotes must agree ───────────────────
+if [ "$FAIL" -eq 0 ]; then
+  echo "[push-both] ── post-push verification ────────────────────────────────"
+  LOCAL_SHA=$(git rev-parse "$BRANCH")
+  ORIGIN_SHA=$(git ls-remote origin "$BRANCH" 2>/dev/null | cut -f1)
+  GITHUB_SHA=$(git ls-remote github "$BRANCH" 2>/dev/null | cut -f1)
+  echo "[push-both] local=$LOCAL_SHA origin=$ORIGIN_SHA github=$GITHUB_SHA"
+  if [ "$LOCAL_SHA" = "$ORIGIN_SHA" ] && [ "$LOCAL_SHA" = "$GITHUB_SHA" ]; then
+    echo "[push-both] ✅ three-way consistent."
+  else
+    echo "[push-both] ⚠️  three-way MISMATCH — re-run push-both or fetch to confirm." >&2
+    FAIL=1
+  fi
 fi
 
 if [ "$FAIL" -eq 0 ]; then
