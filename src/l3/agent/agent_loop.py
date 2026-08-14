@@ -33,6 +33,7 @@ handler wrapping); domain logic lives in sibling mixins: guard
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -61,6 +62,62 @@ from .agent_loop_run import AgentLoopRunMixin
 from .verify_cadence import VerifyCadence
 
 logger = logging.getLogger(__name__)
+
+# Execution-layer instance register (per-entity context audit). One
+# AgentLoop per agent entity; the register lets an operator audit the
+# Cell's precise per-agent context pressure (see audit_cell_context).
+_loop_registry: dict[str, AgentLoop] = {}
+_loop_registry_lock = threading.RLock()
+
+
+def register_loop(loop: AgentLoop) -> bool:
+    """Register an AgentLoop instance (first registration wins)."""
+    with _loop_registry_lock:
+        if loop.agent_id in _loop_registry:
+            return False
+        _loop_registry[loop.agent_id] = loop
+        return True
+
+
+def reset_loop_registry() -> None:
+    """Drop the instance register (tests / lifecycle)."""
+    with _loop_registry_lock:
+        _loop_registry.clear()
+
+
+def audit_cell_context(cell_id: str = "") -> dict:
+    """Audit per-agent context pressure across a Cell's execution layer.
+
+    Aggregates each registered AgentLoop's ``context_snapshot`` for the
+    given Cell — per-agent trail size / token estimate / card tags, plus a
+    Cell total. This is the management surface for the execution layer's
+    context isolation: every snapshot contains only its own entity's data.
+
+    Args:
+        cell_id: filter to one Cell (empty = all registered loops).
+
+    Returns:
+        dict with per-agent snapshots and Cell totals.
+    """
+    with _loop_registry_lock:
+        loops = [loop for loop in _loop_registry.values() if not cell_id or loop._cell_id == cell_id]
+        ordered = sorted(loops, key=lambda loop: loop.agent_id)
+    snapshots: dict[str, dict] = {}
+    total_messages = 0
+    total_tokens = 0
+    for loop in ordered:
+        snap = loop.context_snapshot()
+        snapshots[loop.agent_id] = snap
+        total_messages += int(snap.get("trail_messages", 0) or 0)
+        total_tokens += int(snap.get("trail_tokens", 0) or 0)
+    return {
+        "success": True,
+        "cell_id": cell_id,
+        "agents": len(snapshots),
+        "total_trail_messages": total_messages,
+        "total_trail_tokens": total_tokens,
+        "per_agent": snapshots,
+    }
 
 
 class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
@@ -103,6 +160,12 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
             get_todo_register().register(self.agent_id, self._todo)
         except Exception:
             logger.debug("agent_loop: todo register skipped", exc_info=True)
+        # Register this instance for per-entity context audit (execution
+        # layer, one AgentLoop per agent entity).
+        try:
+            register_loop(self)
+        except Exception:
+            logger.debug("agent_loop: instance register skipped", exc_info=True)
         self._cadence = VerifyCadence()
         self._chat_params_hooks: list[Callable] = []
         self._run_count = 0
