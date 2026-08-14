@@ -7,17 +7,45 @@
 
 ### 新增
 
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
-- **Feat**: 理解项目，准备构建
+- **Feat (judge)**: extend CompletionJudge to 11 checks (6 new dimensions)
+- **Feat (attack)**: attack-posture tool suite + tooling linkage gaps
+- **Feat (judge)**: committed dashboard — auto-updated on every mainline merge
+- **Feat (tool-presentation)**: assemble stable-prefix prompt for vendor KV caches
+- **Feat (tool-presentation)**: write back successful run_code results to cache
+- **Feat (tool-presentation)**: wire run_code SDK bindings to the tool pipeline
+- **Feat (harness)**: expose code level via L2 harness command + i18n
+- **Feat (harness)**: unify tool-usage control bar (two classes + control line)
+- **Feat (judge)**: quantify CompletionJudge effectiveness (auto-log + stats)
+- **Feat (judge)**: CompletionJudge — machine decides "done", not the agent
+- **Feat (tool-presentation)**: enforce tools:code-only in the tool pipeline
+- **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
+- **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
+- **Feat**: baseline — fresh single-commit repository
 
 ### 文档
 
-- **Docs (agents)**: dedupe and index AGENTS.md convention rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
+### 变更
+
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
+
+### 修复
+
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
 
 ## [0.4.1] - 2026-08-07
 
