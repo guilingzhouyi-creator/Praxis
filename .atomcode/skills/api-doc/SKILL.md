@@ -1,6 +1,6 @@
 ---
 name: api-doc
-description: Generate and update API documentation for NOMOS Praxis API Gateway. Extracts routes, parameters, and handler signatures from api_gateway.py and api_handlers*.py.
+description: Generate and update API documentation for NOMOS Praxis API Gateway, and review it for completeness/consistency (routes vs docs). Use when API routes/handlers change or API docs drift.
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Write
 ---

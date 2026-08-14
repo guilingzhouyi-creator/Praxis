@@ -1,8 +1,8 @@
 ---
 name: test-writer
-description: Automatically generate tests following project test conventions. Discovers uncovered code paths and generates corresponding tests.
+description: Automatically generate tests following project test conventions, and add coverage for new or untested source files. Use when asked to write tests, add coverage, or increase coverage for a module.
 disable-model-invocation: true
-allowed-tools: Read, Write, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Write, Bash
 ---
 
 ## Overview
