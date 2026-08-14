@@ -79,7 +79,7 @@ shell:
     usage_mcp: "사용법: /mcp [status|mode <normal|selected|full>|enable|disable]"
     usage_stats: "사용법: /stats [timeline [n]|api|side|reasoning|graph|top <metric>|tools|compression|cell|agent|cells] [1m|5m|1h|all]"
     usage_think: "사용법: /think [status]"
-    usage_harness: "사용법: /harness <governed|semi|minimal> [--confirm]"
+    usage_harness: "사용법: /harness <governed|code|semi|minimal> [--confirm]"
     no_agents_found: "에이전트를 찾을 수 없습니다"
     usage_card: "사용법: /card [list|submit <intent>|cancel <id>|approve <id>|reject <id> [reason]]"
     usage_spawn: "사용법: /spawn <name> [role]"

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def _cmd_harness(args: list[str]) -> dict:
-    """Show or switch the harness mode (governed / semi / minimal)."""
+    """Show or switch the harness mode (governed / code / semi / minimal)."""
     from l3.tool_system.harness import (
         harness_status,
         reset_harness_mode,
@@ -22,7 +22,7 @@ def _cmd_harness(args: list[str]) -> dict:
     sub = args[0].lower()
     if sub == "reset":
         return {"success": True, **reset_harness_mode()}
-    if sub in ("governed", "semi", "minimal"):
+    if sub in ("governed", "code", "semi", "minimal"):
         confirm = "--confirm" in args or "-y" in args
         return set_harness_mode(sub, confirmed=confirm, source="shell")
     if sub in ("--confirm", "-y"):
