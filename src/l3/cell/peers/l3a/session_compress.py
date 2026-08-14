@@ -147,7 +147,7 @@ class SessionCompressMixin:
             logger.debug("l3a session: compression snapshot failed")
 
         # ── 2. Five-level pipeline (Claude Code-style progressive compaction) ──
-        # Phase 3.1 B4: content-fingerprint dedup (除旧) — repeated
+        # Phase 3.1 B4: content-fingerprint dedup (drop stale duplicates) — repeated
         # identical user messages inside the folded span collapse to one
         # so stale duplicates never inflate the summary; the lossless R4
         # snapshot above still keeps every original message. The dropped
