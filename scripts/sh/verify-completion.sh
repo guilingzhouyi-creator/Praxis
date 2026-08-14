@@ -67,6 +67,10 @@ GAPS=""
 S_TESTS=0; S_COVERAGE=0; S_DELTA=0; S_DOCS=0; S_LINT=0
 S_AUDIT=0; S_COMPLEX=0; S_CYCLE=0; S_SINGLETON=0; S_CHANGELOG=0; S_INDEX=0
 
+# per-check numeric metrics (null = skipped/unmeasured) — logged for trends
+M_TESTS_PASSED=null; M_TESTS_FAILED=null; M_COVERAGE_PCT=null; M_NET_DELTA=null
+M_RUFF_ERRORS=null; M_MEGA_FUNCS=null; M_AUDIT_VULNS=null
+
 fail() { GAPS="${GAPS}  ✗ $1
 "; FAILED=1; }
 pass() { echo "  ✓ $1"; }
@@ -83,6 +87,8 @@ if [ "$RUN_TESTS" = "1" ]; then
     S_TESTS=2; tail -5 /tmp/judge_tests.log >&2
     fail "test suite has failures (see /tmp/judge_tests.log)"
   fi
+  M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
+  M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
 fi
 
 # ── 2. Coverage ──────────────────────────────────────────────────────────
@@ -96,6 +102,7 @@ if [ "$RUN_COVERAGE" = "1" ]; then
     S_COVERAGE=2; grep -E "TOTAL|fail_under" /tmp/judge_cov.log | tail -2 >&2
     fail "coverage below $THRESH%"
   fi
+  M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
 fi
 
 # ── 3. Net delta gate ────────────────────────────────────────────────────
@@ -111,6 +118,7 @@ if [ "$RUN_DELTA" = "1" ]; then
   else
     pass "gate script not present (skip)"
   fi
+  M_NET_DELTA=$(grep -oE 'net=-?[0-9]+' /tmp/judge_delta.log | head -1 | sed 's/net=//' || echo null)
 fi
 
 # ── 4. Docs sync (drift gate) ────────────────────────────────────────────
@@ -140,6 +148,7 @@ if [ "$RUN_LINT" = "1" ]; then
     else
       S_LINT=2; tail -3 /tmp/judge_ruff.log >&2; fail "ruff issues"
     fi
+    M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -150,9 +159,11 @@ if [ "$RUN_AUDIT" = "1" ]; then
     S_AUDIT=1; pass "pip-audit not installed — skipped"
   elif pip-audit --progress-spinner off > /tmp/judge_audit.log 2>&1; then
     S_AUDIT=1; pass "no known vulnerable dependencies"
+    M_AUDIT_VULNS=0
   else
     S_AUDIT=2; head -5 /tmp/judge_audit.log >&2
     fail "pip-audit found known vulnerabilities"
+    M_AUDIT_VULNS=$(grep -oE '[0-9]+ known' /tmp/judge_audit.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -163,6 +174,7 @@ if [ "$RUN_COMPLEX" = "1" ]; then
 import sys; sys.path.insert(0, 'scripts/py')
 from collect_stats import long_functions
 n = long_functions()
+print(n)
 sys.exit(1 if n > 12 else 0)
 " > /tmp/judge_complex.log 2>&1; then
     S_COMPLEX=1; pass "no complexity overload (<=12 mega-functions)"
@@ -170,6 +182,7 @@ sys.exit(1 if n > 12 else 0)
     S_COMPLEX=2; cat /tmp/judge_complex.log >&2
     fail "too many mega-functions (>12 of >200 lines) — refactor before declaring done"
   fi
+  M_MEGA_FUNCS=$(head -1 /tmp/judge_complex.log | grep -oE '[0-9]+' | head -1 || echo null)
 fi
 
 # ── 8. Import cycles ─────────────────────────────────────────────────────
@@ -222,8 +235,10 @@ VERDICT="INCOMPLETE"
 DURATION=$(( $(date +%s) - T0 ))
 
 # JSONL record: one line per run, gitignored — the raw material for
-# judge-stats.sh (completion rate, failure distribution, trend).
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}}}"
+# judge-stats.sh (completion rate, failure distribution, trend, metrics).
+# Each metric falls back to null when the check did not run or produced no
+# parseable value — an empty string would corrupt the JSONL line.
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
 printf '%s\n' "$RECORD" >> "$LOG_FILE"
 
 if [ "$VERDICT" = "COMPLETE" ]; then
