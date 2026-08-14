@@ -160,30 +160,54 @@ for training correction, exposed via `/api/v2/memory/corpus` + L2
 causal audit ring correlates memory events with tool and identity context
 for M4 corpus analytics. Best-effort, never blocks the write.
 
-## Conversation-side caches (digest + offload)
+## Conversation-side compression (two-layer pipeline)
 
-Two operator-gated caches raise the compression ratio on the agent
-conversation path while keeping information recoverable:
+Compression is split into **two physically isolated pipelines** — one for
+the execution layer (Peer Agents) and one for the decision layer (L3A
+central). The layers never share a session context: an execution-layer
+agent's conversation never touches another agent's, and neither crosses
+into the decision layer except through the sanctioned injection channels
+(R4 skills, shared skill zones, R5 generalized skills). Consequently L3A
+does not carry execution-context pressure while keeping precise control
+over each agent's context.
+
+**Execution layer (Peer Agents, `agent/` + `agent_loop.py`)** — folded
+inside the AgentLoop run path, keyed by card index:
 
 - **Digest cache** (`agent/digest_cache.py`): when the master switch is on
-  (default off), a folded conversation span is condensed into a
-  character-capped digest and stored in the tiered-cache L2 shared-summary
-  layer, keyed by card index (`{cell_id}::{card_id}::digest`); the trail
-  keeps the digest line and `get_digest` recovers it. Switches:
-  `/api/v2/memory/digest` + L2 `/memory digest [on|off] [max_chars=N]`
-  (`DIGEST_ENABLED_DEFAULT` off, `DIGEST_MAX_CHARS_DEFAULT` 400).
+  (default off), a folded conversation span (`_truncate_trail`) is
+  condensed into a character-capped digest and stored in the tiered-cache
+  L2 shared-summary layer, keyed by card index
+  (`{cell_id}::{card_id}::digest`); the trail keeps the digest line and
+  `get_digest` recovers it. Switches: `/api/v2/memory/digest` + L2
+  `/memory digest [on|off] [max_chars=N]` (`DIGEST_ENABLED_DEFAULT` off,
+  `DIGEST_MAX_CHARS_DEFAULT` 400).
 - **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
   (default off), an oversized structured tool result is offloaded to the
-  per-Cell tiered-cache L1 layer (key `cell:{cell_id}::tool:{call_id}`) and
-  the trail keeps a reference line with digest; `fetch_result` recovers
-  the full payload. Switches: `/api/v2/memory/tool-result` + L2
+  per-Cell tiered-cache L1 layer (key `cell:{cell_id}::tool:{call_id}`)
+  via `_fold_result`/`maybe_offload`; the trail keeps a reference line
+  with digest and `fetch_result` recovers the full payload. Switches:
+  `/api/v2/memory/tool-result` + L2
   `/memory tool-result [on|off] [max_chars=N]`
   (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+
+**Decision layer (L3A central, `cell/peers/l3a/session_compress.py`)** —
+the progressive five-level pipeline (`compress()`: raw / summarized /
+retained / skeleton / headline), lossless R4 snapshot, compression-ratio
+baseline, content-fingerprint dedup, and the recursion guard + circuit
+breaker; see `docs/architecture/l3a-central.md` (History compression).
+
+**Shared guardrails** (both layers, operator-switchable):
+
 - **Sensitive-info bypass detection** (`agent/sensitive_detect.py`,
   default ON): scans folded summaries for API keys / bearer tokens /
   private keys / IP literals; hits are reported on the compression result,
   never blocking the fold. Switches: `/api/v2/memory/sensitive` + L2
   `/memory sensitive [on|off]`.
+- **Recursion guard + circuit breaker** (`agent/compression_guard.py`):
+  recursive-compression threshold (default off, 0) bounds consecutive
+  passes per session; the circuit breaker (default on) trips on the
+  threshold, pauses compression, and records evidence.
 
 ## Per-Cell Agents handbook (Cell-{n}-Agents.md)
 
