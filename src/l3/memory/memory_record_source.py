@@ -106,3 +106,24 @@ def register_memory_source() -> dict:
     except Exception as e:
         logger.warning("memory_record_source: register skipped: %s", e)
         return {"success": False, "error": str(e)}
+
+
+def export_corpus(limit: int = 0) -> dict:
+    """Public API/L2 surface for the M4 correction-corpus export.
+
+    Wraps the private ``_export`` so the /api/v2/memory/corpus endpoint and
+    the L2 ``/memory corpus`` command can hand refined memory + identity /
+    Cell-domain context + log snapshots to external training tooling.
+
+    Args:
+        limit: max samples (0 = default).
+
+    Returns:
+        dict with success flag, sample count, and the corpus samples.
+    """
+    try:
+        samples = _export(limit=limit)
+        return {"success": True, "count": len(samples), "samples": samples}
+    except Exception as e:
+        logger.debug("memory_record_source: corpus export failed: %s", e)
+        return {"success": False, "error": str(e)}

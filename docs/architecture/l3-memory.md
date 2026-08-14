@@ -108,6 +108,12 @@ cases. See `cross-cutting.md` for the full injection table.
 
 - `/api/v2/memory*` (store/recall/stats), `/api/v2/memory/graph*` (R5),
   `/api/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
+- `/api/v2/memory/filter` (M1 domain-filter switches),
+  `/api/v2/memory/corpus` (M4 correction-corpus export),
+  `/api/v2/memory/digest` (conversation digest cache),
+  `/api/v2/memory/tool-result` (tool-result offload cache),
+  `/api/v2/memory/sensitive` (sensitive-info bypass detection),
+  `/api/v2/memory/compression-guard` (recursion threshold + breaker)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
 - Tiered-cache consumers: the per-Cell `run_code` program cache
@@ -130,7 +136,11 @@ domain filter (`memory_domain_filter.py`):
   active identity comes from `match_identity` on the driving intent/domain
   (verify→test, implement→build), never a static role; unbound single-Cell
   composites fall back to the full `IDENTITY_DEFAULT_SET`.
-- **R4 included**: `archive_search` applies the same gate as R1–R3.
+- **R4 included**: `archive_search` applies the same gate as R1–R3. R4
+  entries carry an explicit `cell:<id>` tag on write (`archive_to_r4`),
+  which the search path parses into `cell_id` so the Cell gate matches
+  archived Mer baselines the same way as live rings; untagged entries stay
+  globally visible (system-level records).
 
 The M2 refinery (`memory_refinery.py`) classifies → dedups → cleans →
 scores → extracts → transforms every written entry, with a burn-back
@@ -141,7 +151,39 @@ R5 graph edges (`supply_to_r5`, graph-gated), generalized skill evolution
 (`supply_to_skills`, switch-gated), and filtered re-injection
 (`re_inject_filtered`). M4 (`memory_record_source.py`) registers a
 RecordCenter source exporting identity/Cell-feature/log-enriched corpus
-for training correction.
+for training correction, exposed via `/api/v2/memory/corpus` + L2
+`/memory corpus` (`export_corpus`).
+
+**Reference-channel linkage**: every accepted memory write emits a
+`memory_refined` event on the reference channel (`get_rc().event`, source
+`memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
+causal audit ring correlates memory events with tool and identity context
+for M4 corpus analytics. Best-effort, never blocks the write.
+
+## Conversation-side caches (digest + offload)
+
+Two operator-gated caches raise the compression ratio on the agent
+conversation path while keeping information recoverable:
+
+- **Digest cache** (`agent/digest_cache.py`): when the master switch is on
+  (default off), a folded conversation span is condensed into a
+  character-capped digest and stored in the tiered-cache L2 shared-summary
+  layer, keyed by card index (`{cell_id}::{card_id}::digest`); the trail
+  keeps the digest line and `get_digest` recovers it. Switches:
+  `/api/v2/memory/digest` + L2 `/memory digest [on|off] [max_chars=N]`
+  (`DIGEST_ENABLED_DEFAULT` off, `DIGEST_MAX_CHARS_DEFAULT` 400).
+- **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
+  (default off), an oversized structured tool result is offloaded to the
+  per-Cell tiered-cache L1 layer (key `cell:{cell_id}::tool:{call_id}`) and
+  the trail keeps a reference line with digest; `fetch_result` recovers
+  the full payload. Switches: `/api/v2/memory/tool-result` + L2
+  `/memory tool-result [on|off] [max_chars=N]`
+  (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+- **Sensitive-info bypass detection** (`agent/sensitive_detect.py`,
+  default ON): scans folded summaries for API keys / bearer tokens /
+  private keys / IP literals; hits are reported on the compression result,
+  never blocking the fold. Switches: `/api/v2/memory/sensitive` + L2
+  `/memory sensitive [on|off]`.
 
 ## Per-Cell Agents handbook (Cell-{n}-Agents.md)
 

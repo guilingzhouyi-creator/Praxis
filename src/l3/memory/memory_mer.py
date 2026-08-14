@@ -203,11 +203,17 @@ class MerTransformer:
                 },
                 ensure_ascii=False,
             )
+            # Cell-domain tag so the M1 identity/Cell-domain filter can gate
+            # this R4 entry on retrieval (cell gate matches on ``cell:<id>``).
+            scopes = ",".join(meta.get("scope_ids", []) if meta else []) or "l3a"
+            tags = f"l3a,memory_mer,{scopes}"
+            if meta and meta.get("cell_id"):
+                tags += f",cell:{meta.get('cell_id')}"
             r = _cmd_archive_store(
                 fonds=_MER_FONDS,
                 series=_MER_SERIES,
                 content=payload,
-                tags=f"l3a,memory_mer,{meta.get('scope_ids', '') if meta else ''}",
+                tags=tags,
             )
             if not r.get("success"):
                 return {"success": False, "error": "archive store failed"}

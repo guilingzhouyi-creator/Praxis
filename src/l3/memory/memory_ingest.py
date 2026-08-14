@@ -137,6 +137,27 @@ class MemoryIngestMixin:
             )
         except Exception:
             logger.debug("memory: refinery hook failed")
+        # Reference-channel recording (RC): a refined memory write is emitted
+        # so the causal audit ring correlates memory events with identity /
+        # Cell-domain / tool context (feeds M4 corpus analytics). Never
+        # blocks the write; degrades to a no-op.
+        try:
+            from l3.bus.reference_channel import get_rc
+
+            get_rc().event(
+                "memory_refined",
+                {
+                    "entry_id": eid,
+                    "entry_type": entry_type,
+                    "cell_id": cell_id,
+                    "agent_id": agent_id or "",
+                    "importance": float(importance),
+                    "ring": "R1" if ring == 1 else f"R{ring}",
+                },
+                source="memory_ingest",
+            )
+        except Exception:
+            logger.debug("memory: RC record skipped")
         logger.debug(
             "memory stored [%s] ring=%d imp=%.2f tokens=%d: %s",
             entry_type,
