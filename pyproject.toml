@@ -20,7 +20,7 @@ test = [
     "pytest-mock>=3.12",
     "pytest-random-order>=1.1",
     "pytest-rerunfailures>=14.0",
-    "pytest-xdist>=3.6",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.9",
     "pre-commit>=3.0",
 ]
