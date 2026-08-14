@@ -585,6 +585,11 @@ def reset_terminals() -> None:
         for t in list(_terminals.values()):
             t.shutdown()
         _terminals.clear()
+    # Full agent-terminal reset: also drop the session registry, monitor
+    # switch, and auto-reload switch (one _RESETS entry covers all).
+    reset_sessions()
+    reset_session_monitor()
+    reset_auto_reload()
 
 
 # ── Session monitor switch (3.3, P0-②) ──
