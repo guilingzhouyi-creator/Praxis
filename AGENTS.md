@@ -180,11 +180,10 @@ Posture is a load-bearing security lever — never weaken it silently.
   `PRAXIS_SKIP_AUTHOR_CHECK=1` skips message checks only. A `--no-verify`
   dependabot merge that drags in code MUST be reviewed by a second agent
   before push.
-- **GPG signing is mandatory for main — EVERY commit, not just the tip**:
-  GitCode's pre-receive hook rejects any unsigned commit in the pushed range.
-  If a local `commit.gpgsign=false` override exists, remove it — otherwise the
-  push is rejected and the commit must be re-signed
-  (`git reset --soft HEAD~1 && git commit` with signing restored).
+- **GPG signing is optional** — the GitCode project hook for GPG
+  enforcement is NOT enabled on this repository (`Aplese/Praxis`), so
+  unsigned commits are accepted. Keep `commit.gpgsign` off by default;
+  signing is only required if a GitCode hook is later re-enabled.
 - **Remote PRs (GitHub mirror) usually carry unsigned / non-conventional
   commits** — run `bash scripts/sh/verify-pr-merge.sh <branch>` BEFORE merging
   (signature + English Conventional-Commits subject + conflict pre-check). If
@@ -208,7 +207,7 @@ Posture is a load-bearing security lever — never weaken it silently.
 
 ## Remote strategy & CI
 
-- **Dual remotes**: `origin` = GitCode (`gitcode.com/Aplese/PraxisAgentOS`, canonical); `github` = GitHub mirror (`guilingzhouyi-creator/Praxis-Agent-OS`, CI carrier).
+- **Dual remotes**: `origin` = GitCode (`gitcode.com/Aplese/Praxis`, canonical); `github` = GitHub mirror (`guilingzhouyi-creator/Praxis`, CI carrier).
 - **Every push to main MUST go to BOTH remotes**: `git push origin main; git push github main` — **push origin (GitCode) FIRST**: it is the stricter gate (GPG pre-receive), so a rejection surfaces before anything is published on the mirror, avoiding a forced update. Pushing only to GitCode silently skips CI.
 - **CI** on GitHub Actions: `test.yml` (matrix 3.11/3.12/3.13/3.14, full L1–L5 coverage), `ci.yml` (changed-file ruff gate), `deps.yml` (dependabot diff-scope gate), `codeql.yml`, `docker.yml`, `benchmark.yml`, `nightly.yml` (full-tree ruff), `secrets.yml` (gitleaks), `comment-audit.yml` (CJK residue), `stale.yml`. GitCode's AtomGit Action (`.gitcode/workflows/test.yml`) is in gray release — keep the file, it activates later.
 

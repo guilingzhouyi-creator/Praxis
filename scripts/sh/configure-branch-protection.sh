@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-guilingzhouyi-creator/Praxis-Agent-OS}"
+REPO="${REPO:-guilingzhouyi-creator/Praxis}"
 BRANCH="main"
 
 if [ -z "${GH_TOKEN:-}" ]; then
