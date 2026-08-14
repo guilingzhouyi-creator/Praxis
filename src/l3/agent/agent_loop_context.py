@@ -223,7 +223,10 @@ class AgentLoopContextMixin:
                         {
                             "name": t.name,
                             "description": t.description,
-                            "parameters": [p.__dict__ for p in (t.parameters or [])],
+                            "parameters": [
+                                {"name": p.name, "type": p.type, "description": p.description}
+                                for p in (t.parameters or [])
+                            ],
                         }
                         for t in self._tools
                     ]

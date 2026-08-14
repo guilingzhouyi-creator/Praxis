@@ -85,23 +85,26 @@ class RunCodeProgramCache:
         try:
             from l3.memory.tiered_cache import get_tiered_cache
 
-            # Search only this Cell's entries by prefix scan.
+            cache = get_tiered_cache()
+            # Search only this Cell's entries by key-prefix scan via the
+            # public keys() API (never reach into the private _layers dict).
             candidates: list[dict] = []
-            bucket = get_tiered_cache()._layers.get(CODE_RUN_CACHE_LAYER, {})  # type: ignore[attr-defined]
             prefix = f"{CODE_RUN_CACHE_KEY_PREFIX}{cell_id}:"
-            for key, (value, _ts) in list(bucket.items()):
-                if key.startswith(prefix) and isinstance(value, dict):
-                    candidates.append({"name": key, "description": "", "prompt": value.get("program", "")})
+            for key in cache.keys(CODE_RUN_CACHE_LAYER):
+                if key.startswith(prefix):
+                    entry = cache.get(CODE_RUN_CACHE_LAYER, key)
+                    if isinstance(entry, dict):
+                        candidates.append({"name": key, "description": "", "prompt": entry.get("program", "")})
             if not candidates:
                 return None
             ranked = _retriever.rank(program, candidates, limit=1, min_score=CODE_RUN_SIMILARITY_MIN_SCORE)
             if not ranked:
                 return None
             hit = ranked[0]
-            entry = get_tiered_cache().get(CODE_RUN_CACHE_LAYER, hit["name"])
+            entry = cache.get(CODE_RUN_CACHE_LAYER, hit["name"])
             if entry:
                 # TTL renewal: re-store to refresh the timestamp.
-                get_tiered_cache().set(CODE_RUN_CACHE_LAYER, hit["name"], entry)
+                cache.set(CODE_RUN_CACHE_LAYER, hit["name"], entry)
             return entry
         except Exception as e:
             logger.debug("run_code_cache: similar failed: %s", e)
@@ -175,13 +178,13 @@ class RunCodeProgramCache:
         try:
             from l3.memory.tiered_cache import get_tiered_cache
 
-            bucket = get_tiered_cache()._layers.get(CODE_RUN_CACHE_LAYER, {})  # type: ignore[attr-defined]
-            now = _now()
+            cache = get_tiered_cache()
             evicted = 0
             prefix = f"{CODE_RUN_CACHE_KEY_PREFIX}{cell_id}:" if cell_id else CODE_RUN_CACHE_KEY_PREFIX
-            for key, (_value, ts) in list(bucket.items()):
-                if key.startswith(prefix) and now - ts > CODE_RUN_CACHE_TTL:
-                    bucket.pop(key, None)
+            for key in cache.keys(CODE_RUN_CACHE_LAYER):
+                if key.startswith(prefix) and cache.get(CODE_RUN_CACHE_LAYER, key) is None:
+                    # get() lazily drops expired entries; a None result after a
+                    # key-scan hit means the entry expired and was reclaimed.
                     evicted += 1
             return evicted
         except Exception as e:
@@ -193,23 +196,16 @@ class RunCodeProgramCache:
         try:
             from l3.memory.tiered_cache import get_tiered_cache
 
-            bucket = get_tiered_cache()._layers.get(CODE_RUN_CACHE_LAYER, {})  # type: ignore[attr-defined]
+            cache = get_tiered_cache()
             return {
                 "enabled": _state["enabled"],
-                "entries": len(bucket),
+                "entries": len(cache.keys(CODE_RUN_CACHE_LAYER)),
                 "max_entries": CODE_RUN_CACHE_MAX_ENTRIES,
                 "ttl_seconds": CODE_RUN_CACHE_TTL,
                 "similarity_floor": CODE_RUN_SIMILARITY_MIN_SCORE,
             }
         except Exception:
             return {"enabled": _state["enabled"], "entries": 0}
-
-
-def _now() -> float:
-    """Time source (separate for test override)."""
-    import time
-
-    return time.time()
 
 
 _cache: RunCodeProgramCache | None = None

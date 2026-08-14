@@ -31,7 +31,6 @@ from l1.kernel.params.tool import (
     TOOL_PRESENTATION_DEFAULT,
     TOOL_PRESENTATION_MODES,
 )
-from l1.kernel.paths import get_paths as _gp
 from l1.kernel.platform import get_temp_dir as _get_temp_dir
 
 logger = logging.getLogger(__name__)
@@ -220,7 +219,7 @@ def cell_program_dir(cell_id: str) -> Path:
         Path to the per-Cell run_code program cache directory.
     """
     root = Path(_get_temp_dir()) / "praxis-toolpres"
-    return root / (cell_id or _gp().layout_dirs[0] if _gp().layout_dirs else "default")
+    return root / (cell_id or "default")
 
 
 # Register the first-party Python renderer at import time so get_renderer()

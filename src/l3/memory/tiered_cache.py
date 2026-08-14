@@ -100,6 +100,24 @@ class TieredCache:
             for bucket in self._layers.values():
                 bucket.clear()
 
+    def keys(self, layer: str) -> list[str]:
+        """Return the live keys of one layer (snapshot, thread-safe).
+
+        Consumers that need to scan a namespace (e.g. a per-Cell program
+        cache) use this instead of reaching into ``_layers`` directly.
+
+        Args:
+            layer: layer name ("L1" / "L2" / "L3").
+
+        Returns:
+            Snapshot list of the layer's current keys; empty for unknown layer.
+        """
+        layer = layer.upper()
+        if layer not in self._layers:
+            return []
+        with self._lock:
+            return list(self._layers[layer].keys())
+
     # ── Cross-cell surface (L2) ──
 
     def set_shared_summary(self, cell_id: str, key: str, summary: Any) -> bool:
