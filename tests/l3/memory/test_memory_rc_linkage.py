@@ -30,3 +30,28 @@ def test_remember_emits_memory_refined_rc_event(tmp_path, monkeypatch):
         assert data["ring"] == "R1"
     finally:
         reset_rc()
+
+
+def test_rc_correlation_aggregates_by_cell_and_ring(tmp_path, monkeypatch):
+    """analyze_rc_correlation aggregates RC memory events per cell/ring."""
+    monkeypatch.setenv("PRAXIS_RC_PATH", str(tmp_path / "rc.jsonl"))
+    from l3.bus.reference_channel import reset_rc
+
+    reset_rc()
+    try:
+        from l3.memory.memory import MemoryManager
+
+        MemoryManager().remember("a1", "note", "RC correlation entry one with enough length", tags=[], cell_id="cell-9")
+        MemoryManager().remember(
+            "a2", "decision", "RC correlation entry two with enough length", tags=[], cell_id="cell-9"
+        )
+        from l3.memory.memory_record_source import analyze_rc_correlation
+
+        r = analyze_rc_correlation()
+        assert r["success"] is True
+        assert r["rc_events"] == 2
+        assert r["by_cell"].get("cell-9") == 2
+        assert "R1" in r["by_ring"]
+        assert "correlation_ratio" in r
+    finally:
+        reset_rc()

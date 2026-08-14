@@ -174,6 +174,14 @@ over each agent's context.
 **Execution layer (Peer Agents, `agent/` + `agent_loop.py`)** — folded
 inside the AgentLoop run path, keyed by card index:
 
+- **Per-entity context management**: each AgentLoop self-registers in an
+  instance register (`register_loop`); `context_snapshot()` returns one
+  entity's precise view (trail size, token estimate, card tags/nature,
+  digest reference) and `audit_cell_context(cell_id)` aggregates every
+  registered loop of a Cell — the management surface for the execution
+  layer's context isolation (each snapshot holds only its own entity's
+  data). Exposed via `GET /api/v2/memory/context-audit` + L2
+  `/memory context-audit [cell_id]`.
 - **Digest cache** (`agent/digest_cache.py`): when the master switch is on
   (default off), a folded conversation span (`_truncate_trail`) is
   condensed into a character-capped digest and stored in the tiered-cache
@@ -183,13 +191,20 @@ inside the AgentLoop run path, keyed by card index:
   `/memory digest [on|off] [max_chars=N]` (`DIGEST_ENABLED_DEFAULT` off,
   `DIGEST_MAX_CHARS_DEFAULT` 400).
 - **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
-  (default off), an oversized structured tool result is offloaded to the
-  per-Cell tiered-cache L1 layer (key `cell:{cell_id}::tool:{call_id}`)
-  via `_fold_result`/`maybe_offload`; the trail keeps a reference line
-  with digest and `fetch_result` recovers the full payload. Switches:
-  `/api/v2/memory/tool-result` + L2
+  (default off), an oversized structured tool result is offloaded to an
+  in-memory register (O(1) fast path) mirroring the per-Cell tiered-cache
+  L1 buffer (key `cell:{cell_id}::tool:{call_id}`) via
+  `_fold_result`/`maybe_offload`; the trail keeps a reference line with
+  digest and `fetch_result` recovers the full payload (register first,
+  buffer fallback). Switches: `/api/v2/memory/tool-result` + L2
   `/memory tool-result [on|off] [max_chars=N]`
   (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+- **Reclaim (lifecycle)**: expired entries are dropped lazily by the
+  tiered-cache `get` path (physical delete, L1 60s / L2 300s TTL) and by
+  capacity eviction; additionally, `reclaim(cell_id)` performs an explicit
+  per-Cell sweep, hooked into Cell teardown (`cell_lifecycle`) alongside
+  the `run_code_cache` reclaim — the conversation-side caches live and die
+  with the Cell lifecycle.
 
 **Decision layer (L3A central, `cell/peers/l3a/session_compress.py`)** —
 the progressive five-level pipeline (`compress()`: raw / summarized /

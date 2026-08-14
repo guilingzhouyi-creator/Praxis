@@ -25,8 +25,9 @@ Boundary note (constants governance):
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
-from l1.kernel.params.system import LOG_TRUNC_80
+from l1.kernel.params.system import LOG_TRUNC_80, PROMPT_VERSIONING_ENABLED_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -366,11 +367,126 @@ _DEFAULTS: dict[str, str] = {
         "recorded on the audit chain automatically. (Language-specific "
         "usage is supplied by the active language backend.)"
     ),
+    # ── Layered prompt keys (3.2, P2-①) ──
+    # cell.shared.*  — Cell-domain upper-layer shared base (3 AgentLoop
+    #                  sessions of a Cell; prompt_library overlays it).
+    # global.*       — cross-Cell shared base; global.<sub>.* are the
+    #                  sub-libraries (security/performance/extension)
+    #                  selected by load + domain (global_prompt_library).
+    "cell.shared.base": (
+        "You are a Peer Agent of this Cell. Follow the Cell's shared "
+        "program, respect the department brief, and coordinate with the "
+        "other Peer Agents through the sanctioned channels."
+    ),
+    "global.security": (
+        "Security posture: respect constitution, gatechain boundaries, and "
+        "sandbox reversibility. Never weaken approval gates silently; "
+        "record evidence on every posture/harness change."
+    ),
+    "global.performance": (
+        "Performance: reuse cached results, fold oversized outputs, and keep the context trail lean under load."
+    ),
+    "global.extension": (
+        "Extension: prefer config-driven behavior and registered tool/"
+        "plugin surfaces; keep identifiers in the registered conventions."
+    ),
 }
+
+# ── Layered prompt management (3.2, P2-①) ──
+# Layer prefixes: "cell.shared.*" (Cell upper-layer shared base) and
+# "global.*" / "global.<sub>.*" (cross-Cell base + sub-libraries).
+
+_LAYER_PREFIXES = ("cell.shared", "global")
+
+
+def list_prompt_layers() -> dict:
+    """List prompt keys grouped by layer (cell.shared.* / global.* / …).
+
+    Returns:
+        dict mapping layer prefix -> list of keys under it (with preview).
+    """
+    all_keys = set(_DEFAULTS.keys()) | set(_overrides.keys())
+    layers: dict[str, list[dict]] = {}
+    for k in sorted(all_keys):
+        prefix = next((p for p in _LAYER_PREFIXES if k.startswith(p)), None)
+        if prefix is None:
+            continue
+        layers.setdefault(prefix, []).append(
+            {
+                "key": k,
+                "source": "override" if k in _overrides else "default",
+                "preview": (get_prompt(k, "") or "")[:LOG_TRUNC_80],
+            }
+        )
+    return {"success": True, "layers": layers}
+
 
 # ── Runtime overrides (loaded from YAML at boot) ──
 
 _overrides: dict[str, str] = {}
+
+# ── Prompt versioning (3.2, P1-⑤) ──
+# Tracks every prompt key's revision so library updates are auditable and
+# rollback-able. ``_versions[key]`` is the current revision; ``_history``
+# keeps one entry per (key, version) with the text snapshot. Operator
+# switch (API + L2 Shell), default ON.
+_versions: dict[str, int] = {}
+_history: dict[str, dict[int, str]] = {}
+_versioning_enabled: bool = PROMPT_VERSIONING_ENABLED_DEFAULT
+
+
+def set_prompt_versioning(enabled: bool | None = None) -> dict:
+    """Set the prompt-versioning operator switch.
+
+    Args:
+        enabled: master switch (None = keep current).
+
+    Returns:
+        dict with success flag and the effective switch.
+    """
+    global _versioning_enabled
+    if enabled is not None:
+        _versioning_enabled = bool(enabled)
+    return {"success": True, "enabled": _versioning_enabled}
+
+
+def prompt_versioning_status() -> dict:
+    """Return the prompt-versioning switch state + version count."""
+    return {"enabled": _versioning_enabled, "tracked_keys": len(_versions)}
+
+
+def _record_version(key: str, text: str) -> None:
+    """Bump the version for a key and snapshot its text (when enabled)."""
+    if not _versioning_enabled or not key:
+        return
+    _versions[key] = _versions.get(key, 0) + 1
+    _history.setdefault(key, {})[_versions[key]] = text
+
+
+def prompt_versions() -> dict:
+    """Snapshot the current version of every tracked prompt key."""
+    return {"success": True, "versions": {k: v for k, v in sorted(_versions.items())}}
+
+
+def rollback_prompt(key: str, version: int) -> dict:
+    """Roll a prompt key back to a previously snapshotted version.
+
+    Args:
+        key: the prompt key to roll back.
+        version: the target revision (must exist in the history).
+
+    Returns:
+        dict with success flag and the restored text (or an error).
+    """
+    if not _versioning_enabled:
+        return {"success": False, "error": "prompt versioning is disabled"}
+    hist = _history.get(key, {})
+    text = hist.get(version)
+    if text is None:
+        return {"success": False, "error": f"no snapshot for {key}@{version}"}
+    _overrides[key] = text
+    _record_version(key, text)  # rollback itself becomes a new revision
+    return {"success": True, "key": key, "version": _versions.get(key, version), "preview": text[:LOG_TRUNC_80]}
 
 
 def load_prompt_overrides(cfg: dict) -> None:
@@ -386,6 +502,9 @@ def load_prompt_overrides(cfg: dict) -> None:
         return
     flat = _flatten(cfg)
     _overrides.update(flat)
+    # Versioning: each override records a new revision (tracked when on).
+    for key, text in flat.items():
+        _record_version(key, str(text))
     logger.info("prompt overrides loaded: %d keys", len(flat))
 
 
@@ -401,6 +520,42 @@ def get_prompt(key: str, default: str = "") -> str:
     if val:
         return val
     return default
+
+
+# Bypass-monitor hooks (3.2, P1-⑥): the L3 prompt monitor registers its
+# usage recorder here — L1 never imports upper layers; the hook keeps the
+# dependency direction L3 → L1 only.
+_usage_hooks: list[Callable[[str], None]] = []
+
+
+def register_prompt_usage_hook(fn: Callable[[str], None]) -> None:
+    """Register a bypass usage hook (L3 prompt monitor installs this)."""
+    if fn not in _usage_hooks:
+        _usage_hooks.append(fn)
+
+
+def get_prompt_monitored(key: str, default: str = "") -> str:
+    """Get a prompt template AND notify the bypass-monitor usage hooks.
+
+    Same resolution as ``get_prompt``; registered hooks (e.g. the L3
+    prompt monitor in engineering/debug mode) are invoked with the key for
+    usage analytics (3.2, P1-⑥). Hooks are a bypass — recording never
+    blocks or changes the returned prompt.
+
+    Args:
+        key: prompt key (dot notation).
+        default: fallback text when the key is unknown.
+
+    Returns:
+        The resolved prompt text.
+    """
+    text = get_prompt(key, default)
+    from contextlib import suppress
+
+    for fn in list(_usage_hooks):
+        with suppress(Exception):  # bypass hooks never affect the main flow
+            fn(key)
+    return text
 
 
 def list_prompts() -> dict:

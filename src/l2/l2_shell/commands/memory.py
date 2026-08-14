@@ -77,6 +77,70 @@ def _cmd_memory(args: list[str]) -> dict:
             if arg.startswith("max_chars=") and arg[10:].isdigit():
                 return set_tool_result_switches(max_chars=int(arg[10:]))
         return tool_result_status()
+    # Execution-layer context audit: /memory context-audit [cell_id] —
+    # per-agent context pressure across a Cell (management surface for
+    # context isolation). Global op.
+    if op == "context-audit":
+        from l3.agent.agent_loop import audit_cell_context
+
+        cell_id = rest[1] if len(rest) >= 2 else ""
+        return audit_cell_context(cell_id=cell_id)
+    # System-prompt versioning: /memory prompt-version [snapshot|
+    # rollback=key@version] — revision tracking + rollback for the prompt
+    # library (3.2). Global op.
+    if op == "prompt-version":
+        from l1.kernel.prompts import prompt_versioning_status, prompt_versions, rollback_prompt
+
+        sub = rest[1] if len(rest) >= 2 else ""
+        if sub.startswith("rollback="):
+            target = sub[len("rollback=") :]
+            if "@" in target:
+                key, ver = target.rsplit("@", 1)
+                if ver.isdigit():
+                    return rollback_prompt(key, int(ver))
+        if sub == "snapshot":
+            return prompt_versions()
+        return {"status": prompt_versioning_status(), **prompt_versions()}
+    # System-prompt bypass monitor: /memory prompt-monitor [on|off|stats|
+    # emit] — usage/success/failure analytics (3.2, default off = prod).
+    if op == "prompt-monitor":
+        from l3.agent.prompt_monitor import (
+            emit_prompt_metrics,
+            prompt_monitor_stats,
+            prompt_monitor_status,
+            set_prompt_monitor,
+        )
+
+        sub = rest[1].lower() if len(rest) >= 2 else ""
+        if sub in ("on", "off"):
+            return set_prompt_monitor(enabled=sub == "on")
+        if sub == "stats":
+            return {"status": prompt_monitor_status(), **prompt_monitor_stats()}
+        if sub == "emit":
+            return emit_prompt_metrics()
+        return {"status": prompt_monitor_status(), **prompt_monitor_stats()}
+    # Prompt-library switches: /memory prompt-library [on|off] [global=on|
+    # off] — Cell + global shared prompt libraries (3.2, default ON).
+    if op == "prompt-library":
+        from l3.agent.global_prompt_library import (
+            global_prompt_library_status,
+            set_global_prompt_library_switches,
+        )
+        from l3.agent.prompt_library import prompt_library_status, set_prompt_library_switches
+
+        cell = None
+        glob = None
+        for arg in rest[1:]:
+            if arg.lower() in ("on", "off"):
+                cell = arg.lower() == "on"
+            elif arg.startswith("global=") and arg[7:] in ("on", "off"):
+                glob = arg[7:] == "on"
+        out = {}
+        if cell is not None:
+            out["cell"] = set_prompt_library_switches(enabled=cell)
+        if glob is not None:
+            out["global"] = set_global_prompt_library_switches(enabled=glob)
+        return {"success": True, "cell": prompt_library_status(), "global": global_prompt_library_status(), **out}
     # Phase 3.1 B6: /memory sensitive [on|off] — bypass sensitive-info
     # detection on the compression path (default ON). Global op.
     if op == "sensitive":

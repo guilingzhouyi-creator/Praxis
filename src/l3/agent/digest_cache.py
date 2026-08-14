@@ -119,3 +119,34 @@ def get_digest(cell_id: str, card_id: str) -> str:
     except Exception as e:
         logger.debug("digest_cache: buffer read skipped: %s", e)
         return ""
+
+
+def reclaim(cell_id: str = "") -> int:
+    """Explicitly evict digests (per-Cell or global).
+
+    Used at Cell teardown / on demand: drops this Cell's digests from the
+    tiered-cache L2 shared-summary layer (physical delete via invalidate)
+    so the folded-span summaries live and die with the Cell. Counts the
+    entries dropped.
+
+    Args:
+        cell_id: when given, only this Cell's digests are swept
+            (keys ``{cell_id}::*::digest``); empty sweeps all.
+
+    Returns:
+        Count of entries dropped.
+    """
+    evicted = 0
+    try:
+        from l3.memory.tiered_cache import get_tiered_cache
+
+        cache = get_tiered_cache()
+        prefix = f"{cell_id}::" if cell_id else ""
+        for key in cache.keys("L2"):
+            if key.startswith(prefix) and key.endswith(_DIGEST_SUFFIX):
+                cache.invalidate("L2", key)
+                evicted += 1
+        return evicted
+    except Exception as e:
+        logger.debug("digest_cache: reclaim failed: %s", e)
+        return evicted

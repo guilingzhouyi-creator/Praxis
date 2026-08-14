@@ -251,6 +251,30 @@ SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
 # and logs the event for later analysis.
 COMPRESSION_RECURSION_THRESHOLD_DEFAULT: Final[int] = 0  # 0 = recursive off
 COMPRESSION_BREAKER_ENABLED_DEFAULT: Final[bool] = True
+# ── Cell-domain shared prompt library (3.2) ───────────────────────────
+# Unified layered system-prompt pool per Cell (upper shared base + lower
+# dynamic docs, auto-hit by context pressure). Operator switch (API + L2
+# Shell), default ON; user overrides are forbidden (system-managed).
+PROMPT_LIBRARY_ENABLED_DEFAULT: Final[bool] = True
+# Context-pressure ratio at which the lower-layer dynamic doc is auto-injected
+PROMPT_LIBRARY_PRESSURE_HIGH: Final[float] = 0.7
+# ── Global shared prompt library (3.2, P0-③) ──────────────────────────
+# Cross-Cell shared system-prompt pools split into sub-libraries
+# (security / performance / extension), selected by the SYSTEM from load
+# + domain — never by the user. Operator switch, default ON.
+GLOBAL_PROMPT_LIBRARY_ENABLED_DEFAULT: Final[bool] = True
+# Load ratios driving sub-library selection (high/medium)
+GLOBAL_PROMPT_LOAD_HIGH: Final[float] = 0.8
+GLOBAL_PROMPT_LOAD_MEDIUM: Final[float] = 0.5
+# ── Prompt versioning (3.2, P1-⑤) ────────────────────────────────────
+# Tracks every prompt key's revision (snapshot/rollback on library
+# updates). Operator switch (API + L2 Shell), default ON.
+PROMPT_VERSIONING_ENABLED_DEFAULT: Final[bool] = True
+# ── System-prompt bypass monitor (3.2, P1-⑥) ──────────────────────────
+# Quantifies prompt usage frequency + success/failure rates, correlated
+# with the reference channel for optimization. Default OFF (production);
+# ON = engineering/debug mode. Operator switch (API + L2 Shell).
+PROMPT_MONITOR_ENABLED_DEFAULT: Final[bool] = False
 # ── Memory re-refine (Phase 3, M2 "burn-back"/re-refine) ─────────────────
 # Edge-quality entries dropped by clean() are burned back into the pipeline
 # (re-refined) instead of lost: a small boost is applied on re-score so

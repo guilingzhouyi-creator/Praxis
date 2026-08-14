@@ -181,6 +181,42 @@ class AgentLoopContextMixin:
         except Exception as e:
             logger.debug("agent_loop: per-Cell handbook injection failed: %s", e)
 
+        # Phase 3.2: Cell-domain shared prompt library — upper-layer shared
+        # base (all 3 Peer Agent sessions) + lower-layer dynamic doc
+        # (Agent.Cell doc), auto-hit by context pressure. Injected after the
+        # handbook so the layered pool overlays the department program.
+        # Gated by the library switch (default ON), degrades silently.
+        try:
+            if self._cell_id:
+                from l3.agent.prompt_library import prompt_library_status, resolve_cell_prompt
+
+                if prompt_library_status().get("enabled"):
+                    _pressure = float(getattr(self, "_context_pressure", 0.0) or 0.0)
+                    _lib_text = resolve_cell_prompt(self._cell_id, pressure=_pressure)
+                    if _lib_text:
+                        system = (system + "\n\n" + _lib_text) if system else _lib_text
+        except Exception as e:
+            logger.debug("agent_loop: Cell prompt-library injection failed: %s", e)
+
+        # Phase 3.2: global shared prompt library — cross-Cell sub-libraries
+        # (security / performance / extension) selected by the system from
+        # load + domain (never the user). Injected after the Cell library.
+        # Gated by the library switch (default ON), degrades silently.
+        try:
+            from l3.agent.global_prompt_library import (
+                global_prompt_library_status,
+                resolve_global_prompt,
+            )
+
+            if global_prompt_library_status().get("enabled"):
+                _load = float(getattr(self, "_system_load", 0.0) or 0.0)
+                _domain = str(getattr(self, "_card_domain", "") or "")
+                _global_text = resolve_global_prompt(load=_load, domain=_domain)
+                if _global_text:
+                    system = (system + "\n\n" + _global_text) if system else _global_text
+        except Exception as e:
+            logger.debug("agent_loop: global prompt-library injection failed: %s", e)
+
         # Tool presentation (Code Mode / PTC): filter the model-facing tools by
         # the presentation mode and inject the run_code SDK + usage when the
         # transport is exposed. ``native`` (default) hides run_code; ``code``
