@@ -131,9 +131,54 @@ while IFS=$'\t' read -r a d path; do
   fi
 done < "$NUMSTAT_FILE"
 
-NET=$((ADDED - DELETED))
+# ── 1b. Comment-stripped code delta (LOCK 1: no padding with comments) ───
+# Count ADDED lines that are pure comments (per-extension comment markers)
+# and subtract them from the net delta — the delta reflects REAL code, not
+# comment padding.  A comment share >= 60% of added lines is a hygiene
+# failure (LOCK 3) — padding with comments cannot pass the gate.
+COMMENT_ADDED=0
+if [ "$ADDED" -gt 0 ]; then
+  COMMENT_ADDED=$(python3 - "$MERGE_BASE" "$BRANCH" <<'PY'
+import subprocess, sys
+base, head = sys.argv[1], sys.argv[2]
+paths = ["src", "tests", "config", "scripts", ".github", ".githooks", "locales", ".gitcode"]
+out = subprocess.run(
+    ["git", "diff", "-U0", base, head, "--", *paths],
+    capture_output=True, text=True,
+).stdout
+markers = {
+    ".py": "#", ".sh": "#", ".yml": "#", ".yaml": "#", ".toml": "#",
+    ".md": "#", ".c": ("//", "/*"), ".h": ("//", "/*"),
+    ".js": ("//", "/*"), ".ts": ("//", "/*"), ".rs": ("//", "/*"), ".go": ("//", "/*"),
+}
+cur_ext = ""
+comments = 0
+for line in out.splitlines():
+    if line.startswith("+++ b/"):
+        name = line[6:]
+        cur_ext = "." + name.rsplit(".", 1)[-1] if "." in name else ""
+    elif line.startswith("+") and not line.startswith("+++"):
+        content = line[1:].lstrip()
+        m = markers.get(cur_ext)
+        if isinstance(m, str):
+            if content.startswith(m):
+                comments += 1
+        elif m and any(content.startswith(x) for x in m):
+            comments += 1
+print(comments)
+PY
+)
+fi
+# Hygiene: comment share of added code lines must stay below 60%.
+if [ "$ADDED" -gt 0 ]; then
+  COMMENT_SHARE=$(( COMMENT_ADDED * 100 / ADDED ))
+else
+  COMMENT_SHARE=0
+fi
+
+NET=$((ADDED - COMMENT_ADDED - DELETED))
 TOTAL=$((ADDED + DELETED))
-echo "[merge-gate] code delta: +$ADDED / -$DELETED (net=$NET, total=$TOTAL)"
+echo "[merge-gate] code delta: +$ADDED / -$DELETED (net=$NET, comment_lines=$COMMENT_ADDED, share=${COMMENT_SHARE}%)"
 
 # ── 2. Decision ──────────────────────────────────────────────────────────
 # Docs-only within ceiling → allowed (docs exemption, but bounded).
@@ -148,11 +193,30 @@ if [ "$NET" -eq 0 ] && [ "$TOTAL" -eq 0 ] && [ "$DOC_LINES" -gt 0 ]; then
   exit 1
 fi
 
-# Deletion-dominated (net <= 0) → allowed (removal exemption).
+# LOCK 3: comment-padding hygiene — a change that is mostly comments is
+# rejected outright (padding cannot pass as real code).
+if [ "$COMMENT_SHARE" -ge 60 ]; then
+  echo "[merge-gate] ❌ REJECTED — $COMMENT_SHARE% of added lines are comments (>= 60% hygiene ceiling)." >&2
+  echo "[merge-gate]    Real code change required; comment padding cannot pass the gate." >&2
+  exit 1
+fi
+
+# LOCK 2: deletion is a symmetric gate — deletion-dominated changes are NOT
+# an automatic exemption.  Net deletions must also accumulate (mirror the
+# net-addition thresholds) so code cannot be churned (add + delete) to game
+# the gate.  A net <= 0 change qualifies only when the deleted volume is
+# >= QUALIFY_MIN, and is rejected while it is still small.
 if [ "$NET" -le 0 ] && [ "$TOTAL" -gt 0 ]; then
-  echo "[merge-gate] ✅ net code delta <= 0 (deletion-dominated) — removal exemption applies."
-  echo "[merge-gate] OK — merge allowed."
-  exit 0
+  NET_DEL=$((DELETED - ADDED))   # positive when deletion-dominated
+  if [ "$NET_DEL" -ge "$QUALIFY_MIN" ]; then
+    echo "[merge-gate] ✅ deletion-dominated (net -$NET_DEL lines >= $QUALIFY_MIN) — removal qualifies."
+    echo "[merge-gate] OK — merge allowed."
+    exit 0
+  fi
+  echo "[merge-gate] ❌ REJECTED — deletion net -$NET_DEL < $QUALIFY_MIN (symmetric removal gate)." >&2
+  echo "[merge-gate]    Deletions must accumulate on the worktree branch like additions;" >&2
+  echo "[merge-gate]    churning code (add + delete) to game the gate is not allowed." >&2
+  exit 1
 fi
 
 if [ "$NET" -ge "$QUALIFY_MIN" ]; then

@@ -214,12 +214,22 @@ Posture is a load-bearing security lever — never weaken it silently.
 - **Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`,
   auto-run on `push-both.sh main`)** — main must not be inflated by repeated
   tiny commits. The gate computes the NET code delta (added − deleted, code
-  paths only; docs are exempt) of `origin/main..main`:
-  - net < 600 → **reject**: too small to land directly — accumulate on your
-    feature worktree branch first (target ≥ 1000 net code lines);
-  - 600 ≤ net < 1000 → **reject**: not yet qualified — keep accumulating;
-  - net ≥ 1000 → **allow**;
-  - net ≤ 0 (deletion-dominated) or docs-only → **allow** (removal exemption).
+  paths only; docs are exempt) of `origin/main..main`, with three locks:
+  - **LOCK 1 — comment stripping**: added comment lines (per-extension
+    markers) are subtracted from the delta; the gate counts REAL code, so
+    padding a change with comments cannot pass.
+  - **LOCK 2 — symmetric deletion gate**: deletion-dominated changes are NOT
+    an automatic exemption. Net deletions must accumulate to the same
+    threshold (≥ 1000) as net additions; churning code (add + delete) to
+    game the gate is rejected while still small.
+  - **LOCK 3 — hygiene ceiling**: if ≥ 60% of added lines are comments the
+    change is rejected outright (comment padding is not engineering).
+  Thresholds: net < 600 → **reject**; 600 ≤ net < 1000 → **reject**;
+  net ≥ 1000 → **allow**; net ≤ 0 with deletions ≥ 1000 → **allow**
+  (symmetric removal); docs-only ≤ 5000 → **allow**. The agent must find
+  the best balance point between additions and removals — neither padding
+  with comments nor churning code passes; if neither side can reach the
+  threshold, STOP and ask the user.
   On rejection it prints a worktree-accumulation hint and lists sibling
   branches on the same merge-base so changes can be aligned before merging
   (conflicts are reviewed by the merge Agent afterwards). Override the base
