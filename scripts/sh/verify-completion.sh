@@ -43,6 +43,12 @@ RUN_COVERAGE="${COMPLETION_COVERAGE:-1}"
 RUN_DELTA="${COMPLETION_DELTA:-1}"
 RUN_DOCS="${COMPLETION_DOCS:-1}"
 RUN_LINT="${COMPLETION_LINT:-1}"
+RUN_AUDIT="${COMPLETION_AUDIT:-1}"        # pip-audit dependency CVEs
+RUN_COMPLEX="${COMPLETION_COMPLEX:-1}"    # long_functions >200 lines
+RUN_CYCLE="${COMPLETION_CYCLE:-1}"        # import-cycle-check
+RUN_SINGLETON="${COMPLETION_SINGLETON:-1}"  # scan-singletons drift
+RUN_CHANGELOG="${COMPLETION_CHANGELOG:-1}"  # CHANGELOG [Unreleased] fresh
+RUN_INDEX="${COMPLETION_INDEX:-1}"          # doc-index consistency
 
 SKIP_ARG=""
 for a in "$@"; do
@@ -53,12 +59,13 @@ for a in "$@"; do
 done
 IFS=',' read -r -a SKIP_LIST <<< "$SKIP_ARG"
 skip() { local k; for k in "${SKIP_LIST[@]}"; do [ "$k" = "$1" ] && return 0; done; return 1; }
-[ -n "$SKIP_ARG" ] && { skip tests && RUN_TESTS=0; skip coverage && RUN_COVERAGE=0; skip delta && RUN_DELTA=0; skip docs && RUN_DOCS=0; skip lint && RUN_LINT=0; }
+[ -n "$SKIP_ARG" ] && { skip tests && RUN_TESTS=0; skip coverage && RUN_COVERAGE=0; skip delta && RUN_DELTA=0; skip docs && RUN_DOCS=0; skip lint && RUN_LINT=0; skip audit && RUN_AUDIT=0; skip complex && RUN_COMPLEX=0; skip cycle && RUN_CYCLE=0; skip singleton && RUN_SINGLETON=0; skip changelog && RUN_CHANGELOG=0; skip index && RUN_INDEX=0; }
 
 FAILED=0
 GAPS=""
 # per-check result flags (0=untested/skipped, 1=pass, 2=fail) — logged
 S_TESTS=0; S_COVERAGE=0; S_DELTA=0; S_DOCS=0; S_LINT=0
+S_AUDIT=0; S_COMPLEX=0; S_CYCLE=0; S_SINGLETON=0; S_CHANGELOG=0; S_INDEX=0
 
 fail() { GAPS="${GAPS}  ✗ $1
 "; FAILED=1; }
@@ -136,6 +143,79 @@ if [ "$RUN_LINT" = "1" ]; then
   fi
 fi
 
+# ── 6. Dependency CVEs (pip-audit) ───────────────────────────────────────
+if [ "$RUN_AUDIT" = "1" ]; then
+  echo "[judge] ── 6. Dependency vulnerabilities (pip-audit) ──"
+  if ! command -v pip-audit >/dev/null 2>&1; then
+    S_AUDIT=1; pass "pip-audit not installed — skipped"
+  elif pip-audit --progress-spinner off > /tmp/judge_audit.log 2>&1; then
+    S_AUDIT=1; pass "no known vulnerable dependencies"
+  else
+    S_AUDIT=2; head -5 /tmp/judge_audit.log >&2
+    fail "pip-audit found known vulnerabilities"
+  fi
+fi
+
+# ── 7. Complexity (mega-functions) ───────────────────────────────────────
+if [ "$RUN_COMPLEX" = "1" ]; then
+  echo "[judge] ── 7. Complexity (long_functions >200 lines) ──"
+  if python -c "
+import sys; sys.path.insert(0, 'scripts/py')
+from collect_stats import long_functions
+n = long_functions()
+sys.exit(1 if n > 12 else 0)
+" > /tmp/judge_complex.log 2>&1; then
+    S_COMPLEX=1; pass "no complexity overload (<=12 mega-functions)"
+  else
+    S_COMPLEX=2; cat /tmp/judge_complex.log >&2
+    fail "too many mega-functions (>12 of >200 lines) — refactor before declaring done"
+  fi
+fi
+
+# ── 8. Import cycles ─────────────────────────────────────────────────────
+if [ "$RUN_CYCLE" = "1" ]; then
+  echo "[judge] ── 8. Import cycle check ──"
+  if python scripts/py/import_cycle_check.py > /tmp/judge_cycle.log 2>&1; then
+    S_CYCLE=1; pass "no circular imports"
+  else
+    S_CYCLE=2; head -5 /tmp/judge_cycle.log >&2
+    fail "circular imports detected"
+  fi
+fi
+
+# ── 9. Singleton drift (test isolation) ──────────────────────────────────
+if [ "$RUN_SINGLETON" = "1" ]; then
+  echo "[judge] ── 9. Singleton scan (conftest _RESETS sync) ──"
+  if python scripts/py/scan_singletons.py > /tmp/judge_singleton.log 2>&1; then
+    S_SINGLETON=1; pass "singletons registered in _RESETS"
+  else
+    S_SINGLETON=2; head -5 /tmp/judge_singleton.log >&2
+    fail "singleton drift — scan-singletons found unregistered module-level state"
+  fi
+fi
+
+# ── 10. CHANGELOG freshness ──────────────────────────────────────────────
+if [ "$RUN_CHANGELOG" = "1" ]; then
+  echo "[judge] ── 10. CHANGELOG [Unreleased] freshness ──"
+  if python scripts/py/check_changelog.py > /tmp/judge_changelog.log 2>&1; then
+    S_CHANGELOG=1; pass "CHANGELOG [Unreleased] includes latest commits"
+  else
+    S_CHANGELOG=2; head -5 /tmp/judge_changelog.log >&2
+    fail "CHANGELOG stale — run make changelog"
+  fi
+fi
+
+# ── 11. Doc-index consistency ────────────────────────────────────────────
+if [ "$RUN_INDEX" = "1" ]; then
+  echo "[judge] ── 11. Doc-index consistency ──"
+  if python scripts/py/check_doc_index.py > /tmp/judge_index.log 2>&1; then
+    S_INDEX=1; pass "doc-index consistent"
+  else
+    S_INDEX=2; head -5 /tmp/judge_index.log >&2
+    fail "doc-index drift — run make doc-index"
+  fi
+fi
+
 # ── Verdict + quantitative log ───────────────────────────────────────────
 VERDICT="INCOMPLETE"
 [ "$FAILED" = "0" ] && VERDICT="COMPLETE"
@@ -143,7 +223,7 @@ DURATION=$(( $(date +%s) - T0 ))
 
 # JSONL record: one line per run, gitignored — the raw material for
 # judge-stats.sh (completion rate, failure distribution, trend).
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT}}}"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}}}"
 printf '%s\n' "$RECORD" >> "$LOG_FILE"
 
 if [ "$VERDICT" = "COMPLETE" ]; then
