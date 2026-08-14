@@ -157,11 +157,12 @@ Posture is a load-bearing security lever — never weaken it silently.
 ## Commit conventions (enforced by `.githooks/commit-msg`)
 
 - **Messages MUST be in English** (CJK rejected).
-- **Every commit MUST carry a `Co-Authored-By` trailer** naming the authoring agent/model:
+- **Every commit MUST carry exactly ONE well-formed `Co-Authored-By`
+  trailer** naming the authoring agent/model:
   `Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`.
-  The hook validates only the `Co-Authored-By:` prefix — the identity must
-  name the acting agent/model of this session (historical commits also use
-  `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`).
+  The hook enforces: exactly one trailer (no multi-agent stacking), the
+  `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
+  Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
 
 | Part | Requirement |
 |---|---|
