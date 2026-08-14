@@ -82,3 +82,48 @@ def test_five_level_pipeline_reports_levels():
     assert levels.get("raw", 0) >= 1
     assert levels.get("retained") == 2
     assert "HEADLINE" in (r.get("summary") or "")
+
+
+def test_compress_reports_sensitive_hits():
+    """B6: a folded summary containing an API key surfaces sensitive_hits."""
+    from l3.agent.sensitive_detect import reset_sensitive
+    from l3.cell.peers.l3a.session import Message, Session
+
+    reset_sensitive()
+    try:
+        s = Session.create(title="sensitive-test")
+        msgs = [
+            Message(id="u0", role="user", content="use the key sk-abcdefghijklmnopqrstuvwxyz to connect"),
+            Message(id="a0", role="assistant", content="configured endpoint " + "x" * 60),
+        ]
+        for m in msgs:
+            s.history.append(m)
+        r = s.compress(keep_last=1)
+        hits = r.get("sensitive_hits", [])
+        assert any(h.get("kind") == "api_key" for h in hits)
+    finally:
+        reset_sensitive()
+
+
+def test_compress_blocked_by_guard_threshold():
+    """B6: a tripped compression guard blocks the fold before it happens."""
+    from l3.agent.compression_guard import (
+        record_compress_pass,
+        reset_guard,
+        set_guard_switches,
+    )
+    from l3.cell.peers.l3a.session import Message, Session
+
+    reset_guard()
+    try:
+        set_guard_switches(recursion_threshold=1)
+        s = Session.create(title="guard-test")
+        for i in range(4):
+            s.history.append(Message(id=f"u{i}", role="user", content=f"message number {i} with text"))
+        # Pass 1 allowed; the recorded pass trips the breaker for pass 2.
+        record_compress_pass(str(s.id))
+        r = s.compress(keep_last=2)
+        assert r.get("success") is False
+        assert "threshold" in r.get("error", "")
+    finally:
+        reset_guard()
