@@ -82,27 +82,7 @@ fi
 echo "[push-both] -> git push github $BRANCH"
 if ! git push github "$BRANCH"; then
   echo "[push-both] ERROR: push to github (CI mirror) failed" >&2
-  if [ "$BRANCH" = "main" ] && command -v gh >/dev/null 2>&1; then
-    # Branch protection (required checks + review) rejects direct pushes to
-    # github/main. Fall back to a sync PR: push a temp branch, open a PR to
-    # main; the auto-merge gate (approval-gated) lands it after CI + review.
-    SYNC_BRANCH="sync/main-$(git rev-parse --short main)"
-    echo "[push-both] ⚠️  github main is branch-protected — opening sync PR ($SYNC_BRANCH) instead" >&2
-    if git push github "main:$SYNC_BRANCH" 2>/dev/null; then
-      PR_URL=$(gh pr create --repo "$(git remote get-url github)" \
-        --base main --head "$SYNC_BRANCH" \
-        --title "sync: mirror main -> github (post-merge sync)" \
-        --body "Automated sync PR created by push-both when github/main rejects a direct push (branch protection). Review + merge to mirror the canonical GitCode main." 2>/dev/null) && {
-        echo "[push-both] ✅ sync PR opened: $PR_URL" >&2
-        echo "[push-both]    (merge it via the auto-merge gate or manually after review)" >&2
-        FAIL=1  # still not fully pushed; PR flow completes the sync
-      }
-    else
-      echo "[push-both] ❌ could not push sync branch $SYNC_BRANCH either" >&2
-    fi
-  else
-    echo "[push-both] hint: main is branch-protected on github — use a PR, or run gh auth login" >&2
-  fi
+  FAIL=1
 fi
 
 if [ "$FAIL" -eq 0 ]; then
