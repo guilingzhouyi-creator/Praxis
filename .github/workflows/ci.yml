@@ -58,7 +58,7 @@ jobs:
       - name: Verify PR commits (signature + subject + mergeability)
         run: |
           MAIN_BASE="${{ github.event.pull_request.base.sha }}" \
-          PR_MERGE_RELAX_SIGNATURE=1 \
+          PR_SKIP_SIGNATURE=1 \
           bash scripts/sh/verify-pr-merge.sh HEAD
 
   audit:
