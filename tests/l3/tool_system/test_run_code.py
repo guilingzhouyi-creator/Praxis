@@ -69,3 +69,49 @@ def test_cache_miss_executes_fresh_program():
     assert result.get("cached") is not True
     assert result["result"] == "42\n"
     reset_run_code_cache()
+
+
+def test_pipeline_code_only_rejects_native_tools():
+    """tools:code-only — code presentation blocks native tool names."""
+    from l3.tool_system.tool_pipeline import get_pipeline, reset_pipeline
+    from l3.tool_system.tool_presentation import reset_presentation_mode, set_presentation_mode
+
+    def executor(*_a, **_k):
+        return {"success": True}
+
+    p = get_pipeline()
+    try:
+        # native (default): read_file is not blocked by code-only.
+        r = p.execute("read_file", "tester", {"path": "x"}, _registry={}, _executor=executor)
+        assert "UNKNOWN_TOOL" not in str(r.get("error", ""))
+
+        # code: native names resolve to UNKNOWN_TOOL before gating.
+        set_presentation_mode("code", source="test")
+        r2 = p.execute("read_file", "tester", {"path": "x"}, _registry={}, _executor=executor)
+        assert r2.get("success") is False
+        assert "UNKNOWN_TOOL" in r2.get("error", "")
+
+        # code: run_code itself is allowed through.
+        r3 = p.execute("run_code", "tester", {"program": "print(1)"}, _registry={}, _executor=executor)
+        assert "UNKNOWN_TOOL" not in str(r3.get("error", ""))
+    finally:
+        reset_presentation_mode()
+        reset_pipeline()
+
+
+def test_pipeline_code_only_both_mode_unrestricted():
+    """both presentation keeps native schemas AND the transport."""
+    from l3.tool_system.tool_pipeline import get_pipeline, reset_pipeline
+    from l3.tool_system.tool_presentation import reset_presentation_mode, set_presentation_mode
+
+    def executor(*_a, **_k):
+        return {"success": True}
+
+    p = get_pipeline()
+    try:
+        set_presentation_mode("both", source="test")
+        r = p.execute("read_file", "tester", {"path": "x"}, _registry={}, _executor=executor)
+        assert "UNKNOWN_TOOL" not in str(r.get("error", ""))
+    finally:
+        reset_presentation_mode()
+        reset_pipeline()
