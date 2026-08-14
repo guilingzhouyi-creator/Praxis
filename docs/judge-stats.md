@@ -1,37 +1,37 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 15 | **COMPLETE**: 1 (7%) | **INCOMPLETE**: 14 (93%, premature stops caught)
-**Duration**: avg 8s / P95 20s | **Longest INCOMPLETE streak**: 14 consecutive
+**Runs**: 16 | **COMPLETE**: 1 (6%) | **INCOMPLETE**: 15 (94%, premature stops caught)
+**Duration**: avg 8s / P95 20s | **Longest INCOMPLETE streak**: 15 consecutive
 **Gate exemptions** (MERGE_GATE_SKIP in history): 5
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
-| 2026-08-14 | 15 | 1 | 7% |
+| 2026-08-14 | 16 | 1 | 6% |
 
 **Failures by check** (which gate caught premature stops):
-- `changelog`: 14 (100% of incomplete)
-- `delta`: 8 (57% of incomplete)
-- `lint`: 7 (50% of incomplete)
-- `singleton`: 6 (43% of incomplete)
-- `docs`: 2 (14% of incomplete)
-- `complex`: 2 (14% of incomplete)
-- `cycle`: 2 (14% of incomplete)
-- `index`: 2 (14% of incomplete)
+- `changelog`: 15 (100% of incomplete)
+- `delta`: 9 (60% of incomplete)
+- `lint`: 7 (47% of incomplete)
+- `singleton`: 6 (40% of incomplete)
+- `docs`: 2 (13% of incomplete)
+- `complex`: 2 (13% of incomplete)
+- `cycle`: 2 (13% of incomplete)
+- `index`: 2 (13% of incomplete)
 - `audit`: 1 (7% of incomplete)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 13/14 (93%)
-- `changelog`: 0/14 (0%)
-- `complex`: 12/14 (86%)
-- `cycle`: 12/14 (86%)
-- `delta`: 7/15 (47%)
-- `docs`: 13/15 (87%)
-- `index`: 12/14 (86%)
-- `lint`: 8/15 (53%)
-- `singleton`: 8/14 (57%)
+- `audit`: 14/15 (93%)
+- `changelog`: 0/15 (0%)
+- `complex`: 13/15 (87%)
+- `cycle`: 13/15 (87%)
+- `delta`: 7/16 (44%)
+- `docs`: 14/16 (88%)
+- `index`: 13/15 (87%)
+- `lint`: 9/16 (56%)
+- `singleton`: 9/15 (60%)
 
 **Failure pairs** (checks failing together):
-- `changelog + delta`: 8
+- `changelog + delta`: 9
 - `changelog + lint`: 7
 - `changelog + singleton`: 6
 - `delta + lint`: 4
