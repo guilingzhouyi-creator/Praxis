@@ -43,10 +43,68 @@ def _cmd_memory(args: list[str]) -> dict:
     from .common import resolve_agents, resolve_scope
 
     scope, scope_id, rest = resolve_scope(args)
+    op = rest[0].lower() if rest else "search"
+    # Phase 3 M4: /memory corpus [limit] — export the correction corpus
+    # (refined memory + identity/domain context + log snapshots) for
+    # external training tooling. Global op: does not need agent resolution.
+    if op == "corpus":
+        from l3.memory.memory_record_source import export_corpus
+
+        limit = int(rest[1]) if len(rest) >= 2 and str(rest[1]).isdigit() else 0
+        return export_corpus(limit=limit)
+    # Phase 3.1 B1: /memory digest [on|off] [max_chars=N] — conversation
+    # digest-cache operator switches (card-indexed folded-span summary
+    # buffer). Global op: does not need agent resolution.
+    if op == "digest":
+        from l3.agent.digest_cache import digest_status, set_digest_switches
+
+        sub = rest[1].lower() if len(rest) >= 2 else ""
+        if sub in ("on", "off"):
+            return set_digest_switches(enabled=sub == "on")
+        for arg in rest[1:]:
+            if arg.startswith("max_chars=") and arg[10:].isdigit():
+                return set_digest_switches(max_chars=int(arg[10:]))
+        return digest_status()
+    # Phase 3.1 B2: /memory tool-result [on|off] [max_chars=N] — structured
+    # per-Cell offload of oversized tool results. Global op.
+    if op == "tool-result":
+        from l3.agent.tool_result_cache import set_tool_result_switches, tool_result_status
+
+        sub = rest[1].lower() if len(rest) >= 2 else ""
+        if sub in ("on", "off"):
+            return set_tool_result_switches(enabled=sub == "on")
+        for arg in rest[1:]:
+            if arg.startswith("max_chars=") and arg[10:].isdigit():
+                return set_tool_result_switches(max_chars=int(arg[10:]))
+        return tool_result_status()
+    # Phase 3.1 B6: /memory sensitive [on|off] — bypass sensitive-info
+    # detection on the compression path (default ON). Global op.
+    if op == "sensitive":
+        from l3.agent.sensitive_detect import sensitive_status, set_sensitive_switches
+
+        sub = rest[1].lower() if len(rest) >= 2 else ""
+        if sub in ("on", "off"):
+            return set_sensitive_switches(enabled=sub == "on")
+        return sensitive_status()
+    # Phase 3.1 B6: /memory compression-guard [threshold=N] [breaker=on|off]
+    # — recursive-compression threshold (default 0 = off) + circuit breaker
+    # (default on). Setting a threshold resets a tripped breaker. Global op.
+    if op == "compression-guard":
+        from l3.agent.compression_guard import guard_status, set_guard_switches
+
+        threshold = None
+        breaker = None
+        for arg in rest[1:]:
+            if arg.startswith("threshold=") and arg[10:].isdigit():
+                threshold = int(arg[10:])
+            elif arg.startswith("breaker=") and arg[8:] in ("on", "off"):
+                breaker = arg[8:] == "on"
+        if threshold is not None or breaker is not None:
+            return set_guard_switches(recursion_threshold=threshold, breaker_enabled=breaker)
+        return guard_status()
     agents = resolve_agents(scope, scope_id)
     if not agents:
         return {"success": False, "error": _t("shell.app_error.no_agents_found")}
-    op = rest[0].lower() if rest else "search"
     kwargs: dict[str, object] = {"agent_ids": agents}
     if len(rest) >= 2:
         kwargs["query"] = " ".join(rest[1:])

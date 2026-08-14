@@ -14,6 +14,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from l1.kernel.params.system import (
+    HASH_TRUNC_MEDIUM,
     HASH_TRUNC_SHORTEST,
     LOG_TRUNC_200,
     LOG_TRUNC_300,
@@ -78,10 +79,35 @@ class SessionCompressMixin:
         """
         from .session_history import Message as _Message
 
+        # Phase 3.1 B6: recursive-compression threshold + circuit breaker —
+        # a tripped breaker or a reached threshold stops the pass before
+        # anything is folded (default: recursive off, breaker on). Degrades
+        # to a no-op guard when the module is unavailable.
+        try:
+            from l3.agent.compression_guard import check_recursion
+
+            guard = check_recursion(str(getattr(self, "id", "")))
+            if guard.get("blocked"):
+                return {
+                    "success": False,
+                    "error": guard.get("error", "compression guarded"),
+                    "compressed": 0,
+                    "kept": 0,
+                    "compression_ratio": 0.0,
+                }
+        except Exception:
+            logger.debug("l3a session: compression guard skipped")
+
         with self._lock:
             total = len(self.history._messages)
             if total <= keep_last:
-                return {"success": True, "note": "nothing to compress", "compressed": 0, "kept": total}
+                return {
+                    "success": True,
+                    "note": "nothing to compress",
+                    "compressed": 0,
+                    "kept": total,
+                    "compression_ratio": 0.0,
+                }
             keep = self.history._messages[-keep_last:]
             old = self.history._messages[:-keep_last]
             before_tokens = sum(len(m.content) // TOKEN_CHARS_PER_TOKEN + SESSION_MSG_OVERHEAD for m in old)
@@ -120,11 +146,40 @@ class SessionCompressMixin:
         except Exception:
             logger.debug("l3a session: compression snapshot failed")
 
-        # ── 2. Value-weighted summary ──
-        high = [m for m in old if self._message_value(m) >= 3]
-        medium = [m for m in old if self._message_value(m) == 2]
-        low = [m for m in old if self._message_value(m) <= 1]
+        # ── 2. Five-level pipeline (Claude Code-style progressive compaction) ──
+        # Phase 3.1 B4: content-fingerprint dedup (除旧) — repeated
+        # identical user messages inside the folded span collapse to one
+        # so stale duplicates never inflate the summary; the lossless R4
+        # snapshot above still keeps every original message. The dropped
+        # count is reported for the operator baseline.
+        import hashlib
+
+        deduplicated = 0
+        seen_fp: set[str] = set()
+        deduped: list[Any] = []
+        for m in old:
+            if m.role == "user":
+                fp = hashlib.md5(m.content.encode("utf-8", errors="replace")).hexdigest()[:HASH_TRUNC_MEDIUM]
+                if fp in seen_fp:
+                    deduplicated += 1
+                    continue
+                seen_fp.add(fp)
+            deduped.append(m)
+        # Level 1 (raw): high-value messages preserved verbatim.
+        # Level 2 (summarized): medium-value messages condensed to previews.
+        # Level 3 (retained): the most recent `keep_last` messages stay raw.
+        # Level 4 (skeleton): low-value messages reduced to a count line.
+        # Level 5 (headline): the earliest user intent becomes one headline.
+        high = [m for m in deduped if self._message_value(m) >= 3]
+        medium = [m for m in deduped if self._message_value(m) == 2]
+        low = [m for m in deduped if self._message_value(m) <= 1]
         lines = []
+        # Level 5: headline from the earliest user intent in the span.
+        headline = ""
+        earliest_user = next((m for m in deduped if m.role == "user"), None)
+        if earliest_user is not None:
+            headline = f"HEADLINE: {earliest_user.content[:LOG_TRUNC_200]}"
+            lines.append(headline)
         if high:
             lines.append("Earlier key context (preserved in full):")
             for m in high:
@@ -197,6 +252,24 @@ class SessionCompressMixin:
             )
             self.history._messages = [summary_msg] + keep
         after_tokens = len(summary_text) // TOKEN_CHARS_PER_TOKEN + SESSION_MSG_OVERHEAD
+        # Phase 3.1 B6: record the compression pass for the recursion
+        # threshold, and run the bypass sensitive-info scan on the folded
+        # summary (default ON; hits are reported, never blocking the fold).
+        sensitive_hits: list[dict] = []
+        try:
+            from l3.agent.compression_guard import record_compress_pass
+
+            record_compress_pass(str(getattr(self, "id", "")))
+        except Exception:
+            logger.debug("l3a session: compression guard bookkeeping skipped")
+        try:
+            from l3.agent.sensitive_detect import scan_text
+
+            sensitive_hits = scan_text(summary_text)
+        except Exception:
+            logger.debug("l3a session: sensitive scan skipped")
+        if sensitive_hits:
+            logger.warning("l3a session %s: %d sensitive hit(s) in compressed summary", self.id, len(sensitive_hits))
         logger.info("l3a session %s: compressed %d msgs → summary (+%d kept)", self.id, len(old), keep_last)
         # ── R5 swarm-domain graph linkage: graph reduction after compaction (derived layer, failures non-blocking) ──
         try:
@@ -212,10 +285,27 @@ class SessionCompressMixin:
             "session_id": self.id,
             "compressed": len(old),
             "kept": keep_last,
+            # Phase 3.1 B4: stale-duplicate count dropped by content
+            # fingerprint inside the folded span (0 = no dedup happened).
+            "deduplicated": deduplicated,
             "before_tokens": before_tokens,
             "after_tokens": after_tokens,
+            # Phase 3.1 B3: compression-ratio baseline — how much the folded
+            # span shrank (before/after token counts). 0.0 when nothing was
+            # compressed; guard against divide-by-zero on empty summaries.
+            "compression_ratio": (round(before_tokens / after_tokens, 2) if after_tokens > 0 else 0.0),
+            "sensitive_hits": sensitive_hits,
             "summary": summary_text,
             "snapshot_ref": snapshot_ref,
+            # Phase 3.1 B5: five-level pipeline stats (raw/summarized/
+            # retained/skeleton/headline) for the operator baseline.
+            "levels": {
+                "raw": len(high),
+                "summarized": len(medium),
+                "retained": keep_last,
+                "skeleton": len(low),
+                "headline": bool(headline),
+            },
             "distortion": {
                 "high_value_preserved": len(high),
                 "medium_value_summarized": len(medium),

@@ -221,6 +221,36 @@ MEMORY_RING_SCORE_MEDIUM_TOKENS: Final[int] = 5
 #   fine_grained — finer filtering down to identity sub-domains
 MEMORY_FILTER_ENABLED_DEFAULT: Final[bool] = False
 MEMORY_FILTER_FINE_GRAINED_DEFAULT: Final[bool] = False
+# ── Conversation digest cache (Phase 3.1, B1) ─────────────────────────
+# Card-indexed summary buffer for folded conversation spans. Operator
+# switches (API + L2 Shell), never code-embedded:
+#   enabled   — master switch (off = folded spans are dropped, backward
+#               compatible with the plain truncation behavior)
+#   max_chars — per-digest character cap (min 64)
+DIGEST_ENABLED_DEFAULT: Final[bool] = False
+DIGEST_MAX_CHARS_DEFAULT: Final[int] = 400
+# ── Tool-result offload cache (Phase 3.1, B2) ─────────────────────────
+# Structured per-Cell unloading of oversized tool results: the full payload
+# goes to the tiered-cache L1 layer (recoverable by call_id) and the trail
+# keeps a reference line. Operator switches (API + L2 Shell):
+#   enabled   — master switch (off = legacy truncation behavior)
+#   max_chars — payload size above which offload applies (min 512)
+TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT: Final[bool] = False
+TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT: Final[int] = 4_000
+# ── Sensitive-info bypass detection (Phase 3.1, B6) ───────────────────
+# Bypass scan of folded/compressed content for sensitive patterns (API
+# keys, bearer tokens, private keys, IP literals). Operator switch
+# (API + L2 Shell); default ON — a baseline guard on the compression path.
+SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
+# ── Recursive-compression threshold + circuit breaker (Phase 3.1, B6) ──
+# Recursive compression is DISABLED by default (threshold 0 = off): when
+# enabled and a session's compression depth reaches the threshold, the
+# system stops recursive compression and prompts for manual intervention.
+# The circuit breaker is default ON: when recursive-compression threshold
+# is hit (or an error storm is detected), it trips, pauses compression,
+# and logs the event for later analysis.
+COMPRESSION_RECURSION_THRESHOLD_DEFAULT: Final[int] = 0  # 0 = recursive off
+COMPRESSION_BREAKER_ENABLED_DEFAULT: Final[bool] = True
 # ── Memory re-refine (Phase 3, M2 "burn-back"/re-refine) ─────────────────
 # Edge-quality entries dropped by clean() are burned back into the pipeline
 # (re-refined) instead of lost: a small boost is applied on re-score so

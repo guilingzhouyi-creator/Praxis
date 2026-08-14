@@ -404,3 +404,89 @@ def presentation_mode_set(body: dict) -> dict:
     from l3.tool_system.tool_presentation import set_presentation_mode
 
     return set_presentation_mode(body.get("mode", ""), source="api")
+
+
+def memory_corpus_export(body: dict | None = None) -> dict:
+    """Export the M4 correction corpus (refined memory + identity/domain + logs).
+
+    Args:
+        body: optional dict with ``limit`` (max samples; 0 = default).
+
+    Returns:
+        dict with success flag, sample count, and the corpus samples.
+    """
+    from l3.memory.memory_record_source import export_corpus
+
+    return export_corpus(limit=int((body or {}).get("limit", 0) or 0))
+
+
+def memory_digest_get(body: dict | None = None) -> dict:
+    """Conversation digest-cache switch state (B1)."""
+    from l3.agent.digest_cache import digest_status
+
+    return digest_status()
+
+
+def memory_digest_set(body: dict) -> dict:
+    """Enable/disable the conversation digest cache (B1)."""
+    from l3.agent.digest_cache import set_digest_switches
+
+    enabled = body.get("enabled")
+    max_chars = body.get("max_chars")
+    return set_digest_switches(
+        enabled=None if enabled is None else bool(enabled),
+        max_chars=None if max_chars is None else int(max_chars),
+    )
+
+
+def memory_tool_result_get(body: dict | None = None) -> dict:
+    """Tool-result offload-cache switch state (B2)."""
+    from l3.agent.tool_result_cache import tool_result_status
+
+    return tool_result_status()
+
+
+def memory_tool_result_set(body: dict) -> dict:
+    """Enable/disable the tool-result offload cache (B2)."""
+    from l3.agent.tool_result_cache import set_tool_result_switches
+
+    enabled = body.get("enabled")
+    max_chars = body.get("max_chars")
+    return set_tool_result_switches(
+        enabled=None if enabled is None else bool(enabled),
+        max_chars=None if max_chars is None else int(max_chars),
+    )
+
+
+def memory_sensitive_get(body: dict | None = None) -> dict:
+    """Sensitive-info bypass detection switch state (B6)."""
+    from l3.agent.sensitive_detect import sensitive_status
+
+    return sensitive_status()
+
+
+def memory_sensitive_set(body: dict) -> dict:
+    """Enable/disable sensitive-info bypass detection (B6)."""
+    from l3.agent.sensitive_detect import set_sensitive_switches
+
+    enabled = body.get("enabled")
+    return set_sensitive_switches(enabled=None if enabled is None else bool(enabled))
+
+
+def memory_compression_guard_get(body: dict | None = None) -> dict:
+    """Compression guard state: recursion threshold + breaker (B6)."""
+    from l3.agent.compression_guard import guard_status
+
+    return guard_status()
+
+
+def memory_compression_guard_set(body: dict) -> dict:
+    """Set the recursion threshold / breaker switch (B6)."""
+    from l3.agent.compression_guard import set_guard_switches
+
+    threshold = body.get("recursion_threshold")
+    breaker = body.get("breaker_enabled")
+    return set_guard_switches(
+        recursion_threshold=None if threshold is None else int(threshold),
+        breaker_enabled=None if breaker is None else bool(breaker),
+    )

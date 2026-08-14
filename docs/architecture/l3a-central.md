@@ -102,3 +102,39 @@ injected `system` argument first).
 
 - L3A daemon tick drives Mer symbolization (when enabled) and session
   upkeep; conftest resets via `reset_daemon()`.
+
+## History compression (progressive five-level pipeline)
+
+`SessionCompressMixin.compress` folds an older message span into a summary
+while keeping the most recent `keep_last` messages raw. The fold is
+rate-distortion aware and progressive:
+
+| Level | Policy |
+|-------|--------|
+| raw | high-value messages (user intents, card results, convention refs) preserved verbatim |
+| summarized | medium-value messages condensed to preview lines |
+| retained | the most recent `keep_last` messages stay raw |
+| skeleton | low-value messages reduced to a count line |
+| headline | the earliest user intent becomes one `HEADLINE:` line |
+
+Every fold is **lossless by deferred access**: the full span is snapshotted
+to the R4 archive (fonds `AGENT:l3a`, series `session_compression_snapshot`)
+before folding, and the result carries a `snapshot_ref`. Reports include
+the **compression-ratio baseline** (`compression_ratio` = before/after
+token counts; `0.0` when nothing folded), the stale-duplicate count
+(`deduplicated` — identical user messages collapse to one by content
+fingerprint), the five-level stats (`levels`), and any sensitive-info hits
+(`sensitive_hits`, see below).
+
+**Recursion guard**: an operator-gated threshold (`/api/v2/memory/
+compression-guard`, L2 `/memory compression-guard threshold=N`) bounds
+consecutive compression passes per session (default `0` = recursive
+compression off). When reached, compression stops and prompts for manual
+intervention. A circuit breaker (default ON) trips on the threshold hit,
+pauses compression, and records evidence for later analysis; setting a new
+threshold resets a tripped breaker.
+
+**Sensitive-info bypass detection**: `agent/sensitive_detect.py` (default
+ON, switchable via `/api/v2/memory/sensitive` + L2 `/memory sensitive`)
+scans each folded summary for API keys / bearer tokens / private keys / IP
+literals; hits are reported, never blocking the fold.

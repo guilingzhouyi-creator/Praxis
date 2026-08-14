@@ -171,18 +171,28 @@ def archive_search(args: dict, agent_id: str) -> dict:
         sql += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         rows = conn.execute(sql, params).fetchall()
-        results = [
-            {
-                "id": r[0],
-                "fonds": r[1],
-                "series": r[2],
-                "content": r[3][:LOG_TRUNC_500],
-                "tags": r[4].split(",") if r[4] else [],
-                "created_at": r[5],
-                "ref_code": r[6],
-            }
-            for r in rows
-        ]
+        results = []
+        for r in rows:
+            tag_list = r[4].split(",") if r[4] else []
+            # Cell-domain tag (cell:<id>) feeds the M1 identity/Cell-domain
+            # filter's cell gate on R4 retrieval.
+            cell_id = ""
+            for tg in tag_list:
+                if tg.startswith("cell:"):
+                    cell_id = tg[5:]
+                    break
+            results.append(
+                {
+                    "id": r[0],
+                    "fonds": r[1],
+                    "series": r[2],
+                    "content": r[3][:LOG_TRUNC_500],
+                    "tags": tag_list,
+                    "cell_id": cell_id,
+                    "created_at": r[5],
+                    "ref_code": r[6],
+                }
+            )
         # Phase 3 M1: identity/Cell-domain gate on R4 archive retrieval.
         try:
             from l3.memory.memory_domain_filter import get_memory_filter

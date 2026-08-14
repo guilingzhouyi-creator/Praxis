@@ -225,12 +225,28 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         old = self._context_trail[:-keep]
         recent = self._context_trail[-keep:]
         removed = len(old)
-        user_lines = [m.get("content", "")[:LOG_TRUNC_200] for m in old if m.get("role") == "user"]
-        summary = (
-            "[HISTORY TRUNCATED] earlier context: "
-            + "; ".join(user_lines[:5])
-            + (f" (+{len(user_lines) - 5} more)" if len(user_lines) > 5 else "")
-        )
+        # Phase 3.1 B1: card-indexed digest buffer — when the operator
+        # switch is on, the elided span is condensed into the conversation
+        # digest cache (recoverable gist, keyed by card index) and the
+        # in-trail summary is the capped digest line. Disabled (default)
+        # keeps the legacy truncation summary.
+        summary = ""
+        try:
+            from l3.agent.digest_cache import digest_status, fold_messages
+
+            if digest_status().get("enabled"):
+                card_idx = str(self.task or self._card_nature or "card")
+                digest = fold_messages(self._cell_id, card_idx, old)
+                summary = digest or "[HISTORY TRUNCATED] (digest buffer unavailable)"
+        except Exception:
+            logger.debug("agent_loop: digest fold skipped", exc_info=True)
+        if not summary:
+            user_lines = [m.get("content", "")[:LOG_TRUNC_200] for m in old if m.get("role") == "user"]
+            summary = (
+                "[HISTORY TRUNCATED] earlier context: "
+                + "; ".join(user_lines[:5])
+                + (f" (+{len(user_lines) - 5} more)" if len(user_lines) > 5 else "")
+            )
         self._context_trail = [{"role": "system", "content": summary}] + recent
         logger.debug("agent_loop: trail truncated, removed %d msgs", removed)
         return removed
@@ -316,7 +332,24 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                 }
             result = pr.get("result", {})
             if isinstance(result, dict):
-                result = self._fold_result(result)
+                # Phase 3.1 B2: when the tool-result offload cache is enabled
+                # and the payload exceeds the budget, the full structured
+                # result is offloaded to the per-Cell cache (recoverable by
+                # call_id) and the trail keeps a reference line. Disabled
+                # (default) keeps the legacy head+tail folding.
+                try:
+                    from l3.agent.tool_result_cache import maybe_offload
+
+                    result = maybe_offload(
+                        self._cell_id,
+                        str(pr.get("call_id", "") or ""),
+                        tool_name,
+                        result,
+                    )
+                except Exception:
+                    logger.debug("agent_loop: tool-result offload skipped", exc_info=True)
+                if isinstance(result, dict) and not result.get("offloaded"):
+                    result = self._fold_result(result)
             return result
 
         wrapped.__name__ = tool_name
