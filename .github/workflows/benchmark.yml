@@ -78,8 +78,8 @@ jobs:
           retention-days: 30
       - name: Record + summarize trends
         run: |
-          python scripts/py/bench-trends.py record "$WALL" "$STEPS" "${{ github.run_id }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          python scripts/py/bench-trends.py summary
+          python scripts/py/bench_trends.py record "$WALL" "$STEPS" "${{ github.run_id }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python scripts/py/bench_trends.py summary
         env:
           WALL: ${{ steps.bench.outputs.wall_time }}
           STEPS: ${{ steps.bench.outputs.steps_per_sec }}

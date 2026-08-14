@@ -4,8 +4,8 @@ Runs the same counting as ``gen_doc_stats.collect_stats()`` and compares
 against the "Numbers snapshot" table in docs/architecture/README.md.
 Exits non-zero on any drift, so CI can gate on it:
 
-    python scripts/py/check-doc-stats.py          # check only (CI gate)
-    python scripts/py/check-doc-stats.py --fix    # rewrite the snapshot in place
+    python scripts/py/check_doc_stats.py          # check only (CI gate)
+    python scripts/py/check_doc_stats.py --fix    # rewrite the snapshot in place
 
 Never hand-edit the numbers — regenerate instead (``make doc-stats`` runs
 gen-doc-stats + gen-llms-txt; this script is the machine gate that proves
@@ -154,7 +154,7 @@ def main() -> int:
     print("DRIFT: README numbers snapshot does not match the live codebase.")
     for msg in drift:
         print(" -", msg)
-    print("Run `python scripts/py/check-doc-stats.py --fix` (or `make doc-stats`) to update.")
+    print("Run `python scripts/py/check_doc_stats.py --fix` (or `make doc-stats`) to update.")
     return 1
 
 

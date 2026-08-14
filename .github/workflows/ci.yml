@@ -87,7 +87,7 @@ jobs:
 
   doc-stats:
     # Docs freshness gate: the README numbers snapshot and the llms.txt
-    # indexes are generated (scripts/py/gen-doc-stats.py / gen-llms-txt.py).
+    # indexes are generated (scripts/py/gen_doc_stats.py / gen_llms_txt.py).
     # This job regenerates both and fails when the committed docs drifted
     # from the live codebase, so a code change that adds files/constants/
     # routes must ship with its regenerated numbers (make doc-stats).
@@ -100,14 +100,14 @@ jobs:
       - name: Install
         run: pip install -e ".[test]"
       - name: Check README numbers snapshot (check-doc-stats)
-        run: python scripts/py/check-doc-stats.py
+        run: python scripts/py/check_doc_stats.py
       - name: Check doc-index consistency (check-doc-index)
-        run: python scripts/py/check-doc-index.py
+        run: python scripts/py/check_doc_index.py
       - name: Check CHANGELOG [Unreleased] (check-changelog)
-        run: python scripts/py/check-changelog.py
+        run: python scripts/py/check_changelog.py
       - name: Check llms.txt indexes (regenerate + diff)
         run: |
-          python scripts/py/gen-llms-txt.py
+          python scripts/py/gen_llms_txt.py
           if ! git diff --exit-code -- docs/architecture/llms.txt docs/architecture/llms-full.txt; then
             echo "❌ llms.txt/llms-full.txt drifted — run 'make doc-stats' and commit the regenerated files"
             exit 1

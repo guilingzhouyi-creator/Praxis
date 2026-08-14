@@ -22,7 +22,23 @@ else
 fi
 
 echo "--- pre-commit: size check ---"
-python scripts/py/pre-commit-size-check
+python scripts/py/pre_commit_size_check.py
+
+# ── Script naming guard (module files must be snake_case) ────────────────
+# AGENTS.md: directories are kebab-case, module *files* are snake_case.
+# A new script with a hyphen in scripts/py/ would silently break the
+# convention (and any Makefile/workflow reference) — reject it here.
+STAGED_SCRIPTS="$(git diff --cached --name-only --diff-filter=ACMR -- 'scripts/py/*' || true)"
+if [ -n "$STAGED_SCRIPTS" ]; then
+  BAD_NAMES="$(printf '%s\n' "$STAGED_SCRIPTS" | grep -E '/[a-z0-9_]*-[a-z0-9_-]*\.py$' || true)"
+  if [ -n "$BAD_NAMES" ]; then
+    echo "❌ pre-commit: module files must be snake_case (no hyphens):" >&2
+    printf '%s\n' "$BAD_NAMES" | sed 's/^/     /' >&2
+    echo "   e.g. use check_doc_stats.py, not check-doc-stats.py" >&2
+    exit 1
+  fi
+  echo "script naming guard: OK"
+fi
 
 # ── Mainline whitelist gate ─────────────────────────────────────────────
 # Only low-risk files may be committed directly on main; everything else

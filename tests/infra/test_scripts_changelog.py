@@ -1,4 +1,4 @@
-"""Tests for scripts/py/generate-changelog.py and bump-version CHANGELOG migration.
+"""Tests for scripts/py/generate_changelog.py and bump-version CHANGELOG migration.
 
 Covers the Pure-functions of the changelog tooling: Conventional-Commits
 grouping, the [Unreleased] render, and the bump-time [Unreleased] -> version
@@ -23,8 +23,8 @@ def _load(name: str, fname: str):
     return mod
 
 
-generate_changelog = _load("generate_changelog", "generate-changelog.py")
-bump_version = _load("bump_version", "bump-version.py")
+generate_changelog = _load("generate_changelog", "generate_changelog.py")
+bump_version = _load("bump_version", "bump_version.py")
 
 
 def test_group_subjects_by_type():

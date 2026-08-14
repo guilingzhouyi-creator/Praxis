@@ -150,10 +150,10 @@ kernel migration priorities.
   `test_hardcoded_fixes_regression.py`.
 - **Performance baseline hard line**: `tests/benchmarks/bench_card.py` +
   `bench_platform.py` record wall-time/steps into `benchmarks/trends.json`
-  (`bench-trends.py record`), with `benchmarks/baseline.json` as the
+  (`bench_trends.py record`), with `benchmarks/baseline.json` as the
   reference. The regression limit is a single source of truth —
   `BENCH_REGRESSION_LIMIT_PCT` in `l1/kernel/params/system.py` (10%) —
-  consumed by both `bench-trends.py summary` and the `benchmark.yml` CI
+  consumed by both `bench_trends.py summary` and the `benchmark.yml` CI
   gate (a run worse than the limit fails the job; the first run only
   records the baseline).
 - **CI**: GitHub Actions (dual-remote mirror), matrix 3.11–3.14, concurrency

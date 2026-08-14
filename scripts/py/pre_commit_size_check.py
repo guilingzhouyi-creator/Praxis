@@ -6,7 +6,11 @@ Usage:
   SKIP_SIZE_CHECK=1 git commit -m "msg"  # bypass all checks
   git commit -m "msg" --no-verify        # bypass (git native)
 """
-import os, subprocess, sys
+
+import contextlib
+import os
+import subprocess
+import sys
 
 WARN_THRESHOLD = 500
 BLOCK_THRESHOLD = 10000
@@ -16,7 +20,9 @@ if os.environ.get("SKIP_SIZE_CHECK"):
 
 result = subprocess.run(
     ["git", "diff", "--cached", "--stat"],
-    capture_output=True, text=True, timeout=10,
+    capture_output=True,
+    text=True,
+    timeout=10,
 )
 
 stats = result.stdout.strip()
@@ -32,24 +38,20 @@ total = 0
 for part in last.split(","):
     part = part.strip()
     if "insertion" in part or "change" in part:
-        try:
+        with contextlib.suppress(ValueError, IndexError):
             total += int(part.split()[0])
-        except (ValueError, IndexError):
-            pass
     if "deletion" in part or "change" in part:
-        try:
+        with contextlib.suppress(ValueError, IndexError):
             total += int(part.split()[0])
-        except (ValueError, IndexError):
-            pass
 
 if total >= BLOCK_THRESHOLD:
     print(f"\n  \u26d4 PRE-COMMIT BLOCKED: net change ({total} lines) >= limit ({BLOCK_THRESHOLD} lines)")
-    print(f"  \u251c\u2500\u2500 Split into smaller commits")
-    print(f"  \u251c\u2500\u2500 Or use: SKIP_SIZE_CHECK=1 git commit ...")
-    print(f"  \u2514\u2500\u2500 Or use: git commit --no-verify ...\n")
+    print("  \u251c\u2500\u2500 Split into smaller commits")
+    print("  \u251c\u2500\u2500 Or use: SKIP_SIZE_CHECK=1 git commit ...")
+    print("  \u2514\u2500\u2500 Or use: git commit --no-verify ...\n")
     sys.exit(1)
 elif total >= WARN_THRESHOLD:
     print(f"\n  \u26a0 PRE-COMMIT WARNING: net change = {total} lines (threshold {WARN_THRESHOLD})")
-    print(f"  Consider splitting into smaller focused commits.\n")
+    print("  Consider splitting into smaller focused commits.\n")
 
 sys.exit(0)

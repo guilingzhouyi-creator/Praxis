@@ -6,7 +6,7 @@ node (true cycles) plus self-imports. Exit code 1 on any cycle.
 
 Usage (from the repo root):
 
-    python scripts/py/import-cycle-check.py
+    python scripts/py/import_cycle_check.py
 """
 
 from __future__ import annotations

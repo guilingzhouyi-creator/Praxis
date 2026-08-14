@@ -63,8 +63,8 @@ if [ -z "$(git rev-list "$RANGE" 2>/dev/null || true)" ]; then
   exit 0
 fi
 
-# ── 1. Net code delta via classify-diff.py (code paths only) ─────────────
-# classify-diff.py reports code_lines = added + deleted for code paths and
+# ── 1. Net code delta via classify_diff.py (code paths only) ─────────────
+# classify_diff.py reports code_lines = added + deleted for code paths and
 # is_large.  For a NET delta we need added − deleted; recompute from
 # --numstat so deletion-dominated changes (allowed) are distinguishable.
 NUMSTAT_FILE="$(mktemp)"
@@ -74,7 +74,7 @@ if ! git diff --numstat "$MERGE_BASE" "$BRANCH" > "$NUMSTAT_FILE" 2>/dev/null; t
   exit 3
 fi
 
-CLASSIFY="scripts/py/classify-diff.py"
+CLASSIFY="scripts/py/classify_diff.py"
 if [ ! -f "$CLASSIFY" ]; then
   echo "[merge-gate] ERROR: $CLASSIFY not found" >&2
   exit 3

@@ -11,7 +11,7 @@
 #   2. Coverage — report fail-under threshold (default 60, from pyproject)
 #   3. Net delta — code delta meets the mainline gate (>= 1000 net, or
 #      deletion-dominated / docs-only exemptions)
-#   4. Docs sync — doc-stats drift gate clean (check-doc-stats.py)
+#   4. Docs sync — doc-stats drift gate clean (check_doc_stats.py)
 #   5. Lint/type — ruff check + mypy clean
 #
 # Every run appends a machine-readable record to `.praxis/judge-runs.jsonl`
@@ -109,8 +109,8 @@ fi
 # ── 4. Docs sync (drift gate) ────────────────────────────────────────────
 if [ "$RUN_DOCS" = "1" ]; then
   echo "[judge] ── 4. Doc-stats drift ──"
-  if [ -f scripts/py/check-doc-stats.py ]; then
-    if python scripts/py/check-doc-stats.py > /tmp/judge_docs.log 2>&1; then
+  if [ -f scripts/py/check_doc_stats.py ]; then
+    if python scripts/py/check_doc_stats.py > /tmp/judge_docs.log 2>&1; then
       S_DOCS=1; pass "doc-stats in sync"
     else
       S_DOCS=2; tail -3 /tmp/judge_docs.log >&2

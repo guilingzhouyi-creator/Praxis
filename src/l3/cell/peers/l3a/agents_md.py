@@ -22,7 +22,7 @@ from l1.kernel.params.system import HASH_TRUNC_MEDIUM, LOG_TRUNC_80
 
 logger = logging.getLogger(__name__)
 
-# Layer table: relative src/ dir -> display name. Mirrors scripts/py/gen-doc-stats.py.
+# Layer table: relative src/ dir -> display name. Mirrors scripts/py/gen_doc_stats.py.
 _LAYER_DIRS: dict[str, str] = {
     "l1/kernel": "L1 Kernel",
     "l2": "L2 Shell",
@@ -31,7 +31,7 @@ _LAYER_DIRS: dict[str, str] = {
     "l5": "L5 User",
 }
 
-# Sub-layer table for the hotspot stats (mirrors gen-doc-stats.py).
+# Sub-layer table for the hotspot stats (mirrors gen_doc_stats.py).
 _SUBLAYER_DIRS: dict[str, str] = {
     "l3/cell/peers/l3a": "L3A (peers)",
     "l3/memory": "L3 Memory",

@@ -200,7 +200,7 @@ RECORD_CENTER_AUTO_EXPORT_INTERVAL: Final[float] = 300.0
 # ── Performance baseline hard line (bench-trends) ─────────────────────────
 # Percent worse than the recorded baseline that triggers a hard CI failure
 # (benchmark.yml gate), not just a warning. Baseline lives in
-# tests/benchmarks/baseline.json (recorded by bench-trends.py record).
+# tests/benchmarks/baseline.json (recorded by bench_trends.py record).
 BENCH_REGRESSION_LIMIT_PCT: Final[float] = 10.0
 
 # ── Memory ring quality scoring (quality_note) ──

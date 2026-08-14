@@ -1,8 +1,8 @@
 """Unified codebase statistics collector — single source of truth.
 
 All counting that feeds generated docs (the architecture stats snapshot and
-the llms indexes) lives here so ``gen-doc-stats.py``, ``gen-llms-txt.py`` and
-``check-doc-stats.py`` share ONE implementation instead of duplicating
+the llms indexes) lives here so ``gen_doc_stats.py``, ``gen_llms_txt.py`` and
+``check_doc_stats.py`` share ONE implementation instead of duplicating
 counters. Import as a normal module from ``scripts/py`` (add ``scripts/py`` to
 ``sys.path``) or load by path with ``importlib``:
 
