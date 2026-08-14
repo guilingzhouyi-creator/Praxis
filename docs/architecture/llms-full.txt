@@ -103,22 +103,22 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 63 files / 17,624 lines |
-| L2 Shell | 35 files / 4,236 lines |
-| L3 Cell | 323 files / 68,495 lines |
-| L4 Bridge | 107 files / 21,507 lines |
+| L1 Kernel | 63 files / 17,654 lines |
+| L2 Shell | 35 files / 4,294 lines |
+| L3 Cell | 327 files / 69,193 lines |
+| L4 Bridge | 107 files / 21,617 lines |
 | L5 User | 2 files / 599 lines |
-| L3A (peers) | 24 files / 6,136 lines |
-| L3 Memory | 41 files / 8,576 lines |
+| L3A (peers) | 24 files / 6,226 lines |
+| L3 Memory | 41 files / 8,624 lines |
 | L3 Card | 27 files / 6,439 lines |
 | L3 Services | 43 files / 11,140 lines |
 | L3 Bus | 17 files / 4,380 lines |
-| L3 Agent | 29 files / 6,004 lines |
-| L4 Handlers | 33 files / 5,649 lines |
-| API routes | 318 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: skill=19, security=18, provider=17, l3a=14, approval=14) |
-| Params modules / constants | 8 / 1,201 |
-| Health | 0.613 (grade B) |
+| L3 Agent | 33 files / 6,554 lines |
+| L4 Handlers | 33 files / 5,735 lines |
+| API routes | 327 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=22, skill=19, security=18, provider=17, l3a=14) |
+| Params modules / constants | 8 / 1,208 |
+| Health | 0.592 (grade C) |
 
 ## Reading path
 
@@ -601,6 +601,12 @@ cases. See `cross-cutting.md` for the full injection table.
 
 - `/api/v2/memory*` (store/recall/stats), `/api/v2/memory/graph*` (R5),
   `/api/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
+- `/api/v2/memory/filter` (M1 domain-filter switches),
+  `/api/v2/memory/corpus` (M4 correction-corpus export),
+  `/api/v2/memory/digest` (conversation digest cache),
+  `/api/v2/memory/tool-result` (tool-result offload cache),
+  `/api/v2/memory/sensitive` (sensitive-info bypass detection),
+  `/api/v2/memory/compression-guard` (recursion threshold + breaker)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
 - Tiered-cache consumers: the per-Cell `run_code` program cache
@@ -623,7 +629,11 @@ domain filter (`memory_domain_filter.py`):
   active identity comes from `match_identity` on the driving intent/domain
   (verify→test, implement→build), never a static role; unbound single-Cell
   composites fall back to the full `IDENTITY_DEFAULT_SET`.
-- **R4 included**: `archive_search` applies the same gate as R1–R3.
+- **R4 included**: `archive_search` applies the same gate as R1–R3. R4
+  entries carry an explicit `cell:<id>` tag on write (`archive_to_r4`),
+  which the search path parses into `cell_id` so the Cell gate matches
+  archived Mer baselines the same way as live rings; untagged entries stay
+  globally visible (system-level records).
 
 The M2 refinery (`memory_refinery.py`) classifies → dedups → cleans →
 scores → extracts → transforms every written entry, with a burn-back
@@ -634,7 +644,39 @@ R5 graph edges (`supply_to_r5`, graph-gated), generalized skill evolution
 (`supply_to_skills`, switch-gated), and filtered re-injection
 (`re_inject_filtered`). M4 (`memory_record_source.py`) registers a
 RecordCenter source exporting identity/Cell-feature/log-enriched corpus
-for training correction.
+for training correction, exposed via `/api/v2/memory/corpus` + L2
+`/memory corpus` (`export_corpus`).
+
+**Reference-channel linkage**: every accepted memory write emits a
+`memory_refined` event on the reference channel (`get_rc().event`, source
+`memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
+causal audit ring correlates memory events with tool and identity context
+for M4 corpus analytics. Best-effort, never blocks the write.
+
+## Conversation-side caches (digest + offload)
+
+Two operator-gated caches raise the compression ratio on the agent
+conversation path while keeping information recoverable:
+
+- **Digest cache** (`agent/digest_cache.py`): when the master switch is on
+  (default off), a folded conversation span is condensed into a
+  character-capped digest and stored in the tiered-cache L2 shared-summary
+  layer, keyed by card index (`{cell_id}::{card_id}::digest`); the trail
+  keeps the digest line and `get_digest` recovers it. Switches:
+  `/api/v2/memory/digest` + L2 `/memory digest [on|off] [max_chars=N]`
+  (`DIGEST_ENABLED_DEFAULT` off, `DIGEST_MAX_CHARS_DEFAULT` 400).
+- **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
+  (default off), an oversized structured tool result is offloaded to the
+  per-Cell tiered-cache L1 layer (key `cell:{cell_id}::tool:{call_id}`) and
+  the trail keeps a reference line with digest; `fetch_result` recovers
+  the full payload. Switches: `/api/v2/memory/tool-result` + L2
+  `/memory tool-result [on|off] [max_chars=N]`
+  (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+- **Sensitive-info bypass detection** (`agent/sensitive_detect.py`,
+  default ON): scans folded summaries for API keys / bearer tokens /
+  private keys / IP literals; hits are reported on the compression result,
+  never blocking the fold. Switches: `/api/v2/memory/sensitive` + L2
+  `/memory sensitive [on|off]`.
 
 ## Per-Cell Agents handbook (Cell-{n}-Agents.md)
 
@@ -754,6 +796,42 @@ injected `system` argument first).
 
 - L3A daemon tick drives Mer symbolization (when enabled) and session
   upkeep; conftest resets via `reset_daemon()`.
+
+## History compression (progressive five-level pipeline)
+
+`SessionCompressMixin.compress` folds an older message span into a summary
+while keeping the most recent `keep_last` messages raw. The fold is
+rate-distortion aware and progressive:
+
+| Level | Policy |
+|-------|--------|
+| raw | high-value messages (user intents, card results, convention refs) preserved verbatim |
+| summarized | medium-value messages condensed to preview lines |
+| retained | the most recent `keep_last` messages stay raw |
+| skeleton | low-value messages reduced to a count line |
+| headline | the earliest user intent becomes one `HEADLINE:` line |
+
+Every fold is **lossless by deferred access**: the full span is snapshotted
+to the R4 archive (fonds `AGENT:l3a`, series `session_compression_snapshot`)
+before folding, and the result carries a `snapshot_ref`. Reports include
+the **compression-ratio baseline** (`compression_ratio` = before/after
+token counts; `0.0` when nothing folded), the stale-duplicate count
+(`deduplicated` — identical user messages collapse to one by content
+fingerprint), the five-level stats (`levels`), and any sensitive-info hits
+(`sensitive_hits`, see below).
+
+**Recursion guard**: an operator-gated threshold (`/api/v2/memory/
+compression-guard`, L2 `/memory compression-guard threshold=N`) bounds
+consecutive compression passes per session (default `0` = recursive
+compression off). When reached, compression stops and prompts for manual
+intervention. A circuit breaker (default ON) trips on the threshold hit,
+pauses compression, and records evidence for later analysis; setting a new
+threshold resets a tripped breaker.
+
+**Sensitive-info bypass detection**: `agent/sensitive_detect.py` (default
+ON, switchable via `/api/v2/memory/sensitive` + L2 `/memory sensitive`)
+scans each folded summary for API keys / bearer tokens / private keys / IP
+literals; hits are reported, never blocking the fold.
 
 
 ---
