@@ -43,6 +43,15 @@ Identify changes in security-critical areas: `auth`, `identity`, `session`, `gat
 - Check for exposure of internal configuration in error responses.
 - Review `.env` / secrets handling patterns.
 
+### 8. Security Posture & Harness Review (`src/l1/kernel/security_mode.py`, `harness.py`, `posture_matrix.py`)
+- **Security mode** (`security_mode.py`): `productive` (default) | `security-test` (attack). Attack posture REQUIRES explicit confirmation + a target whitelist; the system must return to `productive` after the test; never leave it in attack posture.
+- **Harness mode** (`harness.py`): the unified tool-usage control bar split by the CONTROL LINE (approval gate):
+  - Guarded class: `governed` (default, full control) | `code` (PTC — full control + `run_code` programmatic presentation) | `semi` (rate limit only, drops approval + pool).
+  - Open class: `minimal` — no process control (approval/rate/pool dropped), restricted toolset (bash + `str_replace_editor`), but the bottom line (constitution, gatechain, sandbox, reference-channel recording) still applies.
+  - `minimal` REQUIRES explicit risk confirmation and is FORBIDDEN under offensive posture; runtime switch via `set_harness_mode()` (`/api/v2/security/mode`, L2 `harness`); never hardcode a downgrade.
+- **Posture matrix** (`posture_matrix.py` + `config/discovery/posture.yaml`): an offensive domain needs a non-empty, non-loopback target whitelist — an empty whitelist is rejected.
+- **Evidence**: every posture/harness change MUST call `record_evidence` — never bypass it.
+
 ## Checklist
 
 - [ ] Auth tokens properly validated on every request
@@ -55,3 +64,6 @@ Identify changes in security-critical areas: `auth`, `identity`, `session`, `gat
 - [ ] PID/resource exhaustion limits in place
 - [ ] Environment variables used for secrets, not hardcoded config
 - [ ] GateChain gates properly restrict dangerous tools
+- [ ] Attack posture confirmed + whitelisted, never left lingering
+- [ ] Harness downgrades (semi/minimal) explicitly confirmed, no hardcoded downgrades
+- [ ] Every posture/harness change recorded via record_evidence

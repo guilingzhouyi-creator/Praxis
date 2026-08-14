@@ -23,7 +23,7 @@ Background knowledge skill for the Praxis Agent OS. Applies these conventions au
 - **Process architecture**: Each `AgentTerminal` registers as a `PCB` (Process Control Block) in the kernel process table.
 - **Service layer**: Organized in `src/l3/` and `src/l4/` — each service is a self-contained module with clear boundaries.
 - **Card-based execution**: Work is packaged as "cards" dispatched through the cell system.
-- **Layer import rules**: L5 → L4/L3/L2/L1; L4 → L3/L2/L1; L3 → L2/L1; L2 → L1 only; L1 cannot import upper layers. Enforced by `tests/infra/test_layer_imports.py` (93 pre-existing cross-layer imports allowlisted).
+- **Layer import rules**: L5 → L4/L3/L2/L1; L4 → L3/L2/L1; L3 → L2/L1; L2 → L1 only; L1 cannot import upper layers. Enforced by `tests/infra/test_layer_imports.py` (95 pre-existing cross-layer imports allowlisted; new ones must be allowlisted there).
 
 ## Coding Standards
 
@@ -82,6 +82,15 @@ config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 
 - Use pytest with `pyproject.toml` config section `[tool.pytest.ini_options]` (`addopts = "-n auto --dist loadfile"`, `pythonpath = ["src"]`).
 - Tests in `tests/` matching `test_*.py` (subdirs `l1`–`l5`, `infra`, `integration`, `benchmarks`).
-- Singleton pollution: `tests/conftest.py` resets ~33 known singletons via an `autouse` fixture.
-- Layer import test (`test_layer_imports.py`) checks all `.py` files.
+- Runner batches: `python tests/runner.py` runs Batch 1 (fast) + Batch 2 (slow, ~75s); `--batch 1|2` selects (runner takes `--batch` ONLY, no test-name arg). `make test` / `make test-extended` / `make test-all` map onto the batches.
+- Infra gates (all in `tests/infra/`): `test_layer_imports.py` (import rules), `test_params_compliance.py` (`-k "not strict"` for soft mode), `test_hardcoded_fixes_regression.py` (regression: hardcoded fixes), `test_resets_completeness.py`, `test_skill_schema.py`.
+- Singleton pollution: `tests/conftest.py` resets known singletons via an `autouse` fixture (`_RESETS`); add new services there — `scripts/py/scan-singletons.py` lists module-level singletons to keep the list in sync.
 - New cross-layer imports must be allowlisted in `test_layer_imports.py`.
+- **CompletionJudge**: machine decides "done" — run `bash scripts/sh/verify-completion.sh` before declaring a task complete (11 dimensions: tests/coverage/net-delta/doc-stats/lint/audit/complexity/cycles/singletons/changelog/doc-index). Only `COMPLETE` authorizes done.
+
+## Naming & Misc Gates
+
+- Scripts: `scripts/sh/*.sh` + `scripts/py/*.py` module files are snake_case (`.githooks/pre-commit` script-naming guard rejects hyphenated staged files — directories stay kebab-case).
+- All magic numbers go in `src/l1/kernel/params/` — never hardcode in implementation files (`test_params_compliance.py` strict mode catches it).
+- Generated numbers: doc-stats snapshots in AGENTS.md refreshed by `make doc-stats` (`scripts/py/gen_doc_stats.py`), drift-gated by `scripts/py/check_doc_stats.py` — never hand-edit.
+- New kernel modules exported in `kernel/__init__.py` `__all__`; new config items registered in `kernel/settings.py` `DEFAULTS`.
