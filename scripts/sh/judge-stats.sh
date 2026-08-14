@@ -21,10 +21,14 @@ cd "$ROOT"
 LOG="$ROOT/.praxis/judge-runs.jsonl"
 DAYS=""
 JSON=0
+MD=0
+WRITE=""
 for a in "$@"; do
   case "$a" in
     --days=*) DAYS="${a#--days=}" ;;
     --json) JSON=1 ;;
+    --md) MD=1 ;;
+    --write=*) WRITE="${a#--write=}" ;;
     *) echo "[judge-stats] unknown arg: $a" >&2; exit 2 ;;
   esac
 done
@@ -34,13 +38,13 @@ if [ ! -f "$LOG" ]; then
   exit 0
 fi
 
-python3 - "$LOG" "$DAYS" "$JSON" <<'PY'
+python3 - "$LOG" "$DAYS" "$JSON" "$MD" "$WRITE" <<'PY'
 import json
 import sys
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 
-log, days, as_json = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+log, days, as_json, as_md, write_to = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4] == "1", sys.argv[5]
 rows = []
 with open(log, encoding="utf-8") as f:
     for line in f:
@@ -90,6 +94,32 @@ if as_json:
         "failures_by_check": dict(fail_counter),
         "trend": {d: {"complete": c, "runs": t, "rate": round(c / t, 3)} for d, (c, t) in sorted(trend.items())},
     }))
+    sys.exit(0)
+
+if as_md:
+    lines = []
+    lines.append("## CompletionJudge effectiveness (auto-updated)")
+    lines.append("")
+    lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({rate:.0%}) | **INCOMPLETE**: {total - complete} ({1 - rate:.0%}, premature stops caught)")
+    lines.append("")
+    lines.append("| Date | Runs | Complete | Rate |")
+    lines.append("|---|---|---|---|")
+    for d, (c, t) in sorted(trend.items()):
+        lines.append(f"| {d} | {t} | {c} | {c / t:.0%} |")
+    if fail_counter:
+        lines.append("")
+        lines.append("**Failures by check** (which gate caught premature stops):")
+        for chk, n in fail_counter.most_common():
+            lines.append(f"- `{chk}`: {n} ({n / max(len(incomplete), 1):.0%} of incomplete)")
+    output = "\n".join(lines) + "\n"
+    if write_to:
+        import os
+        os.makedirs(os.path.dirname(write_to) or ".", exist_ok=True)
+        with open(write_to, "w", encoding="utf-8") as f:
+            f.write(output)
+        print(f"[judge-stats] wrote {write_to}")
+    else:
+        print(output)
     sys.exit(0)
 
 print("=" * 52)

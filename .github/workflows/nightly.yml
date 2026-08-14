@@ -120,22 +120,21 @@ jobs:
         run: python scripts/py/import_cycle_check.py
 
   judge-stats:
-    # CompletionJudge effectiveness report: aggregates local judge runs
-    # (.praxis/judge-runs.jsonl) into a completion-rate / failure-
-    # distribution summary. CI runners have no local runs, so the JSON is
-    # reported as-is (empty → "no data"); the same command works on a
-    # developer machine where verify-completion.sh has been run.
+    # CompletionJudge effectiveness report: reads the committed dashboard
+    # (docs/judge-stats.md), which push-both regenerates on every mainline
+    # merge — so the CI/nightly view is always fresh without needing the
+    # gitignored local .praxis/judge-runs.jsonl on the runner.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -e ".[test]"
-      - name: Judge effectiveness (JSON summary)
+      - name: Judge effectiveness dashboard
         run: |
           echo "## CompletionJudge effectiveness (nightly)" >> "$GITHUB_STEP_SUMMARY"
-          bash scripts/sh/judge-stats.sh --json >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          if [ -f docs/judge-stats.md ]; then
+            cat docs/judge-stats.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No dashboard yet — push main once to generate it._" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
   notify-failure:
