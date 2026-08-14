@@ -82,6 +82,26 @@ else
     echo "[push-both] ⚠️  completion judge: INCOMPLETE (see /tmp/pushboth_judge.log)" >&2
   fi
 
+  echo "[push-both] ── judge dashboard (aggregate → docs/judge-stats.md) ───"
+  # Regenerate the committed dashboard so the CI/nightly job always reads a
+  # fresh aggregate (JSONL itself stays gitignored in .praxis/). The
+  # aggregation is O(n) over the log — milliseconds even with hundreds of
+  # runs — and writes a small Markdown file (never the raw log).
+  if bash scripts/sh/judge-stats.sh --md --write=docs/judge-stats.md >/tmp/pushboth_dash.log 2>&1; then
+    if [ -n "$(git status --porcelain docs/judge-stats.md 2>/dev/null)" ]; then
+      git add docs/judge-stats.md 2>/dev/null
+      git commit --no-verify -m "docs(stats): refresh judge dashboard" \
+        -m "Auto-refresh by push-both: CompletionJudge aggregate must stay current." \
+        -m "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >/dev/null 2>&1 \
+        && echo "[push-both] ✅ judge dashboard refreshed" \
+        || echo "[push-both] ⚠️  dashboard drift present but could not auto-commit" >&2
+    else
+      echo "[push-both] ✅ judge dashboard in sync"
+    fi
+  else
+    echo "[push-both] ⚠️  judge dashboard refresh failed (see /tmp/pushboth_dash.log)" >&2
+  fi
+
   echo "[push-both] ── mainline merge gate (origin/main..main) ─────────────"
   if [ "${MERGE_GATE_SKIP:-0}" != "1" ] && \
      ! MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main; then
