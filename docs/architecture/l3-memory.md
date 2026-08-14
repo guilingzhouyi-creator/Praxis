@@ -190,6 +190,12 @@ inside the AgentLoop run path, keyed by card index:
   `/api/v2/memory/tool-result` + L2
   `/memory tool-result [on|off] [max_chars=N]`
   (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+- **Reclaim (lifecycle)**: expired entries are dropped lazily by the
+  tiered-cache `get` path (physical delete, L1 60s / L2 300s TTL) and by
+  capacity eviction; additionally, `reclaim(cell_id)` performs an explicit
+  per-Cell sweep, hooked into Cell teardown (`cell_lifecycle`) alongside
+  the `run_code_cache` reclaim — the conversation-side caches live and die
+  with the Cell lifecycle.
 
 **Decision layer (L3A central, `cell/peers/l3a/session_compress.py`)** —
 the progressive five-level pipeline (`compress()`: raw / summarized /

@@ -112,6 +112,18 @@ class CellLifecycleMixin:
             get_run_code_cache().reclaim(self.cell_id)
         except Exception as e:
             logger.debug("Cell %s run_code cache reclaim skipped: %s", self.cell_id, e)
+        # Reclaim this Cell's conversation-side caches (digest + tool-result
+        # offload): same lifecycle semantics as the run_code cache area —
+        # expired digests/offloaded results are physically swept at teardown.
+        # Each is a no-op on error (bypass-free side channel).
+        try:
+            from l3.agent.digest_cache import reclaim as _reclaim_digest
+            from l3.agent.tool_result_cache import reclaim as _reclaim_tool_result
+
+            _reclaim_digest(self.cell_id)
+            _reclaim_tool_result(self.cell_id)
+        except Exception as e:
+            logger.debug("Cell %s conversation-cache reclaim skipped: %s", self.cell_id, e)
         with self._lock:
             for info in self._agents.values():
                 from l3.cell.components.cell_types import AgentStatus

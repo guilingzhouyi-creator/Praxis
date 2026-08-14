@@ -119,3 +119,35 @@ def get_digest(cell_id: str, card_id: str) -> str:
     except Exception as e:
         logger.debug("digest_cache: buffer read skipped: %s", e)
         return ""
+
+
+def reclaim(cell_id: str = "") -> int:
+    """Explicitly evict expired digest entries (per-Cell or global).
+
+    The tiered-cache ``get`` path already drops expired entries lazily
+    (physical delete); this sweep matches Cell shutdown / on-demand cleanup
+    semantics (same pattern as ``run_code_cache.reclaim``). Returns the
+    number of expired entries reclaimed.
+
+    Args:
+        cell_id: when given, only this Cell's digests are swept
+            (keys ``{cell_id}::*::digest``); empty sweeps all.
+
+    Returns:
+        Count of expired entries dropped.
+    """
+    try:
+        from l3.memory.tiered_cache import get_tiered_cache
+
+        cache = get_tiered_cache()
+        evicted = 0
+        prefix = f"{cell_id}::" if cell_id else ""
+        for key in cache.keys("L2"):
+            if key.startswith(prefix) and key.endswith(_DIGEST_SUFFIX) and cache.get("L2", key) is None:
+                # get() lazily drops expired entries; a None after a
+                # key-scan hit means the entry expired and was reclaimed.
+                evicted += 1
+        return evicted
+    except Exception as e:
+        logger.debug("digest_cache: reclaim failed: %s", e)
+        return 0

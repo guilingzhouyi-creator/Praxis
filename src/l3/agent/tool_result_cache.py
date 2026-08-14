@@ -115,6 +115,38 @@ def fetch_result(cell_id: str, call_id: str) -> dict:
         return {}
 
 
+def reclaim(cell_id: str = "") -> int:
+    """Explicitly evict expired offloaded results (per-Cell or global).
+
+    The tiered-cache ``get`` path already drops expired entries lazily
+    (physical delete); this sweep matches Cell shutdown / on-demand cleanup
+    semantics (same pattern as ``run_code_cache.reclaim``). Returns the
+    number of expired entries reclaimed.
+
+    Args:
+        cell_id: when given, only this Cell's offloaded results are swept
+            (keys ``cell:{cell_id}::tool:*``); empty sweeps all.
+
+    Returns:
+        Count of expired entries dropped.
+    """
+    try:
+        from l3.memory.tiered_cache import get_tiered_cache
+
+        cache = get_tiered_cache()
+        evicted = 0
+        prefix = _key(cell_id, "") if cell_id else "cell:"
+        for key in cache.keys("L1"):
+            if key.startswith(prefix) and "::tool:" in key and cache.get("L1", key) is None:
+                # get() lazily drops expired entries; a None after a
+                # key-scan hit means the entry expired and was reclaimed.
+                evicted += 1
+        return evicted
+    except Exception as e:
+        logger.debug("tool_result_cache: reclaim failed: %s", e)
+        return 0
+
+
 def maybe_offload(cell_id: str, call_id: str, tool_name: str, result: dict) -> dict:
     """Offload when the payload exceeds the budget; returns the trail entry.
 
