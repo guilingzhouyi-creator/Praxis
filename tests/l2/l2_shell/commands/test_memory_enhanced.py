@@ -75,3 +75,21 @@ def test_context_audit_op():
         assert "per_agent" in r
     finally:
         reset_loop_registry()
+
+
+def test_prompt_library_op_switch():
+    from l3.agent.global_prompt_library import reset_global_prompt_library
+    from l3.agent.prompt_library import reset_prompt_library
+
+    reset_prompt_library()
+    reset_global_prompt_library()
+    try:
+        r = _cmd_memory(["prompt-library", "off", "global=off"])
+        assert r["success"] is True
+        assert r["cell"]["enabled"] is False
+        assert r["global"]["enabled"] is False
+        r2 = _cmd_memory(["prompt-library"])
+        assert r2["cell"]["enabled"] is False
+    finally:
+        reset_prompt_library()
+        reset_global_prompt_library()

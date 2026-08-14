@@ -448,6 +448,68 @@ def memory_context_audit(body: dict | None = None) -> dict:
     return audit_cell_context(cell_id=str((body or {}).get("cell_id", "") or ""))
 
 
+def memory_prompt_version_get(body: dict | None = None) -> dict:
+    """System-prompt versioning switch + version snapshot (3.2)."""
+    from l1.kernel.prompts import prompt_versioning_status, prompt_versions
+
+    return {"status": prompt_versioning_status(), **prompt_versions()}
+
+
+def memory_prompt_version_rollback(body: dict) -> dict:
+    """Roll a system prompt key back to a snapshotted version (3.2)."""
+    from l1.kernel.prompts import rollback_prompt
+
+    return rollback_prompt(str(body.get("key", "") or ""), int(body.get("version", 0) or 0))
+
+
+def memory_prompt_monitor_get(body: dict | None = None) -> dict:
+    """System-prompt bypass monitor switch + metrics (3.2)."""
+    from l3.agent.prompt_monitor import prompt_monitor_stats, prompt_monitor_status
+
+    return {"status": prompt_monitor_status(), **prompt_monitor_stats()}
+
+
+def memory_prompt_monitor_set(body: dict) -> dict:
+    """Enable/disable the system-prompt bypass monitor (3.2)."""
+    from l3.agent.prompt_monitor import set_prompt_monitor
+
+    enabled = body.get("enabled")
+    return set_prompt_monitor(enabled=None if enabled is None else bool(enabled))
+
+
+def memory_prompt_monitor_emit(body: dict | None = None) -> dict:
+    """Emit prompt metrics to the reference channel (3.2)."""
+    from l3.agent.prompt_monitor import emit_prompt_metrics
+
+    return emit_prompt_metrics()
+
+
+def memory_prompt_library_get(body: dict | None = None) -> dict:
+    """Cell + global prompt-library switch state (3.2)."""
+    from l3.agent.global_prompt_library import global_prompt_library_status
+    from l3.agent.prompt_library import prompt_library_status
+
+    return {
+        "cell": prompt_library_status(),
+        "global": global_prompt_library_status(),
+    }
+
+
+def memory_prompt_library_set(body: dict) -> dict:
+    """Enable/disable the Cell/global prompt libraries (3.2, default ON)."""
+    from l3.agent.global_prompt_library import set_global_prompt_library_switches
+    from l3.agent.prompt_library import set_prompt_library_switches
+
+    cell = body.get("cell")
+    glob = body.get("global")
+    out = {}
+    if cell is not None:
+        out["cell"] = set_prompt_library_switches(enabled=bool(cell))
+    if glob is not None:
+        out["global"] = set_global_prompt_library_switches(enabled=bool(glob))
+    return {"success": True, **out}
+
+
 def memory_digest_get(body: dict | None = None) -> dict:
     """Conversation digest-cache switch state (B1)."""
     from l3.agent.digest_cache import digest_status

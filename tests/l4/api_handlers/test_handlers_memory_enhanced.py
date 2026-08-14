@@ -14,6 +14,8 @@ from l4.api_handlers.api_handlers_security import (
     memory_corpus_export,
     memory_digest_get,
     memory_digest_set,
+    memory_prompt_library_get,
+    memory_prompt_library_set,
     memory_sensitive_get,
     memory_sensitive_set,
     memory_tool_result_get,
@@ -90,3 +92,23 @@ def test_context_audit_returns_aggregate():
         assert "per_agent" in r
     finally:
         reset_loop_registry()
+
+
+def test_prompt_library_get_and_set():
+    from l3.agent.global_prompt_library import reset_global_prompt_library
+    from l3.agent.prompt_library import reset_prompt_library
+
+    reset_prompt_library()
+    reset_global_prompt_library()
+    try:
+        st = memory_prompt_library_get()
+        assert st["cell"]["enabled"] is True  # default ON
+        assert st["global"]["enabled"] is True
+        r = memory_prompt_library_set({"cell": False, "global": False})
+        assert r["success"] is True
+        after = memory_prompt_library_get()
+        assert after["cell"]["enabled"] is False
+        assert after["global"]["enabled"] is False
+    finally:
+        reset_prompt_library()
+        reset_global_prompt_library()
