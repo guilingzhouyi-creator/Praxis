@@ -141,6 +141,10 @@ class SkillLifecycleMixin:
                 continue
             new_rules: list[Any] = []
             changed = False
+            # P1-④: skill-level counters aggregated in the SAME traversal —
+            # the verify gate consumes these, no second pass over rules.
+            skill_verified = 0
+            skill_hit = 0
             for r in rules:
                 if isinstance(r, str):
                     new_rules.append(r)
@@ -159,6 +163,8 @@ class SkillLifecycleMixin:
                     meta["hit"] = int(meta.get("hit", 0)) + 1
                 if meta["preferred"] < R4_RULE_MIN_PREFERRED:
                     meta["deprecated"] = True
+                skill_verified += int(meta.get("verified", 0) or 0)
+                skill_hit += int(meta.get("hit", 0) or 0)
                 new_rules.append(meta)
                 changed = True
             if changed:
@@ -167,36 +173,31 @@ class SkillLifecycleMixin:
                     updated += 1
                 except Exception:
                     logger.debug("R4Agent: rule preference update failed for %s", name)
-            # P1-④ verify gate: aggregate the rule-level signals into a
-            # skill-level confidence state — verified >= PROMOTE promotes
-            # the candidate to active; hit >= ROLLBACK rolls it back to
-            # deprecated (auditable via the pre-update archive).
+            # P1-④ verify gate: apply the aggregated skill-level confidence
+            # state (verified >= PROMOTE → active; hit >= ROLLBACK →
+            # deprecated with archive) — single pass, no re-traversal.
             try:
-                self._apply_verify_gate(sm, name, new_rules)
+                self._apply_verify_gate(sm, name, verified=skill_verified, hit=skill_hit)
             except Exception:
                 logger.debug("R4Agent: verify gate failed for %s", name)
         return updated
 
-    def _apply_verify_gate(self, sm: Any, name: str, rules: list[Any]) -> None:
+    def _apply_verify_gate(self, sm: Any, name: str, verified: int = 0, hit: int = 0) -> None:
         """P1-④: promote/rollback a generalized skill from card signals.
 
-        Aggregates the rule-level ``verified`` / ``hit`` counters; the
-        skill-level state transitions candidate → active (promote) or
-        candidate → deprecated (rollback, with archive baseline).
+        Consumes the skill-level ``verified`` / ``hit`` counters aggregated
+        by ``record_card_skill_signal`` in its single rules traversal; the
+        state transitions candidate → active (promote) or candidate →
+        deprecated (rollback, with archive baseline).
 
         Args:
             sm: the skill manager.
             name: the generalized lessons skill name.
-            rules: the updated rule list (post-signal).
+            verified: aggregated verified counter (from the signal pass).
+            hit: aggregated hit counter (from the signal pass).
         """
         from l1.kernel.params.agent import R4_VERIFY_PROMOTE_THRESHOLD, R4_VERIFY_ROLLBACK_THRESHOLD
 
-        verified = 0
-        hit = 0
-        for r in rules:
-            if isinstance(r, dict):
-                verified += int(r.get("verified", 0) or 0)
-                hit += int(r.get("hit", 0) or 0)
         rec = sm.get(name)
         if not rec:
             return

@@ -599,6 +599,12 @@ R4_LEAN_GENERALIZE_THRESHOLD: Final[int] = 5  # per-tool lean cases → auto-gen
 R4_VERIFY_PROMOTE_THRESHOLD: Final[int] = 3
 R4_VERIFY_ROLLBACK_THRESHOLD: Final[int] = 5
 
+# ── Session-JSON supply cache (P0-①) ──
+# The supply dir-mtime probe is throttled: after the first stat sweep the
+# result is reused for this TTL (seconds), so a cache-hit path costs zero
+# syscalls on every R4Agent tick.
+SRC_SUPPLY_MTIME_TTL: Final[float] = 5.0
+
 # ── R4Agent lesson summarization (LLM) ──
 R4_SUMMARIZE_COOLDOWN: Final[float] = 3600.0  # min gap between LLM summaries per tool (s)
 R4_SUMMARIZE_MIN_INTERVAL: Final[float] = 60.0  # min gap between ANY two LLM summaries (s)

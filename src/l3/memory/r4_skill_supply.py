@@ -21,8 +21,10 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 
+from l1.kernel.params.agent import SRC_SUPPLY_MTIME_TTL
 from l1.kernel.params.system import LOG_TRUNC_200
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,10 @@ logger = logging.getLogger(__name__)
 _lock = threading.RLock()
 # session-dir mtime -> cached aggregate (avoids re-scan on every tick).
 _cache: dict[str, tuple[float, list[dict]]] = {}
+# (mtime_value, cached_at) — throttled probe result (P0-①): after the
+# first stat sweep the result is reused for SRC_SUPPLY_MTIME_TTL seconds,
+# so a cache-hit path costs zero syscalls.
+_mtime_cache: tuple[float, float] = (0.0, 0.0)
 
 _TOOLS_GLOB = "*_tools.json"
 _THOUGHTS_GLOB = "*_thoughts.json"
@@ -45,17 +51,32 @@ def _session_dir() -> Path:
 
 
 def _dir_mtime() -> float:
+    """Newest mtime across the session JSON files (TTL-throttled).
+
+    P0-①: after the first glob+stat sweep the result is reused for
+    ``SRC_SUPPLY_MTIME_TTL`` seconds — the per-tick probe costs zero
+    syscalls on a cache hit, and only re-scans when the TTL expires.
+    """
+    global _mtime_cache
+    now = time.time()
+    with _lock:
+        if now - _mtime_cache[1] < SRC_SUPPLY_MTIME_TTL:
+            return _mtime_cache[0]
     d = _session_dir()
     try:
         if not d.exists():
-            return 0.0
-        # Newest mtime across matching files (cheap stat, not content read).
-        return max(
-            (f.stat().st_mtime for f in d.glob("*_*.json") if f.is_file()),
-            default=0.0,
-        )
+            mtime = 0.0
+        else:
+            # Newest mtime across matching files (cheap stat, not content read).
+            mtime = max(
+                (f.stat().st_mtime for f in d.glob("*_*.json") if f.is_file()),
+                default=0.0,
+            )
     except OSError:
-        return 0.0
+        mtime = 0.0
+    with _lock:
+        _mtime_cache = (mtime, time.time())
+    return mtime
 
 
 def _cached(glob: str) -> list[dict]:
@@ -68,9 +89,15 @@ def _cached(glob: str) -> list[dict]:
     d = _session_dir()
     items: list[dict] = []
     try:
+        # P2-⑤: file I/O goes through the storage port (TS-friendly —
+        # the interface maps onto async I/O in a rewrite without caller
+        # changes).
+        from l1.kernel.ports.storage import get_storage
+
+        store = get_storage()
         for f in sorted(d.glob(glob)):
             try:
-                data = json.loads(f.read_text(encoding="utf-8"))
+                data = json.loads(store.read_text(str(f)))
                 items.append(data)
             except (OSError, ValueError):
                 continue
@@ -82,9 +109,11 @@ def _cached(glob: str) -> list[dict]:
 
 
 def reset_supply_cache() -> None:
-    """Drop the cached aggregates (tests / lifecycle)."""
+    """Drop the cached aggregates + mtime probe (tests / lifecycle)."""
+    global _mtime_cache
     with _lock:
         _cache.clear()
+        _mtime_cache = (0.0, 0.0)
 
 
 def load_tool_failure_cases(limit: int = 200) -> list[dict]:

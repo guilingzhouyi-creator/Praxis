@@ -166,6 +166,12 @@ class MemoryIngestMixin:
             entry.tokens,
             content[:LOG_TRUNC_80],
         )
+        # P0-②: keep the O(1) ring index in sync with the write path.
+        try:
+            with self._lock:
+                self._entry_ring[eid] = int(ring)
+        except Exception:
+            logger.debug("memory: ring index update failed for %s", eid)
         return eid
 
     def _recent_entries(self, agent_id: str, cell_id: str, limit: int = 3) -> list[dict]:
@@ -207,15 +213,33 @@ class MemoryIngestMixin:
         """
         source_entry: MemEntry | None = None
         source_ring: int = 0
-        for ring_num, layer in ((1, self.working), (2, self.short), (3, self.long)):
-            with layer._lock:
-                for e in layer._entries:
-                    if e.id == entry_id:
-                        source_entry = e
-                        source_ring = ring_num
-                        break
+        # P0-②: O(1) index lookup — fall back to the cross-ring scan when
+        # the index is stale (correctness is never compromised).
+        layers_map = {1: self.working, 2: self.short, 3: self.long}
+        indexed_ring = self._entry_ring.get(entry_id)
+        if indexed_ring is not None:
+            layer = layers_map.get(int(indexed_ring))
+            if layer is not None:
+                with layer._lock:
+                    for e in layer._entries:
+                        if e.id == entry_id:
+                            source_entry = e
+                            source_ring = int(indexed_ring)
+                            break
+        if source_entry is None:  # fallback: full cross-ring scan
+            for ring_num, layer in ((1, self.working), (2, self.short), (3, self.long)):
+                with layer._lock:
+                    for e in layer._entries:
+                        if e.id == entry_id:
+                            source_entry = e
+                            source_ring = ring_num
+                            break
+                if source_entry:
+                    break
             if source_entry:
-                break
+                # Repair the stale index entry.
+                with self._lock:
+                    self._entry_ring[entry_id] = source_ring
         if not source_entry:
             return {"success": False, "error": f"entry not found: {entry_id}"}
 
@@ -243,6 +267,11 @@ class MemoryIngestMixin:
                     )
                     layer._rebuild_token_count()
                     break
+
+        # P0-②: maintain the O(1) ring index (new id → target, old id gone).
+        with self._lock:
+            self._entry_ring[new_id] = int(target_ring)
+            self._entry_ring.pop(entry_id, None)
 
         return {"success": True, "entry_id": new_id, "from_ring": source_ring, "to_ring": target_ring}
 

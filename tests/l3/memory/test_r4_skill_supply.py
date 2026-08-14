@@ -94,3 +94,43 @@ def test_list_skills_layer_filter():
         assert "s-dec-1" in dec_names
     finally:
         reset_skill_manager()
+
+
+def test_dir_mtime_ttl_throttle(tmp_path, monkeypatch):
+    """P0-①: the mtime probe is TTL-throttled (zero re-stats on hit)."""
+    from l3.memory import r4_skill_supply as sup
+
+    monkeypatch.setenv("PRAXIS_DATA_DIR", str(tmp_path))
+    reset_sequences()
+    reset_supply_cache()
+    try:
+        record_failed_tool("sess-1", turn=1, tool_name="read_file", error="denied")
+        # First probe performs the sweep and caches the result.
+        first = sup._dir_mtime()
+        assert first > 0
+        # Second probe within TTL returns the cached value without re-sweep.
+        second = sup._dir_mtime()
+        assert second == first
+        # The cache metadata is populated.
+        assert sup._mtime_cache[0] == first
+    finally:
+        reset_supply_cache()
+        reset_sequences()
+
+
+def test_dir_mtime_reset_clears_probe(tmp_path, monkeypatch):
+    """P0-①: reset_supply_cache clears the throttled probe too."""
+    from l3.memory import r4_skill_supply as sup
+
+    monkeypatch.setenv("PRAXIS_DATA_DIR", str(tmp_path))
+    reset_sequences()
+    reset_supply_cache()
+    try:
+        record_failed_tool("sess-1", turn=1, tool_name="read_file", error="denied")
+        sup._dir_mtime()
+        assert sup._mtime_cache[1] > 0
+        reset_supply_cache()
+        assert sup._mtime_cache == (0.0, 0.0)
+    finally:
+        reset_supply_cache()
+        reset_sequences()

@@ -38,3 +38,40 @@ def test_auto_promote_noop_below_threshold(tmp_path, monkeypatch):
         assert promoted == 0
     finally:
         reset()
+
+
+def test_promote_ring_index_maintained(tmp_path, monkeypatch):
+    """P0-②: remember/promote keep the O(1) ring index in sync."""
+    mem, reset = _fresh_memory(tmp_path, monkeypatch)
+    try:
+        eid = mem.remember(
+            agent_id="agent-a", entry_type="pattern", content="important pattern", importance=0.8, ring=1
+        )
+        # remember indexed the entry in ring 1.
+        assert mem._entry_ring.get(eid) == 1
+        r = mem.promote(eid, 2)
+        assert r["success"] is True
+        # promote re-remembers under a new id (indexed at ring 2) and
+        # drops the old id.
+        new_id = r["entry_id"]
+        assert mem._entry_ring.get(new_id) == 2
+        assert eid not in mem._entry_ring
+    finally:
+        reset()
+
+
+def test_promote_index_stale_fallback(tmp_path, monkeypatch):
+    """P0-②: a stale index entry falls back to the cross-ring scan."""
+    mem, reset = _fresh_memory(tmp_path, monkeypatch)
+    try:
+        eid = mem.remember(
+            agent_id="agent-a", entry_type="pattern", content="important pattern", importance=0.8, ring=1
+        )
+        # Corrupt the index (simulate a stale entry) — promote must still
+        # find the entry via the full scan and repair the index.
+        mem._entry_ring.pop(eid, None)
+        r = mem.promote(eid, 2)
+        assert r["success"] is True
+        assert mem._entry_ring.get(r["entry_id"]) == 2
+    finally:
+        reset()
