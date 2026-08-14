@@ -103,6 +103,13 @@ class Session(
         self.memory_scope = memory_scope
         self.created_at = time.time()
         self.last_active_at = time.time()
+        # 3.3 P2-①: record the session start in the history module.
+        try:
+            from .session_json import record_session_open
+
+            record_session_open(session_id=session_id, title=title)
+        except Exception:
+            logger.debug("l3a session: history open record skipped")
         self.closed_at: float | None = None
         self.turn_count = 0
         self.card_count = 0

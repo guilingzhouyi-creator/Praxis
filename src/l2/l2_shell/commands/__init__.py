@@ -65,6 +65,10 @@ from .identity_binding import (  # noqa: E402
 )
 from .l3a import (  # noqa: E402
     _cmd_l3a,
+    _cmd_session_history,
+    _cmd_session_monitor,
+    _cmd_session_reload,
+    _cmd_session_resume,
 )
 from .l3ac import (  # noqa: E402
     _cmd_l3ac,
@@ -133,6 +137,7 @@ for _module_name in (
     "extra",
     "harness",
     "l3a",
+    "session",
     "test_auto",
     "ci",
     "presentation",
@@ -203,6 +208,10 @@ __all__ = [
     "_cmd_security",
     "_cmd_l3a",
     "_cmd_l3ac",
+    "_cmd_session_history",
+    "_cmd_session_monitor",
+    "_cmd_session_reload",
+    "_cmd_session_resume",
     "_cmd_identity_binding",
     "_cmd_departments",
     "_cmd_agent_refresh",

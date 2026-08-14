@@ -206,3 +206,61 @@ def handle_agent_config_set(body: dict | None = None) -> dict:
         }
 
     return {"success": True, "updated": results}
+
+
+def session_monitor_get(body: dict | None = None) -> dict:
+    """Real-time session monitor: running status / resource / progress.
+
+    Args:
+        body: optional dict (unused — monitor is global).
+
+    Returns:
+        dict with per-session states (dual identity + status + counters).
+    """
+    from l3.agent_terminal import session_monitor, session_monitor_status
+
+    return {"status": session_monitor_status(), **session_monitor()}
+
+
+def session_monitor_set(body: dict) -> dict:
+    """Enable/disable the session monitor (3.3, default ON)."""
+    from l3.agent_terminal import set_session_monitor
+
+    enabled = body.get("enabled")
+    return set_session_monitor(enabled=None if enabled is None else bool(enabled))
+
+
+def session_reload_post(body: dict) -> dict:
+    """Auto-reload a session entity on anomaly / trigger reload (3.3).
+
+    Args:
+        body: dict with ``agent_id`` (required) and optional ``reason``
+            (anomaly reason, e.g. a stagnation pattern).
+
+    Returns:
+        dict with the reload outcome (or a no-op note).
+    """
+    from l3.agent_terminal import auto_reload_session
+
+    agent_id = str(body.get("agent_id", "") or "")
+    if not agent_id:
+        return {"success": False, "error": "agent_id required"}
+    return auto_reload_session(agent_id, reason=str(body.get("reason", "") or ""))
+
+
+def session_history_get(body: dict | None = None) -> dict:
+    """Session history records (start/end/duration, query, 3.3)."""
+    from l3.cell.peers.l3a.session_json import history_status, query_session_history
+
+    b = body or {}
+    limit = int(b.get("limit", 20) or 20)
+    session_id = str(b.get("session_id", "") or "")
+    return {"status": history_status(), **query_session_history(limit=limit, session_id=session_id)}
+
+
+def session_history_set(body: dict) -> dict:
+    """Enable/disable the session history module (3.3, default ON)."""
+    from l3.cell.peers.l3a.session_json import set_history
+
+    enabled = body.get("enabled")
+    return set_history(enabled=None if enabled is None else bool(enabled))

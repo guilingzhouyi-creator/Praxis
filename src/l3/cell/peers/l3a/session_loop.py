@@ -250,6 +250,16 @@ class SessionLoopMixin:
             mem = get_memory(self.memory_scope)
         except Exception:
             return
+        # 3.3 P1-①: persist the tagged user-input / model-answer pair into
+        # the decision-layer conversation JSON (upper = tagged user input,
+        # lower = 1:1 answer; input sequence id assigned at entry).
+        try:
+            from .session_json import append_turn, next_input_seq
+
+            assistant_text = str(result.get("summary") or result.get("answer") or "")[:LOG_TRUNC_500]
+            append_turn(self.id, next_input_seq(self.id), user_text, assistant_text)
+        except Exception:
+            logger.debug("l3a session: conversation JSON persist skipped")
         tool_results = result.get("tool_call_results", []) or []
         if not tool_results:
             return
@@ -258,6 +268,22 @@ class SessionLoopMixin:
         for sr in tool_results:
             tool_name = sr.get("tool_name", "") or sr.get("action", "?")
             payload = sr.get("result", {}) if isinstance(sr, dict) and "result" in sr else sr
+            # 3.3 P1-③: successful calls are DROPPED (effect already
+            # applied / folded by the compression pipeline); FAILED calls
+            # are recorded to the tool-result JSON for R5 analysis.
+            sr_ok = bool(sr.get("success", True))
+            if not sr_ok or sr.get("error"):
+                try:
+                    from .session_json import record_failed_tool
+
+                    record_failed_tool(
+                        self.id,
+                        self.turn_count,
+                        tool_name,
+                        str(sr.get("error", "") or "")[:LOG_TRUNC_200],
+                    )
+                except Exception:
+                    logger.debug("l3a session: failed-tool JSON record skipped")
             content = f"[turn:{self.turn_count}] {tool_name} → {str(payload)[:LOG_TRUNC_300]}"
             ring = 2 if tool_name in high_value_tools else 1
             entry_type = "l3a_tool_decision" if ring == 2 else "l3a_tool_call"
@@ -332,3 +358,13 @@ class SessionLoopMixin:
             )
         except Exception:
             logger.debug("l3a session: reasoning trail ingest failed")
+        # 3.3 P1-②: persist the thought chain into its SEPARATE JSON file
+        # (auto-tagged with session id + turn + input seq, linked to the
+        # conversation JSON by tags) — R5 analyzes this file for knowledge-
+        # graph / skill distillation.
+        try:
+            from .session_json import append_thought, next_input_seq
+
+            append_thought(self.id, self.turn_count, next_input_seq(self.id), folded)
+        except Exception:
+            logger.debug("l3a session: thought JSON persist skipped")

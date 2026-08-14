@@ -40,6 +40,8 @@ from l1.kernel.params.system import (
     LOG_TRUNC_500,
     POLL_INTERVAL_SLOW,
     SCOUT_COLLECT_TIMEOUT,
+    SESSION_AUTO_RELOAD_ENABLED_DEFAULT,
+    SESSION_MONITOR_ENABLED_DEFAULT,
 )
 from l3.services.model_service import get_service as _get_model_service
 
@@ -73,6 +75,14 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         self.territory = territory or []
         self.cell_id = cell_id
         self._project_root = project_root or _PROJECT_ROOT
+        # Session/process dual identity (3.3): process_id pins the backing
+        # OS process (host pid — terminals are worker pools inside it);
+        # session_id is bound lazily via register_session() for
+        # unique, trackable session entities.
+        import os
+
+        self.process_id = os.getpid()
+        self.session_id = ""
 
         cfg = DEFAULT_AGENT_CONFIGS.get(role) if role else None
         self.ring = cfg.ring if cfg else AGENT_CLEARANCE.get(role, 1)
@@ -126,6 +136,7 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         self._loop_mode: str = TERMINAL_MODE_DEFAULT
         self._loop_state: str = TERMINAL_STATE_DEFAULT
         self._paused: bool = False
+        self._reload_count: int = 0  # anomaly auto-reloads (3.3, P0-③)
         # Persistent AgentLoop — reuse across cards for conversational continuity
         self._persistent_loop: bool = False
         self._active_loop: Any = None
@@ -425,6 +436,61 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         self.status = TerminalStatus.IDLE
         return {"success": True, "resumed": True}
 
+    def monitor_state(self) -> dict:
+        """Real-time state for the session monitor (3.3, P0-②).
+
+        Returns running status, resource/progress counters, and the dual
+        identity (session_id + process_id) — feed for session_monitor().
+
+        Returns:
+            dict with status/running/cards/paused + dual identity.
+        """
+        return {
+            "session_id": self.session_id,
+            "process_id": self.process_id,
+            "agent_id": self.agent_id,
+            "status": self.status.name if hasattr(self.status, "name") else str(self.status),
+            "running": self._running,
+            "cards_processed": self._cards_processed,
+            "active_cards": self._active_cards,
+            "paused": self._paused,
+        }
+
+    def auto_reload(self, reason: str = "") -> dict:
+        """Session-level auto reload on anomaly (3.3, P0-③).
+
+        Distinct from interrupt resume: this fully resets the session
+        entity — stops workers, drops the active loop, and returns the
+        terminal to IDLE so the backing AgentLoop restarts cleanly. The
+        reload is counted and logged (with reason) for later analysis.
+
+        Args:
+            reason: anomaly reason (e.g. stagnation pattern).
+
+        Returns:
+            dict with success flag, reload count, and the new status.
+        """
+        self._running = False
+        for w in self._workers:
+            w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
+        with self._active_loop_lock:
+            self._active_loop = None
+        self._active_cards = 0
+        self._paused = False
+        from l1.kernel.params.agent import TERMINAL_STATE_DEFAULT as _T_STATE
+
+        self._loop_state = _T_STATE
+        self.status = TerminalStatus.IDLE
+        self._reload_count += 1
+        logger.info("agent_terminal %s: auto_reload #%d (%s)", self.agent_id, self._reload_count, reason or "anomaly")
+        return {
+            "success": True,
+            "agent_id": self.agent_id,
+            "reload_count": self._reload_count,
+            "status": "IDLE",
+            "reason": reason,
+        }
+
     def shutdown(self) -> dict:
         """Stop the terminal, join workers, and emit session_end hooks."""
         self._running = False
@@ -519,3 +585,216 @@ def reset_terminals() -> None:
         for t in list(_terminals.values()):
             t.shutdown()
         _terminals.clear()
+
+
+# ── Session monitor switch (3.3, P0-②) ──
+# Operator-gated (API /api/v2/session-monitor + L2 /session monitor),
+# default ON.
+_session_monitor_state: dict = {"enabled": SESSION_MONITOR_ENABLED_DEFAULT}
+_session_monitor_lock = threading.Lock()
+
+
+def session_monitor_status() -> dict:
+    """Return the session-monitor switch state."""
+    with _session_monitor_lock:
+        return {"enabled": bool(_session_monitor_state["enabled"])}
+
+
+def set_session_monitor(enabled: bool | None = None) -> dict:
+    """Set the session-monitor operator switch.
+
+    Args:
+        enabled: master switch (None = keep current). Default ON.
+
+    Returns:
+        dict with success flag and the effective switch.
+    """
+    with _session_monitor_lock:
+        if enabled is not None:
+            _session_monitor_state["enabled"] = bool(enabled)
+        return {"success": True, **session_monitor_status()}
+
+
+def reset_session_monitor() -> None:
+    """Reset the session-monitor switch (tests / lifecycle)."""
+    with _session_monitor_lock:
+        _session_monitor_state["enabled"] = SESSION_MONITOR_ENABLED_DEFAULT
+
+
+def session_monitor() -> dict:
+    """Real-time status of every registered session entity (3.3, P0-②).
+
+    Aggregates each bound session's monitor state — running status,
+    resource/progress counters (cards processed, active cards, paused),
+    and the dual identity (session_id + process_id). Feed for the
+    /api/v2/session-monitor endpoint + L2 /session monitor (default ON).
+
+    Returns:
+        dict with success flag, session count, and per-session states.
+    """
+    with _session_monitor_lock:
+        enabled = bool(_session_monitor_state["enabled"])
+    if not enabled:
+        return {"success": True, "count": 0, "sessions": [], "disabled": True}
+    with _session_registry_lock:
+        records = list(_session_registry.values())
+    states: list[dict] = []
+    for rec in records:
+        terminal = rec.get("terminal")
+        if terminal is None:
+            continue
+        states.append(terminal.monitor_state())
+    return {"success": True, "count": len(states), "sessions": states}
+
+
+# ── Session auto-reload (3.3, P0-③) ──
+# On anomaly (e.g. stagnation), the session entity auto-reloads — distinct
+# from interrupt resume. Operator switch (API + L2), default ON.
+_auto_reload_state: dict = {"enabled": SESSION_AUTO_RELOAD_ENABLED_DEFAULT}
+_auto_reload_lock = threading.Lock()
+
+
+def auto_reload_status() -> dict:
+    """Return the auto-reload switch state."""
+    with _auto_reload_lock:
+        return {"enabled": bool(_auto_reload_state["enabled"])}
+
+
+def set_auto_reload(enabled: bool | None = None) -> dict:
+    """Set the auto-reload operator switch.
+
+    Args:
+        enabled: master switch (None = keep current). Default ON.
+
+    Returns:
+        dict with success flag and the effective switch.
+    """
+    with _auto_reload_lock:
+        if enabled is not None:
+            _auto_reload_state["enabled"] = bool(enabled)
+        return {"success": True, **auto_reload_status()}
+
+
+def reset_auto_reload() -> None:
+    """Reset the auto-reload switch (tests / lifecycle)."""
+    with _auto_reload_lock:
+        _auto_reload_state["enabled"] = SESSION_AUTO_RELOAD_ENABLED_DEFAULT
+
+
+def auto_reload_session(agent_id: str, reason: str = "") -> dict:
+    """Auto-reload an agent's session entity on anomaly (3.3, P0-③).
+
+    Finds the terminal backing *agent_id* and triggers ``auto_reload``
+    (full session reset — distinct from interrupt resume). No-op when the
+    switch is off or no terminal is registered.
+
+    Args:
+        agent_id: the Peer Agent whose session entity reloads.
+        reason: anomaly reason (e.g. stagnation pattern).
+
+    Returns:
+        dict with success flag and the reload result (or a no-op note).
+    """
+    with _auto_reload_lock:
+        enabled = bool(_auto_reload_state["enabled"])
+    if not enabled:
+        return {"success": False, "error": "auto-reload disabled"}
+    terminal = _terminals.get(agent_id)
+    if terminal is None:
+        return {"success": False, "error": f"no terminal for {agent_id}"}
+    return terminal.auto_reload(reason=reason)
+
+
+def on_stagnation(result: dict, agent_id: str) -> dict:
+    """Wire StagnationDetector.check() results into auto-reload.
+
+    When the detector reports ``{"stagnant": True, "pattern": ...}`` the
+    session entity reloads automatically (reason = pattern); clean results
+    are a no-op.
+
+    Args:
+        result: the detector's check() return dict.
+        agent_id: the checked agent.
+
+    Returns:
+        dict with success flag and the reload outcome (or a no-op note).
+    """
+    if not (result or {}).get("stagnant"):
+        return {"success": True, "reloaded": False, "note": "no stagnation"}
+    pattern = str((result or {}).get("pattern", "unknown"))
+    return auto_reload_session(agent_id, reason=f"stagnation:{pattern}")
+
+
+# ── Session management registry (3.3, P0-①) ──
+# Dual identity: every session entity is tracked by session_id AND its
+# backing process_id, so a Cell's 3 Peer Agent sessions stay unique and
+# traceable (session_id ↔ process_id ↔ terminal instance).
+_session_registry: dict[str, dict] = {}
+_session_registry_lock = threading.Lock()
+
+
+def register_session(session_id: str, agent_id: str) -> dict:
+    """Bind a session_id to its backing terminal (dual identity).
+
+    Creates/attaches the agent's terminal and records
+    ``{session_id, process_id, agent_id, terminal}``. Returns the record
+    (or an error dict when the session_id is already bound).
+
+    Args:
+        session_id: the session entity id (unique, trackable).
+        agent_id: the backing Peer Agent (terminal owner).
+
+    Returns:
+        dict with success flag and the session record.
+    """
+    with _session_registry_lock:
+        if session_id in _session_registry:
+            return {"success": False, "error": f"session {session_id} already registered"}
+        terminal = get_terminal(agent_id, cell_id="")
+        record = {
+            "session_id": session_id,
+            "process_id": terminal.process_id,
+            "agent_id": agent_id,
+            "terminal": terminal,
+        }
+        terminal.session_id = session_id
+        _session_registry[session_id] = record
+        return {"success": True, **{k: v for k, v in record.items() if k != "terminal"}}
+
+
+def get_session(session_id: str) -> dict:
+    """Return a session record (without the terminal instance)."""
+    with _session_registry_lock:
+        rec = _session_registry.get(session_id)
+        if rec is None:
+            return {"success": False, "error": f"session {session_id} not found"}
+        return {
+            "success": True,
+            "session_id": rec["session_id"],
+            "process_id": rec["process_id"],
+            "agent_id": rec["agent_id"],
+        }
+
+
+def list_sessions() -> dict:
+    """List all registered session entities (id + process_id + agent)."""
+    with _session_registry_lock:
+        return {
+            "success": True,
+            "sessions": [
+                {"session_id": r["session_id"], "process_id": r["process_id"], "agent_id": r["agent_id"]}
+                for r in _session_registry.values()
+            ],
+        }
+
+
+def unregister_session(session_id: str) -> bool:
+    """Drop a session binding (teardown)."""
+    with _session_registry_lock:
+        return _session_registry.pop(session_id, None) is not None
+
+
+def reset_sessions() -> None:
+    """Clear the session registry (tests / lifecycle)."""
+    with _session_registry_lock:
+        _session_registry.clear()
