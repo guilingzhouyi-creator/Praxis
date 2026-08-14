@@ -209,6 +209,12 @@ Posture is a load-bearing security lever — never weaken it silently.
 ## Remote strategy & CI
 
 - **Dual remotes**: `origin` = GitCode (`gitcode.com/Aplese/Praxis`, canonical); `github` = GitHub mirror (`guilingzhouyi-creator/Praxis`, CI carrier).
+- **Local worktree branches push github/main directly — no PR required**:
+  github/main has NO branch protection (removed), so `git push github main`
+  from the local tree (main or any worktree) lands immediately. CI
+  (`test.yml` matrix, `ci.yml`, `codeql.yml`, …) still runs on every push
+  as a notification, not a merge gate. PRs (e.g. dependabot) are still
+  handled through the normal PR flow.
 - **Every push to main MUST go to BOTH remotes**: `git push origin main; git push github main` — **push origin (GitCode) FIRST**: it is the stricter gate (GPG pre-receive), so a rejection surfaces before anything is published on the mirror, avoiding a forced update. Pushing only to GitCode silently skips CI.
 - **CI** on GitHub Actions: `test.yml` (matrix 3.11/3.12/3.13/3.14, full L1–L5 coverage), `ci.yml` (changed-file ruff gate), `deps.yml` (dependabot diff-scope gate), `codeql.yml`, `docker.yml`, `benchmark.yml`, `nightly.yml` (full-tree ruff), `secrets.yml` (gitleaks), `comment-audit.yml` (CJK residue), `stale.yml`. GitCode's AtomGit Action (`.gitcode/workflows/test.yml`) is in gray release — keep the file, it activates later.
 
