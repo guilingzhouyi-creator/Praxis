@@ -96,8 +96,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify dual remotes are in sync
         run: |
-          ORIGIN=$(git ls-remote https://gitcode.com/Aplese/PraxisAgentOS.git refs/heads/main 2>/dev/null | cut -f1 || true)
-          GITHUB=$(git ls-remote https://github.com/guilingzhouyi-creator/Praxis-Agent-OS.git refs/heads/main 2>/dev/null | cut -f1 || true)
+          ORIGIN=$(git ls-remote https://gitcode.com/Aplese/Praxis.git refs/heads/main 2>/dev/null | cut -f1 || true)
+          GITHUB=$(git ls-remote https://github.com/guilingzhouyi-creator/Praxis.git refs/heads/main 2>/dev/null | cut -f1 || true)
           echo "origin: $ORIGIN"
           echo "github: $GITHUB"
           if [ -z "$ORIGIN" ] || [ -z "$GITHUB" ]; then
