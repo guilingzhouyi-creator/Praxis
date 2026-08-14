@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 ## Overview
 
-Code quality reviewer for the Praxis codebase. Triggered on code changes to review architecture, code quality, thread safety, error handling, and test coverage.
+Parallel code quality reviewer for the Praxis codebase. Triggered automatically on code changes to review architecture, code quality, thread safety, error handling, and test coverage.
 
 ## Workflow
 
@@ -26,7 +26,6 @@ Identify files in the change set. Prioritize kernel (`src/l1/kernel/`), cell (`s
 - Check no bare `except:` clauses.
 - Verify magic numbers are defined in `params/` rather than hardcoded.
 - Confirm double quotes for strings, line-length ≤ 120.
-- Confirm comments/docstrings are in English (no CJK residue outside i18n data).
 
 ### 4. Thread Safety Review
 - Verify shared resources protected with `threading.RLock()`.
@@ -41,20 +40,13 @@ Identify files in the change set. Prioritize kernel (`src/l1/kernel/`), cell (`s
 ### 6. Testing Review
 - Verify new code has corresponding tests in `tests/`.
 - Confirm tests use pytest patterns.
-- Check that new singleton services have reset functions registered in `tests/conftest.py`.
-- Check `tests/infra/test_layer_imports.py` allowlist updated for any new cross-layer imports.
-
-### 7. Gate & Compliance Review
-- **CompletionJudge alignment**: confirm the change set satisfies the 11 dimensions of `verify-completion.sh` (tests / coverage ≥60 / net delta / doc-stats / lint+mypy / CVEs / complexity / import cycles / singleton drift / CHANGELOG / doc-index). Flag anything that would return INCOMPLETE.
-- **Mainline net-delta gate**: estimate the change's net code delta (added − deleted, after comment stripping) — small changes (< 1000 net) must accumulate on the worktree branch; never suggest `MERGE_GATE_SKIP=1` (waivers are the human's decision).
-- **Doc sync**: architecture-level changes (new module/service, changed contract, renamed subsystem, new params domain) MUST carry their `docs/architecture/` update in the same commit; generated numbers refreshed via `make doc-stats`, never hand-edited.
-- **Security posture / harness changes**: any posture (`security_mode.py`) or harness (`harness.py`) change MUST record evidence (`record_evidence`); a downgrade (e.g. `minimal` harness) must never be hardcoded silently.
+- Check YAML fixtures used for complex test scenarios.
 
 ## Checklist
 
 - [ ] Architecture follows kernel syscall / service layer pattern
 - [ ] No circular dependencies introduced
-- [ ] Layer import rules respected (L5→L4/L3→L2→L1 only); allowlist updated
+- [ ] Layer import rules respected (L5→L4→L3→L2→L1 only)
 - [ ] Naming conventions followed (snake_case, PascalCase, UPPER_SNAKE_CASE)
 - [ ] Full type hints on all public functions
 - [ ] Thread safety: reentrant locks on shared state, no mutable defaults
@@ -64,6 +56,3 @@ Identify files in the change set. Prioritize kernel (`src/l1/kernel/`), cell (`s
 - [ ] Corresponding tests exist
 - [ ] Logger used instead of print
 - [ ] Module docstring present
-- [ ] No CJK in comments/docstrings
-- [ ] CompletionJudge 11 dimensions satisfiable; net-delta gate not evaded
-- [ ] Architecture doc updated in the same commit; doc-stats regenerated

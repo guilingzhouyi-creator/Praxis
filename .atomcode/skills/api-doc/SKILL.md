@@ -7,61 +7,55 @@ allowed-tools: Read, Grep, Glob, Write
 
 ## Overview
 
-Automated API documentation reviewer for the Praxis codebase. Triggered when API route or handler files change, comparing registered routes against documentation to flag gaps and inconsistencies. Read-only: never modifies files.
+Generates and updates OpenAPI documentation for the Praxis API Gateway. Reads routes from `src/l4/api/api_gateway.py` and handler signatures from `src/l4/api/api_handlers*.py`, then produces or merges API documentation.
 
-## When to Run
+## When to Use
 
-Review is triggered automatically when files matching these patterns change:
-- `src/l4/api/api_routes.py`
-- `src/l4/api/api_gateway.py`
-- `src/l4/api/api_handlers_cards.py` / `api_handlers_diff.py`
-- `docs/api-reference.md` or `docs/design/*.md`
+Invoke via `/api-doc` when:
+- Adding new API routes or handlers.
+- Modifying existing route parameters or responses.
+- Updating the API reference documentation.
 
 ## Workflow
 
-### 1. Scan Routes
+### 1. Scan API Routes
 
-Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all registered routes. Extract:
-- HTTP method
-- URL path
-- Handler function reference
-- Route description (if any)
+Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all registered routes:
 
-### 2. Check Handlers
-
-For each route, read the handler function in the corresponding handler file. Verify:
-- Handler function exists and is importable.
-- Handler has a docstring describing its behavior.
-- Return type is consistent with other handlers.
-- Error responses are documented.
-
-### 3. Compare with Documentation
-
-Read existing documentation files in `docs/`. Flag:
-- **Missing**: routes documented in code but not in docs.
-- **Stale**: routes in docs whose handler signatures changed.
-- **Ghost**: routes in docs that no longer exist in code.
-- **Incomplete**: routes documented without error scenarios or parameter descriptions.
-
-### 4. Report
-
-Output a concise report:
-
-```
-## API Doc Review
-
-### Up to date
-- GET /api/v2/health → handle_health OK
-
-### Needs update
-- POST /api/v2/cards → handler docstring missing error codes
-- PUT /api/v2/config: route documented but handler has new `force` parameter
-
-### Missing from docs
-- DELETE /api/v2/sessions/{id}
-- PATCH /api/v2/settings/bulk
+```python
+# Key structures:
+#   Route(method, path, handler, description)
+#   _register_defaults() registers all routes
+#   Handlers in api_handlers_*.py files
 ```
 
-## Scope
+### 2. Read Handler Signatures
 
-Do NOT modify any files. Only produce the review report.
+Read handler files from `src/l4/api/` and `src/l4/api_handlers/` to extract:
+- Function signatures (parameters, return types).
+- Docstrings describing behavior.
+- Error response patterns.
+
+### 3. Generate Documentation
+
+Format as OpenAPI 3.0 (YAML or Markdown table):
+
+```markdown
+## API Reference
+
+### `GET /health`
+- **Handler**: `handle_health`
+- **Description**: System health check
+- **Response**: `{"status": str, "uptime": float}`
+```
+
+### 4. Merge with Existing Docs
+
+Read existing docs in `docs/` directory. Flag:
+- New routes without documentation.
+- Routes whose handler signatures changed.
+- Deprecated routes still documented.
+
+## Output
+
+Write to `docs/api-reference.md` or update the existing API documentation file. Report a summary of what was added, updated, or removed.

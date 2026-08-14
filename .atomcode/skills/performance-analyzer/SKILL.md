@@ -12,20 +12,20 @@ Performance analysis skill for the Praxis codebase. Identifies bottlenecks in th
 
 ### 1. Kernel & Syscall Layer Analysis
 - Review syscall dispatch for overhead (lock contention on `_audit_log`).
-- Check audit trail limits — does audit trail pruning cause O(n) copy?
+- Check `audit_max` limits — does audit trail pruning cause O(n) copy?
 - Analyze `syscall()` dictionary construction overhead in hot paths.
 
 ### 2. Allocator & Resource Management Analysis
 - Review `allocator.py` for allocation/deallocation performance.
 - Check `MUTEX_POLL_INTERVAL` / `SEMAPHORE_POLL_INTERVAL` — are poll intervals appropriate?
-- Analyze resource limiter for token bucket efficiency.
+- Analyze `resource.py` limiter for token bucket efficiency.
 - Check for memory leaks in ring buffer / memory entry lifecycle.
 
 ### 3. Scheduler & Process Table Analysis
 - Review scheduling algorithm efficiency.
 - Check PID scan/search complexity (O(n) on full table?).
 - Analyze GC / zombie reaping performance.
-- Verify CPU time tracking accuracy.
+- Verify `cpu_time` tracking accuracy.
 
 ### 4. Execution Engine & Card Dispatch Analysis
 - Review card dispatch latency.
@@ -33,7 +33,7 @@ Performance analysis skill for the Praxis codebase. Identifies bottlenecks in th
 - Analyze plan serialization/deserialization cost.
 
 ### 5. Concurrency & Locking Analysis
-- Identify hot locks (`_audit_lock`, `_table_lock`, etc.).
+- Identify hot locks: `_audit_lock`, `_table_lock`, etc.
 - Check for lock contention in high-frequency paths.
 - Review reader/writer fairness.
 - Analyze mutex timeout vs spin patterns.
