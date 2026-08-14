@@ -59,22 +59,29 @@ fi
 # N=no signature, B=bad, X/Y/R/E=expired/revoked/unverifiable (rejected).
 # PR_MERGE_RELAX_SIGNATURE=1 additionally accepts E (signature cannot be
 # checked — e.g. a CI runner that lacks the signing key); N/B always fail.
+# PR_SKIP_SIGNATURE=1 skips this gate entirely — for repositories where the
+# GitCode project hook is NOT enabled (e.g. the reset `Praxis` repo), where
+# unsigned commits are accepted and only subject/mergeability matter.
 echo "[verify-pr-merge] ── 1. GPG signature check ───────────────────────────"
-if [ "${PR_MERGE_RELAX_SIGNATURE:-0}" = "1" ]; then
-  UNSIGNED="$(git log --format='%h %G? %s' "$RANGE" | awk '$2 == "N" || $2 == "B" {print}')"
+if [ "${PR_SKIP_SIGNATURE:-0}" = "1" ]; then
+  echo "[verify-pr-merge] ⏭️  signature check skipped (PR_SKIP_SIGNATURE=1 — repo has no GPG hook)"
 else
-  UNSIGNED="$(git log --format='%h %G? %s' "$RANGE" | awk '$2 !~ /^[GUT]$/ {print}')"
+  if [ "${PR_MERGE_RELAX_SIGNATURE:-0}" = "1" ]; then
+    UNSIGNED="$(git log --format='%h %G? %s' "$RANGE" | awk '$2 == "N" || $2 == "B" {print}')"
+  else
+    UNSIGNED="$(git log --format='%h %G? %s' "$RANGE" | awk '$2 !~ /^[GUT]$/ {print}')"
+  fi
+  if [ -n "$UNSIGNED" ]; then
+    echo "[verify-pr-merge] ❌ UNSIGNED / BAD-SIGNATURE commits:" >&2
+    printf '%s\n' "$UNSIGNED" | sed 's/^/     ✗ /' >&2
+    echo "[verify-pr-merge]    GitCode pre-receive rejects any unsigned commit on main." >&2
+    echo "[verify-pr-merge]    Fix: squash-merge to one signed commit, or ask the author" >&2
+    echo "[verify-pr-merge]    to re-sign/rewrite the branch (never re-sign after merge)." >&2
+    exit 1
+  fi
+  COUNT="$(git rev-list --count "$RANGE")"
+  echo "[verify-pr-merge] ✅ all $COUNT incoming commits GPG-signed."
 fi
-if [ -n "$UNSIGNED" ]; then
-  echo "[verify-pr-merge] ❌ UNSIGNED / BAD-SIGNATURE commits:" >&2
-  printf '%s\n' "$UNSIGNED" | sed 's/^/     ✗ /' >&2
-  echo "[verify-pr-merge]    GitCode pre-receive rejects any unsigned commit on main." >&2
-  echo "[verify-pr-merge]    Fix: squash-merge to one signed commit, or ask the author" >&2
-  echo "[verify-pr-merge]    to re-sign/rewrite the branch (never re-sign after merge)." >&2
-  exit 1
-fi
-COUNT="$(git rev-list --count "$RANGE")"
-echo "[verify-pr-merge] ✅ all $COUNT incoming commits GPG-signed."
 
 # ── 2. Subject check: English + Conventional Commits ──────────────────────
 echo "[verify-pr-merge] ── 2. Subject check (English + Conventional Commits) ──"
