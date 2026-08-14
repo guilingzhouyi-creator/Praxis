@@ -103,6 +103,15 @@ class CellLifecycleMixin:
         from l3.agent_terminal import reset_terminals
 
         reset_terminals()
+        # Reclaim this Cell's run_code program cache area (Code Mode / PTC):
+        # the per-Cell program area lives and dies with the Cell lifecycle.
+        # Degrades to a no-op on error — the cache is a bypass-free side channel.
+        try:
+            from l3.tool_system.run_code_cache import get_run_code_cache
+
+            get_run_code_cache().reclaim(self.cell_id)
+        except Exception as e:
+            logger.debug("Cell %s run_code cache reclaim skipped: %s", self.cell_id, e)
         with self._lock:
             for info in self._agents.values():
                 from l3.cell.components.cell_types import AgentStatus

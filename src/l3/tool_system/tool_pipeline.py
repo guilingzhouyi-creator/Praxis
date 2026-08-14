@@ -140,6 +140,21 @@ class ToolPipeline(PipelineStepsMixin):
         tool_ring_num = ring_map.get(tool_ring_str, 1)
 
         tool_danger = spec.danger if spec else 0
+        # Code Mode / PTC (tools:code-only): under ``code`` presentation the
+        # model may call ONLY the reserved run_code transport directly; any
+        # other tool name resolves to UNKNOWN_TOOL before the gating chain
+        # runs (defense-in-depth over the model-facing filter in
+        # agent_loop_context). ``native`` and ``both`` are unrestricted.
+        from l1.kernel.params.tool import TOOL_PRESENTATION_CODE
+        from l3.tool_system.tool_presentation import get_presentation_mode
+
+        if get_presentation_mode() == TOOL_PRESENTATION_CODE and tool_name != "run_code":
+            return {
+                "success": False,
+                "error": f"UNKNOWN_TOOL: {tool_name} is not exposed under code presentation (tools:code-only)",
+                "tool": tool_name,
+                "agent": agent_id,
+            }
         call_id = chain.start(tool_name, agent_id, ring=tool_ring_num, parent_id=_parent_call_id)
         # Step tracing toggle — off skips per-phase gate traces on the hot path.
         record_steps = bool(get_tool_config("record_steps", TOOL_PIPELINE_RECORD_STEPS))

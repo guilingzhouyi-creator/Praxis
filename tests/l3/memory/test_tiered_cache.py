@@ -84,3 +84,17 @@ def test_invalidate_and_clear():
     tc.clear()
     assert tc.get("L1", "b") is None
     assert tc.stats()["L1"]["entries"] == 0
+
+
+def test_keys_public_api_snapshot():
+    from l3.memory.tiered_cache import get_tiered_cache, reset_tiered_cache
+
+    reset_tiered_cache()
+    cache = get_tiered_cache()
+    cache.set("L1", "a", 1)
+    cache.set("L1", "b", 2)
+    keys = cache.keys("L1")
+    assert "a" in keys and "b" in keys
+    assert cache.keys("L1") == keys  # snapshot, stable while unmutated
+    assert cache.keys("BOGUS") == []
+    reset_tiered_cache()

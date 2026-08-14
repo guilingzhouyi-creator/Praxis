@@ -181,9 +181,27 @@ class AgentLoopContextMixin:
         except Exception as e:
             logger.debug("agent_loop: per-Cell handbook injection failed: %s", e)
 
+        # Tool presentation (Code Mode / PTC): filter the model-facing tools by
+        # the presentation mode and inject the run_code SDK + usage when the
+        # transport is exposed. ``native`` (default) hides run_code; ``code``
+        # exposes only it (tools:code-only); ``both`` exposes everything.
+        from l1.kernel.params.tool import (
+            TOOL_PRESENTATION_BOTH,
+            TOOL_PRESENTATION_CODE,
+            TOOL_PRESENTATION_NATIVE,
+        )
+        from l3.tool_system.tool_presentation import get_presentation_mode, get_renderer
+
+        presentation = get_presentation_mode()
+        code_mode = presentation in (TOOL_PRESENTATION_CODE, TOOL_PRESENTATION_BOTH)
         wrapped_tools = []
         read_only_tools = []
         for t in self._tools:
+            is_run_code = t.name == "run_code"
+            if presentation == TOOL_PRESENTATION_NATIVE and is_run_code:
+                continue  # native mode does not expose the reserved transport
+            if presentation == TOOL_PRESENTATION_CODE and not is_run_code:
+                continue  # code mode exposes only the run_code transport
             wrapped = ToolSpec(
                 name=t.name,
                 description=t.description,
@@ -197,6 +215,27 @@ class AgentLoopContextMixin:
             wrapped_tools.append(wrapped)
             if t.parallel_safe:
                 read_only_tools.append(wrapped)
+        if code_mode:
+            renderer = get_renderer()
+            if renderer is not None:
+                sdk = renderer.render_sdk(
+                    [
+                        {
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": [
+                                {"name": p.name, "type": p.type, "description": p.description}
+                                for p in (t.parameters or [])
+                            ],
+                        }
+                        for t in self._tools
+                    ]
+                )
+                usage = get_prompt("agent_loop.run_code_usage", "")
+                if usage:
+                    system = (system + "\n\n" + usage) if system else usage
+                if sdk:
+                    system = (system + "\n\n" + sdk) if system else sdk
         return system, wrapped_tools, read_only_tools, model_kwargs
 
     def _inject_extra_context(self, system: str) -> str:
