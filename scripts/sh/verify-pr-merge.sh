@@ -97,6 +97,10 @@ if [ -f scripts/py/commit_scan.py ]; then
   case "$SCAN_OUT" in
     *VIOLATIONS*) SCAN_RC=1 ;;
   esac
+else
+  # Script absent (e.g. scratch repo) — the gate must NOT silently pass;
+  # force the legacy fallback below so subjects still get checked.
+  SCAN_RC=2
 fi
 if [ "$SCAN_RC" = "1" ]; then
   echo "[verify-pr-merge] ❌ subject violations:" >&2

@@ -13,11 +13,13 @@
 #   - failure-pair analysis (checks that fail together)
 #
 # Usage:
-#   bash scripts/sh/judge-stats.sh [--days N] [--json] [--md] [--write=F]
+#   bash scripts/sh/judge-stats.sh [--days N] [--json] [--md] [--write=F] [--log=F]
 #   --days N   limit trend window to last N days (default: all)
 #   --json     machine-readable summary (for dashboards/CI)
 #   --md       Markdown report (for docs/judge-stats.md)
 #   --write=F  write the --md report to file F
+#   --log=F    read runs from file F instead of .praxis/judge-runs.jsonl
+#              (for tests / alternate logs)
 # Exit: 0 always (statistics are informational).
 
 set -u
@@ -36,6 +38,7 @@ for a in "$@"; do
     --json) JSON=1 ;;
     --md) MD=1 ;;
     --write=*) WRITE="${a#--write=}" ;;
+    --log=*) LOG="${a#--log=}" ;;
     *) echo "[judge-stats] unknown arg: $a" >&2; exit 2 ;;
   esac
 done
@@ -179,7 +182,7 @@ if as_json:
         "failures_by_check": dict(fail_counter),
         "branch_stats": {b: {"runs": s["runs"], "complete": s["complete"], "rate": round(s["complete"] / s["runs"], 3)} for b, s in branch_stats.items()},
         "check_pass_rates": {chk: {"pass": p, "executed": n, "rate": round(p / n, 3)} for chk, (p, n) in check_pass.items()},
-        "failure_pairs": ["+".join(p) for p in pair_counter.most_common()],
+        "failure_pairs": ["+".join(pair) for pair, _ in pair_counter.most_common()],
         "metrics": metrics_summary,
         "trend": {d: {"complete": c, "runs": t, "rate": round(c / t, 3)} for d, (c, t) in sorted(trend.items())},
     }))

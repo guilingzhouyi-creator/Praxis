@@ -99,6 +99,23 @@ scopes:
   - git
   - hooks
   - agents-doc
+  # legacy scopes seen in history (kept so strict mode never rejects
+  # previously-merged commits / documented examples)
+  - core
+  - tool-presentation
+  - push-both
+  - opencode
+  - atomcode
+  - generalize
+  - slim
+  - opt
+  - nightly
+  - reset
+  - readme
+  - commit-msg
+  - changelog
+  - audit
+  - attack
 
 # Placeholder-subject guard — rejects subjects that carry no real content.
 placeholder:
