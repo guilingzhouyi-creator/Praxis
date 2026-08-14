@@ -1,0 +1,286 @@
+"""Centralized error system — structured error codes, i18n via I18nPort.
+
+Three-layer architecture:
+  1. Error definition: PraxisError class with code + message + optional cause
+  2. Error catalog: registry of all known error codes with descriptions
+  3. Error response: to_dict() → {"success": false, "error": str, "error_code": str}
+
+i18n:
+  English is the canonical message language. Localized messages are served
+  by the registered ``I18nPort`` adapter (``error.*`` keys in ``locales/``,
+  one file per locale) via the per-locale ``t_locale()`` lookup. A built-in
+  zh-CN dict remains only as a port-less fallback for minimal setups/tests;
+  it is never registered into the port — the YAML translation layer is the
+  single translation source at runtime.
+
+Usage:
+  from l1.kernel.errors import (
+      PraxisError, error, E_INTERNAL,
+      register_error, catalog,
+  )
+
+  # Return a structured error
+  return error("E_TIMEOUT", tool=tool, timeout=60)
+
+  # Raise (for exceptional conditions)
+  raise PraxisError("E_RESOURCE_EXHAUSTED", "Out of memory")
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from l1.kernel.params.system import LOG_TRUNC_200
+
+logger = logging.getLogger(__name__)
+
+# ── ErrorBus capture callback (registered at boot from L3 wiring)
+# Avoids direct ``from l3.error_bus import capture`` in kernel layer.
+_error_capture_handler: Any = None
+
+
+def set_error_capture_handler(handler: Any) -> None:
+    """Register a callback for ErrorBus capture (called at boot from L3 wiring).
+
+    The handler receives ``(message, error_code, cause, context)``.
+    """
+    global _error_capture_handler
+    _error_capture_handler = handler
+
+
+def reset_error_capture_handler() -> None:
+    """Clear the registered ErrorBus capture handler (test isolation)."""
+    global _error_capture_handler
+    _error_capture_handler = None
+
+
+# ── Locale helpers (delegate to I18nPort, backward-compatible) ──
+
+# Module-level locale state so set_locale()/get_locale() work even when no
+# I18nPort is registered (e.g. unit tests, minimal setups). The registered
+# I18nPort remains the preferred translation source at runtime.
+_current_locale = "en"
+
+
+def set_locale(locale: str) -> None:
+    """Set the active locale. Delegates to registered I18nPort."""
+    global _current_locale
+    _current_locale = locale
+    try:
+        from l1.kernel.ports import get_port as _gp
+
+        adapter = _gp("i18n")
+        adapter.set_locale(locale)
+    except Exception:
+        logger.debug("errors: set_locale failed — I18nPort not available")
+
+
+def get_locale() -> str:
+    """Return the current locale code."""
+    return _current_locale
+
+
+def reset_locale() -> None:
+    """Reset locale state to the default (test isolation).
+
+    Mirrors set_locale()'s propagation: clears the module-level locale
+    AND the registered I18nPort adapter's locale, so consumers that read
+    the port (e.g. LocaleMiddleware's fallback) see the default too —
+    not just the module variable.
+    """
+    global _current_locale
+    _current_locale = "en"
+    try:
+        from l1.kernel.ports import get_port as _gp
+
+        adapter = _gp("i18n")
+        if adapter is not None and hasattr(adapter, "set_locale"):
+            from l1.kernel.params.api import I18N_DEFAULT_LOCALE
+
+            adapter.set_locale(I18N_DEFAULT_LOCALE)
+    except Exception:
+        logger.debug("errors: reset_locale — I18nPort not available")
+
+
+# ── Error definition ──
+
+
+class PraxisError(Exception):
+    """Structured error with error_code for programmatic handling.
+
+    Args:
+        code: machine-readable error code (e.g. "E_TIMEOUT")
+        message: human-readable description (English default)
+        cause: original exception (for chaining)
+        **context: additional key-value pairs for the error context
+    """
+
+    def __init__(self, code: str, message: str = "", cause: Exception | None = None, **context: Any):
+        self.code = code
+        self.message = message or _default_message(code)
+        self.cause = cause
+        self.context = context
+        super().__init__(self.message)
+
+        # Push to ErrorBus via registered handler (avoids direct L3 import)
+        if _error_capture_handler:
+            try:
+                _error_capture_handler(self.message, self.code, self.cause, self.context or None)
+            except Exception as e:
+                logger.critical("error_capture_handler failed: %s", e)
+        else:
+            logger.debug("errors: no error_capture_handler registered, error not pushed to ErrorBus")
+
+    def to_dict(self, locale: str = "") -> dict:
+        """Return a structured error response dict.
+
+        Message resolution priority:
+          1. Registered I18nPort ``t_locale()`` for the requested locale
+             (``error.*`` keys in the ``locales/`` YAML files)
+          2. Built-in zh-CN fallback dict (port-less environments only)
+          3. The English default message from the error catalog
+
+        Returns:
+            dict: {"success": False, "error": str, "error_code": str,
+            "context": dict, "cause": str}
+        """
+        msg = self.message
+        loc = locale or get_locale()
+        if loc != "en":
+            # 1) I18nPort per-locale lookup takes precedence when registered.
+            try:
+                from l1.kernel.ports import get_port as _gp
+
+                adapter = _gp("i18n")
+                t_locale = getattr(adapter, "t_locale", None)
+                if callable(t_locale):
+                    localized = t_locale(loc, f"error.{self.code}", **self.context)
+                else:
+                    localized = adapter.t(f"error.{self.code}")
+                if localized != f"error.{self.code}":
+                    msg = localized
+            except Exception:
+                logger.debug("errors: i18n localization lookup failed")
+            # 2) Built-in zh-CN fallback — works without a registered I18nPort.
+            if msg == self.message:
+                builtin = _ZH_TRANSLATIONS.get(f"error.{self.code}")
+                if builtin:
+                    msg = builtin
+        result: dict = {"success": False, "error": msg, "error_code": self.code}
+        if self.context:
+            result["context"] = self.context
+        if self.cause:
+            result["cause"] = str(self.cause)[:LOG_TRUNC_200]
+        return result
+
+    def __str__(self) -> str:
+        return f"[{self.code}] {self.message}"
+
+
+def error(code: str, message: str = "", cause: Exception | None = None, **context: Any) -> dict:
+    """Convenience: create and return a PraxisError as a dict.
+
+    This is the preferred way to return errors from tool handlers
+    and service methods that return dicts (rather than raising).
+    """
+    return PraxisError(code, message, cause=cause, **context).to_dict()
+
+
+# ── Error catalog ──
+
+_error_catalog: dict[str, str] = {}
+
+
+def register_error(code: str, default_message: str) -> None:
+    """Register an error code with its default English message."""
+    _error_catalog[code] = default_message
+
+
+def _default_message(code: str) -> str:
+    return _error_catalog.get(code, f"Unknown error: {code}")
+
+
+def catalog() -> dict[str, str]:
+    """Return all registered error codes with their default messages."""
+    return dict(_error_catalog)
+
+
+# ── Built-in error codes ──
+
+E_INTERNAL = "E_INTERNAL"
+E_TIMEOUT = "E_TIMEOUT"
+E_INVALID_PARAMS = "E_INVALID_PARAMS"
+E_NOT_FOUND = "E_NOT_FOUND"
+E_CONSTITUTION_BLOCKED = "E_CONSTITUTION_BLOCKED"
+E_GATECHAIN_BLOCKED = "E_GATECHAIN_BLOCKED"
+E_TOOL_MUTED = "E_TOOL_MUTED"
+E_TOOL_NOT_FOUND = "E_TOOL_NOT_FOUND"
+E_RESOURCE_EXHAUSTED = "E_RESOURCE_EXHAUSTED"
+E_PERMISSION_DENIED = "E_PERMISSION_DENIED"
+E_CELL_EMERGENCY = "E_CELL_EMERGENCY"
+E_CHECKPOINT_RESTORE = "E_CHECKPOINT_RESTORE"
+E_AGENT_CRASHED = "E_AGENT_CRASHED"
+E_HUMAN_REJECTED = "E_HUMAN_REJECTED"
+E_APPROVAL_TIMEOUT = "E_APPROVAL_TIMEOUT"
+E_MCP_FAILED = "E_MCP_FAILED"
+E_UNKNOWN_TOOL = "E_UNKNOWN_TOOL"
+E_HANDLER_ERROR = "E_HANDLER_ERROR"
+E_MEMORY_REJECTED = "E_MEMORY_REJECTED"
+E_SANDBOX_ERROR = "E_SANDBOX_ERROR"
+
+# Register built-in codes
+for _code, _msg in [
+    (E_INTERNAL, "Internal error"),
+    (E_TIMEOUT, "Operation timed out"),
+    (E_INVALID_PARAMS, "Invalid parameters"),
+    (E_NOT_FOUND, "Resource not found"),
+    (E_CONSTITUTION_BLOCKED, "Blocked by constitution"),
+    (E_GATECHAIN_BLOCKED, "Blocked by gate chain"),
+    (E_TOOL_MUTED, "Tool is muted"),
+    (E_TOOL_NOT_FOUND, "Tool not found in registry"),
+    (E_RESOURCE_EXHAUSTED, "Resource exhausted"),
+    (E_PERMISSION_DENIED, "Permission denied"),
+    (E_CELL_EMERGENCY, "Cell is in emergency stop mode"),
+    (E_CHECKPOINT_RESTORE, "Failed to restore checkpoint"),
+    (E_AGENT_CRASHED, "Agent has crashed"),
+    (E_HUMAN_REJECTED, "Rejected by human approval"),
+    (E_APPROVAL_TIMEOUT, "Approval request timed out"),
+    (E_MCP_FAILED, "MCP call failed"),
+    (E_UNKNOWN_TOOL, "Unknown tool"),
+    (E_HANDLER_ERROR, "Tool handler error"),
+    (E_MEMORY_REJECTED, "Memory rejected by quality filter"),
+    (E_SANDBOX_ERROR, "Sandbox operation failed"),
+]:
+    register_error(_code, _msg)
+
+# ── Built-in zh-CN translations ──
+# Port-less fallback used by PraxisError.to_dict() when no I18nPort is
+# registered (unit tests, minimal setups). Runtime translations come from
+# the ``error.*`` keys in ``locales/zh-CN.yaml`` — keep both in sync.
+_ZH_TRANSLATIONS: dict[str, str] = {
+    f"error.{E_INTERNAL}": "内部错误",
+    f"error.{E_TIMEOUT}": "操作超时",
+    f"error.{E_INVALID_PARAMS}": "参数错误",
+    f"error.{E_NOT_FOUND}": "资源未找到",
+    f"error.{E_CONSTITUTION_BLOCKED}": "被宪法阻止",
+    f"error.{E_GATECHAIN_BLOCKED}": "被门链阻止",
+    f"error.{E_TOOL_MUTED}": "工具已静音",
+    f"error.{E_TOOL_NOT_FOUND}": "工具未注册",
+    f"error.{E_RESOURCE_EXHAUSTED}": "资源耗尽",
+    f"error.{E_PERMISSION_DENIED}": "权限不足",
+    f"error.{E_CELL_EMERGENCY}": "单元处于紧急停止",
+    f"error.{E_CHECKPOINT_RESTORE}": "检查点恢复失败",
+    f"error.{E_AGENT_CRASHED}": "代理崩溃",
+    f"error.{E_HUMAN_REJECTED}": "被人工拒绝",
+    f"error.{E_APPROVAL_TIMEOUT}": "审批超时",
+    f"error.{E_MCP_FAILED}": "MCP 调用失败",
+    f"error.{E_UNKNOWN_TOOL}": "未知工具",
+    f"error.{E_HANDLER_ERROR}": "工具处理器错误",
+    f"error.{E_MEMORY_REJECTED}": "记忆被质量过滤器拒绝",
+    f"error.{E_SANDBOX_ERROR}": "沙箱操作失败",
+}
+
+# NOTE: the zh-CN translations above are a port-less fallback ONLY. They are
+# intentionally NOT registered into the I18nPort — the ``error.*`` keys in
+# ``locales/<locale>.yaml`` are the single translation source at runtime.

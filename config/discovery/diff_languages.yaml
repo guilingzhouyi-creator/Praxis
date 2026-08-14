@@ -1,0 +1,85 @@
+# Diff language registry — declarative, config-driven language support.
+#
+# The diff system must NOT hardcode languages: which languages get
+# structure-aware symbol extraction, which backend handles them, and how
+# hunks are semantically classified is declared HERE (auto-discovered at
+# boot by ConfigDiscovery), so new languages join by editing YAML — no
+# code change.
+#
+# Schema per language:
+#   extensions: [file suffixes that map to this language]
+#   symbol_backend: how AST symbols are extracted for review context:
+#     - python_ast : Python stdlib `ast` (functions/classes/methods)
+#     - none       : no symbol extraction (line-level diff only)
+#   tree_backend: how AST tree-edit deltas (Phase 3) are computed:
+#     - python_ast : Python stdlib `ast` — INS/DEL/MOV/UPD edit scripts
+#     - none       : no tree delta (row/hunk-level diff only)
+#   semantic: whether hunk semantic classification applies (line heuristic)
+#
+# Unlisted extensions fall back to a language-agnostic line-level diff
+# (no symbol extraction, no tree delta, no semantic labels) — never a
+# hard error.
+
+diff_languages:
+  python:
+    extensions: [".py", ".pyi"]
+    symbol_backend: python_ast
+    tree_backend: python_ast
+    semantic: true
+  javascript:
+    extensions: [".js", ".jsx", ".mjs", ".cjs"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  typescript:
+    extensions: [".ts", ".tsx", ".mts", ".cts"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  go:
+    extensions: [".go"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  rust:
+    extensions: [".rs"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  java:
+    extensions: [".java"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  c_cpp:
+    extensions: [".c", ".h", ".cc", ".cpp", ".hpp", ".cxx"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: true
+  json:
+    extensions: [".json", ".jsonc"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: false
+  yaml:
+    extensions: [".yaml", ".yml"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: false
+  markdown:
+    extensions: [".md", ".markdown"]
+    symbol_backend: none
+    tree_backend: none
+    semantic: false
+
+# ── Shared Zstd dictionary (Phase 2, L2 review frames) ──────────────────
+# Trained from code samples for high-compression review frames. Declarative:
+# point `samples_dir` at any directory of code; the trained dictionary is
+# persisted to data_dir (DIFF_DICTIONARY_FILE). `enabled: false` or a
+# missing dictionary → the codec degrades to zlib silently (never a hard
+# dependency on zstandard).
+diff_dictionary:
+  enabled: true
+  samples_dir: "src"          # code sample roots to train from (relative to repo root)
+  size_bytes: 65536           # 64KB dictionary
+  training_level: 19          # zstd level used for L2 review-frame compression

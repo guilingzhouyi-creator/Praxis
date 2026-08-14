@@ -1,0 +1,173 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # every Sunday 02:00 UTC
+  workflow_dispatch:       # manual trigger
+
+jobs:
+  full-suite:
+    # Weekly cross-version regression pass (3.12/3.13). Coverage reporting is
+    # deliberately NOT run here — the PR coverage job in test.yml already
+    # gates and uploads coverage on every push, so this job exists only to
+    # catch version-specific drift that the PR matrix may miss. Running
+    # coverage twice (PR + nightly) uploads duplicate Codecov reports and
+    # re-does the same instrumented run.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - run: pip install -e ".[test]"
+      - name: Full test suite (no coverage)
+        run: python -m pytest tests/ -v --tb=short -q --ignore=tests/benchmarks/bench_card.py
+
+  lint-full-tree:
+    # Full-tree ruff gate: PR lint (ci.yml) only checks changed files, and
+    # the local .githooks/pre-commit only checks staged files (staged-scoped
+    # since 2026-08-07 — it must never run whole-tree passes, which silently
+    # reformat files outside the commit). This weekly run is the ONLY
+    # full-tree style gate: it enforces that src/ + tests/ stays clean and
+    # catches debt rotting in untouched files.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[test]"
+      - name: ruff check (full tree)
+        run: ruff check src/ tests/
+      - name: ruff format (full tree)
+        run: ruff format --check src/ tests/
+      - name: hooks executable (gate guards)
+        # The pre-commit/commit-msg/post-checkout hooks are load-bearing
+        # gates; git silently skips non-executable core.hooksPath hooks, and
+        # the tracked exec bits drifted to 100644 once (2026-08-07), silently
+        # disabling every gate. Fail if the tracked modes are not 100755.
+        run: |
+          BAD=$(git ls-files -s .githooks/ | awk '$1 != "100755" {print $4}' || true)
+          if [ -n "$BAD" ]; then
+            echo "❌ hooks not tracked as executable:"; printf '%s\n' "$BAD"
+            echo "   fix with: git update-index --chmod=+x <file>"
+            exit 1
+          fi
+          echo "✅ hooks tracked as 100755"
+
+  mypy-debt:
+    # mypy no-new-debt gate: type checking stays non-gating in PR CI, but the
+    # finding count must never grow. Baseline cleared to 0 on 2026-08-07 after
+    # the debt-clearance pass; keep it at 0 so any new finding fails nightly.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: |
+          pip install -e ".[test]"
+          pip install mypy==1.15.0 types-PyYAML  # pinned to pre-commit version
+      - name: Count mypy findings vs baseline
+        run: |
+          BASELINE=0
+          COUNT=$(mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators 2>&1 | grep -cE "error:" || true)
+          echo "mypy findings: $COUNT (baseline $BASELINE)"
+          if [ "$COUNT" -gt "$BASELINE" ]; then
+            echo "❌ mypy debt GREW: $COUNT > $BASELINE — fix or raise the baseline deliberately."
+            exit 1
+          fi
+          echo "✅ no new mypy debt (<= $BASELINE)"
+        timeout-minutes: 10
+
+  remote-sync:
+    # Dual-remote drift check: every push to main must go to BOTH remotes
+    # (origin = GitCode canonical source, github = GitHub CI carrier — see
+    # AGENTS.md "Remote strategy"). Fails when the two main branches
+    # diverge, catching a one-sided push that silently skipped CI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify dual remotes are in sync
+        run: |
+          ORIGIN=$(git ls-remote https://gitcode.com/Aplese/PraxisAgentOS.git refs/heads/main 2>/dev/null | cut -f1 || true)
+          GITHUB=$(git ls-remote https://github.com/guilingzhouyi-creator/Praxis-Agent-OS.git refs/heads/main 2>/dev/null | cut -f1 || true)
+          echo "origin: $ORIGIN"
+          echo "github: $GITHUB"
+          if [ -z "$ORIGIN" ] || [ -z "$GITHUB" ]; then
+            echo "⚠️ could not resolve one/both remotes (network/auth) — sync check skipped"
+            exit 0
+          fi
+          if [ "$ORIGIN" != "$GITHUB" ]; then
+            echo "❌ remotes diverged — sync both via scripts/sh/push-both.sh"
+            exit 1
+          fi
+          echo "✅ dual remotes in sync"
+
+  mem-check:
+    # Memory-leak smoke gate: repeated tool register/unregister cycles must
+    # not accumulate memory (tracemalloc) — catches specs/handler closures
+    # retained by the global registry after unregister.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[test]"
+      - name: Memory-leak check
+        run: python scripts/py/mem-check.py
+
+  import-cycle:
+    # Circular-import gate: src/ module graph must stay acyclic at load
+    # time (AST scan; TYPE_CHECKING and function-body imports are lazy and
+    # therefore exempt).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[test]"
+      - name: Circular import check
+        run: python scripts/py/import-cycle-check.py
+
+  notify-failure:
+    # Nightly drift notification: if any nightly job failed, file an issue
+    # (idempotent — skip when an open issue with the same title exists, so
+    # a persistent failure does not spam issues).
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // Stable title (no date) so a persistent failure suppresses
+            // re-filing on later weekly runs; date/sha/run live in the body.
+            const title = "Nightly CI failure";
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            if (issues.some(i => i.title === title)) {
+              console.log('issue already open — skipping');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `Nightly workflow failed on ${context.sha} (${new Date().toISOString().slice(0, 10)}).\n\nCheck: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });

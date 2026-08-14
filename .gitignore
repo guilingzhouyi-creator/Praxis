@@ -1,0 +1,117 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.coverage
+*.pytest_cache/
+.ruff_cache/
+
+# ── Virtual environment ──
+.env
+.venv/
+venv/
+env/
+Pipfile.lock
+poetry.lock
+
+# ── IDE / Editor ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Project runtime state ──
+*.db
+*.sqlite3
+.praxis_state.json
+.praxis_events.db
+.praxis_settings.json
+*.praxis_settings.json
+.praxis_settings.json.bak
+*.log
+logs/
+
+# ── Sandbox & resource buffer (generated at runtime) ──
+.praxis/
+!config/praxis.yaml
+
+# ── Generated chain / proof files ──
+.chain_key
+*.chain_key
+
+# ── Memory system (LLM agent runtime state, sessions, archives) ──
+memories/
+
+# ── Runtime-generated state files (all .praxis_* patterns) ──
+.praxis_*.json
+!config/praxis.yaml
+.praxis_*.jsonl
+.praxis_*.db
+.praxis_state.db
+
+# ── User-authored config files in config/ ──
+!config/praxis.yaml
+!config/commands.yaml
+!config/.nomos-rules.md
+!config/.mcp.json
+!config/tools.yaml
+
+# ── Temp scripts ──
+/_scan_*.py
+
+
+
+# ── Timing / profiling data ──
+.workspace-timing-data/
+
+# ── OS generated ──
+*.spec
+*.manifest
+*.dll
+*.so
+*.dylib
+
+# ── AtomCode automation configs ──
+# Skills/commands are tracked build-environment content (see AGENTS.md);
+# only runtime state (memory, local settings) is ignored here.
+.atomcode/memory.md
+.atomcode/settings.json
+.mcp.json
+
+# ── Node (opencode skills + node_modules) ──
+node_modules/
+opencode.json
+.reasonix/
+
+# ── Config / runtime artifacts (test checkpoints, keys) ──
+.config/
+
+# ── Skill system (generated artifacts) ──
+.skill_cache/
+skills/__pycache__/
+skills/evolved/
+
+# Runtime artifacts
+.tmp
+
+# Vault runtime salt (auto-generated)
+.praxis_vault_salt
+
+# ── Archived docs (intentionally NOT tracked) ──
+# Policy: moving a file into docs/design/archive/ stops git recording it.
+/docs/design/archive/
+
+# ── Personal notes (随笔 — intentionally NOT tracked) ──
+docs/notes/随笔/

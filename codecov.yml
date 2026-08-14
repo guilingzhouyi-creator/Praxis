@@ -1,0 +1,18 @@
+# Codecov configuration — patch (diff) coverage gate.
+#
+# The full-suite coverage job (.github/workflows/test.yml → coverage job)
+# uploads coverage.xml. This config enforces:
+#   - patch: NEW/changed lines in each PR must reach target coverage —
+#     prevents "new code with 0 coverage" slipping past the total line.
+#   - project: overall suite coverage must stay at the same level as
+#     pyproject.toml [tool.coverage.report] fail_under = 60.
+coverage:
+  status:
+    patch:
+      default:
+        target: 50%   # new/changed lines must be at least this covered
+        threshold: 5% # allow small deviations on large diffs
+    project:
+      default:
+        target: 60%   # mirrors pyproject fail_under
+        threshold: 2%

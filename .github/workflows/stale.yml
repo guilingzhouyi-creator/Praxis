@@ -1,0 +1,29 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # daily 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # Issues: stale after 60 days idle, closed 14 days later.
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          stale-issue-label: stale
+          # Dependabot dependency PRs are handled by deps.yml — never stale them.
+          exempt-issue-labels: pinned,security,dependencies
+          # PRs: mark stale but never auto-close (a draft may be parked).
+          days-before-pr-stale: 60
+          days-before-pr-close: -1
+          stale-pr-label: stale
+          exempt-pr-labels: dependencies,do-not-stale
+          operations-per-run: 100

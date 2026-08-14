@@ -1,0 +1,113 @@
+name: PR review
+
+# Automated PR review comment: runs the same gates the merge pipeline
+# enforces, and posts the verdict on every PR that touches main.
+#   - net code delta vs base (classify-diff + verify-main-merge-gate rules)
+#   - GPG signature + English Conventional-Commits subject (per commit)
+#   - merge-tree conflict pre-check
+# This is advisory (comment-only) — enforcement lives in the merge gates;
+# branch protection (required checks + review) is configured on GitHub.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compute net code delta and health
+        id: delta
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          git diff --numstat "$BASE...$HEAD" 2>/dev/null > /tmp/diff.numstat || \
+            git diff --numstat "$BASE" "$HEAD" > /tmp/diff.numstat
+          python scripts/py/classify-diff.py --numstat-file /tmp/diff.numstat > /tmp/class.json
+          CODE=$(python -c "import json;print(json.load(open('/tmp/class.json'))['code_lines'])")
+          DOC=$(python -c "import json;print(json.load(open('/tmp/class.json'))['doc_lines'])")
+          echo "code_lines=$CODE" >> "$GITHUB_OUTPUT"
+          echo "doc_lines=$DOC" >> "$GITHUB_OUTPUT"
+
+      - name: Check commits (signature + English Conventional-Commits)
+        id: commits
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          BAD=0
+          VERDICT=""
+          while read -r line; do
+            sig="$(echo "$line" | awk '{print $1}')"
+            subj="$(echo "$line" | cut -d' ' -f2-)"
+            case "$sig" in
+              G) sig_ok="signed" ;;
+              *) sig_ok="UNSIGNED"; BAD=1 ;;
+            esac
+            case "$subj" in
+              feat\(*|fix\(*|refactor\(*|ci\(*|docs\(*|test\(*|chore\(*|merge*|Merge*) msg_ok="conventional" ;;
+              *) msg_ok="NON-CONVENTIONAL"; BAD=1 ;;
+            esac
+            printf -v VERDICT '%s- %s [%s / %s]\n' "$VERDICT" "$subj" "$sig_ok" "$msg_ok"
+          done < <(git log --format="%G? %s" "$BASE..$HEAD" 2>/dev/null)
+          echo "verdict<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$VERDICT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "bad=$BAD" >> "$GITHUB_OUTPUT"
+
+      - name: Conflict pre-check
+        id: conflict
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          if git merge-tree "$BASE" "$HEAD" 2>/dev/null | grep -qE "^<<<<<<<"; then
+            echo "state=CONFLICT" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=CLEAN" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ github.event.pull_request.number }}"
+          CODE="${{ steps.delta.outputs.code_lines }}"
+          DOC="${{ steps.delta.outputs.doc_lines }}"
+          STATE="${{ steps.conflict.outputs.state }}"
+          BAD="${{ steps.commits.outputs.bad }}"
+          {
+            echo "## 🤖 自动 PR 审查 (automated review)"
+            echo ""
+            echo "**改动规模**: code +$CODE lines / docs +$DOC lines"
+            if [ "$CODE" -ge 1000 ]; then echo "- ✅ 净增量 ≥ 1000 → 可直接合入 main"
+            elif [ "$CODE" -lt 600 ]; then echo "- ⛔ 净增量 < 600 → 应留在 worktree 分支累计,拒绝直接合入"
+            else echo "- ⚠️ 净增量 < 1000 → 尚未达标,继续累计"
+            fi
+            echo ""
+            echo "**冲突预检**: $STATE"
+            if [ "$STATE" = "CONFLICT" ]; then echo "- ⛔ 与 base 冲突,请先解决"; fi
+            echo ""
+            echo "**提交检查**:"
+            echo '```'
+            echo "${{ steps.commits.outputs.verdict }}"
+            echo '```'
+            if [ "$BAD" = "1" ]; then
+              echo "⛔ 存在未签名或非 Conventional 提交 — 按 AGENTS.md 需重写后再合入"
+            fi
+          } > /tmp/comment.md
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file /tmp/comment.md

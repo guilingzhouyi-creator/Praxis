@@ -1,0 +1,19 @@
+# Dynamic tool registry — auto-discovered at boot by _load_dynamic_tools.
+#
+# Each top-level key is a tool name; the value is a ToolConfig definition
+# dict plus an optional `ring` (default ring_1). Ring values are whitelisted
+# by TOOL_REGISTRY_ALLOWED_RINGS; the total dynamic count is capped by
+# TOOL_REGISTRY_MAX_DYNAMIC (both in src/l1/kernel/params/tool.py).
+#
+# Runtime registration is also exposed via POST /api/v2/tools/register.
+#
+# Example:
+#   my_probe_tool:
+#     ring: ring_2_5
+#     description: "Probe a target service for banner metadata"
+#     handler: l3.tools._custom.my_probe
+#     danger: 2
+#     params:
+#       - name: target
+#         type: string
+#         required: true

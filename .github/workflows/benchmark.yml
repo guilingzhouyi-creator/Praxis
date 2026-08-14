@@ -1,0 +1,203 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# The baseline-update commit (main only) is created with the GITHUB_TOKEN
+# and carries a [skip ci] message so it does not re-trigger this workflow.
+# It is committed locally but NOT pushed: the GitCode pre-receive hook
+# rejects unsigned commits, so an auto-pushed baseline would diverge the
+# dual remotes. Maintainers sync it to origin with a signed commit.
+permissions:
+  contents: write
+
+jobs:
+  bench-card:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[test]"
+      - name: Run card benchmark
+        id: bench
+        run: |
+          # Median of 3 rounds: a single-shot wall_time is noisy on shared CI
+          # runners (load swings of ±30% are common), so one sample trips the
+          # 10% regression gate spuriously. The median is stable; steps/s is
+          # taken from the round whose wall time sits closest to the median.
+          WALLS=""
+          PAIRS=""
+          for i in 1 2 3; do
+            OUT=$(python tests/benchmarks/bench_card.py)
+            W=$(printf '%s\n' "$OUT" | grep -oE 'Wall time: [0-9.]+s' | grep -oE '[0-9.]+')
+            S=$(printf '%s\n' "$OUT" | grep -oE 'Steps/s: +[0-9.]+' | grep -oE '[0-9.]+')
+            echo "round $i: wall=${W}s steps/s=${S}"
+            WALLS="$WALLS $W"
+            PAIRS="$PAIRS $W:$S"
+          done
+          WALL=$(python - "$WALLS" <<'PYEOF'
+          import sys, statistics
+          toks = sys.argv[1].split()
+          if len(toks) != 3:
+              print(f"bench parse failed: expected 3 wall-time values, got {toks!r}", file=sys.stderr)
+              sys.exit(1)
+          print(f"{statistics.median([float(x) for x in toks]):.3f}")
+          PYEOF
+          )
+          STEPS=$(python - "$WALLS" "$PAIRS" <<'PYEOF'
+          import sys, statistics
+          walls = [float(x) for x in sys.argv[1].split()]
+          raw_pairs = sys.argv[2].split()
+          if len(walls) != 3 or len(raw_pairs) != 3:
+              print(f"bench parse failed: expected 3 rounds, got walls={walls!r} pairs={raw_pairs!r}", file=sys.stderr)
+              sys.exit(1)
+          try:
+              pairs = [(float(w), float(s)) for w, s in (p.split(":") for p in raw_pairs)]
+          except ValueError as e:
+              print(f"bench parse failed: malformed round pair: {e}", file=sys.stderr)
+              sys.exit(1)
+          med = statistics.median(walls)
+          print(f"{min(pairs, key=lambda p: abs(p[0] - med))[1]:.1f}")
+          PYEOF
+          )
+          echo "median wall_time=$WALL steps_per_sec=$STEPS"
+          echo "wall_time=$WALL" >> "$GITHUB_OUTPUT"
+          echo "steps_per_sec=$STEPS" >> "$GITHUB_OUTPUT"
+          # Trend archive: persist this run's result for history tracking.
+          printf '{"wall_time": %s, "steps_per_sec": %s, "run_id": "%s", "ts": "%s"}\n' \
+            "$WALL" "$STEPS" "${{ github.run_id }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > bench_card_result.json
+      - name: Archive benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-card-result-${{ github.run_id }}
+          path: bench_card_result.json
+          retention-days: 30
+      - name: Record + summarize trends
+        run: |
+          python scripts/py/bench-trends.py record "$WALL" "$STEPS" "${{ github.run_id }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python scripts/py/bench-trends.py summary
+        env:
+          WALL: ${{ steps.bench.outputs.wall_time }}
+          STEPS: ${{ steps.bench.outputs.steps_per_sec }}
+      - name: Compare against baseline
+        if: always()
+        env:
+          WALL: ${{ steps.bench.outputs.wall_time }}
+        run: |
+          BASELINE="tests/benchmarks/baseline.json"
+          if [ ! -f "$BASELINE" ]; then
+            echo "No baseline yet — skipping comparison (first run)."
+            exit 0
+          fi
+          BASE_WALL=$(python -c "import json;print(json.load(open('$BASELINE'))['wall_time'])")
+          # Hard line single source of truth: l1/kernel/params BENCH_REGRESSION_LIMIT_PCT
+          REGRESSION_LIMIT=$(python -c "from l1.kernel.params.system import BENCH_REGRESSION_LIMIT_PCT;print(float(BENCH_REGRESSION_LIMIT_PCT))")
+          WORSE_PCT=$(awk "BEGIN{print ($WALL-$BASE_WALL)/$BASE_WALL*100}")
+          echo "baseline wall_time=$BASE_WALL, current=$WALL (${WORSE_PCT}% worse)"
+          if awk "BEGIN{exit !($WORSE_PCT > $REGRESSION_LIMIT)}"; then
+            echo "❌ Wall time regressed by ${WORSE_PCT}% (> ${REGRESSION_LIMIT}% limit)"
+            exit 1
+          fi
+          echo "✅ Within ${REGRESSION_LIMIT}% of baseline."
+      - name: Update baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          WALL: ${{ steps.bench.outputs.wall_time }}
+          STEPS: ${{ steps.bench.outputs.steps_per_sec }}
+        run: |
+          # NOTE: deliberately NO `git push` here. The GitHub-Actions bot
+          # commit is unsigned, and the GitCode pre-receive hook rejects
+          # unsigned commits — an auto-pushed baseline would diverge the
+          # dual remotes (origin clean-signed, github with a bot chain).
+          # Maintainers sync the baseline to origin with a signed commit:
+          #   git show <sha>:tests/benchmarks/baseline.json > tests/benchmarks/baseline.json
+          mkdir -p tests/benchmarks
+          printf '{"wall_time": %s, "steps_per_sec": %s, "updated": "%s"}\n' \
+            "$WALL" "$STEPS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > tests/benchmarks/baseline.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/benchmarks/baseline.json
+          git commit -m "chore(bench): update baseline [skip ci]" || echo "baseline unchanged"
+          echo "baseline committed locally on GitHub; sync to origin via a signed commit."
+
+  bench-platform:
+    # Kernel-primitive throughput gate (mutex / event bus / channel /
+    # worker pool / thread): bench_platform.py --json reports ops/sec per
+    # primitive; a primitive regressing >10% vs the platform baseline fails.
+    # Baseline updates on main push only (same policy as bench-card, also
+    # deliberately NOT pushed — sync to origin via a signed commit).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[test]"
+        timeout-minutes: 5
+      - name: Run platform benchmark
+        id: bench
+        run: |
+          python tests/benchmarks/bench_platform.py --json bench_platform.json
+          cat bench_platform.json
+      - name: Archive benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-platform-result-${{ github.run_id }}
+          path: bench_platform.json
+          retention-days: 30
+      - name: Compare against baseline
+        if: always()
+        run: |
+          BASELINE="tests/benchmarks/bench_platform_baseline.json"
+          if [ ! -f "$BASELINE" ]; then
+            echo "No platform baseline yet — skipping comparison (first run)."
+            exit 0
+          fi
+          python - <<'PYEOF'
+          import json
+
+          cur = json.load(open("bench_platform.json"))["micro"]
+          base = json.load(open("tests/benchmarks/bench_platform_baseline.json"))["micro"]
+          limit = 10.0
+          failures = []
+          for name, val in cur.items():
+              b = (base.get(name) or {}).get("ops_per_sec")
+              if not b:
+                  continue
+              pct = (b - val["ops_per_sec"]) / b * 100
+              if pct > limit:
+                  failures.append(f"{name}: {val['ops_per_sec']:.0f} vs baseline {b:.0f} ({pct:.1f}% worse)")
+          if failures:
+              print("❌ platform benchmark regressed:")
+              print("\n".join(failures))
+              raise SystemExit(1)
+          print("✅ all primitives within 10% of platform baseline")
+          PYEOF
+      - name: Update platform baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Deliberately NO git push — same unsigned-bot-commit policy as the
+          # bench-card baseline; sync to origin via a signed commit.
+          mkdir -p tests/benchmarks
+          python - <<'PYEOF'
+          import json
+          from datetime import datetime, timezone
+
+          data = json.load(open("bench_platform.json"))
+          data["updated"] = datetime.now(timezone.utc).isoformat()
+          json.dump(data, open("tests/benchmarks/bench_platform_baseline.json", "w"), indent=2)
+          PYEOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/benchmarks/bench_platform_baseline.json
+          git commit -m "chore(bench): update platform baseline [skip ci]" || echo "baseline unchanged"
+          echo "platform baseline committed locally on GitHub; sync to origin via a signed commit."

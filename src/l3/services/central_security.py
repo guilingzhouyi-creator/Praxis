@@ -1,0 +1,229 @@
+"""CentralSecurity — unified security policy engine.
+
+Coordinates five security subsystems under a single check_all() API:
+  1. Constitution  — territory/constitution rules
+  2. GateChain     — G1-G5 gate sequence
+  3. AuthService   — user authentication
+  4. IdentityService — agent identity & tokens
+  5. ToolPipeline  — execution gates (clearance, rate, alloc)
+
+Usage:
+  from l3.services.central_security import get_center
+  result = get_center().check_all("write_file", "agent-1",
+                                  target="/project/foo.py",
+                                  args={"path": "/project/foo.py"})
+  # Returns unified verdict with per-gate status + risk score + recommendation
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+
+from l1.kernel.params.system import (
+    SECURITY_GATE_SCORE_AUTH,
+    SECURITY_GATE_SCORE_CLEARANCE,
+    SECURITY_GATE_SCORE_CONSTITUTION,
+    SECURITY_GATE_SCORE_CONSTITUTION_ERROR,
+    SECURITY_GATE_SCORE_GATECHAIN,
+    SECURITY_GATE_SCORE_RATE_LIMIT,
+    SECURITY_GATE_SCORE_TOOL_MODE,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SecurityVerdict:
+    """Unified result from all security gates."""
+
+    def __init__(self, action: str, agent_id: str):
+        self.action = action
+        self.agent_id = agent_id
+        self.timestamp = time.time()
+        self.allowed: bool = True
+        self.gates: dict[str, dict] = {}
+        self.risk_score: float = 0.0
+        self.blocked_by: list[str] = []
+        self.recommendation: str = ""
+
+    def add_gate(self, name: str, success: bool, detail: str = "", score: float = 0.0) -> None:
+        """Record one gate result, updating the overall verdict."""
+        self.gates[name] = {"success": success, "detail": detail, "score": score}
+        if not success:
+            self.allowed = False
+            self.blocked_by.append(name)
+        self.risk_score = max(self.risk_score, score)
+
+    def to_dict(self) -> dict:
+        """Serialize the verdict to a dict."""
+        return {
+            "action": self.action,
+            "agent_id": self.agent_id,
+            "allowed": self.allowed,
+            "gates": self.gates,
+            "risk_score": round(self.risk_score, 2),
+            "blocked_by": self.blocked_by,
+            "recommendation": self.recommendation,
+            "timestamp": self.timestamp,
+        }
+
+
+class CentralSecurity:
+    """Unified security policy engine — single entry for all authorization checks."""
+
+    def __init__(self):
+        self._stats = {"checks": 0, "allowed": 0, "blocked": 0}
+
+    def check_all(
+        self,
+        action: str,
+        agent_id: str,
+        *,
+        target: str = "",
+        args: dict | None = None,
+        tool_name: str = "",
+        user_token: str = "",
+    ) -> dict:
+        """Run ALL security gates and return unified verdict.
+
+        Args:
+            action:     'read_file', 'write_file', 'deploy', etc.
+            agent_id:   'agent-1', 'scout-xxx', 'l3', etc.
+            target:     file path, resource name, or action target
+            args:       tool call arguments (for detailed checks)
+            tool_name:  tool name (for pipeline clearance)
+            user_token: optional user auth token
+        """
+        verdict = SecurityVerdict(action, agent_id)
+        self._stats["checks"] += 1
+
+        # 1. Constitution
+        try:
+            from l1.kernel.constitution import get_constitution as _gc
+
+            cc = _gc().is_allowed(action, agent_id, target=target, territory=args.get("territory", "") if args else "")
+            passed = cc.get("allowed", True)
+            verdict.add_gate(
+                "constitution",
+                passed,
+                str(cc.get("reason", "")),
+                score=SECURITY_GATE_SCORE_CONSTITUTION if not passed else 0,
+            )
+        except Exception as e:
+            verdict.add_gate(
+                "constitution", False, f"constitution error: {e}", score=SECURITY_GATE_SCORE_CONSTITUTION_ERROR
+            )
+
+        # 2. GateChain (using correct check() API)
+        try:
+            from l1.kernel.gatechain import get_gatechain as _gg
+
+            gcr = _gg().check(tool_name or action, agent_id, target=target)
+            gc_allowed = gcr.get("allowed", True)
+            gc_steps = gcr.get("steps", [])
+            gc_decision = gcr.get("decision", "?")
+            verdict.add_gate(
+                "gatechain",
+                gc_allowed,
+                detail=f"decision={gc_decision}, steps={len(gc_steps)}",
+                score=SECURITY_GATE_SCORE_GATECHAIN if not gc_allowed else 0,
+            )
+        except Exception as e:
+            verdict.add_gate("gatechain", True, f"gatechain unavailable: {e}")
+
+        # 3. Auth (user token) — verify via the auth port when a token is present
+        if user_token:
+            try:
+                from l1.kernel.ports import get_port as _gp2
+
+                auth = _gp2("auth")
+                v = auth.verify_token(user_token)
+                auth_ok = bool(v.get("valid"))
+                detail = v.get("error", "valid") if not auth_ok else "valid"
+            except Exception as e:
+                auth_ok = False
+                detail = f"auth unavailable: {e}"
+            verdict.add_gate("auth", auth_ok, detail, score=SECURITY_GATE_SCORE_AUTH if not auth_ok else 0)
+
+        # 4. Identity / clearance
+        try:
+            from l1.kernel.params.agent import AGENT_CLEARANCE
+
+            ring = AGENT_CLEARANCE.get(agent_id, 1)
+            verdict.add_gate(
+                "clearance",
+                ring >= 1,
+                detail=f"agent_ring={ring}",
+                score=SECURITY_GATE_SCORE_CLEARANCE if ring < 1 else 0,
+            )
+        except Exception as e:
+            verdict.add_gate("clearance", True, f"clearance unavailable: {e}")
+
+        # 5. Tool mode (read/write gate)
+        try:
+            from .tool_system.tool_config import ToolConfig as ToolConfigCls
+
+            mode = "read"  # legacy stub
+            if mode == "read":
+                write_names = ToolConfigCls.write_tool_names()
+                if action in write_names:
+                    verdict.add_gate(
+                        "tool_mode", False, "read mode, write blocked", score=SECURITY_GATE_SCORE_TOOL_MODE
+                    )
+        except Exception as e:
+            verdict.add_gate("tool_mode", True, f"tool_mode unavailable: {e}")
+
+        # 6. Rate limit check
+        try:
+            from .tool_system.tool_pipeline import get_pipeline as _gp
+
+            pipe = _gp()
+            from l1.kernel.params.kernel import RING_1, RING_2_5
+            from l1.kernel.params.kernel import RING_NUM_MAP as _RNM
+
+            from .tool_system.tool_config import ToolConfig as ToolConfigCls
+
+            tool_ring = _RNM.get(RING_2_5 if action in ToolConfigCls.write_tool_names() else RING_1, 1)
+            rl = pipe._rate_limiter.check(agent_id, tool_ring)
+            verdict.add_gate(
+                "rate_limit",
+                rl.get("allowed", True),
+                detail=f"remaining={rl.get('remaining', 0)}",
+                score=SECURITY_GATE_SCORE_RATE_LIMIT if not rl.get("allowed") else 0,
+            )
+        except Exception:
+            verdict.add_gate("rate_limit", True, "rate_limit unavailable")
+
+        # Final recommendation
+        if not verdict.allowed:
+            verdict.recommendation = f"Blocked by: {', '.join(verdict.blocked_by)}"
+            self._stats["blocked"] += 1
+        else:
+            self._stats["allowed"] += 1
+
+        return verdict.to_dict()
+
+    def stats(self) -> dict:
+        """Return check/allowed/blocked counters."""
+        return dict(self._stats)
+
+    def reset_stats(self) -> None:
+        """Reset the check/allowed/blocked counters to zero."""
+        self._stats = {"checks": 0, "allowed": 0, "blocked": 0}
+
+
+_center: CentralSecurity | None = None
+
+
+def get_center() -> CentralSecurity:
+    """Return the shared CentralSecurity singleton, creating it on first use."""
+    global _center
+    if _center is None:
+        _center = CentralSecurity()
+    return _center
+
+
+def reset_center() -> None:
+    """Drop the CentralSecurity singleton (for testing / hot-reload)."""
+    global _center
+    _center = None

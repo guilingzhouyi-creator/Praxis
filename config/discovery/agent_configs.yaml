@@ -1,0 +1,29 @@
+# Agent system structural configuration (runtime-consumed subset).
+# Auto-discovered by ConfigDiscovery; overlays params/agent.py defaults.
+# Only `skill_dirs` (skill.py) and `shell_aliases` (shell_completer.py) are
+# consumed at runtime. All other agent defaults (roles, clearance, priority,
+# reputation, injection patterns, resource paths, etc.) live in
+# src/l1/kernel/params/agent.py / params/system.py — do not duplicate them here.
+
+# ── Skill discovery directories ──
+skill_dirs:
+  - "config/skills"       # built-in skills — shipped with the repo (read-only)
+  - ".praxis/skills"      # runtime skill store (evolved/lean/user)
+  - "skills"
+  - ".skills"
+  - "skills/evolved"   # project-scoped evolved skills (fed back into the project, travels with repo)
+
+# ── Shell aliases (tool name shortcuts) ──
+shell_aliases:
+  rf: read_file
+  wf: write_file
+  ls: list_directory
+  g: grep
+  glob: glob
+  cat: read_file
+  h: help
+  q: exit
+  st: status
+  tl: tools
+  clr: clear
+  hist: history

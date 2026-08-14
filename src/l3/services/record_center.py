@@ -1,0 +1,452 @@
+"""RecordCenter — unified error/log/reference record center.
+
+Wraps ErrorBus + LogService + ReferenceChannel under a single facade.
+  - Unified query across all three stores
+  - Unified export with retention policy
+  - Bridges aggregate metrics to StatsCenter
+  - Scheduled auto-export for persistence
+
+Each subsystem remains independent internally; RecordCenter is a thin
+orchestration layer that presents a single API surface.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import threading
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+from l1.kernel.discovery import get_service_limit
+from l1.kernel.params.system import (
+    ERROR_BUS_EXPORT_LIMIT,
+    RECORD_CENTER_AUTO_EXPORT_INTERVAL,
+    RECORD_CENTER_DEFAULT_LIMIT,
+    RECORD_CENTER_RETENTION_DAYS,
+    RECORDS_EXPORT_FILE,
+)
+from l1.kernel.platform import get_config_dir
+
+logger = logging.getLogger(__name__)
+
+_LOG_DIR = Path(get_config_dir()) / "logs"
+
+
+@dataclass
+class RecordQuery:
+    """RecordQuery — record query record (sources, level, service, agent_id, error_code)."""
+
+    sources: list[str] | None = None  # "error" | "log" | "reference"
+    level: str = ""
+    service: str = ""
+    agent_id: str = ""
+    error_code: str = ""
+    component: str = ""
+    since: float = 0.0
+    until: float = 0.0
+    offset: int = 0
+    limit: int = RECORD_CENTER_DEFAULT_LIMIT
+    keyword: str = ""
+
+
+class RecordCenter:
+    """Unified error/log/reference record center.
+
+    Delegates to:
+      - ErrorBus for error records (fingerprint-deduped)
+      - LogService for general log records (ring buffer + disk)
+      - ReferenceChannel for audit/training records (JSONL)
+    """
+
+    def __init__(
+        self,
+        export_dir: str = "",
+        auto_export_interval: float = RECORD_CENTER_AUTO_EXPORT_INTERVAL,
+        retention_days: int | None = None,
+    ):
+        self._export_dir = export_dir or str(_LOG_DIR / "exports")
+        self._auto_export_interval = auto_export_interval
+        # Declarative override via config/discovery/service_limits.yaml,
+        # params constant as fallback (AGENTS.md three-layer config).
+        self._retention_days = (
+            retention_days
+            if retention_days is not None
+            else get_service_limit("record_center_retention_days", RECORD_CENTER_RETENTION_DAYS)
+        )
+        self._lock = threading.RLock()
+        self._export_counter = 0
+        self._last_auto_export = time.time()
+
+        # Subsystem references (lazy-loaded)
+        self._error_bus = None
+        self._log_service = None
+        self._ref_channel = None
+        self._stats_center = None
+        # Plug-in extra sources (Phase E): name -> {query_fn, stats_fn, export_fn}.
+        # Registered by boot wiring (e.g. security notifications) so query(),
+        # stats() and export() can cover domains beyond error/log/reference.
+        self._extra_sources: dict[str, dict] = {}
+
+    # ── Plug-in source registry (Phase E) ─────────────────────────
+
+    def register_source(self, name: str, query_fn=None, stats_fn=None, export_fn=None) -> dict:
+        """Register an extra record source so query/stats/export cover it.
+
+        Args:
+            name: source key (e.g. "security").
+            query_fn: callable(limit, since, ...) -> list[dict] entries.
+            stats_fn: callable() -> dict aggregate (merged into stats()).
+            export_fn: callable(limit) -> list[dict] records (merged into export()).
+
+        Returns:
+            {"success": True, "name": name}.
+        """
+        with self._lock:
+            self._extra_sources[name] = {
+                "query_fn": query_fn,
+                "stats_fn": stats_fn,
+                "export_fn": export_fn,
+            }
+        return {"success": True, "name": name}
+
+    # ── Lazy accessors ───────────────────────────────────────────
+
+    def _errors(self):
+        if self._error_bus is None:
+            from l3.error_bus import get_bus
+
+            self._error_bus = get_bus()
+        return self._error_bus
+
+    def _logs(self):
+        if self._log_service is None:
+            from l3.bus.log import get_service
+
+            self._log_service = get_service()
+        return self._log_service
+
+    def _refs(self):
+        if self._ref_channel is None:
+            from l3.bus.reference_channel import get_rc
+
+            self._ref_channel = get_rc()
+        return self._ref_channel
+
+    def _stats(self):
+        if self._stats_center is None:
+            try:
+                from l3.services.stats_center import get_center
+
+                self._stats_center = get_center()
+            except Exception:
+                logger.debug("record_center: stats center init failed")
+        return self._stats_center
+
+    # ── Unified query ────────────────────────────────────────────
+
+    def query(self, q: RecordQuery) -> dict:
+        """Query across error/log/reference stores.
+
+        Returns unified result set with source-tagged entries.
+        """
+        results = []
+        sources = q.sources or ["error", "log"]
+
+        if "error" in sources:
+            r = self._errors().query(
+                level=q.level or None,
+                error_code=q.error_code or None,
+                component=q.component or None,
+                service=q.service or None,
+                agent_id=q.agent_id or None,
+                since=q.since or None,
+                until=q.until or None,
+                offset=0,
+                limit=q.limit,
+            )
+            for e in r.get("entries") or []:
+                e["_source"] = "error"
+                results.append(e)
+
+        if "log" in sources:
+            r = self._logs().query(
+                level=q.level or None,
+                service=q.service or None,
+                agent_id=q.agent_id or None,
+                since=q.since or None,
+                until=q.until or None,
+            )
+            for e in r or []:
+                e["_source"] = "log"
+                results.append(e)
+
+        if "reference" in sources:
+            try:
+                r = self._refs().export(since=q.since, limit=q.limit)
+                for e in r or []:
+                    e["_source"] = "reference"
+                    results.append(e)
+            except Exception:
+                logger.debug("record_center: reference recall failed")
+
+        # Plug-in extra sources (Phase E): query_fn(limit) -> list[dict].
+        with self._lock:
+            extra = dict(self._extra_sources)
+        for name, spec in extra.items():
+            if name not in sources:
+                continue
+            try:
+                fn = spec.get("query_fn")
+                if fn is None:
+                    continue
+                for e in fn(limit=q.limit) or []:
+                    if isinstance(e, dict):
+                        e = dict(e)
+                        e["_source"] = name
+                    results.append(e)
+            except Exception as exc:
+                logger.debug("record_center: extra source %s query failed: %s", name, exc)
+
+        # Keyword filter
+        if q.keyword:
+            kw = q.keyword.lower()
+            results = [r for r in results if kw in json.dumps(r).lower()]
+
+        # Sort by timestamp descending
+        results.sort(key=lambda r: r.get("timestamp", 0), reverse=True)
+
+        total = len(results)
+        page = results[q.offset : q.offset + q.limit]
+
+        return {
+            "success": True,
+            "total": total,
+            "offset": q.offset,
+            "limit": q.limit,
+            "sources": sources,
+            "entries": page,
+        }
+
+    # ── Unified stats ────────────────────────────────────────────
+
+    def stats(self) -> dict:
+        """Aggregated stats from ErrorBus + LogService + ReferenceChannel."""
+        error_stats = self._errors().stats()
+        log_stats = self._logs().stats()
+        try:
+            ref_stats = self._refs().stats()
+        except Exception:
+            ref_stats = {}
+
+        result = {
+            "success": True,
+            "errors": {
+                "total": error_stats.get("total", 0),
+                "by_level": error_stats.get("by_level", {}),
+                "by_component": error_stats.get("by_component", {}),
+            },
+            "logs": {
+                "total": log_stats.get("total", 0),
+                "by_level": log_stats.get("by_level", {}),
+                "by_service": log_stats.get("by_service", {}),
+            },
+            "reference": {
+                "total_events": ref_stats.get("total_events", 0),
+                "buffered": ref_stats.get("buffered", 0),
+            },
+        }
+        # Plug-in extra source aggregates (Phase E).
+        with self._lock:
+            extra = dict(self._extra_sources)
+        for name, spec in extra.items():
+            try:
+                fn = spec.get("stats_fn")
+                if fn is not None:
+                    result[name] = fn()
+            except Exception as exc:
+                logger.debug("record_center: extra source %s stats failed: %s", name, exc)
+        result["exports"] = {
+            "total_exports": self._export_counter,
+            "export_dir": self._export_dir,
+            "retention_days": self._retention_days,
+            "last_auto_export_ago": round(time.time() - self._last_auto_export, 1),
+        }
+        return result
+
+    # ── Export ───────────────────────────────────────────────────
+
+    def export(self, path: str = "", sources: list[str] | None = None) -> dict:
+        """Export records to a JSON file.
+
+        If path is empty, generates an auto-named path in export_dir.
+        Returns {success, path, total, sources}.
+        """
+        sources = sources or ["error", "log"]
+        path = path or self._auto_export_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        all_records = []
+        counts = {}
+
+        if "error" in sources:
+            r = self._errors().export(path="")
+            if isinstance(r, dict):
+                entries = r.get("entries") or r if r.get("success") else []
+                for e in entries:
+                    if isinstance(e, dict):
+                        e["_source"] = "error"
+                        all_records.append(e)
+                counts["errors"] = len(entries)
+
+        if "log" in sources:
+            r = self._logs().export(path="")
+            if isinstance(r, list):
+                for e in r:
+                    if isinstance(e, dict):
+                        e["_source"] = "log"
+                        all_records.append(e)
+                counts["logs"] = len(r)
+
+        if "reference" in sources:
+            try:
+                r = self._refs().export(limit=ERROR_BUS_EXPORT_LIMIT)
+                if isinstance(r, list):
+                    for e in r:
+                        if isinstance(e, dict):
+                            e["_source"] = "reference"
+                            all_records.append(e)
+                    counts["reference"] = len(r)
+            except Exception:
+                logger.debug("record_center: reference aggregate failed")
+
+        # Plug-in extra sources (Phase E): export_fn(limit) -> list[dict].
+        with self._lock:
+            extra = dict(self._extra_sources)
+        for name, spec in extra.items():
+            if name not in sources:
+                continue
+            try:
+                fn = spec.get("export_fn") or spec.get("query_fn")
+                if fn is None:
+                    continue
+                recs = fn(limit=ERROR_BUS_EXPORT_LIMIT) or []
+                for e in recs:
+                    if isinstance(e, dict):
+                        e = dict(e)
+                        e["_source"] = name
+                        all_records.append(e)
+                counts[name] = len(recs)
+            except Exception as exc:
+                logger.debug("record_center: extra source %s export failed: %s", name, exc)
+
+        export_data = {
+            "exported_at": datetime.now(tz=UTC).isoformat(),
+            "exported_at_ts": time.time(),
+            "sources": sources,
+            "counts": counts,
+            "total": len(all_records),
+            "records": all_records,
+        }
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False, default=str)
+            self._export_counter += 1
+            logger.info("RecordCenter: exported %d records to %s", len(all_records), path)
+            return {"success": True, "path": path, "total": len(all_records), "sources": sources}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ── Auto-export (call periodically) ──────────────────────────
+
+    def auto_export(self, force: bool = False) -> dict | None:
+        """Auto-export if interval elapsed.  Returns export result or None."""
+        now = time.time()
+        if not force and now - self._last_auto_export < self._auto_export_interval:
+            return None
+        self._last_auto_export = now
+        r = self.export()
+        self._apply_retention()
+        return r
+
+    # ── Bridge to StatsCenter ────────────────────────────────────
+
+    def bridge_stats(self) -> None:
+        """Push aggregate error/log metrics to StatsCenter."""
+        sc = self._stats()
+        if sc is None:
+            return
+        try:
+            es = self._errors().stats()
+            sc.ingest_batch(
+                [
+                    _metric("errors.total", float(es.get("total", 0)), tags={"source": "error_bus"}, ts=time.time()),
+                ]
+            )
+            for level, count in es.get("by_level", {}).items():
+                sc.ingest(
+                    _metric(f"errors.level.{level.lower()}", float(count), tags={"source": "error_bus"}, ts=time.time())
+                )
+            ls = self._logs().stats()
+            sc.ingest(_metric("logs.total", float(ls.get("total", 0)), tags={"source": "log_service"}, ts=time.time()))
+        except Exception as e:
+            logger.warning("RecordCenter bridge stats: %s", e)
+
+    # ── Internal ─────────────────────────────────────────────────
+
+    def _auto_export_path(self) -> str:
+        ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+        return os.path.join(self._export_dir, RECORDS_EXPORT_FILE.format(ts=ts))
+
+    def _apply_retention(self) -> int:
+        """Remove export files older than retention_days.  Returns count removed."""
+        if self._retention_days <= 0:
+            return 0
+        cutoff = time.time() - self._retention_days * 86400
+        removed = 0
+        try:
+            for fname in os.listdir(self._export_dir):
+                fpath = os.path.join(self._export_dir, fname)
+                if not fname.startswith("records_") or not fname.endswith(".json"):
+                    continue
+                if os.path.getmtime(fpath) < cutoff:
+                    os.remove(fpath)
+                    removed += 1
+        except FileNotFoundError:
+            logger.debug("record_center: export file vanished during retention sweep, skipped")
+        if removed:
+            logger.info("RecordCenter: retention removed %d old exports", removed)
+        return removed
+
+
+def _metric(name: str, value: float, tags: dict, ts: float):
+    """Helper to create a MetricPoint without importing StatsCenter types."""
+    from l3.services.stats_center import MetricPoint
+
+    return MetricPoint(name=name, value=value, tags=tags, timestamp=ts, metric_type="gauge")
+
+
+# ── Singleton ────────────────────────────────────────────────
+
+_center: RecordCenter | None = None
+_center_lock = threading.Lock()
+
+
+def get_record_center() -> RecordCenter:
+    """Get the record center singleton."""
+    global _center
+    if _center is None:
+        with _center_lock:
+            if _center is None:
+                _center = RecordCenter()
+    return _center
+
+
+def reset_record_center() -> None:
+    """Drop the record center singleton (for testing / hot-reload)."""
+    global _center
+    _center = None

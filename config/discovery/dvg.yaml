@@ -1,0 +1,11 @@
+# DVG — declarative tool dependency graph.
+#
+# Each top-level key is a tool name; the value lists its prerequisite
+# tools (must be registered in TOOL_REGISTRY for can_run() to pass).
+# Loaded at boot by _load_dvg (boot_steps/tools.py) into the DvgGraph
+# singleton; cycles are rejected with a warning.
+#
+# Example:
+#   mcp_tool:
+#     - config_tool
+#   config_tool: []

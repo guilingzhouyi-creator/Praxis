@@ -1,0 +1,419 @@
+"""Tool pipeline — execution stages mixin (preflight / run / finalize).
+
+Extracted from ``tool_pipeline.py``: the three gating/execution stages as a
+mixin composed by ToolPipeline. Splitting the 182-line ``_preflight_checks``
+and its siblings makes each stage independently readable and testable.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Callable
+from typing import Any
+
+from l1.kernel import Signal, SignalType, get_rwlock, get_semaphore
+from l1.kernel.discovery import get_config
+from l1.kernel.params.agent import SCOUT_AGENT_NAME, SCOUT_RING_LIMIT
+from l1.kernel.params.kernel import RING_1 as _RING_1
+from l1.kernel.params.kernel import RING_2_5
+from l1.kernel.params.system import LOG_TRUNC_200
+from l1.kernel.tool_chain import get_tool_chain
+from l2.i18n import t as _l2_t
+from l3.card.approval_gate import get_gate as _get_approval_gate
+from l3.error_bus import error_boundary
+from l3.error_bus.core import trace_scope
+from l3.services.approval_policy import get_policy as _get_approval_policy
+
+from .tool_spec import ToolSpec as _ToolSpec
+from .tool_spec import execute_tool_spec as _execute_tool_spec
+
+logger = logging.getLogger(__name__)
+
+
+def _facade():
+    """Return the tool_pipeline facade module (runtime lookup).
+
+    Test suites monkeypatch injectable gate names (``_ToolPolicy``,
+    ``_get_rc``, ``agent_can_access``, ``_get_gatechain``) on the facade
+    module — resolving them here at call time keeps those patches visible.
+    """
+    from l3.tool_system import tool_pipeline
+
+    return tool_pipeline
+
+
+class PipelineStepsMixin:
+    """Gating + execution stages — composed by ToolPipeline."""
+
+    # Attributes/methods provided by the composing ToolPipeline (for mypy).
+    allocator: Any
+    constitution: Any
+    bus: Any
+    _pmu: Any
+    _rate_scheduler: Any
+    _run_post_execute_hooks: Callable[..., Any]
+    apply_tool_definition_hooks: Callable[..., Any]
+
+    def _record_tool_failure(
+        self, agent_id: str, tool_name: str, args: dict, error: str, turn_log: list, domain: str = "", nature: str = ""
+    ) -> None:
+        """Record a tool execution failure for R4Agent lean-case generation.
+
+        Lazily imports R4Agent so the pipeline stays decoupled from memory.
+        ``domain`` is the card-level GateChain scope; ``nature`` is the
+        driving card's type — both become card-linkage tags on the lean case.
+        """
+        try:
+            from l3.memory.r4_agent import get_r4_agent
+
+            get_r4_agent().track_tool_failure(
+                agent_id=agent_id,
+                tool_name=tool_name,
+                args=args,
+                error=error,
+                turn_log=turn_log,
+                domain=domain,
+                nature=nature,
+            )
+        except Exception as e:
+            logger.debug("tool_pipeline: failure tracking skipped: %s", e)
+
+    def _preflight_checks(
+        self,
+        *,
+        tool_name: str,
+        agent_id: str,
+        args: dict,
+        domain: str,
+        nature: str,
+        _registry: dict | None,
+        _executor: Any,
+        _parent_call_id: str,
+        result: dict,
+        spec: _ToolSpec | None,
+        tool_ring_str: str,
+        token_budget: int,
+        _skip: set[str],
+        _start: float,
+        call_id: str,
+    ) -> dict | None:
+        """Run the gating chain: validate, clearance, approval, rate, constitution, gatechain, sandbox.
+
+        Returns a terminal result dict when a gate blocks; ``None`` when all
+        gates pass and execution may proceed.
+        """
+        # 1. Validate tool exists
+        if not _registry and not _executor:
+            return {"success": False, "error": _l2_t("core.pipeline_not_initialized")}
+
+        # 1b. DVG dependency availability (B2): refuse dispatch when a
+        # prerequisite tool declared in config/discovery/dvg.yaml is not
+        # registered. Non-fatal when the DVG is empty/disabled.
+        try:
+            from l3.tool_system.dvg import get_dvg
+
+            if not get_dvg().can_run(tool_name):
+                return {"success": False, "error": f"tool '{tool_name}' has unregistered prerequisites (DVG)"}
+        except Exception as e:
+            logger.debug("tool_pipeline: dvg check skipped: %s", e)
+
+        # 2. Clearance
+        if not _facade().agent_can_access(agent_id, tool_ring_str):
+            return {"success": False, "error": _l2_t("core.pipeline_no_clearance", ring=tool_ring_str)}
+
+        # 3. Scout restriction (single source: kernel.params.SCOUT_*)
+        if agent_id == SCOUT_AGENT_NAME and tool_ring_str != SCOUT_RING_LIMIT:
+            return {"success": False, "error": _l2_t("core.pipeline_scout_ring1")}
+
+        # 3b. ToolPolicy approval check (skipped in semi/minimal harness modes)
+        pre_approved = False
+        if "approval" not in _skip:
+            try:
+                if _facade()._ToolPolicy.requires_approval(agent_id, tool_name):
+                    ar = _get_approval_gate().request(
+                        tool_name, agent_id, args or {}, reason="policy requires approval"
+                    )
+                    result["steps"].append({"phase": "approval", "request_id": ar.id, "status": "pending"})
+                    status = ar.wait(timeout=get_config("persistence", {}).get("approval_wait_timeout", 300))
+                    if status != "approved":
+                        return {
+                            "success": False,
+                            "error": f"approval {status}",
+                            "approval_id": ar.id,
+                            "steps": result["steps"],
+                        }
+                    result["steps"].append({"phase": "approval", "request_id": ar.id, "status": status})
+                    pre_approved = True
+            except Exception as e:
+                logger.warning("approval check failed: %s", e)
+
+        # 4. Rate limit (Ring 3 slowest, Ring 1 fastest) — skipped in minimal
+        if "rate" not in _skip:
+            rr = self._rate_scheduler.check(agent_id, tool_ring_str)
+            result["steps"].append({"phase": "rate", **rr})
+            if not rr["allowed"]:
+                self.allocator.free(agent_id, "tokens", token_budget)
+                return {
+                    "success": False,
+                    "error": _l2_t("core.pipeline_rate_limited", ring=tool_ring_str),
+                    "rate": rr,
+                    "steps": result["steps"],
+                }
+
+        # 5. Constitution (pass file path as target for territory enforcement)
+        fpath = (args or {}).get("path", "")
+        territory_str = (args or {}).get("territory", "")
+        cc = self.constitution.is_allowed(tool_name, agent_id, target=fpath or tool_name, territory=territory_str)
+        result["steps"].append({"phase": "constitution", **cc})
+        if not cc["allowed"]:
+            return {"success": False, "error": _l2_t("core.pipeline_constitution_blocked"), "steps": result["steps"]}
+
+        # 5b. GateChain G1-G5 (with ApprovalPolicy danger override)
+        try:
+            # Resolve per-cell/per-agent danger level (agent_id format: cell-role or cell.agent)
+            try:
+                _parts = agent_id.split("-", 1) if "-" in agent_id else agent_id.split(".", 1)
+                _cid = _parts[0] if len(_parts) > 1 else ""
+                _danger = _get_approval_policy().resolve(_cid, agent_id, tool_name)
+            except Exception:
+                _danger = None
+            gcr = (
+                _facade()
+                ._get_gatechain()
+                .check(
+                    tool_name,
+                    agent_id,
+                    target=fpath,
+                    territory=[territory_str] if territory_str else None,
+                    danger=_danger,
+                    pre_approved=pre_approved,
+                )
+            )
+            gc_allowed = gcr.get("allowed", True)
+            gc_decision = gcr.get("decision", "?")
+            result["steps"].append({"phase": "gatechain", "decision": gc_decision, "steps": gcr.get("steps", [])})
+            # Reference Channel: record tool call for training data
+            try:
+                _facade()._get_rc().tool_call(
+                    tool_name,
+                    agent_id,
+                    allowed=gc_allowed,
+                    gate="gatechain",
+                    reason=gc_decision,
+                    args=args,
+                    trace_id=call_id,
+                    card_scope=domain,
+                )
+            except Exception:
+                logger.debug("tool_pipeline: gatechain record failed")
+            if not gc_allowed:
+                return {
+                    "success": False,
+                    "error": _l2_t("core.pipeline_gatechain_blocked"),
+                    "gate_result": gcr,
+                    "steps": result["steps"],
+                }
+        except Exception as e:
+            from l3.error_bus import capture
+
+            capture(
+                "gatechain check failed, blocking tool call",
+                error_code="E_GATECHAIN_CHECK",
+                component="tool_pipeline",
+                agent_id=agent_id,
+                exc=e,
+            )
+            logger.error("gatechain check failed, blocking: %s", e)
+            result["steps"].append({"phase": "gatechain", "decision": "BLOCK", "error": str(e)})
+            return {"success": False, "error": f"gatechain unavailable: {e}", "steps": result["steps"]}
+
+        # 5c. Sandbox gate (for terminal/process tools with sandbox_profile)
+        try:
+            _sb_profile = spec.sandbox_profile if spec else None
+            if _sb_profile:
+                from l4.sandbox.manager import SandboxManager, SandboxProfile
+
+                _sb = SandboxManager()
+                _sb_cmd = (args or {}).get("command", "")
+                _sb_to = (args or {}).get("timeout", 30)
+                _sb_r = _sb.run_sync(_sb_cmd, SandboxProfile(_sb_profile), _sb_to, agent_id, tool_name)
+                result["steps"].append(
+                    {
+                        "phase": "sandbox",
+                        "sandbox_id": _sb_r.sandbox_id,
+                        "success": _sb_r.success,
+                        "elapsed": _sb_r.elapsed,
+                    }
+                )
+                if not _sb_r.success:
+                    return {
+                        "success": False,
+                        "error": f"sandbox: {_sb_r.stderr[:LOG_TRUNC_200]}",
+                        "sandbox": _sb_r.to_dict(),
+                        "steps": result["steps"],
+                    }
+                # Sandbox succeeded: record result and skip execute step
+                result["result"] = _sb_r.to_dict()
+                result["success"] = True
+                result = self._run_post_execute_hooks(tool_name, agent_id, args or {}, result)
+                self.allocator.free(agent_id, "tokens", token_budget)
+                duration = time.time() - _start
+                get_tool_chain().complete(call_id, success=True, duration=duration)
+                result["call_id"] = call_id
+                return result
+        except Exception as e:
+            logger.warning("sandbox gate failed: %s", e)
+        return None
+
+    def _run_tool(
+        self,
+        *,
+        tool_name: str,
+        agent_id: str,
+        args: dict,
+        domain: str,
+        nature: str,
+        _registry: dict | None,
+        _executor: Any,
+        result: dict,
+        spec: _ToolSpec | None,
+        tool_ring_str: str,
+        token_budget: int,
+        _skip: set[str],
+        fpath: str,
+        call_id: str = "",
+    ) -> dict | None:
+        """Allocate tokens, acquire pool/lock, run the tool, and record failures.
+
+        Returns a terminal result dict when allocation/pool blocks; ``None``
+        when the tool ran and the caller should finalize the chain.
+        """
+        # 6. Alloc
+        ar = self.allocator.alloc(agent_id, "tokens", token_budget, tool_name)
+        result["steps"].append({"phase": "alloc", **ar})
+        if not ar["success"]:
+            return {"success": False, "error": ar["error"], "steps": result["steps"]}
+
+        # 7. Ring 2.5 pool (skipped in semi/minimal harness modes)
+        if tool_ring_str == RING_2_5 and "pool" not in _skip:
+            sr = get_semaphore(f"pool:{tool_name}", 2).acquire(agent_id)
+            result["steps"].append({"phase": "pool", **sr})
+            if not sr["success"]:
+                self.allocator.free(agent_id, "tokens", token_budget)
+                return {"success": False, "error": "pool busy", "steps": result["steps"]}
+
+        # 8. File lock
+        lock_name = ""
+        if fpath:
+            lock_name = f"file:{fpath}"
+            lr = (
+                get_rwlock(lock_name).write_lock(agent_id)
+                if tool_ring_str != _RING_1
+                else get_rwlock(lock_name).read_lock(agent_id)
+            )
+            result["steps"].append({"phase": "lock", **lr})
+            if not lr.get("success", False):
+                # A failed lock acquisition must abort — running the tool
+                # unlocked would race the very file the lock protects.
+                self.allocator.free(agent_id, "tokens", token_budget)
+                if tool_ring_str == RING_2_5 and "pool" not in _skip:
+                    get_semaphore(f"pool:{tool_name}").release(agent_id)
+                return {
+                    "success": False,
+                    "error": f"file lock failed: {lr.get('error', 'timeout')}",
+                    "steps": result["steps"],
+                }
+
+        # 8b. Tool-definition hooks (modify spec before execution)
+        spec = self.apply_tool_definition_hooks(tool_name, spec)
+
+        # 9. Execute (default: execute_tool_spec for middleware/result store/counter)
+        with trace_scope(call_id), error_boundary("tool execute failed", component="services", agent_id=agent_id):
+            if _executor:
+                exec_r = _executor(tool_name, args or {}, agent_id=agent_id)
+            else:
+                exec_r = _execute_tool_spec(tool_name, args or {}, agent_id=agent_id)
+            result["result"] = exec_r or {}
+            result["success"] = (exec_r or {}).get("success", True)
+            # PMU: count tool execution by ring
+            if self._pmu:
+                ring_label = tool_ring_str.replace(".", "_")
+                self._pmu.increment(f"tools.executed.{ring_label}")
+                if not result["success"]:
+                    self._pmu.increment("tools.rejected")
+
+        # 9b. R4Agent failure tracking → lean-case learning loop
+        if not result.get("success", False):
+            self._record_tool_failure(
+                agent_id=agent_id,
+                tool_name=tool_name,
+                args=args or {},
+                error=str((result.get("result") or {}).get("error", "tool failed")),
+                turn_log=result.get("steps", []),
+                domain=domain,
+                nature=nature or (args.get("_card_nature", "") if isinstance(args, dict) else ""),
+            )
+
+        # 10. Release
+        if lock_name:
+            get_rwlock(lock_name).unlock(agent_id)
+        if tool_ring_str == RING_2_5:
+            get_semaphore(f"pool:{tool_name}").release(agent_id)
+        self.allocator.free(agent_id, "tokens", token_budget)
+        return None
+
+    def _finalize(
+        self,
+        *,
+        tool_name: str,
+        agent_id: str,
+        args: dict,
+        result: dict,
+        call_id: str,
+        _parent_call_id: str,
+        _start: float,
+    ) -> dict:
+        """Run post-execute hooks, complete the chain call, and emit the signal."""
+        # 10b. Post-execute hooks (transform result)
+        result = self._run_post_execute_hooks(tool_name, agent_id, args or {}, result)
+
+        # 10. Complete chain call
+        duration = time.time() - _start
+        chain = get_tool_chain()
+        link = chain.get(call_id)
+        chain.complete(call_id, success=result.get("success", False), error=result.get("error", ""), duration=duration)
+        result["call_id"] = call_id
+        result["parent_call_id"] = _parent_call_id
+        result["fingerprint"] = link.fingerprint if link else ""
+
+        # Chain data stays in tool_chain module only — NOT pushed to LLM context.
+        # This preserves LLM inference caching.  Chain is queryable on demand
+        # via kernel.tool_chain.get_tool_chain().verify(call_id).
+
+        # 10c. Tool usage accounting (counter) — feeds card completion stats
+        # and the B4/B5 tool→card/skill linkage. Non-fatal on failure.
+        try:
+            from l3.services.counter import get_counter
+
+            get_counter().record_tool(
+                agent_id,
+                tool_name,
+                success=result.get("success", False),
+                elapsed=duration,
+            )
+        except Exception as e:
+            logger.debug("tool_pipeline: counter record skipped: %s", e)
+
+        # 11. Signal
+        agent_key = agent_id.replace("agent_", "") if agent_id.startswith("agent_") else agent_id
+        sig_type = SignalType.SCOUT_DONE if agent_key == SCOUT_AGENT_NAME else SignalType.TASK_ASSIGN
+        self.bus.emit(
+            Signal(
+                type=sig_type,
+                sender=agent_id,
+                target="cell",
+                data={"tool": tool_name, "call_id": call_id, "success": result["success"]},
+            )
+        )
+        return result

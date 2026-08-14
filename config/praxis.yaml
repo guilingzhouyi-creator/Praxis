@@ -1,0 +1,592 @@
+# Agent OS — project configuration
+# Copy to your project root and edit.
+# Environment variables: ${VAR_NAME} is supported in string values.
+
+# ── Kernel ──
+kernel:
+  allocator:
+    tokens: 4096               # Default token budget per agent
+    ring1: 32                   # Working memory slots
+    ring2: 200                  # Short-term memory slots
+    ring3: 1000                 # Long-term memory slots
+  swapper:
+    interval: 30                # Background pressure check (seconds)
+  process:
+    max_pid: 500                # Max processes before GC reaps oldest
+    audit_max: 1000             # Process audit log entries
+  syscall:
+    audit_max: 5000             # Syscall audit trail max entries
+
+# ── Cell ──
+cell:
+  terminal:
+    workers: 4                  # Agent worker pool size
+    poll: 0.05                  # Card poll interval
+  scout:
+    max_total: 16               # Global scout pool size
+    max_per_agent: 4            # Max scouts per agent
+    cache_ttl: 30               # Scout result cache TTL (s)
+    session_timeout: 300        # Multi-turn scout session timeout
+  card:
+    timeout: 30                 # Card wait timeout (s)
+  skills:                       # Per-Cell skill white-list (fed back into the Cell)
+    # default: [skill-a, skill-b]   # bound to the default Cell; empty/absent → global pool
+
+# ── Skill system ──
+skill:
+  auto_activate_builtin: true    # inject built-in skills into every session's system prompt
+  retriever_backend: tfidf        # initial skill-retrieval backend: tfidf | embedding
+  # evolve_scope: project         # "project" | "global" — where evolved skills are persisted
+  # ── Offensive-posture gate (soft control; runtime-switchable via API) ──
+  # offensive_enabled: true       # false = bypass the posture gate entirely
+  # offensive_natures: [offensive] # card natures that authorize offensive-skill injection
+  # ── Distillation / DPO master switches (runtime-switchable via API) ──
+  # distill_enabled: true         # false = disable generalization/distillation/clustering
+  # dpo_signal_enabled: true      # false = disable card→skill preference weighting
+  # distill_sub:                  # per-stage sub-switches (default all true)
+  #   generalize: true            # false = skip lean-case generalization
+  #   llm_distill: true           # false = rule baseline only (no LLM calls)
+  #   clustering: true            # false = by-tool grouping (no shingle clustering)
+  #   sampling: true              # false = flat digest (no frequency/difficulty sampling)
+  # ── Security-team domains (attack posture; see security.mode) ──
+  # attack:
+  #   domains:                     # domain → skill white-list (one peer per domain)
+  #     recon:   [recon-methodology]
+  #     exploit: [exploit-development]
+
+# ── CI review (card-triggered automation) ──
+ci:
+  review:
+    enabled: true                # master switch (false = never trigger)
+    auto_trigger: true           # review every completed execution card
+    llm_review: false            # optional LLM reviewer (cost/latency)
+    gates: [ruff, mypy, pytest]  # gate subset to run
+    max_concurrent: 2            # concurrent review cap
+    timeout: 300                 # per-card gate pipeline total timeout (s)
+    consume_auto_test_cache: true   # read AutoTest L2 cache as report context
+    lean_trace: false            # gate failure -> R4 skills/lean_trace
+    todo_linkage: false          # gate failure -> TodoTracker
+    escalate_reject: false       # REJECT -> ApprovalGate escalation
+    route_convention: false      # NEEDS_CHANGES -> Convention cross-review
+    reputation: false            # LLM review only -> reputation.record_review
+    notify:
+      enabled: false
+      channel: log               # log|webhook|email|slack|sms
+  control:
+    api:
+      writable: true             # API surface may mutate ci.review.* (PUT /api/v2/ci/config)
+    shell:
+      writable: true             # L2 Shell surface may mutate ci.review.* (/ci set|toggle)
+
+# ── Internationalization ──
+# Display language (see locales/): en | zh-CN | ja | ko.
+# English is the canonical base; the locale files are the translation layer
+# that turns base English messages into the selected user-facing language.
+language: en
+
+# ── LLM ──
+llm:
+  provider: ollama              # mock | ollama | openai | anthropic
+  # model: <MODEL_NAME>          # Example: qwen2.5-coder:7b (ollama local default), gpt-4o (openai),
+  #                              # deepseek-v4 (deepseek), claude-sonnet-4-20250514 (anthropic).
+  #                              # Omitted → falls back to params/api.py DEFAULT_MODEL_*.
+  # api_url: <LLM_API_URL>       # Example: http://localhost:11434 (ollama); official provider endpoints
+  #                              # live in config/discovery/providers.yaml (overridable per provider).
+  #                              # Omitted → falls back to provider_urls / params/api.py LLM_PROVIDER_URLS.
+  api_key: ""                   # ollama needs no key; use the matching env vars for cloud providers (OPENAI_API_KEY / DEEPSEEK_API_KEY, etc.)
+  max_tokens: 2048              # keep in sync with params/api.py LLM_DEFAULT_MAX_TOKENS
+  temperature: 0.3              # keep in sync with params/api.py LLM_DEFAULT_TEMPERATURE
+  rate_limit: 10                # LLM API calls per second
+  # effort_tiers:               # optional per-provider reasoning tier sets
+  #   anthropic: [low, medium, high]   # overrides the static default table
+  cache:                        # Per-provider prefix cache strategy
+    defaults:
+      optimize_prompt: true
+      forward_user_id: false
+      anthropic_format: false
+    openai:
+      optimize_prompt: true
+      forward_user_id: true
+    deepseek:
+      optimize_prompt: true
+      forward_user_id: true
+    anthropic:
+      optimize_prompt: false
+      forward_user_id: true
+      anthropic_format: true
+    ollama:
+      optimize_prompt: false
+
+# ── Per-executor model specs (model_service cascade: overrides > model_spec > llm global) ──
+# Consumed by resolve_dict("scout"|"l3a"|"l3a_subagent"|"subagent"|"r4_agent").
+# `model` is omitted here so every executor inherits llm.model; set it per
+# executor to diverge. reasoning_effort: none|low|medium|high|xhigh|max;
+# thinking_budget: token budget for reasoning (0 = provider default).
+model_spec:
+  scout:
+    defaults:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: none
+      thinking_budget: 0
+  l3a:
+    defaults:
+      max_tokens: 4096
+      temperature: 0.7
+      reasoning_effort: none
+      thinking_budget: 0
+  l3a_subagent:
+    defaults:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: none
+      thinking_budget: 0
+  # ── Department model division (2.1-D4) ──
+  # Build departments run the cheaper executor (low model), review the
+  # stronger one (high model). Both inherit llm.model when omitted.
+  build:
+    defaults:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: low
+  review:
+    defaults:
+      max_tokens: 8192
+      temperature: 0.2
+      reasoning_effort: high
+  subagent:
+    defaults:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: none
+      thinking_budget: 0
+  r4_agent:
+    defaults:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: none
+      thinking_budget: 0
+  strategies:
+    # Named strategy packs — applied at runtime per executor:
+    #   PUT /api/v2/model-spec/{name}/strategy  {"strategy": "deep"}
+    #   DELETE /api/v2/model-spec/{name}/strategy   (restore defaults)
+    # Keys override the executor's defaults (exact layer > defaults).
+    fast:
+      max_tokens: 2048
+      temperature: 0.3
+      reasoning_effort: none
+      thinking_budget: 0
+    balanced:
+      max_tokens: 4096
+      temperature: 0.5
+      reasoning_effort: low
+      thinking_budget: 2048
+    deep:
+      max_tokens: 8192
+      temperature: 0.7
+      reasoning_effort: high
+      thinking_budget: 8192
+    xhigh:
+      max_tokens: 12288
+      temperature: 0.7
+      reasoning_effort: xhigh
+      thinking_budget: 16384
+    # max: {reasoning_effort: max, thinking_budget: 32768}  # only on models
+    # that support the max tier (GPT-5.x, Claude Fable 5/Opus 5)
+    # disabled: true  # set on any pack to make it non-applicable at runtime
+
+# ── L3A session limits (0 = unlimited) ──
+l3a:
+  max_steps: 0                  # Tool-calling turns per prompt
+  max_turns: 0                  # Total dialogue turns per session
+  timeout: 0                    # Seconds per prompt (0 = no timeout)
+  idle_timeout: 3600            # Auto-close idle session (seconds)
+  archive_importance: 0.7       # Ring-3 archive importance threshold
+
+# ── Department division (Phase 3) ──
+# When enabled and the Cell count reaches CELL_DEPARTMENT_MIN, the
+# organization splits into egalitarian departments (e.g. testing, bound
+# to the tester role). Also controllable at runtime via /api/v2/settings.
+# departments.enabled is the runtime switch — a settings flat key (default
+# false, settable via /api/v2/settings). No config handler consumes a
+# departments: block here; the department registry lives in
+# config/discovery/departments.yaml (only its `departments:` dict is read,
+# its top-level `enabled` field is NOT consumed).
+
+# ── Devices ──
+devices:
+  - name: llm
+    type: LLM
+    rate_limit: 10
+    description: LLM backend
+  - name: filesystem
+    type: STORAGE
+    rate_limit: 100
+    description: Local filesystem
+
+# ── Constitution (action sets) ──
+# These define which actions trigger territory checks, sandbox, gatechain, etc.
+# Empty = enforcement disabled for that category.
+constitution:
+  file_actions: [read, read_file, grep, grep_search, list, list_dir, search, find, stat]
+  modify_actions: [write, write_file, edit, replace, replace_string, delete, rename, create, create_file, format, run, run_in_terminal]
+  gate_actions: [run_in_terminal, deploy, db_migrate, user_delete, delete_user, destroy]
+  scout_blocked: [write, write_file, edit, replace, replace_string, delete, rename, create, create_file, format]
+
+# ── GateChain ──
+gatechain:
+  # danger_levels: canonical table lives in config/discovery/danger_levels.yaml
+  # (gatechain_danger_levels) — uncomment to override per deployment:
+  # danger_levels:
+  #   deploy: 5
+  #   db_migrate: 4
+  #   user_delete: 5
+  #   destroy: 5
+  #   rollback: 4
+  #   run_in_terminal: 3
+  #   exec: 4
+  #   delete: 3
+  #   write: 2
+  #   replace: 2
+  escalation_danger: 4          # Tools with danger >= this trigger L3 notification
+  risk_warn_threshold: 6        # G3 risk score threshold for WARN
+  repeat_threshold: 5           # G5: N recent calls triggers REPORT
+  high_freq_threshold: 3        # G5: same-tool count threshold
+  history_limit: 10             # G5: recent calls to consider
+
+# ── Tool rates (calls/minute) ──
+tool_rates:
+  ring_1: 60                    # Read-only tools: 60 calls/min
+  ring_2_5: 20                  # Write tools: 20 calls/min
+  ring_3: 5                     # Destructive tools: 5 calls/min
+
+# ── Tool timeouts & detectors ──
+tool:
+  web_timeout: 15               # web_fetch / web_search timeout (s)
+  search_timeout: 30            # grep/rg search timeout (s)
+  terminal_timeout: 30          # run_in_terminal timeout (s)
+  git_timeout: 30               # git operations timeout (s)
+  build_timeout: 300            # build/test project timeout (s)
+  pip_install_timeout: 120      # pip install timeout (s)
+  npm_timeout: 120              # npm install timeout (s)
+  pyright_timeout: 60           # pyright diagnostics timeout (s)
+  compile_check_timeout: 10     # cargo/gcc compile check timeout (s)
+  package_manager_timeout: 120  # apt/cargo package manager timeout (s)
+  handler_timeout: 60           # tool handler execution timeout (s)
+  # build_detectors/test_detectors: canonical tables live in
+  # config/discovery/build_detectors.yaml — uncomment to override:
+  # build_detectors:
+  #   - ["python", "-m", "build"]
+  #   - ["cargo", "build"]
+  #   - ["npm", "run", "build"]
+  # test_detectors:
+  #   - ["python", "-m", "pytest"]
+  #   - ["cargo", "test"]
+  #   - ["npm", "test"]
+  format_auto: true             # auto-format source after write tools (create_file/file_patch/file_append)
+
+# ── HTN planner ──
+htn:
+  domain_prefix: app
+  tools:
+    analyze: analyze_code
+    scout: scout_delegate
+    read: read_file
+    write: write_file
+    create: create_file
+    replace: replace_string_in_file
+    extract: extract_method
+    build: build_project
+    test: test_project
+    lint: lint
+    review: review_code
+    doc: generate_doc
+    fix: create_file
+    plan: create_file
+
+# ── Card pool (external registries for card type distribution) ──
+# No registry configured: when registries is empty, card_pool uses built-in types only.
+card_pool:
+  registries: []
+  auto_sync: false
+  sync_interval: 3600
+
+# ── Cache ──
+cache:
+  max_entries: 500              # File cache entries
+  max_size_mb: 10               # File cache size limit
+  ttl: 60                       # File cache TTL (s)
+  context_max: 200              # Context register entries
+
+# ── Persistence (auto-save intervals) ──
+persistence:
+  auto_save: true
+  interval: 30                  # Global persist interval (s)
+  card_registry: 30             # Card registry auto-save (s)
+  card_gate: 10                 # Card gate auto-save (s)
+  pending_queue: 5              # Pending queue auto-save (s)
+  issue_table: 10               # Issue table auto-save (s)
+  approval_gate: 5              # Approval gate auto-save (s)
+  sandbox_state: 0              # Sandbox state auto-save (0=disabled)
+  todo_table: 30                # Todo table auto-save (s)
+  transaction_area: 30          # Transaction area auto-save (s)
+  statecharts: 30               # Statecharts auto-save (s)
+  execution_results: 30         # Execution results auto-save (s)
+  dialogue_session: 30          # Dialogue session auto-save (s)
+
+# ── Agent Loop (tool-calling iterations in SettingsCenter) ──
+# Compile-time defaults; runtime overrides via /api/v2/loop/config.
+loop:
+  max_steps: 50                 # Max tool-calling turns per card
+  max_attempts: 3               # Max steps-exhausted continuation attempts
+  tool_repeat_warn: 3           # Same tool N times → warn
+  tool_repeat_stop: 4           # Same tool N times → stop loop
+  coarse_repeat_nudge: 3        # Same action N times → nudge
+  coarse_repeat_stop: 6         # Same action N times → stop
+  verify_cadence: true          # Enable verify-cadence tracking
+  continuation_nudge: true      # Enable continuation nudges
+  auto_test: off                # AutoTestGate: off | async (post-card background test regression)
+
+# ── Service timeouts (LSP, MCP, Shell, Vault) ──
+services:
+  lsp_manager_timeout: 5        # LSP server start/stop timeout (s)
+  lsp_long_timeout: 30           # LSP diagnostics long timeout (s)
+  lsp_diag_timeout: 30           # LSP diagnostic request timeout (s)
+  mcp_bridge_timeout: 10         # MCP bridge timeout (s)
+  mcp_bridge_long_timeout: 30    # MCP bridge long timeout (s)
+  shell_session_timeout: 3       # Shell session kill timeout (s)
+  pool_queue_timeout: 1          # Pool queue poll timeout (s)
+  term_handler_timeout: 15       # Terminal handler timeout (s)
+  term_handler_long_timeout: 30  # Terminal handler long timeout (s)
+  gateway_queue_timeout: 30      # API gateway queue timeout (s)
+  r4_agent_join_timeout: 5       # R4 agent join timeout (s)
+  subagent_run_timeout: 120      # SubAgent run timeout (s)
+  subagent_join_timeout: 30      # SubAgent join timeout (s)
+
+# ── Content trust policies (provenance + trust scoring) ──
+# Controls how content from different sources is trusted.
+# Content below min_trust_for_recall won't appear in memory recall results.
+# content_trust:
+#   strict:
+#     initial_scores:
+#       tool: 0.9
+#       agent: 0.7
+#       human: 1.0
+#       external: 0.1
+#     decay_per_hour: 0.1
+#     min_trust_for_recall: 0.5
+#     deny_if_unverified: true
+
+# ── Card types (defines available card natures) ──
+# Users can define custom card types via API or YAML.
+# Each type has: display name, phases, review policy, metadata schema.
+# register_card_type() also available via CentralPlugin.
+card_types:
+  execution:
+    display: "Execution Card"
+    has_review: true
+    phases: ["plan", "implement", "review"]
+  review:
+    display: "Review Card"
+    has_review: true
+    phases: ["review"]
+  issue:
+    display: "Issue Card"
+    has_review: false
+    phases: ["discuss", "converge"]
+  inspection:
+    display: "Inspection Card"
+    has_review: false
+    phases: ["inspect"]
+
+# ── MCP servers (auto-imported at boot) ──
+mcp:
+  servers: []
+    # - name: filesystem
+    #   endpoint: "http://localhost:3500/mcp/v1"
+    #   api_key: ""
+    # - name: database
+    #   endpoint: "http://localhost:3501/mcp/v1"
+    # Replace localhost:3500/3501 with your MCP server address.
+
+# ── R5 swarm-domain graph memory (semantic topology index layer, off by default) ──
+# When enabled: memory writes auto-create edges (sequential/type_chain/cell_chain),
+# with diffusion retrieval and graph-reduction reports. Zero impact when disabled (R1-R4 linear memory as usual).
+memory:
+  graph:
+    enabled: false              # global toggle (overridable at Cell/session level)
+    edge_mode: off              # semantic-extraction state machine: off|rules|hybrid (auto-paused on LLM failure)
+
+# ── User profile side-channel ──
+# When enabled, L3A/central decisions can reference a per-user model of
+# preferences, domain focus and decision style (intent-parsing reference).
+# Zero impact when disabled (bypass side-channel; original interactions intact).
+user_profile:
+  enabled: false
+
+# ── System-prompt injection switches ──
+# Each domain gates a block appended to agent system prompts. Toggle via
+# SettingsCenter (/api/v2/settings) at runtime: set prompt.inject.<domain>
+# to false to strip that injection globally. All default true.
+prompt:
+  inject:
+    profile: true          # [User Profile Reference] in L3A prompts + card columns
+    constitution: true     # constitution summary in every agent loop
+    skills: true           # evolved skills + lean failure cases
+    verification: true     # verification culture block
+    memory: true           # task-aware memory context injection
+    identity: true         # per-cell identity binding fragment (Phase 1)
+
+# ── Prompt template overrides ──
+# Loaded by l3.config.config_handlers_llm.cfg_prompts → l1.kernel.prompts.
+# Keys follow the dot notation used by get_prompt(); each override replaces
+# the built-in template of the same key (priority: override > built-in).
+# See src/l1/kernel/prompts.py _DEFAULTS for the full key list, and
+# docs/configuration/overview.md for details.
+prompts:
+  # verifier.self_check: "Custom verification prompt..."  # example override
+  # agent_loop.system: "You are an agent in Praxis. Task: {task}"
+  # convention.system: "Custom convention system prompt..."
+
+# ── Identity binding (Phase 1) ──
+# Per-Cell strict-role bindings: role → prompt fragment injected into the
+# agent system prompt (bounded by IDENTITY_BINDING_MAX_CHARS). Also
+# configurable at runtime via /api/v2/identity-binding. When no custom
+# binding exists for a (cell, role) pair, the built-in generalized fragment
+# (identity_binding.default_fragment) is injected instead.
+identity_binding:
+  # cell-1:
+  #   writer:
+  #     fragment: "You are the writer for cell-1. Produce code only."
+  #     domain_tags: [codegen]
+  #     max_chars: 1200
+
+# ── Harness mode (tool pipeline gate matrix) ──
+# governed (default): full pipeline — approval + rate + pool all active
+# semi:               skip approval + Ring 2.5 pool (drop human-in-the-loop)
+# minimal:            skip approval + rate + pool — closest to a "bare tool
+#                     harness" for strong post-trained models. RISK IS
+#                     USER-ASSUMED: the safety bottom line is still enforced
+#                     (constitution, gatechain identity/territory, sandbox
+#                     reversibility, reference-channel causal recording), but
+#                     no approval gate and no rate limiting means the model
+#                     runs unguarded against dangerous or runaway tool use.
+harness:
+  mode: governed
+
+# ── Network mesh ──
+network:
+  discovery_port: 42069         # UDP broadcast port
+  mesh_port: 42070              # TCP message port
+  broadcast_interval: 15        # Announcement interval (s)
+  peer_timeout: 60              # Peer dead after N seconds silent
+
+# ── API gateway ──
+api:
+  host: 127.0.0.1
+  port: 8080
+  auth_token: ${PRAXIS_API_TOKEN}  # Bearer token (empty = no auth)
+  mcp_mode: full                    # MCP export: normal | selected | full
+
+# ── Territory → role mapping (paths must exist in this repo) ──
+territories:
+  reader:
+    - src/l1
+    - src/l2
+    - docs
+  writer:
+    - src/l3
+    - src/l4
+  reviewer:
+    - src/l5
+    - config
+
+# ── Clearance (role → ring) ──
+clearance:
+  reader: 1
+  writer: 2
+  reviewer: 3
+  scout: 1
+  l3: 3
+
+# ── Shell commands (optional overrides) ──
+# Keys correspond to kernel/commands.py built-in defaults.
+# Uncomment to override help text, aliases, or argument schemas.
+# commands:
+#   mode:
+#     help: "switch mode"
+#     aliases: ["m"]
+#   connect:
+#     args:
+#       - name: agent_id
+#         description: "Target agent"
+#         optional: false
+
+# ── Agent defaults ──
+agents:
+  reader:
+    max_scouts: 3
+    ring: 1
+  writer:
+    max_scouts: 3
+    ring: 2
+  reviewer:
+    max_scouts: 1
+    ring: 3
+
+# ── Think quota configuration ──
+think:
+  max_budget: 32768               # Global think budget hard limit (tokens)
+  max_reasoning: "high"            # Maximum allowed reasoning_effort
+  profiles:                        # Tiered by role (optional)
+    default:  {max_budget: 4096}
+    reader:   {max_budget: 2048}
+    writer:   {max_budget: 8192}
+    reviewer: {max_budget: 16384}
+
+# ── Card Gate / Approval Workflow ──
+card_gate:
+  thresholds:
+    small_max_files: 1
+    small_max_lines: 50
+    medium_max_files: 5
+    medium_max_lines: 200
+  auto_approval:
+    small: true
+    medium: true
+    large: false
+    disputed: false
+  arch_keywords:                       # Optional: override architecture detection keywords
+    - architecture
+    - redesign
+    - refactor
+    - migration
+    - restructure
+    - 架构
+    - 重构
+    - 重设计
+
+# ── Diff / Structured Sandbox Color Scheme ──
+diff:
+  mode: auto                       # auto|human|summary|colored
+  heavy_api_enabled: false         # Enable heavy diff API endpoints
+  # heavy_api_port: 8090
+  colors:                          # ANSI color codes per semantic type (override)
+    logic_change: "\033[31m"       # red
+    reformat: "\033[34m"           # blue
+    comment_only: "\033[32m"       # green
+    import_change: "\033[33m"      # yellow
+    import_added: "\033[33m"       # yellow
+    rename: "\033[36m"             # cyan
+    structural: "\033[90m"         # bright black
+    mixed: "\033[35m"              # magenta
+    added: "\033[32m"              # green
+    removed: "\033[31m"            # red
+
+# ── Shell family (L2) — deployment overrides ──
+# Shell dialects are declared in config/discovery/shells.yaml; this section
+# overrides the family master switch and the default dialect for a given
+# deployment.  bindings map frontend names → shell names.
+shells:
+  enabled: true
+  default: terminal

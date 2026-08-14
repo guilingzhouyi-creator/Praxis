@@ -1,0 +1,27 @@
+# Tool ring → gate requirements and GateChain action danger ratings.
+# Auto-discovered by ConfigDiscovery; overlays params/tool.py and params/gatechain.py.
+# Only `ring_gates` (tool_spec.py) and `gatechain_danger_levels` (gatechain.py)
+# are consumed at runtime. Other danger-level metadata lives in
+# src/l1/kernel/params/tool.py / params/gatechain.py — do not duplicate it here.
+
+# ── Tool ring → gate requirements ──
+ring_gates:
+  RING_1:   [G1, G2]
+  RING_2_5: [G1, G2, G3, G4]
+  RING_3:   [G1, G2, G3, G4, G5]
+
+# ── GateChain action-level danger ratings (action → danger level) ──
+gatechain_danger_levels:
+  deploy: 5
+  db_migrate: 4
+  user_delete: 5
+  destroy: 5
+  rollback: 4
+  migrate: 4
+  exec: 4
+  run_in_terminal: 3
+  execute: 3
+  delete: 3
+  write: 2
+  replace: 2
+  format: 2

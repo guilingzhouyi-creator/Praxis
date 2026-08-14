@@ -1,0 +1,155 @@
+"""Cell agent management — Agent registration/query/state operations.
+Extracted from cell.py for modularity.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from l1.kernel.params.agent import DEFAULT_AGENT_CONFIGS, DEFAULT_AGENT_RING, DEFAULT_MAX_CONCURRENT_SCOUTS
+from l2.i18n import t as _t
+
+from .cell_types import AgentInfo
+
+logger = logging.getLogger(__name__)
+
+
+def init_mailbox(self) -> None:
+    """Initialize a mailbox dict for the cell, called by Cell.__init__."""
+    self._mailbox = {}
+
+
+def add_agent(
+    self,
+    agent_id: str,
+    role: str = "",
+    territory: list[str] | None = None,
+    ring: int | None = None,
+    max_scouts: int | None = None,
+    auto_boot: bool = False,
+) -> dict:
+    """Register an agent in this Cell."""
+    with self._lock:
+        if agent_id in self._agents:
+            return {"success": False, "error": _t("core.agent_already_registered", agent_id=agent_id)}
+        defaults = DEFAULT_AGENT_CONFIGS.get(role) if role else None
+        self._agents[agent_id] = AgentInfo(
+            role=role,
+            ring=ring or (defaults.ring if defaults else DEFAULT_AGENT_RING),
+            territory=territory or [],
+            max_concurrent_scouts=max_scouts or (defaults.max_scouts if defaults else DEFAULT_MAX_CONCURRENT_SCOUTS),
+        )
+        self._mailbox[agent_id] = []
+        logger.info(
+            "Cell %s: added %s (role=%s, ring=%d, scouts=%d)",
+            self.cell_id,
+            agent_id,
+            role or "(none)",
+            self._agents[agent_id].ring,
+            self._agents[agent_id].max_concurrent_scouts,
+        )
+    if auto_boot:
+        return _boot_agent(self, agent_id)
+    return {"success": True}
+
+
+def _boot_agent(self, agent_id: str) -> dict:
+    """Boot an agent terminal if not already running."""
+    from l3.agent_terminal import TerminalStatus, get_terminal
+
+    with self._lock:
+        info = self._agents.get(agent_id)
+        if not info:
+            return {"success": False, "error": _t("core.agent_not_registered", agent_id=agent_id)}
+    term = get_terminal(agent_id, role=info.role, territory=info.territory, cell_id=self.cell_id)
+    if term.status in (TerminalStatus.BOOTING, TerminalStatus.STOPPED):
+        term.boot()
+    if term._tool_registry is None:
+        _inject_tools(self, agent_id, term)
+    return {"success": True}
+
+
+def _ensure_terminal(self, aid: str, role: str, territory: list[str]) -> None:
+    """Ensure an agent terminal exists and is booted."""
+    from l3.agent_terminal import TerminalStatus, get_terminal
+    from l3.tool_system.tool_spec import TOOL_REGISTRY
+
+    term = get_terminal(aid, role=role, territory=territory, cell_id=self.cell_id)
+    if term.status in (TerminalStatus.BOOTING, TerminalStatus.STOPPED):
+        term.boot()
+    if term._tool_registry is None:
+        term.set_tool_registry(TOOL_REGISTRY)
+        term._tool_registry = TOOL_REGISTRY
+
+
+def _inject_tools(self, agent_id: str, term: Any) -> None:
+    """Inject TOOL_REGISTRY into an agent terminal."""
+    from l3.tool_system.tool_spec import TOOL_REGISTRY
+
+    term.set_tool_registry(TOOL_REGISTRY)
+
+
+def agent_status(self, agent_id: str) -> dict:
+    """Get agent status from this Cell."""
+    with self._lock:
+        info = self._agents.get(agent_id)
+        if not info:
+            return {"success": False, "error": _t("core.agent_unknown")}
+        role_str = (
+            info.role
+            if isinstance(info.role, str)
+            else (info.role.name if hasattr(info.role, "name") else str(info.role))
+        )
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "role": role_str,
+            "ring": info.ring,
+            "status": info.status.name if hasattr(info.status, "name") else str(info.status),
+            "territory": info.territory,
+            "active_scouts": info.active_scouts,
+            "max_concurrent_scouts": info.max_concurrent_scouts,
+        }
+
+
+def liveness(self) -> dict:
+    """Check Cell and all agent terminals liveness."""
+    from l3.agent_terminal import get_terminals
+
+    terms = get_terminals()
+    agent_results = {}
+    healthy_count = 0
+    total_count = 0
+    with self._lock:
+        agent_ids = list(self._agents.keys())
+    for aid in agent_ids:
+        total_count += 1
+        term = terms.get(aid)
+        if term is None:
+            agent_results[aid] = {"status": "no_terminal", "alive": False}
+            continue
+        from l1.kernel.params.agent import (
+            AGENT_STATUS_BOOTING,
+            AGENT_STATUS_IDLE,
+            AGENT_STATUS_PROCESSING,
+            AGENT_STATUS_WAITING_SCOUT,
+        )
+
+        if term.status.name in (AGENT_STATUS_IDLE, AGENT_STATUS_PROCESSING, AGENT_STATUS_WAITING_SCOUT):
+            agent_results[aid] = {"status": term.status.name, "alive": True}
+            healthy_count += 1
+        elif term.status.name in (AGENT_STATUS_BOOTING,):
+            agent_results[aid] = {"status": "booting", "alive": True}
+            healthy_count += 1
+        else:
+            agent_results[aid] = {"status": term.status.name, "alive": False}
+    overall = "healthy" if healthy_count == total_count else "degraded" if healthy_count > 0 else "unreachable"
+    return {
+        "cell_id": self.cell_id,
+        "overall": overall,
+        "agents": agent_results,
+        "healthy": healthy_count,
+        "total": total_count,
+        "territory": self.territory,
+    }

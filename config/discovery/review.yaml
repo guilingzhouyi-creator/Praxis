@@ -1,0 +1,16 @@
+# Review pipeline (2.1-D3) — bypass monitor + directed fix/rework.
+#
+# The review department inspects a tier-2 (review) diff and decides:
+#   small  (changed lines <= max_small_change_lines) → directed fix/supplement
+#   large  (> threshold) → route back through the Cell-to-Cell channel for
+#                          rework + async report to the L3A info queue
+#
+# Both the pipeline enable switch and the small-change threshold are
+# config-driven here and adjustable at runtime via
+# PUT /api/v2/review/threshold (settings-backed).
+# Registered with params defaults in boot_steps/discovery.py (`review`);
+# the runtime pipeline currently reads the params REVIEW_* constants.
+review:
+  enabled: true
+  autofix_enabled: true
+  max_small_change_lines: 50

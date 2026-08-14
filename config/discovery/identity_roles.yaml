@@ -1,0 +1,17 @@
+# Generic three-identity fields (build / test / review) — overrides.
+#
+# Every Agent entity is a composite of these three standard identities;
+# HTN-C task dispatch matches a task to one (or more) and the matched
+# fragment is injected into the session context. This file overrides the
+# built-in definitions in src/l1/kernel/params/agent.py (IDENTITY_*) at
+# boot — no code change needed to rename or reorder the identity fields.
+#
+# Example:
+#   identities:
+#     build: "implement"
+#     test: "verify"
+#     review: "audit"
+identities:
+  build: "build"
+  test: "test"
+  review: "review"

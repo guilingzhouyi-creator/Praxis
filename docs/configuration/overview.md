@@ -1,0 +1,228 @@
+# Configuration System
+
+Praxis uses a **declarative, layered configuration architecture** with auto-discovery.
+
+## File Layout
+
+```
+config/
+  praxis.yaml              — Main project config (kernel, cell, LLM, gatechain, API, diff, etc.)
+  commands.yaml            — L2 Shell command definitions and SubAgent specs
+  tools.yaml               — Tool definitions by ring layer (RING_1 / RING_2_5 / RING_3)
+  .praxis-rules.md         — Constitution rules (parsed by constitution.py)
+  .mcp.json                — MCP server definitions
+  discovery/               — Auto-discovered structural config (overlays params defaults)
+    agent_configs.yaml     — Agent roles, clearance, priorities, event types, injection patterns
+    build_detectors.yaml   — Build/test framework auto-detection commands
+    danger_levels.yaml     — Tool danger levels, gate mappings, ring maps
+    error_codes.yaml       — Error code definitions and i18n translations
+    providers.yaml         — LLM provider URLs, model names, env vars, IPC sockets
+```
+
+## Configuration Layers (lowest to highest priority)
+
+```
+ 1. params/*.py            — Compile-time defaults (timeouts, limits, thresholds)
+    ↓ fallback
+ 2. config/discovery/*.yaml — Structural configuration (auto-discovered at boot)
+    ↓ merge
+ 3. config/praxis.yaml     — Project-level deployment config (applied by config_handlers)
+    ↓ override
+ 4. .praxis_settings.json  — Runtime overrides (set via API or L2 Shell)
+```
+
+### Layer 1: params/*.py
+
+Atomic constants (timeouts, limits, thresholds) defined in five sub-modules:
+
+| File | Purpose | Example |
+|------|---------|---------|
+| `kernel.py` | Allocator, sync, process, gatechain, VFS | `ALLOCATOR_DEFAULTS.tokens=4096` |
+| `agent.py` | Agent roles, terminal, loop, card, scout | `AGENT_LOOP_DEFAULT_TIMEOUT=120.0` |
+| `tool.py` | Tool danger, timeouts, rate limits, HTN | `TOOL_BUILD_TIMEOUT=300` |
+| `api.py` | API gateway, LLM, network, IPC, env vars | `API_GATEWAY_PORT=8080` |
+| `system.py` | Cache, memory rings, data paths, truncation | `LOG_TRUNC_200=200` |
+
+### Layer 2: config/discovery/*.yaml (ConfigDiscovery)
+
+Structural configuration discovered at boot by `l1.kernel.discovery`.
+
+**Registration**: `_init_discovery()` boot step registers a fixed set of
+params-derived default sections; `config/discovery/*.yaml` overrides them.
+Current registered sections (defaults live in `src/l1/kernel/params/` unless
+noted):
+
+`build_detectors`, `test_detectors`, `provider_urls`, `ring_gates`,
+`gatechain_danger_levels`, `constitution`, `tool_rates`, `services`,
+`skill_dirs`, `shell_aliases`, `tool`, `persistence`, `service_limits`
+
+YAML files only carry the sections that override the code defaults:
+
+| YAML file | Section names |
+|-----------|---------------|
+| `agent_configs.yaml` | `skill_dirs`, `shell_aliases` |
+| `build_detectors.yaml` | `build_detectors`, `test_detectors` |
+| `danger_levels.yaml` | `gatechain_danger_levels`, `ring_gates` |
+| `providers.yaml` | `provider_urls` |
+| `service_limits.yaml` | `service_limits` |
+
+**Adding new values**: Simply add new keys to the appropriate YAML file. No code changes needed.
+
+```yaml
+# Example: adding a Go build detector to build_detectors.yaml
+build_detectors:
+  go: {cmd: [go, build]}
+```
+
+### Layer 3: config/praxis.yaml
+
+Main deployment configuration. Handlers registered in `config_loader.py`:
+
+| Section | Handler | Loads into |
+|---------|---------|------------|
+| `kernel` | `cfg_kernel` | SettingsCenter |
+| `cell` | `cfg_cell` | SettingsCenter |
+| `llm` | `cfg_llm` | SettingsCenter |
+| `diff` | `cfg_diff` | SettingsCenter + immediate color scheme |
+| `constitution` | `cfg_constitution` | In-memory action sets |
+| `gatechain` | `cfg_gatechain` | SettingsCenter |
+| `card_gate` | `cfg_card_gate` | CardGate instance |
+| ... | ... | ... |
+
+### Layer 4: .praxis_settings.json
+
+Runtime overrides persisted automatically. Modified via:
+
+```
+POST /api/settings     # set a key
+L2 Shell /settings     # view/modify settings
+```
+
+## Per-executor Model Specs (`model_spec`)
+
+`config/praxis.yaml` section `model_spec:` configures model / context /
+reasoning strength per executor. Resolution cascade in
+`ModelService.resolve_dict(spec_name)` (higher wins):
+
+```
+1. overrides (per-call, e.g. spec.model_config)
+2. model_spec.{name}            (exact spec, e.g. model_spec.scout.temperature)
+3. model_spec.{prefix}.defaults (platform defaults, e.g. model_spec.scout.defaults.*)
+4. llm.*                         (global llm section)
+```
+
+Supported executor spec names and their consumers:
+
+| spec_name | Consumer | Default |
+|-----------|----------|---------|
+| `scout` | Scout pool (`scout.py`) | 2048 tokens / 0.3 temp |
+| `l3a` | L3A session main model | 4096 tokens / 0.7 temp |
+| `l3a_subagent` | L3A subagent pool (`l3a/subagent.py`) | 2048 / 0.3 |
+| `subagent` | Cell SubAgent (`subagent_task.py`, spec.model_spec) | 2048 / 0.3 |
+| `r4_agent` | R4 archive agent (`r4_agent.model_spec`) | 2048 / 0.3 |
+
+Keys per spec: `max_tokens`, `temperature`, `reasoning_effort`
+(`none|low|medium|high|xhigh|max` — modern models allocate reasoning tokens
+adaptively server-side; effort is a behavioral signal, not a strict
+budget), `thinking_budget` (legacy token budget, honored only by providers
+that expose it: older Anthropic `budget_tokens`, Gemini `thinkingBudget`;
+filtered out by capability probing on GPT-5.x / Claude Opus 5+ / DeepSeek
+V4). `model` is omitted by default and inherits `llm.model`; set it
+per executor to diverge.
+
+Runtime override (persisted to `.praxis_settings.json`):
+
+```
+PUT /api/v2/model-spec/{name}   {"temperature": 0.5, "reasoning_effort": "medium"}
+GET /api/v2/model-spec          # list resolved specs
+```
+
+### Named strategy packs (runtime switching)
+
+`model_spec.strategies` in praxis.yaml defines named packs that switch an
+executor's model/context/reasoning profile at runtime:
+
+```yaml
+model_spec:
+  strategies:
+    fast:     {max_tokens: 2048, temperature: 0.3, reasoning_effort: none,   thinking_budget: 0}
+    balanced: {max_tokens: 4096, temperature: 0.5, reasoning_effort: low,    thinking_budget: 2048}
+    deep:     {max_tokens: 8192, temperature: 0.7, reasoning_effort: high,   thinking_budget: 8192}
+```
+
+API:
+
+```
+PUT    /api/v2/model-spec/{name}/strategy  {"strategy": "deep"}     # apply pack (immediate)
+GET    /api/v2/model-spec/{name}/strategy                           # current strategy + overrides
+DELETE /api/v2/model-spec/{name}/strategy                           # restore defaults
+PUT    /api/v2/model-spec/strategy/apply  {"strategy": "deep", "specs": ["l3a", "scout"]}  # batch; specs: ["all"]
+```
+
+Applied packs write the exact layer (`model_spec.{name}.{key}`, L3,
+persisted), which outranks the executor defaults in the resolve cascade.
+
+Notes:
+
+- **Clamping**: resolved values are clamped to `think.max_reasoning` /
+  `think.max_budget` (same ceilings as Cell peer agents); a clamped value
+  logs a warning. Set `enabled: false` on a strategy pack to forbid it at
+  runtime (`apply` then fails with "unknown or disabled strategy").
+- **Phase/executor strategy**: `CardPhase.strategy` (via cardwrite phase
+  dicts) and `SubAgentSpec.strategy` attach a named pack to a card phase or
+  a subagent spec — opusplan-style stage-level reasoning switching.
+- **thinking_budget semantics**: only honored by providers that expose a
+  user-defined thinking budget (Anthropic `budget_tokens`, Gemini
+  `thinkingBudget`); OpenAI/DeepSeek ignore it via capability filtering.
+
+## Reading Configuration in Code
+
+```python
+from l1.kernel.discovery import get_config
+
+# Read from discovery (falls back to params defaults)
+detectors = get_config("build_detectors") or {}
+
+# For atomic params constants, import directly from params
+from l1.kernel.params.tool import TOOL_BUILD_TIMEOUT
+```
+
+## Prompt Template Overrides (`prompts`)
+
+Prompt templates are registry-driven: built-in defaults live in
+`src/l1/kernel/prompts.py` (`_DEFAULTS`), and `config/praxis.yaml`'s
+`prompts:` section overrides them at boot. Each override replaces the
+built-in template of the same dot-notation key (priority:
+override > built-in > caller-passed default).
+
+```yaml
+# config/praxis.yaml
+prompts:
+  verifier.self_check: "Custom verification prompt..."
+  agent_loop.system: "You are an agent in Praxis. Task: {task}"
+```
+
+Loading chain: `config_loader` (`cfg_prompts` handler) →
+`l1.kernel.prompts.load_prompt_overrides()` → `get_prompt(key, default)`
+→ consumers (agent_loop_context, verifier, review, ...) → LLM context
+injection via `agent_loop_context._inject_extra_context`.
+
+- Use `python -m l3...` / API `GET /api/v2/prompts` (if exposed) or
+  `list_prompts()` to enumerate available keys and their source.
+- Prompt strings are data (registry-managed), not params constants:
+  they stay in `prompts.py`/praxis.yaml rather than `params/`.
+
+## ConfigDiscovery Architecture
+
+```python
+src/l1/kernel/discovery.py
+  register(name, defaults)       # Register a config section with Python-side defaults
+  register_discovery_dir(path)   # Add a directory to scan for YAML snippets
+  discover()                     # Scan YAML files and merge into registry
+  get_config(name, default)      # Read merged config
+  get_source(name, default)      # Read originally registered defaults only
+  set_config(name, key, value)   # Runtime override
+  reset()                        # Reset to defaults (for testing)
+```
+
+Boot sequence: `load_constitution → init_discovery → load_config → ...`

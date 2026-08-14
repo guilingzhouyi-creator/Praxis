@@ -1,0 +1,53 @@
+# Gitleaks configuration — secrets scanner for Praxis.
+# Docs: https://github.com/gitleaks/gitleaks
+# Rule library lives in the gitleaks binary; this file only customizes
+# behavior (allowlist, extra rules, stopwords) for this repository.
+
+title = "Praxis gitleaks config"
+
+# Extend the default rule set with repo-specific detectors if needed.
+# [[rules]]
+# id = "praxis-api-key"
+# description = "Praxis internal API key format"
+# regex = '''...'''
+# secretGroup = 1
+
+[extend]
+# Use the gitleaks default rule set (recommended) plus the rules below.
+useDefault = true
+
+# Repo-wide allowlist: strings/commits/paths that are legitimate and must
+# not be reported. Keep this list minimal — every entry is a permanent
+# suppression, so review additions carefully.
+[[allowlists]]
+description = "Praxis allowlist"
+# Test fixtures and docs use fake/placeholder credentials on purpose.
+regexes = [
+    # Placeholder / example values in configs, docs and tests.
+    '''(?i)(example|sample|dummy|fake|placeholder|your_|xxx|test)(_|-)?(key|token|secret|password)''',
+    '''sk-test-''',
+    '''ghp_test_''',
+    # Default LLM provider values (ollama local, non-credential).
+    '''ollama''',
+]
+paths = [
+    # Docs and design docs may quote example credentials.
+    '''docs/''',
+    # Test fixtures that intentionally contain dummy credentials.
+    '''tests/fixtures/''',
+    '''tests/data/''',
+]
+# Commits that are known-legacy and reviewed (empty by default — never
+# add historical leaks here; rotate instead).
+commits = []
+# Stopwords: if a candidate secret contains any of these, it is ignored.
+# Useful for generic words that resemble tokens but are not credentials.
+stopwords = [
+    "example",
+    "sample",
+    "dummy",
+    "placeholder",
+    "your",
+    "test",
+    "fake",
+]

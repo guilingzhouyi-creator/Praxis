@@ -1,0 +1,29 @@
+# Department division — configurable department types.
+#
+# Overrides the built-in department setup in src/l1/kernel/params/agent.py.
+# A department is NOT hardcoded to testing — "test" is one configurable
+# specialization among DEPARTMENT_TYPES (general/build/test/review/custom).
+#
+# Departments inherit the default Cell identity (CELL_IDENTITY_DEFAULT)
+# unless overridden here; users may specialize per department. Cell identity
+# is distinct from Agent identities (build/test/review fields).
+#
+# The runtime enable switch is the settings flat key `departments.enabled`
+# (default false; settable via /api/v2/settings) — NOT a field in this file.
+#
+# Structure:
+#   departments:
+#     <dept_id>:
+#       type: one of DEPARTMENT_TYPES
+#       roles: [agent roles bound to this department]
+#       cell_identity: Cell-level identity for this department
+#       auto_enabled: participate when division is active
+
+departments:
+  # Testing department — the default example; a deployment may rename,
+  # retype, or add departments (build/review/custom) without code changes.
+  test:
+    type: test
+    roles: ["tester"]
+    cell_identity: test
+    auto_enabled: true

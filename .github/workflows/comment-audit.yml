@@ -1,0 +1,31 @@
+name: comment-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/py/comment_audit.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/py/comment_audit.py"
+  workflow_dispatch:
+
+jobs:
+  comment-audit:
+    # Advisory hygiene gate: reports CJK/mojibake residue and missing
+    # docstrings per AGENTS.md comment conventions. Hard issues (CJK,
+    # mojibake, missing module docstring) fail; advisory findings
+    # (missing class/function docstrings, short docs — simple getters may
+    # skip per conventions) are reported without blocking the merge.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run comment audit
+        run: |
+          python scripts/py/comment_audit.py src

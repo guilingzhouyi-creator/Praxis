@@ -1,0 +1,8 @@
+---
+description: Format and lint-fix the Praxis codebase (ruff format + ruff check --fix)
+---
+Format and fix the codebase:
+
+- Format: `ruff format src/ tests/` (or `make format`)
+- Auto-fix lint: `ruff check --fix src/ tests/` (or `make lint-fix`)
+- Verify: `make format-check` / `make lint`

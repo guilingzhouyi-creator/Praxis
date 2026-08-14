@@ -1,0 +1,8 @@
+# Load-adaptive thread pool controller configuration
+# Three-layer config: params/*.py (compile-time) ← this file (structural) ← praxis.yaml (deployment)
+# See docs/design/praxis-load-adaptive-pool-design.md for the full design.
+load_adaptive:
+  enabled: true          # false = back to static pool at MIN (zero behavior change)
+  sample_interval: 1.0   # Sampling period (s)
+  low_ratio: 0.2         # Queue-ratio below which the pool shrinks
+  high_ratio: 0.6        # Queue-ratio above which the pool grows

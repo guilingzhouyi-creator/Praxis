@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "locales/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    # Gating style check on changed files: new or modified Python files must
+    # pass ruff check + format before merge. Pre-existing findings in untouched
+    # files (tracked as debt in docs/design/archive/reviews/README.md, cleared
+    # in batches) do not block — full-tree ruff runs in the nightly job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[test]"
+      - name: Lint changed files (gating)
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD || true)
+          fi
+          FILES=$(printf '%s\n' "$CHANGED" | grep -E '\.py$' || true)
+          if [ -n "$FILES" ]; then
+            echo "Linting changed files:"
+            printf '%s\n' "$FILES"
+            ruff check $FILES --output-format=full
+            ruff format --check $FILES
+          else
+            echo "no changed Python files — lint OK"
+          fi
+
+  pr-commit-lint:
+    # Pre-merge commit hygiene gate — see .atomcode/skills/pr-check/checklist.md
+    # "Incoming commits". Every commit a PR brings into main must be
+    # GPG-signed (GitCode pre-receive rejects unsigned commits, not just the
+    # tip) and use an English Conventional-Commits subject. Runs
+    # verify-pr-merge.sh with PR_MERGE_RELAX_SIGNATURE=1 because the runner
+    # cannot verify the author's signing key (status E); N (no signature) and
+    # B (bad signature) still fail the job.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify PR commits (signature + subject + mergeability)
+        run: |
+          MAIN_BASE="${{ github.event.pull_request.base.sha }}" \
+          PR_MERGE_RELAX_SIGNATURE=1 \
+          bash scripts/sh/verify-pr-merge.sh HEAD
+
+  audit:
+    # Dependency vulnerability gate: pip-audit checks the installed tree
+    # (project deps + [test] extras) against the PyPI advisory DB. The
+    # editable install of praxis itself is skipped — it is not on PyPI.
+    # Fails on any known vulnerable package, so upstream CVEs surface on
+    # the PR that introduces them instead of silently shipping to main.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          # Upgrade the preinstalled setuptools too: the build-system
+          # requirement only pins the build-isolation env, while pip-audit
+          # scans the runtime tree (setup-python ships 79.x → PYSEC-2026-3447).
+          pip install --upgrade "setuptools>=83"
+          pip install -e ".[test]"
+          pip install pip-audit
+      - name: Audit dependencies (pip-audit)
+        run: pip-audit --skip-editable
+        timeout-minutes: 5
+
+  doc-stats:
+    # Docs freshness gate: the README numbers snapshot and the llms.txt
+    # indexes are generated (scripts/py/gen-doc-stats.py / gen-llms-txt.py).
+    # This job regenerates both and fails when the committed docs drifted
+    # from the live codebase, so a code change that adds files/constants/
+    # routes must ship with its regenerated numbers (make doc-stats).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[test]"
+      - name: Check README numbers snapshot (check-doc-stats)
+        run: python scripts/py/check-doc-stats.py
+      - name: Check doc-index consistency (check-doc-index)
+        run: python scripts/py/check-doc-index.py
+      - name: Check CHANGELOG [Unreleased] (check-changelog)
+        run: python scripts/py/check-changelog.py
+      - name: Check llms.txt indexes (regenerate + diff)
+        run: |
+          python scripts/py/gen-llms-txt.py
+          if ! git diff --exit-code -- docs/architecture/llms.txt docs/architecture/llms-full.txt; then
+            echo "❌ llms.txt/llms-full.txt drifted — run 'make doc-stats' and commit the regenerated files"
+            exit 1
+          fi

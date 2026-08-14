@@ -1,0 +1,435 @@
+"""Statecharts — 5 orthogonal regions for Agent lifecycle, persistable.
+
+Agent OS spec §1.2:
+  Task:     IDLE → EXECUTING → AWAIT_REVIEW → DONE/ERROR
+  Health:   HEALTHY → DEGRADED → UNRESPONSIVE → CRASHED
+  Review:   NOT_UNDER_REVIEW → UNDER_REVIEW → PASSED/REJECTED
+  Resource: NORMAL → TOKEN_LOW → MEMORY_HIGH → THROTTLED
+  Comm:     CONNECTED → DEGRADED → DISCONNECTED → ISOLATED
+
+Persistence: JSON via save_snapshot() / restore_snapshot().
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum, auto
+
+from l1.kernel.params.system import (
+    STATECHART_COMM_DEGRADE_THRESHOLD,
+    STATECHART_COMM_DISCONNECT_THRESHOLD,
+    STATECHART_CRASH_TIMEOUT,
+    STATECHART_HEALTH_FAIL_THRESHOLD,
+    STATECHART_HEALTH_SUCCESS_THRESHOLD,
+    STATECHART_HEALTH_TIMEOUT,
+    STATECHART_RESOURCE_MEMORY_LIMIT,
+    STATECHART_RESOURCE_TOKEN_BUDGET,
+)
+from l1.kernel.paths import get_paths as _gp
+
+logger = logging.getLogger(__name__)
+
+
+class EventType(Enum):
+    """EventType — enum of event type variants."""
+
+    TASK_ASSIGN = auto()
+    TASK_CANCEL = auto()
+    ANALYSIS_DONE = auto()
+    CHANGES_DONE = auto()
+    SELF_CHECK_PASS = auto()
+    SELF_CHECK_FAIL = auto()
+    REVIEW_PASSED = auto()
+    REVIEW_REJECTED = auto()
+    FIXES_DONE = auto()
+    CONVERGENCE_DONE = auto()
+    DIRECT_START = auto()
+    DIRECT_END = auto()
+    TOOL_CALL_FAIL = auto()
+    TOOL_CALL_SUCCESS = auto()
+    HEARTBEAT_TIMEOUT = auto()
+    HEARTBEAT_RESTORED = auto()
+    AGENT_CRASHED = auto()
+    REVIEW_REQUESTED = auto()
+    TOKEN_EXCEEDED = auto()
+    MEMORY_EXCEEDED = auto()
+    BUDGET_RESET = auto()
+    MEMORY_RECOVERED = auto()
+    COMM_CONNECT = auto()
+    COMM_DEGRADE = auto()
+    COMM_DISCONNECT = auto()
+    COMM_RECONNECT = auto()
+    COMM_ISOLATE = auto()
+    TIMEOUT = auto()
+
+
+@dataclass
+class Transition:
+    """Transition — transition record (to, reason, ctx)."""
+
+    to: str
+    reason: str = ""
+    ctx: dict = field(default_factory=dict)
+
+
+@dataclass
+class EventCtx:
+    """EventCtx — event ctx record (type, data, ts)."""
+
+    type: EventType
+    data: dict = field(default_factory=dict)
+    ts: float = field(default_factory=time.time)
+
+
+class Region:
+    """Region — region record (name, state, parent, history, _transitions)."""
+
+    name: str = ""
+    state: str = ""
+    parent: str | None = None
+    history: dict[str, str] = {}
+    _transitions: dict = {}
+    broadcast: Callable | None = None
+
+    def _add(self, s, e, t, r=""):
+        self._transitions[(s, e)] = Transition(to=t, reason=r)
+
+    def _add_any(self, e, t, r=""):
+        self._transitions[("*", e)] = Transition(to=t, reason=r)
+
+    def handle(self, event):
+        """Dispatch an event to this region and return the applied transition if any."""
+        key = (self.state, event.type)
+        tr = self._transitions.get(key)
+        if tr:
+            return self._apply(tr, event)
+        tr = self._transitions.get(("*", event.type))
+        if tr:
+            return self._apply(tr, event)
+        return None
+
+    def _apply(self, tr, event):
+        if self.parent:
+            self.history[self.parent] = self.state
+        from_state = self.state
+        self.state = tr.to
+        tr.ctx = {**event.data, **tr.ctx}
+        # Emit STATE_CHANGE so cross-service loggers can track transitions.
+        try:
+            from l1.kernel import emit_signal
+
+            emit_signal(
+                "STATE_CHANGE",
+                sender=self.name or "statecharts",
+                data={"region": self.name, "from": from_state, "to": tr.to, "reason": tr.reason},
+            )
+        except Exception as e:
+            logger.debug("statecharts: STATE_CHANGE emit failed: %s", e)
+        return tr
+
+
+class TaskRegion(Region):
+    """TaskRegion — task region."""
+
+    name = "Task"
+
+    def __init__(self):
+        self.state = "IDLE"
+        self._add("IDLE", EventType.TASK_ASSIGN, "COMMISSIONED")
+        self._add("COMMISSIONED", EventType.TASK_CANCEL, "IDLE")
+        self._add("COMMISSIONED", EventType.ANALYSIS_DONE, "ANALYZING")
+        self._add("ANALYZING", EventType.ANALYSIS_DONE, "MODIFYING")
+        self._add("MODIFYING", EventType.CHANGES_DONE, "VERIFYING")
+        self._add("VERIFYING", EventType.SELF_CHECK_PASS, "WAITING")
+        self._add("VERIFYING", EventType.SELF_CHECK_FAIL, "RETRYABLE")
+        self._add("WAITING", EventType.REVIEW_PASSED, "DONE")
+        self._add("WAITING", EventType.REVIEW_REJECTED, "FIXING")
+        self._add("FIXING", EventType.FIXES_DONE, "WAITING")
+        self._add("RETRYABLE", EventType.TASK_ASSIGN, "ANALYZING")
+        self._add_any(EventType.TASK_CANCEL, "IDLE")
+        self._add_any(EventType.AGENT_CRASHED, "INTERRUPTED")
+
+    @property
+    def is_active(self):
+        """Return True when the task region is neither idle nor done."""
+        return self.state not in ("IDLE", "DONE")
+
+
+class HealthRegion(Region):
+    """HealthRegion — health region."""
+
+    name = "Health"
+
+    def __init__(
+        self,
+        ft=STATECHART_HEALTH_FAIL_THRESHOLD,
+        st=STATECHART_HEALTH_SUCCESS_THRESHOLD,
+        hto=STATECHART_HEALTH_TIMEOUT,
+        cto=STATECHART_CRASH_TIMEOUT,
+    ):
+        self.state = "HEALTHY"
+        self.ft, self.st, self.hto, self.cto = ft, st, hto, cto
+        self._fc = self._sc = 0
+        self._lh = time.time()
+        self._add("DEGRADED", EventType.HEARTBEAT_TIMEOUT, "UNRESPONSIVE")
+        self._add("UNRESPONSIVE", EventType.HEARTBEAT_RESTORED, "HEALTHY")
+        self._add("UNRESPONSIVE", EventType.AGENT_CRASHED, "CRASHED")
+        self._add("CRASHED", EventType.HEARTBEAT_RESTORED, "HEALTHY")
+
+    def handle(self, event):
+        """Process health-related events and degrade or recover the region accordingly."""
+        if event.type == EventType.TOOL_CALL_FAIL:
+            self._fc += 1
+            self._sc = 0
+            if self.state == "HEALTHY" and self._fc >= self.ft:
+                self._fc = 0
+                return self._apply(Transition(to="DEGRADED"), event)
+        elif event.type == EventType.TOOL_CALL_SUCCESS:
+            self._sc += 1
+            self._fc = 0
+            if self.state == "DEGRADED" and self._sc >= self.st:
+                self._sc = 0
+                return self._apply(Transition(to="HEALTHY"), event)
+        elif event.type == EventType.HEARTBEAT_TIMEOUT:
+            el = time.time() - self._lh
+            if self.state in ("DEGRADED", "UNRESPONSIVE") and el > self.cto:
+                return self._apply(Transition(to="CRASHED"), event)
+            if self.state not in ("UNRESPONSIVE", "CRASHED"):
+                return self._apply(Transition(to="UNRESPONSIVE"), event)
+        if event.type in (
+            EventType.TOOL_CALL_FAIL,
+            EventType.TOOL_CALL_SUCCESS,
+            EventType.HEARTBEAT_TIMEOUT,
+            EventType.HEARTBEAT_RESTORED,
+        ):
+            return None
+        return super().handle(event)
+
+    def heartbeat(self):
+        """Update the last-heartbeat timestamp to the current time."""
+        self._lh = time.time()
+
+    @property
+    def is_healthy(self):
+        """Return True when the health region is in the healthy state."""
+        return self.state == "HEALTHY"
+
+    @property
+    def is_alive(self):
+        """Return True unless the agent has crashed."""
+        return self.state != "CRASHED"
+
+
+class ReviewRegion(Region):
+    """ReviewRegion — review region."""
+
+    name = "Review"
+
+    def __init__(self):
+        self.state = "NOT_UNDER_REVIEW"
+        self._reviewers = []
+        self._votes = {}
+        self._add("NOT_UNDER_REVIEW", EventType.REVIEW_REQUESTED, "UNDER_REVIEW")
+        self._add("UNDER_REVIEW", EventType.REVIEW_PASSED, "REVIEW_PASSED")
+        self._add("UNDER_REVIEW", EventType.REVIEW_REJECTED, "REVIEW_REJECTED")
+        self._add("UNDER_REVIEW", EventType.COMM_DISCONNECT, "REVIEW_PASSED", "auto-pass")
+        self._add("UNDER_REVIEW", EventType.TIMEOUT, "REVIEW_PASSED", "timeout")
+        self._add("REVIEW_PASSED", EventType.TASK_ASSIGN, "NOT_UNDER_REVIEW")
+        self._add("REVIEW_REJECTED", EventType.TASK_ASSIGN, "NOT_UNDER_REVIEW")
+
+    def add_reviewer(self, rid):
+        """Register a reviewer by id if not already present."""
+        if rid not in self._reviewers:
+            self._reviewers.append(rid)
+
+    def vote(self, rid, ok):
+        """Record a reviewer vote and return the resulting review action dict."""
+        self._votes[rid] = ok
+        if not ok:
+            return {"action": "rejected", "by": rid}
+        if len(self._votes) >= len(self._reviewers) and all(self._votes.values()):
+            return {"action": "passed"}
+        return {"action": "pending", "remaining": len(self._reviewers) - len(self._votes)}
+
+    @property
+    def is_under_review(self):
+        """Return True when the review region is actively under review."""
+        return self.state == "UNDER_REVIEW"
+
+
+class ResourceRegion(Region):
+    """ResourceRegion — resource region."""
+
+    name = "Resource"
+
+    def __init__(self, tb=STATECHART_RESOURCE_TOKEN_BUDGET, ml=STATECHART_RESOURCE_MEMORY_LIMIT):
+        self.state = "NORMAL"
+        self.tb, self.ml = tb, ml
+        self.tc = self.mu = 0
+        self._add("NORMAL", EventType.TOKEN_EXCEEDED, "TOKEN_LOW")
+        self._add("NORMAL", EventType.MEMORY_EXCEEDED, "MEMORY_HIGH")
+        self._add("TOKEN_LOW", EventType.BUDGET_RESET, "NORMAL")
+        self._add("TOKEN_LOW", EventType.TOKEN_EXCEEDED, "THROTTLED")
+        self._add("THROTTLED", EventType.BUDGET_RESET, "NORMAL")
+        self._add("MEMORY_HIGH", EventType.MEMORY_RECOVERED, "NORMAL")
+
+    @property
+    def usage_pct(self):
+        """Return the current token usage as a percentage of the budget."""
+        return round(self.tc / self.tb * 100, 1)
+
+    @property
+    def is_throttled(self):
+        """Return True when the resource region is throttled."""
+        return self.state == "THROTTLED"
+
+
+class CommRegion(Region):
+    """CommRegion — comm region."""
+
+    name = "Comm"
+
+    def __init__(self, dt=STATECHART_COMM_DEGRADE_THRESHOLD, dst=STATECHART_COMM_DISCONNECT_THRESHOLD):
+        self.state = "CONNECTED"
+        self.dt, self.dst = dt, dst
+        self._latency = 0.0
+        self._ra = 0
+        self._add("CONNECTED", EventType.COMM_DEGRADE, "DEGRADED")
+        self._add("CONNECTED", EventType.COMM_DISCONNECT, "DISCONNECTED")
+        self._add("DEGRADED", EventType.COMM_CONNECT, "CONNECTED")
+        self._add("DEGRADED", EventType.COMM_DISCONNECT, "DISCONNECTED")
+        self._add("DEGRADED", EventType.COMM_ISOLATE, "ISOLATED")
+        self._add("DISCONNECTED", EventType.COMM_RECONNECT, "CONNECTED")
+        self._add("DISCONNECTED", EventType.TIMEOUT, "ISOLATED")
+        self._add("ISOLATED", EventType.COMM_RECONNECT, "CONNECTED")
+
+    @property
+    def is_connected(self):
+        """Return True when the comm region is connected."""
+        return self.state == "CONNECTED"
+
+    @property
+    def is_isolated(self):
+        """Return True when the comm region is isolated."""
+        return self.state == "ISOLATED"
+
+
+class AgentStatecharts:
+    """Statechart engine for a Cell agent (task/health/review/resource/comm regions)."""
+
+    def __init__(self, agent_id="", persist_path=""):
+        self.agent_id = agent_id
+        self.task = TaskRegion()
+        self.health = HealthRegion()
+        self.review = ReviewRegion()
+        self.resource = ResourceRegion()
+        self.comm = CommRegion()
+        self._regions = [self.task, self.health, self.review, self.resource, self.comm]
+        self._persist_path = (
+            persist_path or _gp().statecharts.replace(".json", f"_{agent_id}.json") if agent_id else _gp().statecharts
+        )
+        self._restore_snapshot()
+
+    def save_snapshot(self) -> dict:
+        """Persist all region states to disk and return a success dict."""
+        data = {
+            "agent_id": self.agent_id,
+            "_version": 1,
+            "regions": {},
+        }
+        for r in self._regions:
+            rdata = {"state": r.state}
+            if hasattr(r, "_reviewers"):
+                rdata["_reviewers"] = list(r._reviewers)
+            if hasattr(r, "_votes"):
+                rdata["_votes"] = dict(r._votes)
+            if hasattr(r, "tc"):
+                rdata["tc"] = r.tc
+            if hasattr(r, "mu"):
+                rdata["mu"] = r.mu
+            if hasattr(r, "_fc"):
+                rdata["_fc"] = r._fc
+            if hasattr(r, "_sc"):
+                rdata["_sc"] = r._sc
+            if hasattr(r, "_lh"):
+                rdata["_lh"] = r._lh
+            if hasattr(r, "_latency"):
+                rdata["_latency"] = r._latency
+            if hasattr(r, "_ra"):
+                rdata["_ra"] = r._ra
+            data["regions"][r.name] = rdata
+        try:
+            tmp = self._persist_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, self._persist_path)
+            return {"success": True}
+        except Exception as e:
+            logger.warning("statecharts save %s: %s", self.agent_id, e)
+            return {"success": False, "error": str(e)}
+
+    def _restore_snapshot(self) -> None:
+        if not os.path.exists(self._persist_path):
+            return
+        try:
+            with open(self._persist_path, encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("_version", 0) < 1:
+                return
+            regions_data = data.get("regions", {})
+            for r in self._regions:
+                rd = regions_data.get(r.name)
+                if rd is None:
+                    continue
+                if "state" in rd:
+                    r.state = rd["state"]
+                if hasattr(r, "_reviewers") and "_reviewers" in rd:
+                    r._reviewers = list(rd["_reviewers"])
+                if hasattr(r, "_votes") and "_votes" in rd:
+                    r._votes = dict(rd["_votes"])
+                if hasattr(r, "tc") and "tc" in rd:
+                    r.tc = rd["tc"]
+                if hasattr(r, "mu") and "mu" in rd:
+                    r.mu = rd["mu"]
+                if hasattr(r, "_fc") and "_fc" in rd:
+                    r._fc = rd["_fc"]
+                if hasattr(r, "_sc") and "_sc" in rd:
+                    r._sc = rd["_sc"]
+                if hasattr(r, "_lh") and "_lh" in rd:
+                    r._lh = rd["_lh"]
+                if hasattr(r, "_latency") and "_latency" in rd:
+                    r._latency = rd["_latency"]
+                if hasattr(r, "_ra") and "_ra" in rd:
+                    r._ra = rd["_ra"]
+        except Exception as e:
+            logger.warning("statecharts restore %s: %s", self.agent_id, e)
+
+    def dispatch(self, et, data=None):
+        """Broadcast an event to every region and return the list of applied transitions."""
+        ctx = EventCtx(type=et, data=data or {})
+        trs = []
+        for r in self._regions:
+            tr = r.handle(ctx)
+            if tr:
+                trs.append(tr)
+        if et == EventType.AGENT_CRASHED:
+            self.task.handle(EventCtx(type=EventType.AGENT_CRASHED, data={"checkpoint": True}))
+        return trs
+
+    @property
+    def snapshot(self):
+        """Return a mapping of region name to current state."""
+        return {r.name: r.state for r in self._regions}
+
+    @property
+    def is_active(self):
+        """Return True when the task is active and the agent is alive."""
+        return self.task.is_active and self.health.is_alive
+
+    def __repr__(self):
+        return f"Statecharts({self.agent_id}): " + " | ".join(f"{r.name}={r.state}" for r in self._regions)

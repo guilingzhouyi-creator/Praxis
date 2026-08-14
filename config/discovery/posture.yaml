@@ -1,0 +1,22 @@
+# Posture matrix — attack-posture configuration surface.
+#
+# Overlays src/l1/kernel/params/system.py POSTURE_MATRIX_DEFAULT at boot.
+# Offensive posture is default-off; enabling it REQUIRES a target whitelist
+# (empty whitelist is rejected). While any domain is offensive, harness
+# mode 'minimal' is forbidden (approval + rate limiting are the bottom line).
+#
+# Runtime: GET/PUT /api/v2/posture (gated by api_enabled).
+# Registered with params defaults in boot_steps/discovery.py (`posture`);
+# the runtime matrix currently reads params POSTURE_MATRIX_DEFAULT.
+posture:
+  api_enabled: true
+
+  domains:
+    # build: productive default — offensive off, no targets
+    build:
+      offensive: false
+      target_whitelist: []
+    # attack: enable ONLY for authorized testing targets (e.g. a lab/CTF host)
+    attack:
+      offensive: false
+      target_whitelist: []

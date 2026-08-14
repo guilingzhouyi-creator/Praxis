@@ -1,0 +1,165 @@
+name: Auto-merge gate
+
+# Decides per-PR merge eligibility and acts on it:
+#   - conflicting PRs (with main or the base branch) are REJECTED
+#   - large code changes (>= threshold code lines) are HELD for review
+#   - small changes (below threshold, docs-only included) are AUTO-MERGED
+# Code vs docs classification lives in scripts/py/classify-diff.py.
+#
+# NOTE: GitHub-side merge produces a non-GPG-signed commit; GitCode's
+# pre-receive hook rejects unsigned commits, so after an auto-merge the
+# mainline must be re-signed/re-synced locally (git merge locally +
+# push-both).  This workflow governs the github mirror (CI carrier).
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  pull_request_review:
+    types: [submitted, dismissed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to evaluate"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35  # wait-for-CI can take ~25 min on the matrix
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve PR number and base/head
+        id: pr
+        run: |
+          PR="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          echo "base_ref=${{ github.event.pull_request.base.ref || 'main' }}" >> "$GITHUB_OUTPUT"
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          echo "base_sha=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Mergeability (conflict with main / base branch)
+        id: mergeable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATE=$(gh pr view "${{ steps.pr.outputs.pr_number }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json mergeable --jq .mergeable)
+          echo "mergeable_state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "state: $STATE"
+          if [ "$STATE" = "CONFLICTING" ]; then
+            echo "❌ PR conflicts with its base — refusing to merge." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Classify diff (code vs docs lines)
+        id: classify
+        run: |
+          BASE="${{ steps.pr.outputs.base_sha }}"
+          HEAD="${{ steps.pr.outputs.head_sha }}"
+          git diff --numstat "$BASE...$HEAD" 2>/dev/null > /tmp/diff.numstat || \
+            git diff --numstat "$BASE" "$HEAD" > /tmp/diff.numstat
+          python scripts/py/classify-diff.py --numstat-file /tmp/diff.numstat \
+            --threshold 1000 > /tmp/class.json
+          cat /tmp/class.json
+          CODE_LINES=$(python -c "import json;print(json.load(open('/tmp/class.json'))['code_lines'])")
+          IS_LARGE=$(python -c "import json;print(json.load(open('/tmp/class.json'))['is_large'])")
+          echo "code_lines=$CODE_LINES" >> "$GITHUB_OUTPUT"
+          echo "is_large=$IS_LARGE" >> "$GITHUB_OUTPUT"
+
+      - name: Apply decision labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ steps.pr.outputs.pr_number }}"
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" \
+            --remove-label "auto-merge-ready,needs-review,merge-conflict" || true
+          if [ "${{ steps.mergeable.outputs.mergeable_state }}" = "CONFLICTING" ]; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "merge-conflict"
+          elif [ "${{ steps.classify.outputs.is_large }}" = "True" ]; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "needs-review"
+          else
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "auto-merge-ready"
+          fi
+
+      - name: Comment verdict
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ steps.pr.outputs.pr_number }}"
+          STATE="${{ steps.mergeable.outputs.mergeable_state }}"
+          CODE="${{ steps.classify.outputs.code_lines }}"
+          if [ "$STATE" = "CONFLICTING" ]; then
+            BODY="⛔ **Rejected**: this PR conflicts with its base branch. Fix the conflict and push again."
+          elif [ "${{ steps.classify.outputs.is_large }}" = "True" ]; then
+            BODY="🕓 **Held for review**: $CODE code lines ≥ 1000. A human must review and merge locally."
+          else
+            BODY="✅ **Auto-merge**: $CODE code lines (below threshold). Waiting for CI, then merging."
+          fi
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+
+      - name: Wait for CI checks to pass
+        if: steps.mergeable.outputs.mergeable_state != 'CONFLICTING' &&
+            steps.classify.outputs.is_large == 'False'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        timeout-minutes: 30
+        run: |
+          PR="${{ steps.pr.outputs.pr_number }}"
+          # Block until every status check on the head commit is done; gh
+          # exits non-zero if any check failed, which cancels the merge.
+          if ! gh pr checks "$PR" --repo "$GITHUB_REPOSITORY" --watch --interval 30; then
+            echo "❌ CI checks failed — auto-merge cancelled." >> "$GITHUB_STEP_SUMMARY"
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" \
+              --remove-label "auto-merge-ready" --add-label "needs-review"
+            exit 1
+          fi
+          echo "✅ All CI checks passed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check review approval
+        id: approve
+        if: steps.mergeable.outputs.mergeable_state != 'CONFLICTING' &&
+            steps.classify.outputs.is_large == 'False'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ steps.pr.outputs.pr_number }}"
+          DECISION=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json reviewDecision --jq .reviewDecision)
+          echo "review_decision=$DECISION" >> "$GITHUB_OUTPUT"
+          if [ "$DECISION" != "APPROVED" ]; then
+            echo "⏳ Awaiting human approval (branch protection requires 1 approving review)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "✅ Approved — proceeding to auto-merge." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Auto-merge small changes
+        if: steps.mergeable.outputs.mergeable_state != 'CONFLICTING' &&
+            steps.classify.outputs.is_large == 'False' &&
+            steps.approve.outputs.review_decision == 'APPROVED'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ steps.pr.outputs.pr_number }}"
+          # Squash merge; commit is authored by the merge bot (unsigned) —
+          # GitCode sync requires a local re-sign (see workflow header note).
+          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch || \
+            echo "merge deferred (checks pending or rejected by branch protection)" >> "$GITHUB_STEP_SUMMARY"

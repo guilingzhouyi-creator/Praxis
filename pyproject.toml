@@ -1,0 +1,154 @@
+[project]
+name = "praxis"
+version = "0.4.2"
+description = "Praxis — Agent OS (headless core)"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6.0.3",
+    "Jinja2>=3.1.6",
+    "websocket-client>=1.0",
+    "websockets>=13",
+    "cryptography>=41.0",
+    "zstandard>=0.22",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.12",
+    "pytest-random-order>=1.1",
+    "pytest-rerunfailures>=14.0",
+    "pytest-xdist>=3.6",
+    "ruff>=0.9",
+    "pre-commit>=3.0",
+]
+
+[project.scripts]
+praxis = "main:main"
+praxis-kernel = "l4.supervisor:start_kernel"
+praxis-api = "l4.supervisor:start_api"
+praxis-sandbox = "l4.sandbox.server:main"
+praxis-llm = "l4.llm_worker.server:main"
+praxis-supervisor = "l4.supervisor:main"
+praxis-install = "l3.boot.install:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+# Config/asset templates shipped with the wheel — the installer (praxis-install)
+# and ensure_config copy these into the user's config_dir on first install,
+# and rebuild them when a config file is missing (self-healing).
+# NOTE: setuptools data-files install by basename only — a shared basename
+# (every skill is SKILL.md) silently collapses into one file, so each skill
+# directory gets its own install target.
+"share/praxis" = [".praxis-rules.md"]
+"share/praxis/config" = ["config/praxis.yaml", "config/commands.yaml", "config/tools.yaml"]
+"share/praxis/config/discovery" = ["config/discovery/*.yaml"]
+"share/praxis/config/skills/_shared" = ["config/skills/_shared/principles.md"]
+"share/praxis/config/skills/architecture" = ["config/skills/architecture/SKILL.md"]
+"share/praxis/config/skills/ask-matt" = ["config/skills/ask-matt/SKILL.md"]
+"share/praxis/config/skills/card" = ["config/skills/card/SKILL.md"]
+"share/praxis/config/skills/cell" = ["config/skills/cell/SKILL.md"]
+"share/praxis/config/skills/code-review" = ["config/skills/code-review/SKILL.md"]
+"share/praxis/config/skills/codebase-design" = ["config/skills/codebase-design/SKILL.md"]
+"share/praxis/config/skills/command-execution" = ["config/skills/command-execution/SKILL.md"]
+"share/praxis/config/skills/dependency-management" = ["config/skills/dependency-management/SKILL.md"]
+"share/praxis/config/skills/diagnosing-bugs" = ["config/skills/diagnosing-bugs/SKILL.md"]
+"share/praxis/config/skills/domain-modeling" = ["config/skills/domain-modeling/SKILL.md"]
+"share/praxis/config/skills/grill-me" = ["config/skills/grill-me/SKILL.md"]
+"share/praxis/config/skills/grilling" = ["config/skills/grilling/SKILL.md"]
+"share/praxis/config/skills/handoff" = ["config/skills/handoff/SKILL.md"]
+"share/praxis/config/skills/kernel" = ["config/skills/kernel/SKILL.md"]
+"share/praxis/config/skills/research" = ["config/skills/research/SKILL.md"]
+"share/praxis/config/skills/resolving-merge-conflicts" = ["config/skills/resolving-merge-conflicts/SKILL.md"]
+"share/praxis/config/skills/scout" = ["config/skills/scout/SKILL.md"]
+"share/praxis/config/skills/self" = ["config/skills/self/SKILL.md"]
+"share/praxis/config/skills/tdd" = ["config/skills/tdd/SKILL.md"]
+"share/praxis/config/skills/tool-pipeline" = ["config/skills/tool-pipeline/SKILL.md"]
+"share/praxis/config/skills/writing-for-agents" = ["config/skills/writing-for-agents/SKILL.md"]
+"share/praxis/locales" = ["locales/*.yaml"]
+
+[build-system]
+requires = ["setuptools>=83"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["src"]
+addopts = "-v --tb=short --strict-markers -W ignore::DeprecationWarning -n auto --dist loadfile"
+# -n auto: use all idle CPU cores (xdist). --dist loadfile: parallel across
+# files, serial within a file (keeps same-file port bindings safe).
+markers = [
+    "flaky(reruns=1, reruns_delay=1): rerun a known-flaky test before failing",
+]
+# Strict asyncio mode: async tests must be marked @pytest.mark.asyncio —
+# an unmarked async test would otherwise run as a sync test, return a
+# coroutine object and pass silently. Existing async coverage uses
+# asyncio.run() explicitly (no async def test_), so this only guards
+# future tests.
+asyncio_mode = "strict"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RET", "PLR0911"]
+ignore = ["E501", "N812", "SIM117"]
+
+[tool.ruff.lint.per-file-ignores]
+# PLR0911 (too many return branches): pre-existing debt — exempted so the
+# nightly full-tree gate stays green while new code is still gated by the
+# rule. Clean these up in a dedicated pass, then drop the exemptions.
+"src/l1/kernel/vfs.py" = ["PLR0911"]
+"src/l2/l2_shell/commands/ci.py" = ["PLR0911"]
+"src/l2/l2_shell/commands/extra_stats.py" = ["PLR0911"]
+"src/l2/l2_shell/commands/memory.py" = ["PLR0911"]
+"src/l2/l2_shell/commands/model.py" = ["PLR0911"]
+"src/l2/l2_shell/commands/system.py" = ["PLR0911"]
+"src/l3/agent/_term_handlers.py" = ["PLR0911"]
+"src/l3/agent/stagnation.py" = ["PLR0911"]
+"src/l3/bus/ipc.py" = ["PLR0911"]
+"src/l3/cell/peers/l3a/api.py" = ["PLR0911"]
+"src/l3/cell/peers/l3a/helpers.py" = ["PLR0911"]
+"src/l3/memory/memory_graph.py" = ["PLR0911"]
+"src/l3/memory/memory_inject.py" = ["PLR0911"]
+"src/l3/memory/skill_guidance.py" = ["PLR0911"]
+"src/l3/services/capability_store.py" = ["PLR0911"]
+"src/l3/services/code_format.py" = ["PLR0911"]
+"src/l3/services/file_editor_engine.py" = ["PLR0911"]
+"src/l3/services/todo_tracker.py" = ["PLR0911"]
+"src/l3/tool_system/tool_pipeline_steps.py" = ["PLR0911"]
+"src/l3/tool_system/tool_spec.py" = ["PLR0911"]
+"src/l3/tools/_skills.py" = ["PLR0911"]
+"src/l4/api/api_handlers_diff.py" = ["PLR0911"]
+"src/l4/api_handlers/api_handlers_config.py" = ["PLR0911"]
+"src/l4/llm/llm_retry.py" = ["PLR0911"]
+"src/l4/sandbox/cell_sandbox.py" = ["PLR0911"]
+"src/l4/sandbox/sandbox_diff.py" = ["PLR0911"]
+"src/l4/search/search_engine.py" = ["PLR0911"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+allow_untyped_calls = true
+allow_untyped_decorators = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = false
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+fail_under = 60

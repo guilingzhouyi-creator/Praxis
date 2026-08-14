@@ -1,0 +1,26 @@
+# Shell family — dialect adapters over the shared L2 command engine.
+#
+# A shell translates frontend input lines into engine calls and returns
+# render-ready dict results; the engine contract (l2.l2_shell dispatch)
+# stays stable while new frontends register additional shells without code
+# changes.
+#
+# Structure:
+#   enabled   — master switch (settings flat key `shells.enabled`, default
+#               true; settable via /api/v2/settings) — NOT a field that
+#               must appear here
+#   shells    — member factories: {name: {module, class}}; the class must
+#               declare a `name` attribute matching the key
+#   bindings  — frontend → shell name (resolve() falls back to `default`)
+#   default   — shell used when no binding matches
+
+shells:
+  default: terminal
+  shells:
+    # Interactive terminal dialect (`!` intents, `$` system commands,
+    # `/` engine commands, direct tool calls) — migrated from l2/shell.py.
+    terminal:
+      module: l2.shells.terminal
+      class: TerminalShell
+  bindings:
+    terminal: terminal

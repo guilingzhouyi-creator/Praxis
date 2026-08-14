@@ -1,0 +1,235 @@
+"""Memory ring layer — extracted from memory.py for modularity.
+
+Contains MemEntry, RingLayer, and _estimate_tokens that were split out
+by OpenCode during memory.py refactoring.
+"""
+
+from __future__ import annotations
+
+import heapq
+import logging
+import threading
+import time
+from collections import deque
+from dataclasses import asdict, dataclass, field
+
+from l1.kernel.params.system import (
+    LOG_TRUNC_100,
+    LOG_TRUNC_200,
+    LOG_TRUNC_500,
+    MEMORY_IMPORTANCE_BASE,
+    MEMORY_IMPORTANCE_HIGH,
+    MEMORY_IMPORTANCE_MODERATE,
+    MEMORY_RING_SCORE_AVERAGE_THRESHOLD,
+    MEMORY_RING_SCORE_CHAR_WEIGHT,
+    MEMORY_RING_SCORE_GOOD_THRESHOLD,
+    MEMORY_RING_SCORE_HIGH_IMPORTANCE,
+    MEMORY_RING_SCORE_LONG_TOKENS,
+    MEMORY_RING_SCORE_MEDIUM_TOKENS,
+    MEMORY_RING_SCORE_MODERATE_IMPORTANCE,
+    MEMORY_RING_SCORE_TAG_WEIGHT,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _estimate_tokens(text: str, provider: str = "") -> int:
+    """Token count estimation with optional provider-specific accuracy."""
+    try:
+        import tiktoken as _tk
+
+        enc = _tk.get_encoding("cl100k_base")
+        return len(enc.encode(text))
+    except Exception as e:
+        logger.warning("services/memory: %s", e)
+
+    if provider == "anthropic":
+        cjk = sum(
+            1 for c in text if "\u4e00" <= c <= "\u9fff" or "\u3040" <= c <= "\u30ff" or "\uac00" <= c <= "\ud7af"
+        )
+        eng = len(text) - cjk
+        return max(1, eng // 4 + cjk)
+
+    return max(1, len(text) // 4)
+
+
+@dataclass
+class MemEntry:
+    """MemEntry — mem entry record (id, agent_id, entry_type, content, cell_id)."""
+
+    id: str
+    agent_id: str
+    entry_type: str
+    content: str
+    cell_id: str = ""
+    tokens: int = 0
+    tags: list[str] = field(default_factory=list)
+    source: str = ""
+    fingerprint: str = ""
+    importance: float = MEMORY_IMPORTANCE_BASE
+    timestamp: float = field(default_factory=time.time)
+    ttl: float = 0.0
+    provenance: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not self.tokens:
+            self.tokens = _estimate_tokens(self.content)
+
+    def expired(self) -> bool:
+        """Check whether this entry has exceeded its TTL."""
+        return self.ttl > 0 and (time.time() - self.timestamp) > self.ttl
+
+    def to_dict(self) -> dict:
+        """Serialize this entry to a plain dict."""
+        return asdict(self)
+
+    def quality_note(self) -> str:
+        """Score entry quality; returns a keyword note describing the score band."""
+        if not self.content or not self.content.strip():
+            return "empty"
+        score = len(self.content) * MEMORY_RING_SCORE_CHAR_WEIGHT
+        if self.tags:
+            score += len(self.tags) * MEMORY_RING_SCORE_TAG_WEIGHT
+        if self.importance > MEMORY_IMPORTANCE_HIGH:
+            score += MEMORY_RING_SCORE_HIGH_IMPORTANCE
+        elif self.importance > MEMORY_IMPORTANCE_MODERATE:
+            score += MEMORY_RING_SCORE_MODERATE_IMPORTANCE
+        if self.tokens > LOG_TRUNC_500:
+            score += MEMORY_RING_SCORE_LONG_TOKENS
+        elif self.tokens > LOG_TRUNC_100:
+            score += MEMORY_RING_SCORE_MEDIUM_TOKENS
+        if score >= MEMORY_RING_SCORE_GOOD_THRESHOLD:
+            return "good"
+        if score >= MEMORY_RING_SCORE_AVERAGE_THRESHOLD:
+            return "average"
+        return "low"
+
+
+class RingLayer:
+    """Token-aware ring buffer with importance-weighted eviction."""
+
+    def __init__(self, name: str, max_tokens: int, max_entries: int = 0, ttl: float = 0):
+        self.name = name
+        self.max_tokens = max_tokens
+        self.max_entries = max_entries or max_tokens // 100
+        self.default_ttl = ttl
+        self._entries: deque[MemEntry] = deque(maxlen=self.max_entries)
+        self._token_count = 0
+        # Eviction heap: (importance, timestamp, id(entry)) — lowest importance + oldest first
+        self._evict_heap: list[tuple[float, float, int]] = []
+        # Reverse indexes for O(1) query lookups
+        self._agent_index: dict[str, list[MemEntry]] = {}
+        self._type_index: dict[str, list[MemEntry]] = {}
+        self._tag_index: dict[str, list[MemEntry]] = {}
+        self._lock = threading.Lock()
+
+    def push(self, entry: MemEntry) -> None:
+        """Push an entry into the ring layer with automatic eviction if over budget."""
+        with self._lock:
+            self._entries.append(entry)
+            self._token_count += entry.tokens
+            heapq.heappush(self._evict_heap, (entry.importance, entry.timestamp, id(entry)))
+            # Update reverse indexes
+            self._agent_index.setdefault(entry.agent_id, []).append(entry)
+            self._type_index.setdefault(entry.entry_type, []).append(entry)
+            for tag in entry.tags:
+                self._tag_index.setdefault(tag, []).append(entry)
+            self._evict_if_needed()
+
+    def query(
+        self, agent_id: str | None = None, entry_type: str | None = None, tag: str | None = None, limit: int = 20
+    ) -> list[MemEntry]:
+        """Query entries from the ring layer with optional filters."""
+        with self._lock:
+            # Use reverse indexes for O(1) lookup by agent/type/tag
+            if agent_id and agent_id in self._agent_index:
+                candidates = self._agent_index[agent_id]
+            elif entry_type and entry_type in self._type_index:
+                candidates = self._type_index[entry_type]
+            elif tag and tag in self._tag_index:
+                candidates = self._tag_index[tag]
+            else:
+                candidates = list(self._entries)
+            results = [e for e in candidates if not e.expired()]
+        if entry_type and not (agent_id and agent_id in self._agent_index):
+            results = [e for e in results if e.entry_type == entry_type]
+        if agent_id and not (agent_id and agent_id in self._agent_index):
+            results = [e for e in results if e.agent_id == agent_id]
+        if tag:
+            results = [e for e in results if tag in e.tags]
+        return results[:limit]
+
+    def summarize(self, agent_id: str) -> str:
+        """Return a text summary of recent entries for an agent."""
+        with self._lock:
+            # Use the agent reverse index (O(1) lookup) instead of a full
+            # scan of _entries — cheap for hot summarize calls.
+            candidates = self._agent_index.get(agent_id, [])
+            entries = [e for e in candidates if not e.expired()]
+        if not entries:
+            return ""
+        return "\n".join(f"[{e.entry_type}] {e.content[:LOG_TRUNC_200]}" for e in entries[-10:])
+
+    def count(self) -> int:
+        """Return the current number of entries."""
+        with self._lock:
+            return len(self._entries)
+
+    def token_count(self) -> int:
+        """Return the current total token count."""
+        with self._lock:
+            return self._token_count
+
+    def clear_agent(self, agent_id: str) -> int:
+        """Remove all entries for a given agent. Returns number removed."""
+        with self._lock:
+            before = len(self._entries)
+            kept = [e for e in self._entries if e.agent_id != agent_id]
+            removed = before - len(kept)
+            if removed:
+                # Single-pass rebuild: O(n) instead of O(n*m) list.remove() churn.
+                self._entries = deque(kept, maxlen=self.max_entries)
+                self._rebuild_token_count()
+            return removed
+
+    def forget_cell(self, cell_id: str) -> int:
+        """Remove all entries for a given cell. Returns number removed."""
+        with self._lock:
+            before = len(self._entries)
+            kept = [e for e in self._entries if e.cell_id != cell_id]
+            removed = before - len(kept)
+            if removed:
+                # Single-pass rebuild: O(n) instead of O(n*m) list.remove() churn.
+                self._entries = deque(kept, maxlen=self.max_entries)
+                self._rebuild_token_count()
+            return removed
+
+    def to_dict(self) -> list[dict]:
+        """Serialize all entries to a list of dicts."""
+        with self._lock:
+            return [e.to_dict() for e in self._entries]
+
+    def _evict_if_needed(self) -> None:
+        """O(log n) eviction via heap — pop lowest importance + oldest entries."""
+        while self._token_count > self.max_tokens and self._evict_heap:
+            imp, ts, eid = heapq.heappop(self._evict_heap)
+            # Skip stale heap entries (entry already removed from _entries by other paths)
+            target = next((e for e in self._entries if id(e) == eid), None)
+            if target is None:
+                continue
+            self._entries.remove(target)
+            self._token_count -= target.tokens
+
+    def _rebuild_token_count(self) -> None:
+        self._token_count = sum(e.tokens for e in self._entries)
+        # Rebuild eviction heap and reverse indexes
+        self._evict_heap = [(e.importance, e.timestamp, id(e)) for e in self._entries]
+        heapq.heapify(self._evict_heap)
+        self._agent_index = {}
+        self._type_index = {}
+        self._tag_index = {}
+        for e in self._entries:
+            self._agent_index.setdefault(e.agent_id, []).append(e)
+            self._type_index.setdefault(e.entry_type, []).append(e)
+            for tag in e.tags:
+                self._tag_index.setdefault(tag, []).append(e)
