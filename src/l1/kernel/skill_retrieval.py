@@ -68,18 +68,54 @@ class SkillRetrievalMixin:
             "stage": stage,
         }
 
+    # ── Layered index (P0-②) ──
+    # layer -> set(skill names): rebuilt lazily on revision change so
+    # per-layer listing avoids a full registry scan on every call.
+    _layer_index: dict[str, set[str]] | None = None
+    _layer_index_rev: int = -1
+
+    def _layer_names(self, layer: str) -> set[str]:
+        """Names of skills in a generalization layer (revision-cached)."""
+        try:
+            rev = self._revision
+        except AttributeError:
+            rev = -1
+        with self._lock:
+            if self._layer_index is None or self._layer_index_rev != rev:
+                index: dict[str, set[str]] = {}
+                for n, s in self._skills.items():
+                    key = str(s.get("layer", "") or "")
+                    if key:
+                        index.setdefault(key, set()).add(n)
+                self._layer_index = index
+                self._layer_index_rev = rev
+            return set(self._layer_index.get(layer, set()))
+
     def list_skills(
-        self, tags: list[str] | None = None, limit: int = 0, sort_by: str = "name", include_prompt: bool = False
+        self,
+        tags: list[str] | None = None,
+        limit: int = 0,
+        sort_by: str = "name",
+        include_prompt: bool = False,
+        layer: str = "",
     ) -> list[dict]:
-        """List skills, optionally filtered by tags and sorted.
+        """List skills, optionally filtered by tags/layer and sorted.
 
         Args:
             tags: Filter by these tags (any match).
             limit: Max results (0 = unlimited).
             sort_by: Sort key: ``"name"`` (default), ``"loaded_at"``, ``"last_used"``.
+            include_prompt: include the full prompt in each projection.
+            layer: Filter by generalization layer (``"exec"`` /
+                ``"decision"`` / other; "" = all). The layer index is
+                rebuilt lazily on revision change, so per-layer listing
+                stays O(layer size) instead of a full registry scan.
         """
         with self._lock:
             items = list(self._skills.items())
+        if layer:
+            names = self._layer_names(layer)
+            items = [(n, s) for n, s in items if n in names]
         result = []
         for n, s in items:
             if tags:

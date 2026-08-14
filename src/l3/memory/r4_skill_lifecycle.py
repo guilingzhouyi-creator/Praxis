@@ -167,7 +167,50 @@ class SkillLifecycleMixin:
                     updated += 1
                 except Exception:
                     logger.debug("R4Agent: rule preference update failed for %s", name)
+            # P1-④ verify gate: aggregate the rule-level signals into a
+            # skill-level confidence state — verified >= PROMOTE promotes
+            # the candidate to active; hit >= ROLLBACK rolls it back to
+            # deprecated (auditable via the pre-update archive).
+            try:
+                self._apply_verify_gate(sm, name, new_rules)
+            except Exception:
+                logger.debug("R4Agent: verify gate failed for %s", name)
         return updated
+
+    def _apply_verify_gate(self, sm: Any, name: str, rules: list[Any]) -> None:
+        """P1-④: promote/rollback a generalized skill from card signals.
+
+        Aggregates the rule-level ``verified`` / ``hit`` counters; the
+        skill-level state transitions candidate → active (promote) or
+        candidate → deprecated (rollback, with archive baseline).
+
+        Args:
+            sm: the skill manager.
+            name: the generalized lessons skill name.
+            rules: the updated rule list (post-signal).
+        """
+        from l1.kernel.params.agent import R4_VERIFY_PROMOTE_THRESHOLD, R4_VERIFY_ROLLBACK_THRESHOLD
+
+        verified = 0
+        hit = 0
+        for r in rules:
+            if isinstance(r, dict):
+                verified += int(r.get("verified", 0) or 0)
+                hit += int(r.get("hit", 0) or 0)
+        rec = sm.get(name)
+        if not rec:
+            return
+        status = str(rec.get("status", "") or "")
+        if verified >= R4_VERIFY_PROMOTE_THRESHOLD and status != "active":
+            sm.update(name, {"status": "active"}, internal=True)
+            logger.info("R4Agent: verify gate promoted %s (verified=%d)", name, verified)
+        elif hit >= R4_VERIFY_ROLLBACK_THRESHOLD and status != "deprecated":
+            try:
+                self._archive_before_evolve(name, rec)
+            except Exception:
+                logger.debug("R4Agent: verify-gate archive failed for %s", name)
+            sm.update(name, {"status": "deprecated"}, internal=True)
+            logger.info("R4Agent: verify gate rolled back %s (hit=%d)", name, hit)
 
     def _detect_skill_conflicts(self) -> list[dict]:
         """Detect duplicate / contradictory evolved skills per tool.

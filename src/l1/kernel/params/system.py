@@ -749,6 +749,9 @@ MEMORY_PRESSURE_INTERVAL: Final[float] = 60.0
 MEMORY_PROMOTION_THRESHOLD: Final[float] = 0.6
 # Importance cutoff for high-priority retention
 MEMORY_IMPORTANCE_HIGH: Final[float] = 0.7
+# Ring-promotion ladder (P1-①): entries whose importance clears this
+# threshold are batch-promoted R1→R2→R3 by the R4Agent tick.
+MEMORY_PROMOTE_MIN_IMPORTANCE: Final[float] = 0.6
 # Importance cutoff for very-high-priority retention
 MEMORY_IMPORTANCE_VERY_HIGH: Final[float] = 0.85
 # Importance cutoff for critical retention

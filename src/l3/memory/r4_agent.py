@@ -206,6 +206,23 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
             results["archived"] = archived
             self._total_archived += archived
 
+            # 2a. Ring-promotion ladder (P1-①): importance-clearing entries
+            # are batch-promoted R1→R2→R3 by measured importance — the
+            # memory-generalization chain is driven by the tick, not by
+            # manual promote calls.
+            try:
+                from l1.kernel.params.system import MEMORY_PROMOTE_MIN_IMPORTANCE
+
+                from .memory import get_memory
+
+                mem = get_memory()
+                promoted = mem.auto_promote(MEMORY_PROMOTE_MIN_IMPORTANCE, from_ring=1, to_ring=2)
+                promoted += mem.auto_promote(MEMORY_PROMOTE_MIN_IMPORTANCE, from_ring=2, to_ring=3)
+                if promoted:
+                    results["ring_promoted"] = promoted
+            except Exception as e:
+                logger.debug("R4Agent: ring promotion skipped: %s", e)
+
             # 3. Consistency check
             contradictions = self._check_consistency()
             results["contradictions"] = contradictions
