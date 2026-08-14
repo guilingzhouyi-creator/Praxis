@@ -110,6 +110,15 @@ class Session(
             record_session_open(session_id=session_id, title=title)
         except Exception:
             logger.debug("l3a session: history open record skipped")
+        # 3.3 P0-①: bind the decision-layer session to the backing terminal
+        # (dual identity: session_id <-> process_id <-> terminal) so the
+        # session entity is unique and trackable in production runs.
+        try:
+            from l3.agent_terminal import register_session
+
+            register_session(session_id, _p.AGENT_ID)
+        except Exception:
+            logger.debug("l3a session: dual-identity bind skipped")
         self.closed_at: float | None = None
         self.turn_count = 0
         self.card_count = 0

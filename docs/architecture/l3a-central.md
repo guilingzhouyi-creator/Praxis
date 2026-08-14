@@ -138,3 +138,22 @@ threshold resets a tripped breaker.
 ON, switchable via `/api/v2/memory/sensitive` + L2 `/memory sensitive`)
 scans each folded summary for API keys / bearer tokens / private keys / IP
 literals; hits are reported, never blocking the fold.
+
+## Session management (3.3)
+
+The decision layer runs ONE session entity (the secretary expands
+dynamically); the execution layer runs 3 Peer Agent sessions (equal
+rights). The management system covers:
+
+| Feature | Surface |
+|---------|---------|
+| Dual identity (session_id ↔ process_id ↔ terminal) | `agent_terminal` session registry, bound at `Session` construction |
+| Session monitor (default ON) | `session_monitor()` + `GET/PUT /api/v2/session-monitor` + L2 `/session monitor` |
+| Auto-reload on anomaly (default ON) | `auto_reload_session` / `on_stagnation` + `POST /api/v2/session-reload` + L2 `/session reload` |
+| Decision-layer JSON trio | conversation (`*_conversation.json`, tagged user/answer layers + input seq), thought chain (`*_thoughts.json`, R5 feed), tool failures (`*_tools.json`, successes dropped) — `session_json.py` |
+| Session history (default ON) | `record_session_open/close` (start/end/duration) + `GET/PUT /api/v2/session-history` + L2 `/session history` |
+| Dynamic loader + TUI resume | `session_loader.py` (pagination + label alternation + cache hits) + L2 `/session resume` |
+
+The decision-layer JSON files are compact and referenced by tags (session
+id + input-sequence id); successful tool calls are dropped, failed ones
+kept for R5 analysis and skill formation.
