@@ -78,6 +78,7 @@ flowchart TB
 | L3 | [l3a-central.md](l3a-central.md) | L3A decision layer: the central office (sessions, ask, cardwrite, profile) |
 | L3 | [l3-tools.md](l3-tools.md) | 20 tool implementations + tool system (spec/registry/policy/pipeline) |
 | L3 | [l3-tool-presentation.md](l3-tool-presentation.md) | Code Mode / PTC: presentation modes (native/code/both), run_code transport, per-Cell program cache |
+| L3 | [l3-prompt-architecture.md](l3-prompt-architecture.md) | Unified layered system prompts: Cell/global libraries (sub-libs), versioning, bypass monitor |
 | L3 | [l3-bus.md](l3-bus.md) | IPC protocol (20+ message types) + buses + ReferenceChannel causal recorder |
 | L3 | [security-evidence.md](security-evidence.md) | Attack-posture evidence chains: fixity-verified records, verdicts, bypass audit API |
 | L3 | [l3-cell-os.md](l3-cell-os.md) | Cell SoC components (ICache/MMU/PMU/Watchdog/…), boot, lifecycle |

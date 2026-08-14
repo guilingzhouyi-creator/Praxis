@@ -271,7 +271,11 @@ class AgentLoopContextMixin:
                 )
                 # Language-specific usage from the backend; a praxis.yaml
                 # prompt override (agent_loop.run_code_usage) wins if present.
-                usage = get_prompt("agent_loop.run_code_usage", "") or backend.render_usage()
+                # Monitored getter: counts usage for the bypass monitor
+                # (engineering/debug mode, 3.2).
+                from l1.kernel.prompts import get_prompt_monitored
+
+                usage = get_prompt_monitored("agent_loop.run_code_usage", "") or backend.render_usage()
                 # Stable-prefix assembly: system + usage + SDK form the
                 # byte-stable prefix every request reuses (vendor KV-cache
                 # hits); the incremental suffix (program/patch/results) is

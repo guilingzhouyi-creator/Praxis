@@ -151,6 +151,23 @@ def resolve_global_prompt(load: float = 0.0, domain: str = "") -> str:
         known = set(_sub_libraries.keys())
     if not enabled:
         return ""
+    # Config-driven loading: ensure the built-in sub-libraries are loaded
+    # from config/prompts/<name>.md (lazy, once); layered-key fallback
+    # (global.<name>) applies when the config file is absent.
+    for name in ("security", "performance", "extension"):
+        if name not in known:
+            text = _load_sub_library(name)
+            if not text:
+                try:
+                    from l1.kernel.prompts import get_prompt
+
+                    text = get_prompt(f"global.{name}", "")
+                except Exception:
+                    text = ""
+            if text:
+                with _lock:
+                    _sub_libraries[name] = text
+                    known.add(name)
     # System-driven selection (never user choice).
     order: list[str] = []
     if (

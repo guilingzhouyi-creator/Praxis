@@ -48,6 +48,10 @@ def set_prompt_monitor(enabled: bool | None = None) -> dict:
     with _lock:
         if enabled is not None:
             _state["enabled"] = bool(enabled)
+            if enabled:
+                # Enabling installs the usage hook so get_prompt_monitored
+                # counts hits in production paths (engineering/debug mode).
+                install_prompt_hook()
         return {"success": True, **prompt_monitor_status()}
 
 
