@@ -67,35 +67,42 @@ def _make_binding(agent_id: str):
 def _exec_program_inline(program: str, agent_id: str, timeout: float) -> dict:
     """Execute a Python program in-process with injected tool bindings.
 
-    The program runs under a hard timeout; its stdout is captured and only
-    the captured output re-enters the model context. Every SDK binding call
-    (``_praxis_call``) executes the real tool through the pipeline and is
-    recorded on the audit chain.
+    The program runs in a worker thread under a hard timeout (threading, not
+    SIGALRM — ``signal.signal`` only works in the main thread, while the
+    pipeline may execute tools on a ThreadPoolExecutor). Its stdout is
+    captured and only the captured output re-enters the model context.
+    Every SDK binding call (``_praxis_call``) executes the real tool through
+    the pipeline and is recorded on the audit chain.
     """
     import io
-    import signal
+    import threading
     from contextlib import redirect_stdout
 
     namespace: dict = {"_praxis_call": _make_binding(agent_id), "__name__": "__main__"}
     buf = io.StringIO()
+    outcome: dict = {}
 
-    def _timeout_handler(_signum, _frame):
-        raise TimeoutError(f"run_code program timed out after {timeout}s")
+    def _run() -> None:
+        try:
+            with redirect_stdout(buf):
+                exec(compile(program, "<run_code>", "exec"), namespace)  # noqa: S102 - DANGER-3 tool
+            outcome["success"] = True
+            outcome["stdout"] = buf.getvalue()
+        except Exception as e:  # program error — report, do not crash the pipeline
+            outcome["success"] = False
+            outcome["error"] = f"program error: {e}"
+            outcome["stdout"] = buf.getvalue()
 
-    old_handler = signal.getsignal(signal.SIGALRM)
-    signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(max(1, int(timeout)))
-    try:
-        with redirect_stdout(buf):
-            exec(compile(program, "<run_code>", "exec"), namespace)  # noqa: S102 - DANGER-3 tool
-        return {"success": True, "stdout": buf.getvalue()}
-    except TimeoutError as e:
-        return {"success": False, "error": str(e)}
-    except Exception as e:  # program error — report, do not crash the pipeline
-        return {"success": False, "error": f"program error: {e}", "stdout": buf.getvalue()}
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive():
+        return {"success": False, "error": f"run_code program timed out after {timeout}s"}
+    return {
+        "success": outcome.get("success", False),
+        "error": outcome.get("error", ""),
+        "stdout": outcome.get("stdout", ""),
+    }
 
 
 def _exec_backend(backend, program_path, program: str, agent_id: str, timeout: float, cache_dir) -> dict:
