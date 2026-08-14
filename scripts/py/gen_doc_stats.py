@@ -2,12 +2,12 @@
 
 Run before updating docs/architecture/README.md (the numbers snapshot):
 
-    python scripts/py/gen-doc-stats.py
+    python scripts/py/gen_doc_stats.py
 
 Prints the stats table used by README.md. Never hand-edit the numbers —
 they drift; regenerate instead. The counting logic lives in ``collect_stats``
 (``scripts/py/collect_stats.py``) — the single source of truth shared by
-``gen-llms-txt.py`` and ``check-doc-stats.py``.
+``gen_llms_txt.py`` and ``check_doc_stats.py``.
 """
 
 from __future__ import annotations

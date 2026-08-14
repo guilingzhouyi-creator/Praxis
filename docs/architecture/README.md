@@ -3,7 +3,7 @@
 Five-layer Agent Operating System. Each layer document covers responsibility
 boundaries, module inventory, core mechanisms, and contract surfaces.
 
-> **Numbers below are generated** — run `python scripts/py/gen-doc-stats.py`
+> **Numbers below are generated** — run `python scripts/py/gen_doc_stats.py`
 > to refresh; never hand-edit them.
 
 ## System overview

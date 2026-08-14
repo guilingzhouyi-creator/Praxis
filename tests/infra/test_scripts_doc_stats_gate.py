@@ -1,4 +1,4 @@
-"""Tests for scripts/py/check-doc-stats.py — the doc-stats drift gate.
+"""Tests for scripts/py/check_doc_stats.py — the doc-stats drift gate.
 
 The script filename has a hyphen, so it is loaded by path with importlib
 (the same pattern the script itself uses to load gen-doc-stats). Gate the
@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
-_spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "scripts" / "py" / "check-doc-stats.py")
+_spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "scripts" / "py" / "check_doc_stats.py")
 check_doc_stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_doc_stats)
 

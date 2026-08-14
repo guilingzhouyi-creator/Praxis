@@ -8,9 +8,9 @@ documentation files.  Unclassified paths are treated as code so a change
 with unknown files can never slip through as "small".
 
 Usage:
-    python scripts/py/classify-diff.py --base <sha> --head <sha> [--threshold 1000]
-    python scripts/py/classify-diff.py --numstat-file <path> [--threshold 1000]
-    git diff --numstat base...head | python scripts/py/classify-diff.py [--threshold 1000]
+    python scripts/py/classify_diff.py --base <sha> --head <sha> [--threshold 1000]
+    python scripts/py/classify_diff.py --numstat-file <path> [--threshold 1000]
+    git diff --numstat base...head | python scripts/py/classify_diff.py [--threshold 1000]
 
 Output (JSON):
     {"code_lines": int, "doc_lines": int, "total_lines": int,

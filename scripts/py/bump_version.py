@@ -7,8 +7,8 @@ docs/ SOC references must change in one commit. This script performs that
 update in one pass.
 
 Usage:
-    python scripts/py/bump-version.py 0.4.2           # bump to 0.4.2
-    python scripts/py/bump-version.py 0.4.2 --dry-run # show changes, write nothing
+    python scripts/py/bump_version.py 0.4.2           # bump to 0.4.2
+    python scripts/py/bump_version.py 0.4.2 --dry-run # show changes, write nothing
 
 The new version must be a plain X.Y.Z semantic version (patch for contract-safe
 additions, minor for API/behavior changes — see AGENTS.md).

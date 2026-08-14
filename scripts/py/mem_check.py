@@ -8,7 +8,7 @@ closure referenced" defect class in long-lived daemons and API processes.
 
 Usage (from the repo root, exit code 1 on suspected leak):
 
-    python scripts/py/mem-check.py
+    python scripts/py/mem_check.py
 """
 
 from __future__ import annotations

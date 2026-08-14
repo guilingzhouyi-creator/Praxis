@@ -5,10 +5,10 @@ groups them by Conventional-Commits type into Keep-a-Changelog sections. Only
 subjects that match the commit-msg type gate are recorded — a non-conventional
 subject is silently dropped, so "detected type = update, else skip".
 
-    python scripts/py/generate-changelog.py           # update [Unreleased]
-    python scripts/py/generate-changelog.py --dry-run # preview, write nothing
+    python scripts/py/generate_changelog.py           # update [Unreleased]
+    python scripts/py/generate_changelog.py --dry-run # preview, write nothing
 
-Called before a release (or by `make changelog`); bump-version.py then moves
+Called before a release (or by `make changelog`); bump_version.py then moves
 [Unreleased] into the versioned section.
 """
 

@@ -34,13 +34,13 @@ coverage:
 	python -m pytest tests/ -q --tb=short --cov=src --cov-report=term --cov-report=html --cov-fail-under=60 --ignore=tests/benchmarks/bench_card.py
 
 doc-index:
-	python scripts/py/check-doc-index.py
+	python scripts/py/check_doc_index.py
 
 doc-stats:
-	python scripts/py/gen-doc-stats.py
-	python scripts/py/check-doc-stats.py --fix
-	python scripts/py/gen-llms-txt.py
-	python scripts/py/check-doc-index.py
+	python scripts/py/gen_doc_stats.py
+	python scripts/py/check_doc_stats.py --fix
+	python scripts/py/gen_llms_txt.py
+	python scripts/py/check_doc_index.py
 
 hooks:
 	git config core.hooksPath .githooks
@@ -62,13 +62,13 @@ push-both:
 	bash scripts/sh/push-both.sh
 
 bump-version:
-	python scripts/py/bump-version.py
+	python scripts/py/bump_version.py
 
 release-build:
 	python -m build
 
 changelog:
-	python scripts/py/generate-changelog.py
+	python scripts/py/generate_changelog.py
 
 changelog-check:
-	python scripts/py/check-changelog.py
+	python scripts/py/check_changelog.py

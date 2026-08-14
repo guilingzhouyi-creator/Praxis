@@ -102,7 +102,7 @@ jobs:
           cache: "pip"
       - run: pip install -e ".[test]"
       - name: Memory-leak check
-        run: python scripts/py/mem-check.py
+        run: python scripts/py/mem_check.py
 
   import-cycle:
     # Circular-import gate: src/ module graph must stay acyclic at load
@@ -117,7 +117,7 @@ jobs:
           cache: "pip"
       - run: pip install -e ".[test]"
       - name: Circular import check
-        run: python scripts/py/import-cycle-check.py
+        run: python scripts/py/import_cycle_check.py
 
   judge-stats:
     # CompletionJudge effectiveness report: aggregates local judge runs

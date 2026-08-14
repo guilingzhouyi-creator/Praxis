@@ -39,7 +39,7 @@ jobs:
           HEAD="${{ github.event.pull_request.head.sha }}"
           git diff --numstat "$BASE...$HEAD" 2>/dev/null > /tmp/diff.numstat || \
             git diff --numstat "$BASE" "$HEAD" > /tmp/diff.numstat
-          python scripts/py/classify-diff.py --numstat-file /tmp/diff.numstat > /tmp/class.json
+          python scripts/py/classify_diff.py --numstat-file /tmp/diff.numstat > /tmp/class.json
           CODE=$(python -c "import json;print(json.load(open('/tmp/class.json'))['code_lines'])")
           DOC=$(python -c "import json;print(json.load(open('/tmp/class.json'))['doc_lines'])")
           echo "code_lines=$CODE" >> "$GITHUB_OUTPUT"

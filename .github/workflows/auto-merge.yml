@@ -4,7 +4,7 @@ name: Auto-merge gate
 #   - conflicting PRs (with main or the base branch) are REJECTED
 #   - large code changes (>= threshold code lines) are HELD for review
 #   - small changes (below threshold, docs-only included) are AUTO-MERGED
-# Code vs docs classification lives in scripts/py/classify-diff.py.
+# Code vs docs classification lives in scripts/py/classify_diff.py
 #
 # NOTE: GitHub-side merge produces a non-GPG-signed commit; GitCode's
 # pre-receive hook rejects unsigned commits, so after an auto-merge the
@@ -78,7 +78,7 @@ jobs:
           HEAD="${{ steps.pr.outputs.head_sha }}"
           git diff --numstat "$BASE...$HEAD" 2>/dev/null > /tmp/diff.numstat || \
             git diff --numstat "$BASE" "$HEAD" > /tmp/diff.numstat
-          python scripts/py/classify-diff.py --numstat-file /tmp/diff.numstat \
+          python scripts/py/classify_diff.py --numstat-file /tmp/diff.numstat \
             --threshold 1000 > /tmp/class.json
           cat /tmp/class.json
           CODE_LINES=$(python -c "import json;print(json.load(open('/tmp/class.json'))['code_lines'])")

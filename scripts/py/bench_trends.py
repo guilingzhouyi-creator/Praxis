@@ -7,8 +7,8 @@ latest runs against the baseline. Complements ``benchmark.yml``'s single-run
 baseline comparison with cross-run trend tracking.
 
 Usage:
-  python scripts/py/bench-trends.py record <wall> <steps> [run_id] [ts]
-  python scripts/py/bench-trends.py summary            # show rolling trend
+  python scripts/py/bench_trends.py record <wall> <steps> [run_id] [ts]
+  python scripts/py/bench_trends.py summary            # show rolling trend
 
 Exit code 0 on success; 1 on malformed input or I/O error.
 """

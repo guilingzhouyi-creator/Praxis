@@ -1,4 +1,4 @@
-"""Tests for scripts/py/check-doc-index.py — the doc-index consistency gate.
+"""Tests for scripts/py/check_doc_index.py — the doc-index consistency gate.
 
 Loads the hyphenated script by path (importlib), same pattern as the other
 doc-tooling tests, and asserts the live index is in sync.
@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
-_spec = importlib.util.spec_from_file_location("check_doc_index", ROOT / "scripts" / "py" / "check-doc-index.py")
+_spec = importlib.util.spec_from_file_location("check_doc_index", ROOT / "scripts" / "py" / "check_doc_index.py")
 check_doc_index = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_doc_index)
 

@@ -6,7 +6,7 @@ the README link surface covers every .md under docs/architecture/ (excluding
 the generated llms files and README itself), so a new doc that skips
 registration fails CI instead of silently going unindexed.
 
-    python scripts/py/check-doc-index.py          # check only (CI gate)
+    python scripts/py/check_doc_index.py          # check only (CI gate)
 """
 
 from __future__ import annotations
