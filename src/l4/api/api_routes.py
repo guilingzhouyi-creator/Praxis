@@ -283,6 +283,31 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
     ("POST", "/api/v2/agent/direct", ".agent_direct", "Start/continue direct session"),
     ("POST", "/api/v2/agent/direct/close", ".agent_direct_close", "Close direct session"),
     ("GET", "/api/v2/agent/reachable/{id}", ".agent_reachable", "Agent session reachable"),
+    (
+        "GET",
+        "/api/v2/session-monitor",
+        ".session_monitor_get",
+        "Real-time session monitor (status/resource/progress, 3.3)",
+    ),
+    ("PUT", "/api/v2/session-monitor", ".session_monitor_set", "Enable/disable the session monitor (3.3, default ON)"),
+    (
+        "POST",
+        "/api/v2/session-reload",
+        ".session_reload_post",
+        "Auto-reload a session entity on anomaly / trigger reload (3.3)",
+    ),
+    (
+        "GET",
+        "/api/v2/session-history",
+        ".session_history_get",
+        "Session history records (start/end/duration, query, 3.3)",
+    ),
+    (
+        "PUT",
+        "/api/v2/session-history",
+        ".session_history_set",
+        "Enable/disable the session history module (3.3, default ON)",
+    ),
     ("POST", "/api/v2/agent/review", ".agent_review_message", "External LLM review message"),
     # Settings
     ("GET", "/api/v2/settings", ".settings", "Get settings"),

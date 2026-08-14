@@ -150,6 +150,14 @@ class SessionPersistMixin:
             self.status = "closed"
             self.closed_at = time.time()
             self.last_active_at = time.time()
+            # 3.3 P2-①: record the session end (ended_at + duration) in the
+            # history module for front-end recall and reload.
+            try:
+                from .session_json import record_session_close
+
+                record_session_close(sid, task_summary=title)
+            except Exception:
+                logger.debug("l3a session: history close record skipped")
             # Capture TODO state BEFORE nulling the loop
             try:
                 todo_state = self.todos()

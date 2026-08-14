@@ -1231,3 +1231,15 @@ STATS_TIMELINE_LIMIT: Final[int] = 20  # l2 extra.py timeline query default
 # ── Backup / disaster recovery ──
 BACKUP_AUTO_INTERVAL: Final[float] = 1800.0  # seconds between auto-backups (30 min)
 BACKUP_KEEP_MAX: Final[int] = 10  # keep this many most-recent snapshots
+
+# ── Session management (3.3) ──
+# Real-time session monitor (running status / resource / progress per
+# session entity). Operator switch (API /api/v2/session-monitor + L2
+# /session monitor), default ON.
+SESSION_MONITOR_ENABLED_DEFAULT: Final[bool] = True
+# Session auto-reload on anomaly (stagnation → full session reset,
+# distinct from interrupt resume). Operator switch (API + L2), default ON.
+SESSION_AUTO_RELOAD_ENABLED_DEFAULT: Final[bool] = True
+# Session history module (start/end/duration per session, queryable).
+# Operator switch (API + L2), default ON.
+SESSION_HISTORY_ENABLED_DEFAULT: Final[bool] = True
