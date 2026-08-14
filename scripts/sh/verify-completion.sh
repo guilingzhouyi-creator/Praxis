@@ -186,7 +186,7 @@ fi
 # ── 9. Singleton drift (test isolation) ──────────────────────────────────
 if [ "$RUN_SINGLETON" = "1" ]; then
   echo "[judge] ── 9. Singleton scan (conftest _RESETS sync) ──"
-  if python scripts/py/scan_singletons.py > /tmp/judge_singleton.log 2>&1; then
+  if python scripts/py/scan-singletons.py > /tmp/judge_singleton.log 2>&1; then
     S_SINGLETON=1; pass "singletons registered in _RESETS"
   else
     S_SINGLETON=2; head -5 /tmp/judge_singleton.log >&2
