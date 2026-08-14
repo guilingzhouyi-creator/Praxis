@@ -420,6 +420,20 @@ def memory_corpus_export(body: dict | None = None) -> dict:
     return export_corpus(limit=int((body or {}).get("limit", 0) or 0))
 
 
+def memory_rc_analysis(body: dict | None = None) -> dict:
+    """Correlate reference-channel memory events with refined records.
+
+    Args:
+        body: optional dict with ``limit`` (max RC events; 0 = default cap).
+
+    Returns:
+        dict with per-cell/per-type/per-ring aggregates + correlation ratio.
+    """
+    from l3.memory.memory_record_source import analyze_rc_correlation
+
+    return analyze_rc_correlation(limit=int((body or {}).get("limit", 100) or 100))
+
+
 def memory_digest_get(body: dict | None = None) -> dict:
     """Conversation digest-cache switch state (B1)."""
     from l3.agent.digest_cache import digest_status

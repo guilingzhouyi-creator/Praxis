@@ -127,3 +127,59 @@ def export_corpus(limit: int = 0) -> dict:
     except Exception as e:
         logger.debug("memory_record_source: corpus export failed: %s", e)
         return {"success": False, "error": str(e)}
+
+
+def analyze_rc_correlation(limit: int = 100) -> dict:
+    """Correlate reference-channel memory events with refined records.
+
+    The RC ``memory_refined`` events (emitted on every accepted memory
+    write) are aggregated per Cell / entry-type / ring and cross-checked
+    against the refined-records archive index — the operator sees how the
+    causal audit trail and the purified memory agree (data analysis on the
+    RC linkage, per the memory-upgrade requirement).
+
+    Args:
+        limit: max RC events to read (0 = default RC export cap).
+
+    Returns:
+        dict with per-cell / per-type / per-ring aggregates, the refined
+        record count, and a correlation ratio (0..1) of refined records
+        covered by RC events.
+    """
+    rc_events: list[dict] = []
+    try:
+        from l3.bus.reference_channel import get_rc
+
+        rc = get_rc()
+        rc.flush()  # persist the in-memory ring so export() sees all events
+        rc_events = rc.export(limit=limit, event_type="memory_refined") or []
+    except Exception as e:
+        logger.debug("memory_record_source: RC read skipped: %s", e)
+    refined = _refined_records(limit=limit)
+    per_cell: dict[str, int] = {}
+    per_type: dict[str, int] = {}
+    per_ring: dict[str, int] = {}
+    event_entry_ids: set[str] = set()
+    for ev in rc_events:
+        data = ev.get("data", {}) or {}
+        cell = str(data.get("cell_id", "") or "unknown")
+        entry_type = str(data.get("entry_type", "") or "unknown")
+        ring = str(data.get("ring", "") or "?")
+        per_cell[cell] = per_cell.get(cell, 0) + 1
+        per_type[entry_type] = per_type.get(entry_type, 0) + 1
+        per_ring[ring] = per_ring.get(ring, 0) + 1
+        eid = str(data.get("entry_id", "") or "")
+        if eid:
+            event_entry_ids.add(eid)
+    refined_ids = {str(r.get("id", "")) for r in refined if r.get("id")}
+    overlap = len(event_entry_ids & refined_ids)
+    ratio = round(overlap / len(refined_ids), 3) if refined_ids else 0.0
+    return {
+        "success": True,
+        "rc_events": len(rc_events),
+        "refined_records": len(refined),
+        "correlation_ratio": ratio,
+        "by_cell": dict(sorted(per_cell.items())),
+        "by_entry_type": dict(sorted(per_type.items())),
+        "by_ring": dict(sorted(per_ring.items())),
+    }
