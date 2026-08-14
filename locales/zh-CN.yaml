@@ -75,7 +75,7 @@ shell:
     usage_mcp: "用法: /mcp [status|mode <normal|selected|full>|enable|disable]"
     usage_stats: "用法: /stats [timeline [n]|api|side|reasoning|graph|top <metric>|tools|compression|cell|agent|cells] [1m|5m|1h|all]"
     usage_think: "用法: /think [status]"
-    usage_harness: "用法: /harness <governed|semi|minimal> [--confirm]"
+    usage_harness: "用法: /harness <governed|code|semi|minimal> [--confirm]"
     no_agents_found: "未找到 Agent"
     usage_card: "用法: /card [list|submit <intent>|cancel <id>|approve <id>|reject <id> [reason]]"
     usage_spawn: "用法: /spawn <name> [role]"

@@ -390,3 +390,17 @@ def diff_persist_list(body: dict | None = None) -> dict:
     except (TypeError, ValueError):
         limit = 50
     return {"success": True, "count": limit, "stitched": get_diff_persist().list_stitched(limit=limit)}
+
+
+def presentation_mode_get(body: dict | None = None) -> dict:
+    """Tool presentation mode status (native / code / both)."""
+    from l3.tool_system.tool_presentation import presentation_status
+
+    return presentation_status()
+
+
+def presentation_mode_set(body: dict) -> dict:
+    """Switch the tool presentation mode (native / code / both)."""
+    from l3.tool_system.tool_presentation import set_presentation_mode
+
+    return set_presentation_mode(body.get("mode", ""), source="api")

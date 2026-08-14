@@ -1,8 +1,9 @@
 """Tests for tool_presentation — Code Mode / PTC presentation switch.
 
 Covers the native/code/both three-state runtime switch, the language-agnostic
-CodeRenderer seam, the shipped Python renderer (deterministic SDK output),
-and the per-Cell program cache directory resolution.
+CodeLanguageBackend composite (SDK render / usage / file suffix / execute),
+the shipped Python backend (deterministic SDK output), the graceful rejection
+of unregistered languages, and the per-Cell program cache directory.
 """
 
 from __future__ import annotations
@@ -32,27 +33,53 @@ def test_reset_returns_to_config():
     assert tp.get_presentation_mode() == "native"
 
 
-def test_python_renderer_registered():
-    renderer = tp.get_renderer()
-    assert renderer is not None
-    assert renderer.language == "python"
+def test_python_backend_registered_and_aliased():
+    backend = tp.get_language_backend()
+    assert backend is not None
+    assert backend.language == "python"
+    # Backward-compatible alias resolves to the same backend instance.
+    assert tp.get_renderer() is backend
+
+
+def test_backend_file_suffix():
+    backend = tp.get_language_backend("python")
+    assert backend.file_suffix == ".py"
+
+
+def test_unregistered_language_returns_none():
+    # TypeScript is a roadmap slot — not yet registered, must be None
+    # (the run_code handler then rejects it gracefully listing available).
+    assert tp.get_language_backend("typescript") is None
+    assert tp.get_language_backend("rust") is None
 
 
 def test_sdk_render_deterministic_and_order_independent():
-    renderer = tp.get_renderer()
+    backend = tp.get_language_backend()
     tools = [
         {"name": "grep_search", "description": "Search contents", "parameters": []},
         {"name": "read_file", "description": "Read a file", "parameters": [{"name": "path", "type": "string"}]},
     ]
-    first = renderer.render_sdk(tools)
-    second = renderer.render_sdk(tools)
+    first = backend.render_sdk(tools)
+    second = backend.render_sdk(tools)
     assert first == second  # byte-stable for vendor prefix caching
-    assert first == renderer.render_sdk(list(reversed(tools)))  # sorted output
+    assert first == backend.render_sdk(list(reversed(tools)))  # sorted output
 
 
 def test_usage_instructions_stable():
-    renderer = tp.get_renderer()
-    assert renderer.render_usage() == renderer.render_usage()
+    backend = tp.get_language_backend()
+    assert backend.render_usage() == backend.render_usage()
+
+
+def test_backend_execute_runs_python_program():
+    import tempfile
+    from pathlib import Path
+
+    backend = tp.get_language_backend("python")
+    prog = Path(tempfile.mkdtemp()) / "prog.py"
+    prog.write_text("print(40 + 2)", encoding="utf-8")
+    result = backend.execute(prog, timeout=30)
+    assert result.returncode == 0
+    assert result.stdout.strip() == "42"
 
 
 def test_cell_program_dir_namespaced():
@@ -67,9 +94,10 @@ def test_cell_program_dir_namespaced():
     assert not os.path.exists(d1)
 
 
-def test_status_reports_renderers():
+def test_status_reports_languages_and_legacy_key():
     tp.set_presentation_mode("code", source="test")
     status = tp.presentation_status()
     assert status["mode"] == "code"
-    assert "python" in status["renderers"]
+    assert "python" in status["languages"]
+    assert status["languages"] == status["renderers"]  # legacy alias
     tp.reset_presentation_mode()

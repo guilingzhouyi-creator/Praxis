@@ -359,11 +359,12 @@ _DEFAULTS: dict[str, str] = {
     ),
     "agent_loop.run_code_usage": (
         "You are in Code Mode: instead of one tool call per step, write a "
-        "Python program against the generated tool SDK below and submit it "
-        "with run_code. The program may loop, branch, and fan out across "
-        "tool calls in a single execution; only its printed output and "
-        "return value are returned to you. Every tool call the program "
-        "makes is recorded on the audit chain automatically."
+        "program against the generated tool SDK below and submit it with "
+        "run_code. The program may loop, branch, and fan out across tool "
+        "calls in a single execution; only its printed output and return "
+        "value are returned to you. Every tool call the program makes is "
+        "recorded on the audit chain automatically. (Language-specific "
+        "usage is supplied by the active language backend.)"
     ),
 }
 

@@ -64,6 +64,29 @@ the G4 bypass are recorded via the injected L1 metric sink
 - `config/tools.yaml` — 68 tool definitions by ring layer (danger, params)
 - Ring tiers: Ring 1 (read-only), Ring 2.5 (write+approval), Ring 3 (danger)
 
+## Harness — unified tool-usage control bar
+
+`harness.mode` is the **unified tool-usage control bar** (`params/tool.py`
+`HARNESS_PRESETS`): two classes split by a CONTROL LINE (the approval gate),
+each level resolving a (skip-table, presentation, toolset) triple that the
+pipeline reads in one place (`tool_pipeline.execute`).
+
+| Level | Class | Process steps skipped | Presentation | Toolset |
+|---|---|---|---|---|
+| `governed` (default) | guarded (above line) | none (full control) | native | all |
+| `code` (PTC) | guarded | none | `run_code` (programmatic) | all |
+| `semi` | guarded (lowest) | approval, pool (keeps rate) | native | all |
+| `minimal` | open (below line) | approval, rate, pool | native | bash + `str_replace_editor` |
+
+- The bottom line (constitution, gatechain, sandbox, reference-channel
+  recording) is NEVER skipped in any level — **no control, but still
+  recorded** (minimal included).
+- `tool_mode` (write/read) stays an independent read/write permission switch
+  (ring muting) — orthogonal to the control bar, not merged into it.
+- Switching `code` at the harness level syncs the presentation mode to
+  `run_code` (`set_harness_mode("code")` → `presentation=code`); other
+  levels sync to `native`.
+
 ## Integration
 
 - `l3-card-lifecycle.md`: agents execute card steps through these tools.

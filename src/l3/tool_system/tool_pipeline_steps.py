@@ -405,6 +405,19 @@ class PipelineStepsMixin:
         except Exception as e:
             logger.debug("tool_pipeline: counter record skipped: %s", e)
 
+        # 10d. Tool→skill reverse linkage: a successful tool call bumps usage
+        # on any skill named after the tool (the three-table linkage
+        # TODO × card × skill — see SkillManager.bump_usage_for_tools). Card
+        # completion already feeds the card→skill signal in card_dispatch,
+        # so this closes the tool→skill→card loop. Degrades to a no-op.
+        if result.get("success", False):
+            try:
+                from l1.kernel.skill import get_skill_manager
+
+                get_skill_manager().bump_usage_for_tools([tool_name], key="useful_count")
+            except Exception as e:
+                logger.debug("tool_pipeline: skill usage bump skipped: %s", e)
+
         # 11. Signal
         agent_key = agent_id.replace("agent_", "") if agent_id.startswith("agent_") else agent_id
         sig_type = SignalType.SCOUT_DONE if agent_key == SCOUT_AGENT_NAME else SignalType.TASK_ASSIGN

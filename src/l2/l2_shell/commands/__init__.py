@@ -26,6 +26,7 @@ from . import (  # noqa: E402
     l3a,  # noqa: F401
     memory,  # noqa: F401
     model,  # noqa: F401
+    presentation,  # noqa: F401
     system,  # noqa: F401
     test_auto,  # noqa: F401
 )
@@ -134,6 +135,7 @@ for _module_name in (
     "l3a",
     "test_auto",
     "ci",
+    "presentation",
     "identity_binding",
     "departments",
     "l3ac",

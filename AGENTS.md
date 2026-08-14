@@ -138,10 +138,19 @@ Posture is a load-bearing security lever — never weaken it silently.
 - **Security mode** (`security_mode.py`): `productive` (default) | `security-test` (attack).
   Attack posture REQUIRES explicit confirmation + target whitelist; never leave the
   system in attack posture; a clean, reason-gated return to `productive` is mandatory.
-- **Harness mode** (`harness.py`): `governed` (default) | `semi` | `minimal`. `minimal`
-  drops approval + rate limiting — REQUIRES explicit risk confirmation and is FORBIDDEN
-  under offensive posture. Switch at runtime via `set_harness_mode()`
-  (`/api/v2/security/mode`, L2 `harness`); never hardcode a downgrade.
+- **Harness mode** (`harness.py`): the **unified tool-usage control bar** —
+  two classes split by a CONTROL LINE (the approval gate):
+  - **Guarded class (above the line)**: `governed` (default, full control) |
+    `code` (PTC — full control + `run_code` programmatic presentation) |
+    `semi` (keeps rate limiting, drops approval + pool).
+  - **Open class (below the line)**: `minimal` — no process control (drops
+    approval/rate/pool) and a restricted toolset (bash +
+    `str_replace_editor`), but the bottom line (constitution, gatechain,
+    sandbox, reference-channel recording) still applies — **no control, but
+    still recorded**.
+  - `minimal` REQUIRES explicit risk confirmation and is FORBIDDEN under
+    offensive posture. Switch at runtime via `set_harness_mode()`
+    (`/api/v2/security/mode`, L2 `harness`); never hardcode a downgrade.
 - **Posture matrix** (`posture_matrix.py` + `config/discovery/posture.yaml`): an offensive
   domain needs a non-empty, non-loopback target whitelist; an empty whitelist is rejected.
 - Every posture/harness change MUST record evidence (`record_evidence`) — never bypass it.

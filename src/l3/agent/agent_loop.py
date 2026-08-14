@@ -94,6 +94,15 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         self._loop_detector = ToolLoopDetector(cell_id=cell_id, agent_id=agent_id)
         self._repeat_detector = CoarseRepeatDetector(cell_id=cell_id, agent_id=agent_id)
         self._todo = TodoTracker(state_path=todo_path)
+        # Register this executor's tracker in the in-memory TodoRegister so a
+        # Cell can see the cross-executor TODO table (multi-AgentLoop view);
+        # the JSON state file remains the persistence layer.
+        try:
+            from l3.services.todo_tracker import get_todo_register
+
+            get_todo_register().register(self.agent_id, self._todo)
+        except Exception:
+            logger.debug("agent_loop: todo register skipped", exc_info=True)
         self._cadence = VerifyCadence()
         self._chat_params_hooks: list[Callable] = []
         self._run_count = 0

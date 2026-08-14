@@ -39,6 +39,7 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/extra_stats.py", "l3.memory.memory_graph"),
     ("l2/l2_shell/commands/extra_stats.py", "l3.services.stats_center"),
     ("l2/l2_shell/commands/harness.py", "l3.tool_system.harness"),
+    ("l2/l2_shell/commands/presentation.py", "l3.tool_system.tool_presentation"),
     ("l2/l2_shell/commands/test_auto.py", "l3.tool_system.auto_test"),
     ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a"),
     ("l2/l2_shell/commands/l3ac.py", "l3.cell.peers.l3a.secretary"),

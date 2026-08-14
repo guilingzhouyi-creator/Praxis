@@ -23,6 +23,7 @@ from l1.kernel.params.tool import (
     CODE_RUN_CACHE_LAYER,
     CODE_RUN_CACHE_MAX_ENTRIES,
     CODE_RUN_CACHE_TTL,
+    CODE_RUN_DEFAULT_LANGUAGE,
     CODE_RUN_SIMILARITY_MIN_SCORE,
 )
 from l3.memory.skill_retriever import TfIdfSkillRetriever
@@ -55,7 +56,7 @@ class RunCodeProgramCache:
             entry = {
                 "program": program,
                 "cell_id": cell_id,
-                "language": (meta or {}).get("language", "python"),
+                "language": (meta or {}).get("language", CODE_RUN_DEFAULT_LANGUAGE),
                 "result": (meta or {}).get("result", ""),
                 "created": (meta or {}).get("created", ""),
             }

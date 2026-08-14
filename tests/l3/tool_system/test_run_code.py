@@ -30,10 +30,14 @@ def test_run_code_rejects_oversized_program():
     assert "exceeds" in result["error"]
 
 
-def test_run_code_rejects_unsupported_language():
-    result = run_code({"program": "print(1)", "language": "typescript", "cell_id": "cell-t"}, agent_id="tester")
+def test_run_code_rejects_unregistered_language():
+    # TypeScript is a roadmap slot with no backend registered yet — the
+    # handler must reject gracefully, listing the available backends (never
+    # a hardcoded "unsupported language" branch tied to Python).
+    result = run_code({"program": "console.log(1)", "language": "typescript", "cell_id": "cell-t"}, agent_id="tester")
     assert result["success"] is False
-    assert "unsupported language" in result["error"]
+    assert "no language backend" in result["error"]
+    assert "python" in result["error"]  # available backends are listed
 
 
 def test_run_code_times_out_on_hot_loop():
@@ -69,6 +73,87 @@ def test_cache_miss_executes_fresh_program():
     assert result.get("cached") is not True
     assert result["result"] == "42\n"
     reset_run_code_cache()
+
+
+def test_run_code_wires_bindings_to_pipeline():
+    """Python programs run in-process: SDK bindings execute the real tool.
+
+    ``_praxis_call`` must route through the pipeline (audit chain), not be a
+    no-op stub — a call to an unregistered tool surfaces the pipeline result.
+    """
+    reset_run_code_cache()
+    try:
+        # read_file is not registered in this unit context, but the binding
+        # must still execute through the pipeline (UNKNOWN/error surfaced).
+        result = run_code(
+            {
+                "program": 'r = _praxis_call("read_file", path="/tmp/nope.txt")\nprint("done", r.get("success"))',
+                "cell_id": "cell-wire",
+            },
+            agent_id="w",
+        )
+        assert result["success"] is True
+        assert result.get("bindings_wired") is True
+        assert "done" in result["result"]
+    finally:
+        reset_run_code_cache()
+
+
+def test_run_code_binding_parent_chain_linked():
+    """The binding call inherits the run_code call as parent on the chain.
+
+    In production the pipeline wraps the run_code handler in
+    ``trace_scope(call_id)``; here we simulate that scope so the binding's
+    parent id resolves to the run_code call id.
+    """
+    from l1.kernel.tool_chain import get_tool_chain, reset_tool_chain
+    from l3.error_bus.trace import trace_scope
+
+    reset_tool_chain()
+    reset_run_code_cache()
+    try:
+        with trace_scope("rc-parent"):
+            run_code(
+                {"program": '_praxis_call("read_file", path="/tmp/x")', "cell_id": "cell-pc"},
+                agent_id="w",
+            )
+        chain = get_tool_chain()
+        calls = chain.recent(limit=10)
+        names = [c["tool"] for c in calls]
+        assert "read_file" in names
+        rf = next(c for c in calls if c["tool"] == "read_file")
+        assert rf["call_id"].startswith("rc-parent") or rf["depth"] >= 1
+    finally:
+        reset_run_code_cache()
+        reset_tool_chain()
+
+
+def test_run_code_writes_back_successful_result_to_cache():
+    """A successful run_code caches program + result for later reuse."""
+    reset_run_code_cache()
+    try:
+        result = run_code({"program": "print(6 * 7)", "cell_id": "cell-wb"}, agent_id="w")
+        assert result["success"] is True
+        assert result.get("cached_writeback") is True
+        cache = get_run_code_cache()
+        entry = cache.lookup("cell-wb", "print(6 * 7)")
+        assert entry is not None
+        assert entry["result"] == "42\n"
+        assert entry["language"] == "python"
+    finally:
+        reset_run_code_cache()
+
+
+def test_run_code_does_not_cache_failure():
+    """Failed programs are not cached (only successful results are)."""
+    reset_run_code_cache()
+    try:
+        result = run_code({"program": 'raise ValueError("boom")', "cell_id": "cell-wb2"}, agent_id="w")
+        assert result["success"] is False
+        cache = get_run_code_cache()
+        assert cache.lookup("cell-wb2", 'raise ValueError("boom")') is None
+    finally:
+        reset_run_code_cache()
 
 
 def test_pipeline_code_only_rejects_native_tools():

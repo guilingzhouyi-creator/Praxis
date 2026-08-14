@@ -29,6 +29,9 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
     # Harness mode (governed / semi / minimal gate matrix)
     ("GET", "/api/v2/harness/mode", ".harness_mode_get", "Get harness mode"),
     ("POST", "/api/v2/harness/mode", ".harness_mode_set", "Switch harness mode (minimal needs confirm_risk=true)"),
+    # Tool presentation mode (native / code / both — Code Mode / PTC)
+    ("GET", "/api/v2/presentation", ".presentation_mode_get", "Get tool presentation mode"),
+    ("POST", "/api/v2/presentation", ".presentation_mode_set", "Switch tool presentation mode (native/code/both)"),
     # System security posture (productive | security-test; attack needs confirm_risk)
     ("GET", "/api/v2/security/mode", ".security_mode_get", "Get system security posture"),
     (

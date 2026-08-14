@@ -10,10 +10,15 @@ then ``config/discovery/*.yaml``, then the params default. Switching mode
 records evidence on the ambient chain (it is a capability change, not a
 security downgrade, so no risk confirmation is required).
 
-The ``CodeRenderer`` seam is language-agnostic: each registered renderer
-generates the SDK declarations and usage instructions for its language.
-Python ships as the first renderer; TypeScript / Rust slots are left open
-for the multi-language roadmap (``docs/design/praxis-frontend-kernel-roadmap.md``).
+The framework is LANGUAGE-AGNOSTIC by construction: a ``CodeLanguageBackend``
+aggregates everything one language needs for the transport — SDK rendering
+(``render_sdk``), usage instructions (``render_usage``), the program file
+suffix (``file_suffix``), and execution (``execute``). The framework calls
+``get_language_backend(language)`` and never hardcodes a language. Python is
+the first shipped backend; TypeScript / Rust backends are slots to be added
+per the multi-language roadmap
+(``docs/design/praxis-frontend-kernel-roadmap.md``) — see
+``docs/design/praxis-multilang-migration.md`` for the conversion path.
 """
 
 from __future__ import annotations
@@ -38,24 +43,30 @@ logger = logging.getLogger(__name__)
 _state: dict[str, Any] = {"mode": None}
 _lock = threading.RLock()
 
-# Language → CodeRenderer instance registry (first-party + user plugins).
-_renderers: dict[str, CodeRenderer] = {}
-_renderers_lock = threading.RLock()
+# Language → CodeLanguageBackend instance registry (first-party + user plugins).
+_backends: dict[str, CodeLanguageBackend] = {}
+_backends_lock = threading.RLock()
 
 
-class CodeRenderer(ABC):
-    """Language-specific SDK renderer for the ``run_code`` transport.
+class CodeLanguageBackend(ABC):
+    """Language backend for the ``run_code`` transport (Code Mode / PTC).
 
-    A renderer owns how the tool registry's visible capabilities are
-    declared and explained in one programming language. The registry calls
-    ``render_sdk`` to obtain the SDK declarations and ``render_usage`` for
-    the fixed usage instructions; both join the system-prompt assembly.
+    A backend aggregates everything one programming language needs for the
+    transport: how visible tools are declared in the SDK, the fixed usage
+    instructions, the program file suffix, and how a program is executed.
+    The framework depends only on this registry — it never hardcodes a
+    language, so adding TypeScript / Rust later is one backend registration.
     """
 
     @property
     @abstractmethod
     def language(self) -> str:
-        """Language name this renderer targets (e.g. "python", "typescript")."""
+        """Language name this backend targets (e.g. "python", "typescript")."""
+
+    @property
+    @abstractmethod
+    def file_suffix(self) -> str:
+        """Program file suffix for this language (e.g. ".py", ".ts")."""
 
     @abstractmethod
     def render_sdk(self, tools: list[dict]) -> str:
@@ -72,17 +83,43 @@ class CodeRenderer(ABC):
     def render_usage(self) -> str:
         """Render the fixed usage instructions for writing run_code programs."""
 
+    @abstractmethod
+    def execute(self, program_path: Path, timeout: float) -> Any:
+        """Execute a program file with a hard timeout.
 
-class PythonCodeRenderer(CodeRenderer):
-    """Python SDK renderer — the first language on the multi-language roadmap."""
+        Args:
+            program_path: path to the program written by the model.
+            timeout: max seconds before the run is killed.
+
+        Returns:
+            CompletedProcess-like object with ``returncode`` / ``stdout`` /
+            ``stderr`` (platform ``run_shell`` result).
+        """
+
+
+class PythonLanguageBackend(CodeLanguageBackend):
+    """Python backend — the first language on the multi-language roadmap."""
 
     @property
     def language(self) -> str:
         return "python"
 
+    @property
+    def file_suffix(self) -> str:
+        return ".py"
+
     def render_sdk(self, tools: list[dict]) -> str:
-        """Render a Python SDK: one typed callable per visible tool."""
-        lines = ["# Generated tool SDK — call these bindings from your program.", "from typing import Any"]
+        """Render a Python SDK: one typed callable per visible tool.
+
+        Each binding routes through the injected ``_praxis_call`` global,
+        which the run_code executor wires to the tool pipeline (every call
+        is recorded on the audit chain with the run_code call as parent).
+        """
+        lines = [
+            "# Generated tool SDK — call these bindings from your program.",
+            "# Each binding executes the real tool through the pipeline.",
+            "from typing import Any",
+        ]
         for tool in sorted(tools, key=lambda t: t.get("name", "")):
             name = tool.get("name", "")
             desc = tool.get("description", "")
@@ -90,7 +127,11 @@ class PythonCodeRenderer(CodeRenderer):
             args = ", ".join(f"{p.get('name', 'arg')}: Any" for p in params)
             lines.append(f"def {name}({args}) -> Any:")
             lines.append(f'    """{desc}"""')
-            lines.append("    ...")
+            if params:
+                kw = ", ".join(f"{p.get('name', 'arg')}={p.get('name', 'arg')}" for p in params)
+                lines.append(f"    return _praxis_call({name!r}, {kw})")
+            else:
+                lines.append(f"    return _praxis_call({name!r})")
         return "\n".join(lines)
 
     def render_usage(self) -> str:
@@ -103,37 +144,57 @@ class PythonCodeRenderer(CodeRenderer):
             "the tool audit chain automatically."
         )
 
+    def execute(self, program_path: Path, timeout: float) -> Any:
+        """Execute a Python program via the interpreter with a hard timeout."""
+        import sys
 
-def register_renderer(renderer: CodeRenderer) -> bool:
-    """Register a code renderer for its language (first registration wins).
+        from l1.kernel.platform import run_shell
+
+        return run_shell(f"{sys.executable} {program_path}", timeout=timeout)
+
+
+def register_language_backend(backend: CodeLanguageBackend) -> bool:
+    """Register a language backend (first registration wins).
 
     Args:
-        renderer: CodeRenderer instance with a unique language name.
+        backend: CodeLanguageBackend instance with a unique language name.
 
     Returns:
         True when registered, False when the language is already taken.
     """
-    with _renderers_lock:
-        lang = renderer.language
-        if lang in _renderers:
+    with _backends_lock:
+        lang = backend.language
+        if lang in _backends:
             return False
-        _renderers[lang] = renderer
+        _backends[lang] = backend
         return True
 
 
-def get_renderer(language: str = "") -> CodeRenderer | None:
-    """Return the renderer for a language, falling back to the default.
+def get_language_backend(language: str = "") -> CodeLanguageBackend | None:
+    """Return the language backend, falling back to the configured default.
 
     Args:
         language: target language; empty means the configured default.
 
     Returns:
-        The registered renderer, or None when none is registered.
+        The registered backend, or None when none is registered for the
+        requested (or default) language.
     """
-    with _renderers_lock:
+    with _backends_lock:
         if not language:
             language = CODE_RUN_DEFAULT_LANGUAGE
-        return _renderers.get(language)
+        return _backends.get(language)
+
+
+# Backward-compatible aliases (pre-composite era callers).
+def register_renderer(backend: CodeLanguageBackend) -> bool:
+    """Alias of ``register_language_backend`` (kept for callers in flight)."""
+    return register_language_backend(backend)
+
+
+def get_renderer(language: str = "") -> CodeLanguageBackend | None:
+    """Alias of ``get_language_backend`` (kept for callers in flight)."""
+    return get_language_backend(language)
 
 
 def get_presentation_mode() -> str:
@@ -144,6 +205,32 @@ def get_presentation_mode() -> str:
         return override
     static = str(get_tool_config(TOOL_PRESENTATION_CONFIG_KEY, TOOL_PRESENTATION_DEFAULT)).lower()
     return static if static in TOOL_PRESENTATION_MODES else TOOL_PRESENTATION_DEFAULT
+
+
+def assemble_code_prompt(system: str, sdk: str, usage: str) -> str:
+    """Assemble the stable-prefix section for Code Mode / PTC prompts.
+
+    The system prompt, the usage instructions, and the generated SDK form
+    the STABLE PREFIX of every request in code presentation: the SDK is
+    deterministic (sorted tools), so the prefix is byte-stable and hits
+    vendor KV caches (DeepSeek/OpenAI ``prompt_cache_retention``,
+    Anthropic ``cache_breakpoints``). The incremental suffix (program /
+    patch / results) is appended by the caller AFTER this prefix.
+
+    Args:
+        system: base system prompt (identity/constitution/…).
+        sdk: deterministic SDK declarations (``backend.render_sdk``).
+        usage: language-specific usage instructions (``backend.render_usage``
+            or a praxis.yaml override).
+
+    Returns:
+        Combined stable-prefix text (system + usage + sdk, in that order).
+    """
+    parts: list[str] = []
+    for section in (system, usage, sdk):
+        if section:
+            parts.append(section)
+    return "\n\n".join(parts)
 
 
 def set_presentation_mode(mode: str, source: str = "api") -> dict:
@@ -192,16 +279,17 @@ def reset_presentation_mode() -> dict:
 
 
 def presentation_status() -> dict:
-    """Return the current mode plus the switchable matrix and renderers."""
+    """Return the current mode plus the switchable matrix and backends."""
     with _lock:
         source = _state.get("source", "config")
-    with _renderers_lock:
-        languages = sorted(_renderers.keys())
+    with _backends_lock:
+        languages = sorted(_backends.keys())
     return {
         "mode": get_presentation_mode(),
         "source": source,
         "modes": list(TOOL_PRESENTATION_MODES),
-        "renderers": languages,
+        "languages": languages,
+        "renderers": languages,  # legacy key kept for earlier consumers
     }
 
 
@@ -222,6 +310,6 @@ def cell_program_dir(cell_id: str) -> Path:
     return root / (cell_id or "default")
 
 
-# Register the first-party Python renderer at import time so get_renderer()
+# Register the first-party Python backend at import time so the framework
 # always has a default for the shipped language.
-register_renderer(PythonCodeRenderer())
+register_language_backend(PythonLanguageBackend())

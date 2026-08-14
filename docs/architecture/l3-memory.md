@@ -110,6 +110,10 @@ cases. See `cross-cutting.md` for the full injection table.
   `/api/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
+- Tiered-cache consumers: the per-Cell `run_code` program cache
+  (`run_code_cache.py`, Code Mode / PTC) stores model-written programs +
+  results in the tiered-cache L1 layer with TTL; see
+  `docs/architecture/l3-tool-presentation.md`.
 
 ## Domain filtering & refinement (M1–M4)
 
