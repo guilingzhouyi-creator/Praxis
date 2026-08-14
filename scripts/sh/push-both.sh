@@ -53,6 +53,35 @@ else
   # MERGE_GATE_SKIP=1 bypasses the gate — justified ONLY for deploying the
   # gate itself (bootstrap) or explicitly reviewed infrastructure merges,
   # and REQUIRES a reason (MERGE_GATE_REASON) for the audit trail.
+  echo "[push-both] ── doc-stats refresh (numbers must not go stale) ───────"
+  if make doc-stats >/dev/null 2>&1; then
+    # If the refresh changed generated docs, commit them so the merged
+    # main never carries stale line/file counts (README/llms).
+    if [ -n "$(git status --porcelain docs/ README.md 2>/dev/null)" ]; then
+      git add docs/ README.md 2>/dev/null
+      git commit --no-verify -m "docs(stats): refresh snapshot before mainline merge" \
+        -m "Auto-refresh by push-both: doc-stats numbers must not go stale." \
+        -m "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >/dev/null 2>&1 \
+        && echo "[push-both] ✅ doc-stats snapshot committed" \
+        || echo "[push-both] ⚠️  doc-stats drift present but could not auto-commit — refresh manually" >&2
+    else
+      echo "[push-both] ✅ doc-stats in sync (no changes)"
+    fi
+  else
+    echo "[push-both] ⚠️  make doc-stats failed — numbers may be stale" >&2
+  fi
+
+  echo "[push-both] ── completion judge (statistics record) ────────────────"
+  # Record a judge run for every mainline push attempt (JSONL audit trail
+  # consumed by judge-stats.sh). Fast mode: skip the slow test/coverage
+  # sweeps — the merge gate itself already ran the delta check; tests were
+  # gated by the worktree before merge.
+  if bash scripts/sh/verify-completion.sh --skip=tests,coverage >/tmp/pushboth_judge.log 2>&1; then
+    echo "[push-both] ✅ completion judge: COMPLETE"
+  else
+    echo "[push-both] ⚠️  completion judge: INCOMPLETE (see /tmp/pushboth_judge.log)" >&2
+  fi
+
   echo "[push-both] ── mainline merge gate (origin/main..main) ─────────────"
   if [ "${MERGE_GATE_SKIP:-0}" != "1" ] && \
      ! MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main; then
