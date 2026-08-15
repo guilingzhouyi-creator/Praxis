@@ -5,53 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
-### 变更
-
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
 ### 文档
 
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
 - **Docs (infra)**: fill 111 missing public docstrings
 - **Docs (changelog)**: refresh Unreleased from latest commits
 - **Docs (stats)**: refresh judge dashboard
@@ -98,6 +54,51 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
+### 变更
+
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
 
 ### 新增
 
