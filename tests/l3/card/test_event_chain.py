@@ -40,23 +40,29 @@ def seen_events():
 
 
 class TestApprovalEvents:
-    def test_request_emits_approval_required(self, seen_events):
+    def test_request_emits_approval_required(self, seen_events, tmp_path):
         from l3.card.approval_gate import ApprovalGate, reset_gate
 
         reset_gate()
-        gate = ApprovalGate()
-        gate.request("write_file", "agent-a", {"path": "x"}, reason="needs eyes")
-        assert _wait_for(seen_events, "APPROVAL_REQUIRED")
+        gate = ApprovalGate(str(tmp_path / "approval_gate.json"))
+        try:
+            gate.request("write_file", "agent-a", {"path": "x"}, reason="needs eyes")
+            assert _wait_for(seen_events, "APPROVAL_REQUIRED")
+        finally:
+            gate._stop_auto_save()
 
-    def test_respond_emits_approval_responded(self, seen_events):
+    def test_respond_emits_approval_responded(self, seen_events, tmp_path):
         from l3.card.approval_gate import ApprovalGate, reset_gate
 
         reset_gate()
-        gate = ApprovalGate()
-        req = gate.request("write_file", "agent-a", {"path": "x"})
-        _wait_for(seen_events, "APPROVAL_REQUIRED")
-        gate.respond(req.id, approved=True, response="ok")
-        assert _wait_for(seen_events, "APPROVAL_RESPONDED")
+        gate = ApprovalGate(str(tmp_path / "approval_gate.json"))
+        try:
+            req = gate.request("write_file", "agent-a", {"path": "x"})
+            _wait_for(seen_events, "APPROVAL_REQUIRED")
+            gate.respond(req.id, approved=True, response="ok")
+            assert _wait_for(seen_events, "APPROVAL_RESPONDED")
+        finally:
+            gate._stop_auto_save()
 
 
 class TestPendingEvents:

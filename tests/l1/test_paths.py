@@ -56,6 +56,21 @@ def test_reset_paths_reloads_environment_override(tmp_path, monkeypatch) -> None
         paths.reset_paths()
 
 
+def test_get_paths_refreshes_auto_detected_paths_after_environment_change(tmp_path, monkeypatch) -> None:
+    paths.reset_paths()
+    try:
+        initial = paths.get_paths()
+        data_dir = str(tmp_path / "runtime")
+        monkeypatch.setenv("PRAXIS_DATA_DIR", data_dir)
+
+        refreshed = paths.get_paths()
+
+        assert refreshed is not initial
+        assert refreshed.data_dir == data_dir
+    finally:
+        paths.reset_paths()
+
+
 def test_get_paths_concurrent_callers_share_one_instance() -> None:
     """Concurrent initialization returns exactly one cached path set."""
     paths.reset_paths()
@@ -79,5 +94,20 @@ def test_get_paths_concurrent_callers_share_one_instance() -> None:
     try:
         assert len(instances) == callers
         assert {id(instance) for instance in instances} == {id(instances[0])}
+    finally:
+        paths.reset_paths()
+
+
+def test_configured_paths_ignore_later_environment_changes(tmp_path, monkeypatch) -> None:
+    paths.reset_paths()
+    try:
+        configured_data_dir = str(tmp_path / "configured")
+        configured = paths.configure_paths(data_dir=configured_data_dir)
+        monkeypatch.setenv("PRAXIS_DATA_DIR", str(tmp_path / "environment"))
+
+        resolved = paths.get_paths()
+
+        assert resolved is configured
+        assert resolved.data_dir == configured_data_dir
     finally:
         paths.reset_paths()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -227,6 +228,29 @@ def test_stop_auto_save_signals_and_joins_worker():
         assert worker is not None and not worker.is_alive()
         assert obj._auto_save_stop is None
         assert obj._auto_save_thread is None
+
+
+def test_concurrent_persist_uses_unique_temporary_paths(tmp_path):
+    path = str(tmp_path / "shared.json")
+    writers = 8
+    barrier = threading.Barrier(writers)
+    objects = []
+    for index in range(writers):
+        obj = _TestPersistable(path)
+        obj._data = {"writer": index}
+        objects.append(obj)
+
+    def _save(obj):
+        barrier.wait()
+        return obj.save()
+
+    with ThreadPoolExecutor(max_workers=writers) as executor:
+        results = list(executor.map(_save, objects))
+
+    assert all(result["success"] for result in results)
+    restored = _TestPersistable(path)
+    assert restored._data["writer"] in range(writers)
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 # ── CardRegistry persistence tests ──

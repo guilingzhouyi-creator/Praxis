@@ -407,22 +407,44 @@ class PraxisPaths:
 
 _paths: PraxisPaths | None = None
 _paths_lock = threading.Lock()
+_paths_env_signature: tuple[str | None, ...] | None = None
+_paths_explicitly_configured = False
+
+
+def _environment_signature() -> tuple[str | None, ...]:
+    """Return environment inputs that change auto-detected paths."""
+    return (
+        os.environ.get("PRAXIS_DEPLOY_MODE"),
+        os.environ.get("PRAXIS_DATA_DIR"),
+        os.environ.get("PRAXIS_CONFIG_DIR"),
+        os.environ.get("PRAXIS_SKILL_DIR"),
+        os.environ.get("PRAXIS_INSTALL_DIR"),
+        os.environ.get("PRAXIS_TEMPLATES_DIR"),
+        os.environ.get("PRAXIS_IDE_MODE"),
+        os.environ.get("DOCKER"),
+        os.environ.get("APPDATA"),
+        os.environ.get("LOCALAPPDATA"),
+    )
 
 
 def get_paths() -> PraxisPaths:
-    """Get or create the PraxisPaths singleton."""
-    global _paths
+    """Get paths, refreshing auto-detected values when path env changes."""
+    global _paths, _paths_env_signature
+    signature = _environment_signature()
     with _paths_lock:
-        if _paths is None:
+        if _paths is None or (not _paths_explicitly_configured and _paths_env_signature != signature):
             _paths = PraxisPaths.detect()
+            _paths_env_signature = signature
         return _paths
 
 
 def reset_paths() -> None:
     """Reset the singleton (useful for tests)."""
-    global _paths
+    global _paths, _paths_env_signature, _paths_explicitly_configured
     with _paths_lock:
         _paths = None
+        _paths_env_signature = None
+        _paths_explicitly_configured = False
 
 
 def configure_paths(
@@ -432,20 +454,21 @@ def configure_paths(
     skill_dirs: list[str] | None = None,
 ) -> PraxisPaths:
     """Explicitly configure paths (called by boot after loading praxis.yaml)."""
-    global _paths
-    mode = DeployMode(deploy_mode) if deploy_mode else _detect_deploy_mode()
+    global _paths, _paths_env_signature, _paths_explicitly_configured
     with _paths_lock:
-        configured = PraxisPaths(deploy_mode=mode)
+        mode = DeployMode(deploy_mode) if deploy_mode else _detect_deploy_mode()
+        _paths = PraxisPaths(deploy_mode=mode)
         if data_dir:
-            configured.data_dir = data_dir
+            _paths.data_dir = data_dir
             # Re-derive children
-            configured.__post_init__()
+            _paths.__post_init__()
         if config_file:
-            configured.config_file = config_file
+            _paths.config_file = config_file
         if skill_dirs is not None:
-            configured.skill_dirs = skill_dirs
-        _paths = configured
-        return configured
+            _paths.skill_dirs = skill_dirs
+        _paths_env_signature = _environment_signature()
+        _paths_explicitly_configured = True
+        return _paths
 
 
 # ── Backward-compatible accessors ──

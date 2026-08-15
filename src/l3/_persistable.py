@@ -18,9 +18,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 import threading
 import weakref
 from abc import ABC, abstractmethod
+from contextlib import suppress
 
 from l1.kernel.versioning import check_and_migrate, stamp
 
@@ -66,6 +68,8 @@ class PersistableMixin(ABC):
 
     def _init_persistence(self, persist_path: str, auto_save_interval: float = 30.0) -> None:
         """Initialize persistence coordination for the owning service."""
+        if hasattr(self, "_auto_save_control_lock"):
+            self._stop_auto_save()
         self._persist_path = persist_path
         self._auto_save_interval = auto_save_interval
         self._path_state = _get_path_state(persist_path) if persist_path else None
@@ -114,21 +118,31 @@ class PersistableMixin(ABC):
                 path_state.next_epoch += 1
                 epoch = path_state.next_epoch
 
+        tmp_path: str | None = None
         try:
             with path_state.write_lock:
                 with path_state.epoch_lock:
                     if epoch < path_state.committed_epoch:
                         return {"success": False, "skipped": True, "reason": "superseded"}
-                tmp = self._persist_path + ".tmp"
-                with open(tmp, "w", encoding="utf-8") as f:
+                parent_dir = os.path.dirname(os.path.abspath(self._persist_path))
+                os.makedirs(parent_dir, exist_ok=True)
+                descriptor, tmp_path = tempfile.mkstemp(
+                    prefix=f".{os.path.basename(self._persist_path)}.", suffix=".tmp", dir=parent_dir
+                )
+                with os.fdopen(descriptor, "w", encoding="utf-8") as f:
                     f.write(payload)
-                os.replace(tmp, self._persist_path)
+                os.replace(tmp_path, self._persist_path)
+                tmp_path = None
                 with path_state.epoch_lock:
                     path_state.committed_epoch = epoch
             return {"success": True, "path": self._persist_path}
         except Exception as e:
             logger.warning("persist %s: %s", self.persistence_kind, e)
             return {"success": False, "error": str(e)}
+        finally:
+            if tmp_path:
+                with suppress(OSError):
+                    os.unlink(tmp_path)
 
     def _restore(self) -> dict:
         """Restore a persisted snapshot into the owning service."""
@@ -158,6 +172,8 @@ class PersistableMixin(ABC):
 
     def _start_auto_save(self) -> None:
         """Start one auto-save worker, terminating any earlier worker first."""
+        if not self._persist_path or self._auto_save_interval <= 0:
+            return
         with self._auto_save_control_lock:
             self._stop_auto_save_locked()
             stop = threading.Event()
