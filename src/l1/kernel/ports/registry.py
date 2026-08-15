@@ -2,21 +2,29 @@
 
 from __future__ import annotations
 
+import threading
+
 _PORTS: dict[str, object] = {}
+# RLock (reentrant): a registration path may resolve another port while holding
+# the lock during boot wiring — see AGENTS.md reentrant-lock convention.
+_lock = threading.RLock()
 
 
 def register_port(name: str, adapter: object) -> None:
     """Register a port adapter at boot time."""
-    _PORTS[name] = adapter
+    with _lock:
+        _PORTS[name] = adapter
 
 
 def get_port(name: str) -> object:
     """Retrieve a registered port adapter by name. Raises KeyError if not registered."""
-    if name not in _PORTS:
-        raise KeyError(f"port '{name}' not registered — call register_port() first")
-    return _PORTS[name]
+    with _lock:
+        if name not in _PORTS:
+            raise KeyError(f"port '{name}' not registered — call register_port() first")
+        return _PORTS[name]
 
 
 def reset_ports() -> None:
     """Clear port registry (for testing / hot-reload)."""
-    _PORTS.clear()
+    with _lock:
+        _PORTS.clear()
