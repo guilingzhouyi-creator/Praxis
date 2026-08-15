@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from . import archive as _archive
 from . import params as _p
 from .context import ContextRegistry
@@ -277,6 +279,43 @@ def _dispatch_answer(args: list[str], mgr: SessionManager) -> dict:
     return r
 
 
+def _dispatch_model(args: list[str], mgr: SessionManager, registry: ContextRegistry, model_cfg: L3AModelConfig) -> dict:
+    """Delegate the `model` subcommand to the model dispatch helper."""
+    return _model_dispatch(args[1:], model_cfg)
+
+
+def _dispatch_context(
+    args: list[str], mgr: SessionManager, registry: ContextRegistry, model_cfg: L3AModelConfig
+) -> dict:
+    """Delegate the `context` subcommand to the context dispatch helper."""
+    return _context_dispatch(args[1:], registry)
+
+
+_DISPATCHERS: dict[str, Callable[[list[str], SessionManager, ContextRegistry, L3AModelConfig], dict]] = {
+    "agents-md": _dispatch_agents_md,
+    "create": _dispatch_create,
+    "resume": _dispatch_resume,
+    "list": _dispatch_list,
+    "info": _dispatch_info,
+    "close": _dispatch_close,
+    "messages": _dispatch_messages,
+    "model": _dispatch_model,
+    "context": _dispatch_context,
+    "tasks": _dispatch_tasks,
+    "todos": _dispatch_todos,
+    "convergence": _dispatch_convergence,
+    "convention": _dispatch_convention,
+    "summaries": _dispatch_summaries,
+    "compress": _dispatch_compress,
+    "memory": _dispatch_memory,
+    "compress-status": _dispatch_compress_status,
+    "compress-force": _dispatch_compress_force,
+    "ask": _dispatch_ask,
+    "ask-pending": _dispatch_ask_pending,
+    "answer": _dispatch_answer,
+}
+
+
 def dispatch(args: list[str], mgr: SessionManager, registry: ContextRegistry, model_cfg: L3AModelConfig) -> dict:
     """Route `/l3a` shell subcommands to their handlers and return a result dict."""
     if not args:
@@ -289,51 +328,10 @@ def dispatch(args: list[str], mgr: SessionManager, registry: ContextRegistry, mo
         }
 
     sub = args[0].lower()
-
-    if sub == "agents-md":
-        return _dispatch_agents_md(args)
-    if sub == "create":
-        return _dispatch_create(args, mgr, registry, model_cfg)
-    if sub == "resume":
-        return _dispatch_resume(args, mgr, registry, model_cfg)
-    if sub == "list":
-        return _dispatch_list(mgr)
-    if sub == "info":
-        return _dispatch_info(args, mgr)
-    if sub == "close":
-        return _dispatch_close(args, mgr)
-    if sub == "messages":
-        return _dispatch_messages(args, mgr)
-    if sub == "model":
-        return _model_dispatch(args[1:], model_cfg)
-    if sub == "context":
-        return _context_dispatch(args[1:], registry)
-    if sub == "tasks":
-        return _dispatch_tasks(args, mgr)
-    if sub == "todos":
-        return _dispatch_todos(args, mgr)
-    if sub == "convergence":
-        return _dispatch_convergence(args)
-    if sub == "convention":
-        return _dispatch_convention(args)
-    if sub == "summaries":
-        return _dispatch_summaries(args)
-    if sub == "compress":
-        return _dispatch_compress(args, mgr)
-    if sub == "memory":
-        return _dispatch_memory(args, mgr)
-    if sub == "compress-status":
-        return _dispatch_compress_status(mgr)
-    if sub == "compress-force":
-        return _dispatch_compress_force(args, mgr)
-    if sub == "ask":
-        return _dispatch_ask(args, mgr)
-    if sub == "ask-pending":
-        return _dispatch_ask_pending(args)
-    if sub == "answer":
-        return _dispatch_answer(args, mgr)
-
-    return {"success": False, "error": f"unknown subcommand: {sub}"}
+    handler = _DISPATCHERS.get(sub)
+    if not handler:
+        return {"success": False, "error": f"unknown subcommand: {sub}"}
+    return handler(args, mgr, registry, model_cfg)
 
 
 def _model_dispatch(args: list[str], cfg: L3AModelConfig) -> dict:
