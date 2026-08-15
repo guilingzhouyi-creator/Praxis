@@ -1,7 +1,7 @@
 # Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends
 
 > Status: planning (Python backend shipped; TypeScript / Rust backends are
-> slots). Associated design: `docs/design/praxis-frontend-kernel-roadmap.md`
+> slots). Associated design: `docs/roadmaps/frontend-kernel-roadmap.md`
 > (Rust kernel sink, TS frontend, language-neutral contract).
 
 ## 0. Purpose

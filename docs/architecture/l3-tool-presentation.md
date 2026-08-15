@@ -79,7 +79,7 @@ submit program → validate (size/language) → per-Cell cache similarity hit?
   `render_sdk(tools)` + `render_usage()` for the prompt, and `execute(path,
   timeout)` for execution. Python ships as the first backend; TypeScript /
   Rust slots are reserved (see
-  `docs/design/praxis-multilang-migration.md` for the conversion path). The
+  `docs/roadmaps/multilang-migration.md` for the conversion path). The
   framework only calls `get_language_backend()` — it never hardcodes a
   language.
 - Renderer output is deterministic (sorted, byte-stable) so the SDK section
