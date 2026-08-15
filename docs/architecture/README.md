@@ -40,7 +40,7 @@ flowchart TB
         PROC["ProcessTable"]
         GATE["GateChain G1-G5"]
         CONST["Constitution"]
-        PORTS["Ports (12 ABC abstractions)"]
+        PORTS["Ports (15 ABC abstractions)"]
         PARAMS["params: 1,057 constants"]
     end
 
@@ -96,13 +96,13 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 18,665 lines |
+| L1 Kernel | 66 files / 18,668 lines |
 | L2 Shell | 35 files / 4,654 lines |
-| L3 Cell | 335 files / 72,575 lines |
+| L3 Cell | 335 files / 72,578 lines |
 | L4 Bridge | 107 files / 22,126 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,928 lines |
-| L3 Memory | 44 files / 9,775 lines |
+| L3 Memory | 44 files / 9,778 lines |
 | L3 Card | 27 files / 6,443 lines |
 | L3 Services | 43 files / 11,178 lines |
 | L3 Bus | 17 files / 4,384 lines |
