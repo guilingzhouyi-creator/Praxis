@@ -49,7 +49,10 @@ TYPE_TO_SECTION = {
 }
 _SUBJECT_RE = re.compile(r"^([a-z]+)(?:\(([^)]*)\))?!?:\s+(.+)$")
 # Merge/revert subjects are not Conventional-Commits — skip them.
-_SKIP_RE = re.compile(r"^(Merge|Revert)\b|^bump\b")
+# `docs(changelog)` maintenance commits are also skipped: they refresh
+# CHANGELOG.md itself, so counting them would make the freshness gate stale
+# on every changelog-refresh commit (self-referential loop).
+_SKIP_RE = re.compile(r"^(Merge|Revert)\b|^bump\b|^docs\(changelog\)\b")
 
 
 def release_tag() -> str:
