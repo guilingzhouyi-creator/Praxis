@@ -99,6 +99,7 @@ scopes:
   - git
   - hooks
   - agents-doc
+  - roadmaps
   # legacy scopes seen in history (kept so strict mode never rejects
   # previously-merged commits / documented examples)
   - core
