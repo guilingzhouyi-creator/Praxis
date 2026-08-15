@@ -7,6 +7,7 @@
 
 ### 修复
 
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
 - **Fix (scripts)**: skip docs(changelog) commits in changelog scan
 - **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
 - **Fix (ports)**: complete handles on rejection, translate OSError
