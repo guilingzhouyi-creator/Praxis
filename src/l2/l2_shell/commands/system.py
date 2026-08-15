@@ -71,6 +71,248 @@ def _cmd_observe(args: list[str]) -> dict:
     return {"success": True, "data": get_obs_bus().summary()}
 
 
+def _parse_skill_args(args: list[str]) -> tuple[str, str, list[str]]:
+    """Split ``--role``/``--agent`` flags from the positional skill args."""
+    role = ""
+    agent_id = ""
+    rest: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--role", "--agent") and i + 1 < len(args):
+            if a == "--role":
+                role = args[i + 1]
+            else:
+                agent_id = args[i + 1]
+            i += 2
+        else:
+            rest.append(a)
+            i += 1
+    return role, agent_id, rest
+
+
+def _skills_list(sm, rest: list[str]) -> dict:
+    """List skills (default subcommand)."""
+    from l1.kernel.params.system import SKILL_LIST_DISPLAY_LIMIT
+
+    skills = sm.list_skills()
+    return {"success": True, "skills": skills[:SKILL_LIST_DISPLAY_LIMIT], "count": len(skills)}
+
+
+def _skills_lean(sm, rest: list[str]) -> dict:
+    """List lean-case skills."""
+    from l1.kernel.params.system import SKILL_LIST_DISPLAY_LIMIT
+
+    skills = sm.list_skills(tags=["lean_case"])
+    return {"success": True, "skills": skills[:SKILL_LIST_DISPLAY_LIMIT], "count": len(skills)}
+
+
+def _skills_get(sm, rest: list[str]) -> dict:
+    """Show a single skill's detail."""
+    name = rest[1] if len(rest) > 1 else ""
+    if not name:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_get")}
+    skill = sm.get(name)
+    if not skill:
+        return {"success": False, "error": f"skill '{name}' not found"}
+    return {"success": True, "skill": skill}
+
+
+def _skills_permissions(sm, rest: list[str]) -> dict:
+    """Show the SkillManager write-gate policy."""
+    # Policy lives on the SkillManager (L1) — L2 must not import L3.
+    policy = sm.write_policy()
+    return {"success": True, "policy": policy}
+
+
+def _skills_distill(sm, rest: list[str]) -> dict:
+    """Distillation / DPO master switches (status public; toggling developer-only)."""
+    action = rest[1] if len(rest) > 1 else "status"
+    if action == "status":
+        return {"success": True, "policy": sm.distill_policy()}
+    if action in ("set", "on", "off"):
+        field = rest[2] if len(rest) > 2 else ""
+        value = rest[3] if len(rest) > 3 else ""
+        valid_fields = ("distill", "dpo_signal", "generalize", "llm_distill", "clustering", "sampling")
+        if field not in valid_fields or value not in ("on", "off", "true", "false", "1", "0"):
+            return {
+                "success": False,
+                "error": _t("shell.app_error.usage_skills_distill"),
+            }
+        flag = value in ("on", "true", "1")
+        if field == "distill":
+            return sm.set_distill_policy(distill=flag, source="shell")
+        if field == "dpo_signal":
+            return sm.set_distill_policy(dpo_signal=flag, source="shell")
+        return sm.set_distill_policy(sub={field: flag}, source="shell")
+    return {
+        "success": False,
+        "error": f"unknown distill action: {action}",
+        "suggestions": ["status", "set <distill|dpo_signal|generalize|llm_distill|clustering|sampling> <on|off>"],
+    }
+
+
+def _skills_retriever(sm, rest: list[str]) -> dict:
+    """Skill retriever backend control (tfidf | embedding)."""
+    action = rest[1] if len(rest) > 1 else "status"
+    from l3.memory.skill_retriever import retriever_status, set_backend
+
+    if action == "status":
+        return retriever_status()
+    if action == "set":
+        backend = rest[2] if len(rest) > 2 else ""
+        if not backend:
+            return {"success": False, "error": _t("shell.app_error.usage_skills_retriever")}
+        return set_backend(backend)
+    return {
+        "success": False,
+        "error": f"unknown retriever action: {action}",
+        "suggestions": ["status", "set <tfidf|embedding>"],
+    }
+
+
+def _skills_pipeline(sm, rest: list[str]) -> dict:
+    """Retrieval/curation pipeline policy (status public; tuning developer-only)."""
+    action = rest[1] if len(rest) > 1 else "status"
+    if action == "status":
+        return {"success": True, "policy": sm.pipeline_policy()}
+    if action == "set":
+        field = rest[2] if len(rest) > 2 else ""
+        value = rest[3] if len(rest) > 3 else ""
+        if field in ("retrieval", "curation") and value in ("on", "off", "true", "false", "1", "0"):
+            flag = value in ("on", "true", "1")
+            return sm.set_pipeline_policy(**{field: flag}, source="shell")
+        if field == "contrib_min_trials" and value.isdigit():
+            return sm.set_pipeline_policy(contrib_min_trials=int(value), source="shell")
+        if field in ("contrib_min_ratio", "retrieval_min_score"):
+            try:
+                fv = float(value)
+            except ValueError:
+                return {"success": False, "error": _t("shell.app_error.usage_skills_pipeline_invalid_number")}
+            if field == "contrib_min_ratio":
+                return sm.set_pipeline_policy(contrib_min_ratio=fv, source="shell")
+            return sm.set_pipeline_policy(retrieval_min_score=fv, source="shell")
+        return {
+            "success": False,
+            "error": f"invalid pipeline field/value: {field} {value}",
+            "suggestions": [
+                "status",
+                "set <retrieval|curation> <on|off>",
+                "set <contrib_min_trials|contrib_min_ratio|retrieval_min_score> <number>",
+            ],
+        }
+    return {
+        "success": False,
+        "error": f"unknown pipeline action: {action}",
+        "suggestions": ["status", "set <field> <value>"],
+    }
+
+
+def _skills_disclosure(sm, rest: list[str]) -> dict:
+    """Progressive-disclosure policy (status public; toggling developer-only)."""
+    action = rest[1] if len(rest) > 1 else "status"
+    if action == "status":
+        return {"success": True, "policy": sm.disclosure_policy()}
+    if action == "set":
+        field = rest[2] if len(rest) > 2 else ""
+        value = rest[3] if len(rest) > 3 else ""
+        if field in ("full_index_enabled", "audience_filter_enabled", "strategy_capability_view") and value in (
+            "on",
+            "off",
+            "true",
+            "false",
+            "1",
+            "0",
+        ):
+            flag = value in ("on", "true", "1")
+            return sm.set_disclosure_policy(**{field: flag}, source="shell")
+        if field == "full_index_limit" and value.isdigit():
+            return sm.set_disclosure_policy(full_index_limit=int(value), source="shell")
+        return {
+            "success": False,
+            "error": f"invalid disclosure field/value: {field} {value}",
+            "suggestions": [
+                "status",
+                "set <full_index_enabled|audience_filter_enabled|strategy_capability_view> <on|off>",
+                "set full_index_limit <number>",
+            ],
+        }
+    return {
+        "success": False,
+        "error": f"unknown disclosure action: {action}",
+        "suggestions": ["status", "set <field> <value>"],
+    }
+
+
+def _skills_guidance(sm, rest: list[str]) -> dict:
+    """Guidance operating-mode control (small | full)."""
+    action = rest[1] if len(rest) > 1 else "status"
+    if action == "status":
+        return {"success": True, "policy": sm.guidance_policy()}
+    if action == "set":
+        mode = rest[2] if len(rest) > 2 else ""
+        return sm.set_guidance_policy(mode=mode, source="shell")
+    return {
+        "success": False,
+        "error": f"unknown guidance action: {action}",
+        "suggestions": ["status", "set <small|full>"],
+    }
+
+
+def _skills_evolve(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Evolve a new skill from an intent via the R4 agent (write gate enforced)."""
+    intent = " ".join(rest[1:])
+    if not intent:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_evolve")}
+    # evolve persists a new skill to disk — honor the developer write gate
+    # like create/update/delete/reload (see authorize_write in SkillManager).
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    try:
+        from l3.memory.r4_agent import get_r4_agent
+
+        return get_r4_agent().evolve_skill(intent)
+    except Exception as e:
+        return {"success": False, "error": f"evolve failed: {e}"}
+
+
+def _skills_create(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Create a skill (developer-only)."""
+    if len(rest) < 4:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_create")}
+    name, desc, prompt = rest[1], rest[2], rest[3]
+    return sm.create(name, description=desc, prompt=prompt, agent_id=agent_id, role=role)
+
+
+def _skills_update(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Update a skill field (developer-only)."""
+    if len(rest) < 4:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_update")}
+    name, field, value = rest[1], rest[2], rest[3]
+    if field not in ("description", "prompt", "rules"):
+        return {"success": False, "error": f"unsupported field: {field}"}
+    data: dict[str, object] = {"rules": [r for r in value.split(";") if r]} if field == "rules" else {field: value}
+    return sm.update(name, data, agent_id=agent_id, role=role)
+
+
+def _skills_delete(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Delete a skill (developer-only)."""
+    name = rest[1] if len(rest) > 1 else ""
+    if not name:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_delete")}
+    return sm.delete(name, agent_id=agent_id, role=role)
+
+
+def _skills_reload(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Reload builtin skills (developer-only)."""
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    count = sm.load_builtin()
+    return {"success": True, "loaded": count, "authorized": who}
+
+
 def _cmd_skills(args: list[str]) -> dict:
     """Manage skills — list/get are public; create/update/delete/reload are developer-only.
 
@@ -100,231 +342,41 @@ def _cmd_skills(args: list[str]) -> dict:
     the SkillManager developer gate; omitting it treats the call as a
     system-internal (boot/CLI) operation.
     """
-    from l1.kernel.params.system import SKILL_LIST_DISPLAY_LIMIT
     from l1.kernel.skill import get_skill_manager
 
     sm = get_skill_manager()
 
-    role = ""
-    agent_id = ""
-    rest: list[str] = []
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a in ("--role", "--agent") and i + 1 < len(args):
-            if a == "--role":
-                role = args[i + 1]
-            else:
-                agent_id = args[i + 1]
-            i += 2
-        else:
-            rest.append(a)
-            i += 1
-
+    role, agent_id, rest = _parse_skill_args(args)
     sub = rest[0] if rest else "list"
 
     if sub in ("list", "ls"):
-        skills = sm.list_skills()
-        return {"success": True, "skills": skills[:SKILL_LIST_DISPLAY_LIMIT], "count": len(skills)}
-
+        return _skills_list(sm, rest)
     if sub == "lean":
-        skills = sm.list_skills(tags=["lean_case"])
-        return {"success": True, "skills": skills[:SKILL_LIST_DISPLAY_LIMIT], "count": len(skills)}
-
+        return _skills_lean(sm, rest)
     if sub == "get":
-        name = rest[1] if len(rest) > 1 else ""
-        if not name:
-            return {"success": False, "error": _t("shell.app_error.usage_skills_get")}
-        skill = sm.get(name)
-        if not skill:
-            return {"success": False, "error": f"skill '{name}' not found"}
-        return {"success": True, "skill": skill}
-
+        return _skills_get(sm, rest)
     if sub == "permissions":
-        # Policy lives on the SkillManager (L1) — L2 must not import L3.
-        policy = sm.write_policy()
-        return {"success": True, "policy": policy}
-
+        return _skills_permissions(sm, rest)
     if sub == "distill":
-        # Distillation / DPO master switches (same state as
-        # /api/v2/skills/distill-policy). Status is public; toggling is a
-        # developer runtime knob.
-        action = rest[1] if len(rest) > 1 else "status"
-        if action == "status":
-            return {"success": True, "policy": sm.distill_policy()}
-        if action in ("set", "on", "off"):
-            field = rest[2] if len(rest) > 2 else ""
-            value = rest[3] if len(rest) > 3 else ""
-            valid_fields = ("distill", "dpo_signal", "generalize", "llm_distill", "clustering", "sampling")
-            if field not in valid_fields or value not in ("on", "off", "true", "false", "1", "0"):
-                return {
-                    "success": False,
-                    "error": _t("shell.app_error.usage_skills_distill"),
-                }
-            flag = value in ("on", "true", "1")
-            if field == "distill":
-                return sm.set_distill_policy(distill=flag, source="shell")
-            if field == "dpo_signal":
-                return sm.set_distill_policy(dpo_signal=flag, source="shell")
-            return sm.set_distill_policy(sub={field: flag}, source="shell")
-        return {
-            "success": False,
-            "error": f"unknown distill action: {action}",
-            "suggestions": ["status", "set <distill|dpo_signal|generalize|llm_distill|clustering|sampling> <on|off>"],
-        }
-
+        return _skills_distill(sm, rest)
     if sub == "retriever":
-        # Skill retriever backend control (tfidf | embedding).  Read-only
-        # status is public; switching backend is a runtime knob like
-        # /api/v2/skills/retriever (same state, two surfaces).
-        action = rest[1] if len(rest) > 1 else "status"
-        from l3.memory.skill_retriever import retriever_status, set_backend
-
-        if action == "status":
-            return retriever_status()
-        if action == "set":
-            backend = rest[2] if len(rest) > 2 else ""
-            if not backend:
-                return {"success": False, "error": _t("shell.app_error.usage_skills_retriever")}
-            return set_backend(backend)
-        return {
-            "success": False,
-            "error": f"unknown retriever action: {action}",
-            "suggestions": ["status", "set <tfidf|embedding>"],
-        }
-
+        return _skills_retriever(sm, rest)
     if sub == "pipeline":
-        # Retrieval/curation pipeline policy — status public, toggling is a
-        # developer runtime knob (same state as /api/v2/skills/pipeline).
-        action = rest[1] if len(rest) > 1 else "status"
-        if action == "status":
-            return {"success": True, "policy": sm.pipeline_policy()}
-        if action == "set":
-            field = rest[2] if len(rest) > 2 else ""
-            value = rest[3] if len(rest) > 3 else ""
-            if field in ("retrieval", "curation") and value in ("on", "off", "true", "false", "1", "0"):
-                flag = value in ("on", "true", "1")
-                return sm.set_pipeline_policy(**{field: flag}, source="shell")
-            if field == "contrib_min_trials" and value.isdigit():
-                return sm.set_pipeline_policy(contrib_min_trials=int(value), source="shell")
-            if field in ("contrib_min_ratio", "retrieval_min_score"):
-                try:
-                    fv = float(value)
-                except ValueError:
-                    return {"success": False, "error": _t("shell.app_error.usage_skills_pipeline_invalid_number")}
-                if field == "contrib_min_ratio":
-                    return sm.set_pipeline_policy(contrib_min_ratio=fv, source="shell")
-                return sm.set_pipeline_policy(retrieval_min_score=fv, source="shell")
-            return {
-                "success": False,
-                "error": f"invalid pipeline field/value: {field} {value}",
-                "suggestions": [
-                    "status",
-                    "set <retrieval|curation> <on|off>",
-                    "set <contrib_min_trials|contrib_min_ratio|retrieval_min_score> <number>",
-                ],
-            }
-        return {
-            "success": False,
-            "error": f"unknown pipeline action: {action}",
-            "suggestions": ["status", "set <field> <value>"],
-        }
-
+        return _skills_pipeline(sm, rest)
     if sub == "disclosure":
-        # Progressive-disclosure policy — status public, toggling is a
-        # developer runtime knob (same state as /api/v2/skills/disclosure).
-        action = rest[1] if len(rest) > 1 else "status"
-        if action == "status":
-            return {"success": True, "policy": sm.disclosure_policy()}
-        if action == "set":
-            field = rest[2] if len(rest) > 2 else ""
-            value = rest[3] if len(rest) > 3 else ""
-            if field in ("full_index_enabled", "audience_filter_enabled", "strategy_capability_view") and value in (
-                "on",
-                "off",
-                "true",
-                "false",
-                "1",
-                "0",
-            ):
-                flag = value in ("on", "true", "1")
-                return sm.set_disclosure_policy(**{field: flag}, source="shell")
-            if field == "full_index_limit" and value.isdigit():
-                return sm.set_disclosure_policy(full_index_limit=int(value), source="shell")
-            return {
-                "success": False,
-                "error": f"invalid disclosure field/value: {field} {value}",
-                "suggestions": [
-                    "status",
-                    "set <full_index_enabled|audience_filter_enabled|strategy_capability_view> <on|off>",
-                    "set full_index_limit <number>",
-                ],
-            }
-        return {
-            "success": False,
-            "error": f"unknown disclosure action: {action}",
-            "suggestions": ["status", "set <field> <value>"],
-        }
-
+        return _skills_disclosure(sm, rest)
     if sub == "guidance":
-        # Guidance operating mode — status public, switching is a developer
-        # runtime knob (same state as /api/v2/skills/guidance).
-        action = rest[1] if len(rest) > 1 else "status"
-        if action == "status":
-            return {"success": True, "policy": sm.guidance_policy()}
-        if action == "set":
-            mode = rest[2] if len(rest) > 2 else ""
-            return sm.set_guidance_policy(mode=mode, source="shell")
-        return {
-            "success": False,
-            "error": f"unknown guidance action: {action}",
-            "suggestions": ["status", "set <small|full>"],
-        }
-
+        return _skills_guidance(sm, rest)
     if sub == "evolve":
-        intent = " ".join(rest[1:])
-        if not intent:
-            return {"success": False, "error": _t("shell.app_error.usage_skills_evolve")}
-        # evolve persists a new skill to disk — honor the developer write gate
-        # like create/update/delete/reload (see authorize_write in SkillManager).
-        ok, who = sm.authorize_write(agent_id, role)
-        if not ok:
-            return {"success": False, "error": f"permission denied: {who}"}
-        try:
-            from l3.memory.r4_agent import get_r4_agent
-
-            return get_r4_agent().evolve_skill(intent)
-        except Exception as e:
-            return {"success": False, "error": f"evolve failed: {e}"}
-
-    # ── Developer-only mutations ──
+        return _skills_evolve(sm, rest, role, agent_id)
     if sub == "create":
-        if len(rest) < 4:
-            return {"success": False, "error": _t("shell.app_error.usage_skills_create")}
-        name, desc, prompt = rest[1], rest[2], rest[3]
-        return sm.create(name, description=desc, prompt=prompt, agent_id=agent_id, role=role)
-
+        return _skills_create(sm, rest, role, agent_id)
     if sub == "update":
-        if len(rest) < 4:
-            return {"success": False, "error": _t("shell.app_error.usage_skills_update")}
-        name, field, value = rest[1], rest[2], rest[3]
-        if field not in ("description", "prompt", "rules"):
-            return {"success": False, "error": f"unsupported field: {field}"}
-        data: dict[str, object] = {"rules": [r for r in value.split(";") if r]} if field == "rules" else {field: value}
-        return sm.update(name, data, agent_id=agent_id, role=role)
-
+        return _skills_update(sm, rest, role, agent_id)
     if sub == "delete":
-        name = rest[1] if len(rest) > 1 else ""
-        if not name:
-            return {"success": False, "error": _t("shell.app_error.usage_skills_delete")}
-        return sm.delete(name, agent_id=agent_id, role=role)
-
+        return _skills_delete(sm, rest, role, agent_id)
     if sub == "reload":
-        ok, who = sm.authorize_write(agent_id, role)
-        if not ok:
-            return {"success": False, "error": f"permission denied: {who}"}
-        count = sm.load_builtin()
-        return {"success": True, "loaded": count, "authorized": who}
+        return _skills_reload(sm, rest, role, agent_id)
 
     return {
         "success": False,
