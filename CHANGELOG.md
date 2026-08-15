@@ -20,10 +20,8 @@
 
 ### 文档
 
-- **Docs (changelog)**: refresh Unreleased (doc-stats commit)
 - **Docs (stats)**: refresh doc-stats + changelog after cleanup
 - **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (changelog)**: refresh Unreleased from latest commits
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
@@ -64,7 +62,6 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (changelog)**: refresh [Unreleased] entries
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
