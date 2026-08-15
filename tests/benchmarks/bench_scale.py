@@ -4,11 +4,12 @@ Measures how Praxis's kernel scales and where its hard costs are, so a
 Rust rewrite knows what to optimize first. Two families of evidence:
 
 1. Amdahl scaling curves (serial fraction P):
-   - I/O-bound via threads (models LLM latency — the dominant Praxis load)
-   - CPU-bound via multiprocessing (true parallelism, GIL-independent)
-   High P in the CPU curve ⇒ the Python GIL / scheduler serializes compute
-   ⇒ a Rust kernel (real threads) helps there. Low P in the I/O curve
-   ⇒ kernel scheduling adds little serial overhead on I/O workloads.
+   - fixed-total L1 scheduler + Mutex + RingChannel work set
+   - each worker count receives the same number of work items in aggregate
+   - reports throughput, operation latency, scheduler queue wait, and lock wait
+   High P in this real kernel path ⇒ a Rust port should investigate the
+   scheduler and shared-lock implementation. Results are evidence only after
+   this benchmark has completed on the target platform.
 
 2. Hard metrics (per-primitive cost and contention):
    - lock contention curve (Mutex/RWLock ops/sec vs worker count)
@@ -31,9 +32,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import hashlib
 import json
-import multiprocessing
 import os
 import platform
 import sys
@@ -47,9 +46,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from l1.kernel.params.api import (  # noqa: E402
     EVAL_ALLOC_SHARD_WORKERS,
     EVAL_AMDAHL_AGENTS,
-    EVAL_AMDAHL_CPU_ITERS_PER_WORKER,
-    EVAL_AMDAHL_ITERS_PER_WORKER,
+    EVAL_AMDAHL_LATENCY_PERCENTILES,
+    EVAL_AMDAHL_RING_CAPACITY,
     EVAL_AMDAHL_ROUNDS,
+    EVAL_AMDAHL_TASK_TIMEOUT,
+    EVAL_AMDAHL_TOTAL_WORK_ITEMS,
     EVAL_CONSTITUTION_ITERS,
     EVAL_DIFF_COMPRESS_ITERS,
     EVAL_DIFF_HEADER_ITERS,
@@ -62,7 +63,7 @@ from l1.kernel.params.api import (  # noqa: E402
     EVAL_IPC_RTT_ITERS,
     EVAL_JSON_PARSE_ITERS,
     EVAL_JSON_PAYLOAD_BYTES,
-    EVAL_LOCK_CONTEND_ITERS,
+    EVAL_LOCK_CONTEND_TOTAL_OPS,
     EVAL_LOCK_CONTEND_WORKERS,
     EVAL_LOCKFREE_ITERS,
     EVAL_MEMORY_ALLOC_ITERS,
@@ -104,11 +105,29 @@ def _ops_per_sec(ops: int, wall: float) -> float:
     return ops / wall if wall > 0 else 0.0
 
 
+def _percentile(values: list[float], percentile: float) -> float:
+    """Return the nearest-rank percentile from a non-empty latency sample."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = min(int((len(ordered) - 1) * percentile), len(ordered) - 1)
+    return ordered[index]
+
+
+def _split_fixed_work(total_work_items: int, workers: int) -> list[int]:
+    """Split one fixed work set across workers while preserving its exact total."""
+    if total_work_items < workers or workers < 1:
+        raise ValueError("work items must be at least the positive worker count")
+    base, remainder = divmod(total_work_items, workers)
+    return [base + int(worker_index < remainder) for worker_index in range(workers)]
+
+
 def _fit_serial_fraction(agent_counts: list[int], wall_times: list[float]) -> float:
     """Fit the Amdahl serial fraction P by least squares on T(N)/T(1) vs 1/N.
 
-    Amdahl: T(N) = T(1) * (1 - P + P/N), so y = T(N)/T(1) vs x = 1/N is a
-    line with slope P. Least squares over all points is robust to noise.
+    Amdahl: T(N) = T(1) * (P + (1-P)/N), so y = T(N)/T(1) vs x = 1/N is a
+    line with intercept P and slope 1-P. Least squares over all points is
+    robust to noise.
     """
     t1 = wall_times[0]
     if t1 <= 0:
@@ -122,16 +141,22 @@ def _fit_serial_fraction(agent_counts: list[int], wall_times: list[float]) -> fl
     var = sum((x - xbar) ** 2 for x in xs)
     if var == 0:
         return 0.0
-    p = cov / var
+    parallel_fraction = cov / var
+    p = 1.0 - parallel_fraction
     return max(0.0, min(1.0, p))
 
 
 def _amdahl_speedup(p: float, n: int) -> float:
     """Amdahl predicted speedup for serial fraction *p* at *n* workers."""
-    return 1.0 / ((1.0 - p) + p / n)
+    return 1.0 / (p + (1.0 - p) / n)
 
 
-def _sweep_report(agent_counts: list[int], wall_times: list[float]) -> dict[str, Any]:
+def _sweep_report(
+    agent_counts: list[int],
+    wall_times: list[float],
+    total_work_items: int,
+    measurements: list[dict[str, float]],
+) -> dict[str, Any]:
     """Build the Amdahl report dict (serial fraction, speedups, verdict)."""
     p = _fit_serial_fraction(agent_counts, wall_times)
     t1 = wall_times[0]
@@ -143,7 +168,16 @@ def _sweep_report(agent_counts: list[int], wall_times: list[float]) -> dict[str,
     saturated = saturation_gain < EVAL_SATURATION_DELTA
     return {
         "agent_counts": agent_counts,
+        "fixed_total_work_items": total_work_items,
+        "completed_work_items": [int(sample["completed_work_items"]) for sample in measurements],
         "wall_times": [round(t, 4) for t in wall_times],
+        "throughput_ops_per_sec": [round(_ops_per_sec(total_work_items, t), 0) for t in wall_times],
+        "operation_latency_p50_ms": [round(sample["operation_latency_p50_ms"], 4) for sample in measurements],
+        "operation_latency_p95_ms": [round(sample["operation_latency_p95_ms"], 4) for sample in measurements],
+        "queue_wait_p50_ms": [round(sample["queue_wait_p50_ms"], 4) for sample in measurements],
+        "queue_wait_p95_ms": [round(sample["queue_wait_p95_ms"], 4) for sample in measurements],
+        "lock_wait_p50_ms": [round(sample["lock_wait_p50_ms"], 4) for sample in measurements],
+        "lock_wait_p95_ms": [round(sample["lock_wait_p95_ms"], 4) for sample in measurements],
         "measured_speedups": [round(s, 3) for s in measured],
         "theoretical_speedups": [round(s, 3) for s in theoretical],
         "serial_fraction_p": round(p, 4),
@@ -158,9 +192,9 @@ def _verdict(p: float, saturated: bool) -> str:
     """Human-readable Rust-migration recommendation."""
     high_p = p >= EVAL_SERIAL_P_THRESHOLD
     if high_p and saturated:
-        return "high serial + saturated: Rust should prioritize scheduler + shared locks"
+        return "high serial + saturated: profile scheduler and shared locks before choosing a Rust target"
     if high_p:
-        return "high serial fraction: Rust gains most by porting scheduler/locks"
+        return "high serial fraction: profile scheduler and shared locks before choosing a Rust target"
     if saturated:
         return "low serial + saturated: latency dominates; Rust kernel benefit limited"
     return "low serial fraction: bottleneck outside kernel compute; Rust benefit modest"
@@ -186,128 +220,245 @@ def collect_platform_info() -> dict[str, Any]:
     return info
 
 
-# ── Amdahl: I/O-bound (threads) ────────────────────────────────────────────
+# ── Amdahl: fixed-total L1 scheduler + shared synchronization path ─────────
 
 
-def _io_chunk(iters: int) -> None:
-    """Mixed sleep+hash chunk modelling the dominant Praxis agent load.
+def _amdahl_agent_work(
+    agent_id: str,
+    work_items: int,
+    start_barrier: threading.Barrier,
+    mutex: Any,
+    channel: Any,
+    benchmark_start: float,
+) -> dict[str, Any]:
+    """Execute one agent's L1 work partition and return latency samples.
 
-    time.sleep releases the GIL, so threads genuinely parallelise and the
-    fitted serial fraction reflects kernel scheduling overhead, not Python's
-    GIL.
+    The shared Mutex models a kernel coordination point and protects a
+    RingChannel round trip. Each worker has its own identity, so mutex
+    reentrancy cannot accidentally turn this into a same-agent benchmark.
     """
-    digest = hashlib.sha256(b"Praxis-Amdahl").digest()
-    for _ in range(iters):
-        digest = hashlib.sha256(digest).digest()
-        time.sleep(0.0005)
+    queue_wait_s = time.perf_counter() - benchmark_start
+    start_barrier.wait(timeout=EVAL_AMDAHL_TASK_TIMEOUT)
+    operation_latencies_s: list[float] = []
+    lock_waits_s: list[float] = []
+    for work_index in range(work_items):
+        operation_start = time.perf_counter()
+        lock_start = operation_start
+        acquired = mutex.acquire(agent_id, blocking=True)
+        lock_waits_s.append(time.perf_counter() - lock_start)
+        if not acquired["success"]:
+            raise RuntimeError("Amdahl mutex acquire failed")
+        try:
+            if not channel.put((agent_id, work_index)):
+                raise RuntimeError("Amdahl RingChannel put failed")
+            if channel.get() is None:
+                raise RuntimeError("Amdahl RingChannel get failed")
+        finally:
+            released = mutex.release(agent_id)
+            if not released["success"]:
+                raise RuntimeError("Amdahl mutex release failed")
+        operation_latencies_s.append(time.perf_counter() - operation_start)
+    return {
+        "completed_work_items": work_items,
+        "operation_latencies_s": operation_latencies_s,
+        "queue_wait_s": queue_wait_s,
+        "lock_waits_s": lock_waits_s,
+    }
 
 
-def _io_wall(workers: int, iters: int) -> float:
-    """Run *workers* parallel I/O chunks; return wall time (s)."""
-    threads = [threading.Thread(target=_io_chunk, args=(iters,), daemon=True) for _ in range(workers)]
-    start = time.perf_counter()
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    return time.perf_counter() - start
+def _amdahl_l1_round(workers: int, total_work_items: int) -> dict[str, float]:
+    """Run one fixed-total L1 scheduler and synchronization measurement round."""
+    from l1.kernel.channel_ring import RingChannel
+    from l1.kernel.sync import Mutex
+    from l1.kernel.worker_thread import ThreadPoolWorker
+
+    work_partitions = _split_fixed_work(total_work_items, workers)
+    mutex = Mutex(f"bench_amdahl_mutex_{workers}")
+    channel = RingChannel(capacity=EVAL_AMDAHL_RING_CAPACITY)
+    start_barrier = threading.Barrier(workers)
+    pool = ThreadPoolWorker(min_workers=workers, max_workers=workers, queue_size=workers)
+    benchmark_start = time.perf_counter()
+    try:
+        handles = [
+            pool.submit_result(
+                _amdahl_agent_work,
+                f"amdahl-agent-{agent_index}",
+                work_items,
+                start_barrier,
+                mutex,
+                channel,
+                benchmark_start,
+            )
+            for agent_index, work_items in enumerate(work_partitions)
+        ]
+        results = [handle.result(timeout=EVAL_AMDAHL_TASK_TIMEOUT) for handle in handles]
+        wall_s = time.perf_counter() - benchmark_start
+    finally:
+        pool.shutdown(wait=True, timeout=EVAL_AMDAHL_TASK_TIMEOUT)
+
+    operation_latencies_s = [latency for result in results for latency in result["operation_latencies_s"]]
+    lock_waits_s = [wait for result in results for wait in result["lock_waits_s"]]
+    queue_waits_s = [result["queue_wait_s"] for result in results]
+    p50, p95 = EVAL_AMDAHL_LATENCY_PERCENTILES
+    return {
+        "wall_s": wall_s,
+        "completed_work_items": float(sum(result["completed_work_items"] for result in results)),
+        "operation_latency_p50_ms": _percentile(operation_latencies_s, p50) * 1_000,
+        "operation_latency_p95_ms": _percentile(operation_latencies_s, p95) * 1_000,
+        "queue_wait_p50_ms": _percentile(queue_waits_s, p50) * 1_000,
+        "queue_wait_p95_ms": _percentile(queue_waits_s, p95) * 1_000,
+        "lock_wait_p50_ms": _percentile(lock_waits_s, p50) * 1_000,
+        "lock_wait_p95_ms": _percentile(lock_waits_s, p95) * 1_000,
+    }
 
 
-def run_amdahl_io(agent_counts: list[int], iters: int, rounds: int) -> dict[str, Any]:
-    """Amdahl sweep on the I/O-bound (thread) workload."""
-    _io_chunk(min(iters, 200))
-    wall_times = [_measure(lambda _n=n: _io_wall(_n, iters), rounds) for n in agent_counts]
-    return _sweep_report(agent_counts, wall_times)
-
-
-# ── Amdahl: CPU-bound (multiprocessing, true parallelism) ──────────────────
-
-
-def _cpu_process(iters: int) -> None:
-    """Pure-CPU chunk (no sleep) — runs in a child process, GIL-independent."""
-    digest = hashlib.sha256(b"Praxis-Amdahl-CPU").digest()
-    for _ in range(iters):
-        digest = hashlib.sha256(digest).digest()
-
-
-def _cpu_wall(workers: int, iters: int) -> float:
-    """Run *workers* parallel CPU chunks via multiprocessing; return wall (s)."""
-    start = time.perf_counter()
-    with multiprocessing.Pool(processes=workers) as pool:
-        pool.map(_cpu_process, [iters] * workers)
-    return time.perf_counter() - start
-
-
-def run_amdahl_cpu(agent_counts: list[int], iters: int, rounds: int) -> dict[str, Any]:
-    """Amdahl sweep on the CPU-bound (multiprocess) workload."""
-    wall_times = [_measure(lambda _n=n: _cpu_wall(_n, iters), rounds) for n in agent_counts]
-    return _sweep_report(agent_counts, wall_times)
+def run_amdahl_l1(agent_counts: list[int], total_work_items: int, rounds: int) -> dict[str, Any]:
+    """Measure a fixed-total L1 scheduler, Mutex, and RingChannel workload."""
+    wall_times: list[float] = []
+    measurements: list[dict[str, float]] = []
+    for workers in agent_counts:
+        samples = [_amdahl_l1_round(workers, total_work_items) for _ in range(rounds)]
+        wall_times.append(_median([sample["wall_s"] for sample in samples]))
+        measurements.append(
+            {key: _median([sample[key] for sample in samples]) for key in samples[0] if key != "wall_s"}
+        )
+    return _sweep_report(agent_counts, wall_times, total_work_items, measurements)
 
 
 # ── Lock contention curve ──────────────────────────────────────────────────
 
 
-def _contended_mutex_ops(workers: int, iters: int) -> float:
-    """N threads contend on one kernel Mutex; return wall (s)."""
+def _contended_mutex_ops(workers: int, total_work_items: int) -> dict[str, Any]:
+    """Run fixed-total Mutex contention with a distinct agent identity per worker."""
     from l1.kernel.sync import Mutex
 
-    m = Mutex("bench_contended", timeout=5.0)
+    m = Mutex("bench_contended")
     barrier = threading.Barrier(workers)
+    work_partitions = _split_fixed_work(total_work_items, workers)
+    worker_waits: list[list[float]] = [[] for _ in range(workers)]
+    worker_errors: list[Exception] = []
 
-    def _worker() -> None:
-        barrier.wait()
-        for _ in range(iters):
-            m.acquire("bench", blocking=True)
-            m.release("bench")
+    def _worker(worker_index: int, work_items: int) -> None:
+        try:
+            agent_id = f"lock-bench-agent-{worker_index}"
+            barrier.wait()
+            waits = worker_waits[worker_index]
+            for _ in range(work_items):
+                lock_start = time.perf_counter()
+                acquired = m.acquire(agent_id, blocking=True)
+                waits.append(time.perf_counter() - lock_start)
+                if not acquired["success"]:
+                    raise RuntimeError("contended Mutex acquire failed")
+                released = m.release(agent_id)
+                if not released["success"]:
+                    raise RuntimeError("contended Mutex release failed")
+        except Exception as exc:
+            worker_errors.append(exc)
 
-    threads = [threading.Thread(target=_worker, daemon=True) for _ in range(workers)]
+    threads = [
+        threading.Thread(target=_worker, args=(worker_index, work_items), daemon=True)
+        for worker_index, work_items in enumerate(work_partitions)
+    ]
     start = time.perf_counter()
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    return time.perf_counter() - start
+    if worker_errors:
+        raise worker_errors[0]
+    return {
+        "wall_s": time.perf_counter() - start,
+        "completed_work_items": total_work_items,
+        "lock_waits_s": [wait for waits in worker_waits for wait in waits],
+    }
 
 
-def _contended_rwlock_ops(workers: int, iters: int) -> float:
-    """N threads read-contend on one kernel RWLock; return wall (s)."""
-    from l1.kernel.sync import get_rwlock
+def _contended_rwlock_ops(workers: int, total_work_items: int) -> dict[str, Any]:
+    """Run fixed-total RWLock contention with a distinct agent identity per worker."""
+    from l1.kernel.sync import RWLock
 
-    rw = get_rwlock("bench_rw_contended")
+    rw = RWLock("bench_rw_contended")
     barrier = threading.Barrier(workers)
+    work_partitions = _split_fixed_work(total_work_items, workers)
+    worker_waits: list[list[float]] = [[] for _ in range(workers)]
+    worker_errors: list[Exception] = []
 
-    def _worker() -> None:
-        barrier.wait()
-        for _ in range(iters):
-            rw.read_lock("bench")
-            rw.unlock("bench")
+    def _worker(worker_index: int, work_items: int) -> None:
+        try:
+            agent_id = f"rwlock-bench-agent-{worker_index}"
+            barrier.wait()
+            waits = worker_waits[worker_index]
+            for _ in range(work_items):
+                lock_start = time.perf_counter()
+                acquired = rw.read_lock(agent_id)
+                waits.append(time.perf_counter() - lock_start)
+                if not acquired["success"]:
+                    raise RuntimeError("contended RWLock acquire failed")
+                released = rw.unlock(agent_id)
+                if not released["success"]:
+                    raise RuntimeError("contended RWLock release failed")
+        except Exception as exc:
+            worker_errors.append(exc)
 
-    threads = [threading.Thread(target=_worker, daemon=True) for _ in range(workers)]
+    threads = [
+        threading.Thread(target=_worker, args=(worker_index, work_items), daemon=True)
+        for worker_index, work_items in enumerate(work_partitions)
+    ]
     start = time.perf_counter()
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    return time.perf_counter() - start
+    if worker_errors:
+        raise worker_errors[0]
+    return {
+        "wall_s": time.perf_counter() - start,
+        "completed_work_items": total_work_items,
+        "lock_waits_s": [wait for waits in worker_waits for wait in waits],
+    }
 
 
-def run_lock_contention(workers_list: list[int], iters: int, rounds: int) -> dict[str, Any]:
-    """Contention curve for Mutex and RWLock vs worker count."""
+def _contention_metrics(
+    operation: Callable[[int, int], dict[str, Any]], workers: int, total_work_items: int, rounds: int
+) -> dict[str, float]:
+    """Return median throughput and lock-wait measurements for one lock curve point."""
+    samples = [operation(workers, total_work_items) for _ in range(rounds)]
+    p50, p95 = EVAL_AMDAHL_LATENCY_PERCENTILES
+    walls = [sample["wall_s"] for sample in samples]
+    return {
+        "wall_s": _median(walls),
+        "completed_work_items": float(total_work_items),
+        "lock_wait_p50_ms": _median([_percentile(sample["lock_waits_s"], p50) * 1_000 for sample in samples]),
+        "lock_wait_p95_ms": _median([_percentile(sample["lock_waits_s"], p95) * 1_000 for sample in samples]),
+    }
+
+
+def run_lock_contention(workers_list: list[int], total_work_items: int, rounds: int) -> dict[str, Any]:
+    """Measure fixed-total Mutex and RWLock contention versus worker count."""
     mutex_curve: dict[str, Any] = {}
     rwlock_curve: dict[str, Any] = {}
-    singles = {
-        1: _measure(lambda: _contended_mutex_ops(1, iters), rounds),
-    }
+    mutex_single = _contention_metrics(_contended_mutex_ops, 1, total_work_items, rounds)
+    rwlock_single = _contention_metrics(_contended_rwlock_ops, 1, total_work_items, rounds)
     for n in workers_list:
-        wall = _measure(lambda _n=n: _contended_mutex_ops(_n, iters), rounds)
+        mutex_metrics = _contention_metrics(_contended_mutex_ops, n, total_work_items, rounds)
+        mutex_speedup = mutex_single["wall_s"] / mutex_metrics["wall_s"] if mutex_metrics["wall_s"] else 0.0
         mutex_curve[str(n)] = {
-            "ops_per_sec": round(_ops_per_sec(n * iters, wall), 0),
-            "efficiency_vs_single": round((singles[1] / wall) if wall > 0 else 0.0, 3),
+            "fixed_total_work_items": int(mutex_metrics["completed_work_items"]),
+            "ops_per_sec": round(_ops_per_sec(total_work_items, mutex_metrics["wall_s"]), 0),
+            "speedup_vs_single": round(mutex_speedup, 3),
+            "parallel_efficiency": round(mutex_speedup / n, 3),
+            "lock_wait_p50_ms": round(mutex_metrics["lock_wait_p50_ms"], 4),
+            "lock_wait_p95_ms": round(mutex_metrics["lock_wait_p95_ms"], 4),
         }
-        rwall = _measure(lambda _n=n: _contended_rwlock_ops(_n, iters), rounds)
+        rwlock_metrics = _contention_metrics(_contended_rwlock_ops, n, total_work_items, rounds)
+        rwlock_speedup = rwlock_single["wall_s"] / rwlock_metrics["wall_s"] if rwlock_metrics["wall_s"] else 0.0
         rwlock_curve[str(n)] = {
-            "ops_per_sec": round(_ops_per_sec(n * iters, rwall), 0),
-            "efficiency_vs_single": round((singles[1] / rwall) if rwall > 0 else 0.0, 3),
+            "fixed_total_work_items": int(rwlock_metrics["completed_work_items"]),
+            "ops_per_sec": round(_ops_per_sec(total_work_items, rwlock_metrics["wall_s"]), 0),
+            "speedup_vs_single": round(rwlock_speedup, 3),
+            "parallel_efficiency": round(rwlock_speedup / n, 3),
+            "lock_wait_p50_ms": round(rwlock_metrics["lock_wait_p50_ms"], 4),
+            "lock_wait_p95_ms": round(rwlock_metrics["lock_wait_p95_ms"], 4),
         }
     return {"mutex": mutex_curve, "rwlock": rwlock_curve}
 
@@ -1111,9 +1262,8 @@ def run_json_parse(iters: int, payload_size: int, rounds: int) -> dict[str, Any]
 def run_all(agent_counts: list[int], rounds: int) -> dict[str, Any]:
     """Run every metric family and return a combined report dict."""
     return {
-        "amdahl_io": run_amdahl_io(agent_counts, EVAL_AMDAHL_ITERS_PER_WORKER, rounds),
-        "amdahl_cpu": run_amdahl_cpu(EVAL_AMDAHL_AGENTS, EVAL_AMDAHL_CPU_ITERS_PER_WORKER, rounds),
-        "lock_contention": run_lock_contention(EVAL_LOCK_CONTEND_WORKERS, EVAL_LOCK_CONTEND_ITERS, rounds),
+        "amdahl_l1": run_amdahl_l1(agent_counts, EVAL_AMDAHL_TOTAL_WORK_ITEMS, rounds),
+        "lock_contention": run_lock_contention(EVAL_LOCK_CONTEND_WORKERS, EVAL_LOCK_CONTEND_TOTAL_OPS, rounds),
         "lock_vs_lockfree": run_lock_vs_lockfree(EVAL_LOCKFREE_ITERS, rounds),
         "scheduling_latency": run_scheduling_latency(EVAL_SCHED_LATENCY_TASKS),
         "queue_event": run_queue_event(EVAL_QUEUE_ITERS, EVAL_EVENT_ITERS, EVAL_EVENT_LISTENERS, rounds),
@@ -1151,22 +1301,30 @@ def print_report(platform_info: dict[str, Any], report: dict[str, Any]) -> None:
     print(f"  python : {platform_info['python']}  cpus: {platform_info['cpu_count']}")
     print("-" * 68)
 
-    for curve_name, label in (("amdahl_io", "Amdahl I/O (threads)"), ("amdahl_cpu", "Amdahl CPU (multiprocess)")):
-        c = report.get(curve_name)
-        if c is None:
-            continue
-        print(f"\n  {label}  — serial P={c['serial_fraction_p']:.3f}  {c['verdict']}")
-        print(f"    {'workers':<8} {'wall(s)':>10} {'speedup':>10}")
+    c = report.get("amdahl_l1")
+    if c is not None:
+        print(f"\n  Amdahl L1 scheduler + Mutex + RingChannel — serial P={c['serial_fraction_p']:.3f}")
+        print(f"    work set: {c['fixed_total_work_items']:,} items per worker-count sample; {c['verdict']}")
+        print(
+            f"    {'workers':<8} {'wall(s)':>10} {'ops/s':>12} {'p95 op(ms)':>12} {'p95 lock(ms)':>14} {'p95 queue(ms)':>15}"
+        )
         for i, n in enumerate(c["agent_counts"]):
-            print(f"    {n:<8} {c['wall_times'][i]:>10.3f} {c['measured_speedups'][i]:>10.2f}")
+            print(
+                f"    {n:<8} {c['wall_times'][i]:>10.3f} {c['throughput_ops_per_sec'][i]:>12,.0f} "
+                f"{c['operation_latency_p95_ms'][i]:>12.3f} {c['lock_wait_p95_ms'][i]:>14.3f} "
+                f"{c['queue_wait_p95_ms'][i]:>15.3f}"
+            )
 
     lc = report.get("lock_contention")
     if lc:
-        print("\n  Lock contention (ops/sec vs workers, efficiency vs single):")
+        print("\n  Lock contention (fixed total work, throughput, speedup, and wait):")
         for kind in ("mutex", "rwlock"):
             print(f"    {kind}:")
             for n, m in lc[kind].items():
-                print(f"      {n}w: {m['ops_per_sec']:>10,.0f} ops/s  eff={m['efficiency_vs_single']:.2f}")
+                print(
+                    f"      {n}w: {m['ops_per_sec']:>10,.0f} ops/s  speedup={m['speedup_vs_single']:.2f} "
+                    f"eff={m['parallel_efficiency']:.2f} p95-wait={m['lock_wait_p95_ms']:.3f}ms"
+                )
 
     lv = report.get("lock_vs_lockfree")
     if lv:
@@ -1297,6 +1455,19 @@ def print_report(platform_info: dict[str, Any], report: dict[str, Any]) -> None:
     print("=" * 68)
 
 
+def _parse_agent_counts(value: str) -> list[int]:
+    """Parse a positive, ascending Amdahl worker-count sweep beginning at one."""
+    try:
+        agent_counts = [int(item) for item in value.split(",") if item.strip()]
+    except ValueError as exc:
+        raise ValueError("--agents must be a comma-separated list of integers") from exc
+    if not agent_counts or any(count < 1 for count in agent_counts):
+        raise ValueError("--agents must contain at least one positive worker count")
+    if agent_counts[0] != 1 or agent_counts != sorted(set(agent_counts)):
+        raise ValueError("--agents must be an ascending unique sweep starting with 1")
+    return agent_counts
+
+
 def main() -> int:
     """Entry point: run selected metrics, print and optionally dump JSON."""
     parser = argparse.ArgumentParser(description="Praxis kernel scaling + hard-metric benchmark")
@@ -1338,21 +1509,24 @@ def main() -> int:
     parser.add_argument("--json", type=str, default="", help="write machine-readable report to this file")
     args = parser.parse_args()
 
-    agent_counts = [int(x) for x in args.agents.split(",") if x.strip()]
-    if not agent_counts:
-        print("error: --agents must be a non-empty comma-separated list", file=sys.stderr)
+    try:
+        agent_counts = _parse_agent_counts(args.agents)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.rounds < 1:
+        print("error: --rounds must be positive", file=sys.stderr)
         return 2
 
     platform_info = collect_platform_info()
 
     if args.mode == "amdahl":
         report = {
-            "amdahl_io": run_amdahl_io(agent_counts, EVAL_AMDAHL_ITERS_PER_WORKER, args.rounds),
-            "amdahl_cpu": run_amdahl_cpu(EVAL_AMDAHL_AGENTS, EVAL_AMDAHL_CPU_ITERS_PER_WORKER, args.rounds),
+            "amdahl_l1": run_amdahl_l1(agent_counts, EVAL_AMDAHL_TOTAL_WORK_ITEMS, args.rounds),
         }
     elif args.mode == "lock":
         report = {
-            "lock_contention": run_lock_contention(EVAL_LOCK_CONTEND_WORKERS, EVAL_LOCK_CONTEND_ITERS, args.rounds),
+            "lock_contention": run_lock_contention(EVAL_LOCK_CONTEND_WORKERS, EVAL_LOCK_CONTEND_TOTAL_OPS, args.rounds),
             "lock_vs_lockfree": run_lock_vs_lockfree(EVAL_LOCKFREE_ITERS, args.rounds),
         }
     elif args.mode == "latency":

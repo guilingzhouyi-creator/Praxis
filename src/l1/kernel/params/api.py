@@ -314,18 +314,22 @@ EVAL_AMDAHL_AGENTS: Final[list[int]] = [1, 2, 4, 8]
 EVAL_SERIAL_P_THRESHOLD: Final[float] = 0.5
 # Saturation cutoff: throughput gain below this triggers "saturated" verdict
 EVAL_SATURATION_DELTA: Final[float] = 0.1
-# Compute iterations per worker chunk (sleep+hash mix; ~0.5s wall at 1 worker)
-EVAL_AMDAHL_ITERS_PER_WORKER: Final[int] = 1_000
-# Pure-CPU iterations per worker chunk (multiprocessing Amdahl; true parallelism)
-EVAL_AMDAHL_CPU_ITERS_PER_WORKER: Final[int] = 2_000_000
+# Fixed L1 work items divided across each Amdahl worker-count sample
+EVAL_AMDAHL_TOTAL_WORK_ITEMS: Final[int] = 200_000
+# Shared RingChannel capacity for the scheduler + lock hot-path workload
+EVAL_AMDAHL_RING_CAPACITY: Final[int] = 1
+# Deadline when awaiting each Amdahl worker task (s)
+EVAL_AMDAHL_TASK_TIMEOUT: Final[float] = 30.0
+# Percentiles emitted for Amdahl queue, lock, and operation latency evidence
+EVAL_AMDAHL_LATENCY_PERCENTILES: Final[tuple[float, float]] = (0.50, 0.95)
 # Median rounds per worker count
 EVAL_AMDAHL_ROUNDS: Final[int] = 3
 
 # ── Kernel hard-metric benchmarks (bench_scale.py) ──
 # Worker counts swept for the lock-contention curve
 EVAL_LOCK_CONTEND_WORKERS: Final[list[int]] = [1, 2, 4, 8]
-# contended acquire/release ops per worker (lock curve)
-EVAL_LOCK_CONTEND_ITERS: Final[int] = 20_000
+# Fixed acquire/release operations divided across the lock contention curve
+EVAL_LOCK_CONTEND_TOTAL_OPS: Final[int] = 160_000
 # ops for the lock-vs-lockfree comparison
 EVAL_LOCKFREE_ITERS: Final[int] = 50_000
 # RingChannel put+get round trips
