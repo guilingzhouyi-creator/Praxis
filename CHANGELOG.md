@@ -5,8 +5,21 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
 ### 变更
 
+- **Test (infra)**: register ports.storage singleton reset
 - **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
 - **Refactor (l3)**: convert l3a dispatch to dict dispatch table
 - **Refactor (l2)**: split _cmd_memory into global-op dispatch table
@@ -39,6 +52,8 @@
 
 ### 文档
 
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (changelog)**: refresh Unreleased from latest commits
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
@@ -83,17 +98,6 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
-
-### 修复
-
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
 
 ### 新增
 
