@@ -22,6 +22,16 @@ R4 archive   — lossless, append-only (fonds/series/ref-code), restore baseline
 | Task-aware injection | `memory_inject.py` (execute→summary / decide→Mer / resume→layered) |
 | Init from memories | `memory_init.py` (boot restores agent topology) |
 
+### Persistence concurrency
+
+`PersistableMixin` takes its JSON snapshot while the owning service's state
+lock is held, then serializes commits per persistence path. This prevents
+torn container iteration and temporary-file collisions when services restart
+or tests replace a singleton. Auto-save owns one managed worker per instance:
+restarting it signals and waits for the prior worker, and singleton resetters
+stop that worker before discarding the service. A delayed pre-reset snapshot
+cannot overwrite a later snapshot because per-path commit epochs discard it.
+
 ## Side-channels (bypass, all default off)
 
 Independent transformations that never mutate the main flow; on error they

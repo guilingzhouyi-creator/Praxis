@@ -412,17 +412,17 @@ _paths_lock = threading.Lock()
 def get_paths() -> PraxisPaths:
     """Get or create the PraxisPaths singleton."""
     global _paths
-    if _paths is None:
-        with _paths_lock:
-            if _paths is None:
-                _paths = PraxisPaths.detect()
-    return _paths
+    with _paths_lock:
+        if _paths is None:
+            _paths = PraxisPaths.detect()
+        return _paths
 
 
 def reset_paths() -> None:
     """Reset the singleton (useful for tests)."""
     global _paths
-    _paths = None
+    with _paths_lock:
+        _paths = None
 
 
 def configure_paths(
@@ -434,16 +434,18 @@ def configure_paths(
     """Explicitly configure paths (called by boot after loading praxis.yaml)."""
     global _paths
     mode = DeployMode(deploy_mode) if deploy_mode else _detect_deploy_mode()
-    _paths = PraxisPaths(deploy_mode=mode)
-    if data_dir:
-        _paths.data_dir = data_dir
-        # Re-derive children
-        _paths.__post_init__()
-    if config_file:
-        _paths.config_file = config_file
-    if skill_dirs is not None:
-        _paths.skill_dirs = skill_dirs
-    return _paths
+    with _paths_lock:
+        configured = PraxisPaths(deploy_mode=mode)
+        if data_dir:
+            configured.data_dir = data_dir
+            # Re-derive children
+            configured.__post_init__()
+        if config_file:
+            configured.config_file = config_file
+        if skill_dirs is not None:
+            configured.skill_dirs = skill_dirs
+        _paths = configured
+        return configured
 
 
 # ── Backward-compatible accessors ──

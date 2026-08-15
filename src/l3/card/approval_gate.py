@@ -213,4 +213,6 @@ def get_gate() -> ApprovalGate:
 def reset_gate() -> None:
     """Reset the shared global ApprovalGate to None."""
     global _gate
+    if _gate is not None:
+        _gate._stop_auto_save()
     _gate = None

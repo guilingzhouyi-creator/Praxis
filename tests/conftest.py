@@ -62,6 +62,7 @@ _RESETS = {
     "l1.kernel.notify": ("reset_notify", None),
     "l1.kernel.sync": ("reset_registry", None),
     "l1.kernel.vfs": ("reset_vfs", None),
+    "l1.kernel.paths": ("reset_paths", None),
     "l3.boot.boot": ("reset_boot_state", None),
     "l3.boot.boot_registry": ("reset_registry", None),
     "l1.kernel.settings": ("reset_settings", None),

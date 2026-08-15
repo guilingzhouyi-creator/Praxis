@@ -139,6 +139,8 @@ PRAXIS_CONFIG_DIR: Final[str] = ".config/praxis"
 PERSIST_AUTO: Final[bool] = True
 # Seconds between automatic persistence sweeps
 PERSIST_INTERVAL: Final[float] = 30.0
+# Maximum time teardown waits for an in-flight persistence worker
+PERSIST_AUTO_SAVE_STOP_TIMEOUT: Final[float] = 1.0
 # Max event rows returned per query
 EVENT_STORE_MAX_QUERY: Final[int] = 5000
 

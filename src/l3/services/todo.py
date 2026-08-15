@@ -66,7 +66,7 @@ class TodoTable(PersistableMixin):
     def __init__(self, agent_id: str = "", persist_path: str = ""):
         self.agent_id = agent_id
         self._items: dict[str, TodoItem] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         path = persist_path or self._resolve_persist_path(agent_id)
         self._init_persistence(path, TODO_TABLE_AUTO_SAVE)
         self._restore()

@@ -296,4 +296,6 @@ def reset_capability_store() -> None:
     """Reset the CapabilityStore singleton (tests / hot reset)."""
     global _store
     with _store_lock:
+        if _store is not None:
+            _store._stop_auto_save()
         _store = None

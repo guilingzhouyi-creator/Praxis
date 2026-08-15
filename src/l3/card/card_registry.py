@@ -427,4 +427,6 @@ def get_registry() -> CardRegistry:
 def reset_registry() -> None:
     """Reset the CardRegistry singleton so the next access re-creates it."""
     global _registry
+    if _registry is not None:
+        _registry._stop_auto_save()
     _registry = None
