@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 from l1.kernel.params.agent import (
@@ -38,6 +39,7 @@ class SkillLifecycleMixin:
     # Host-provided attributes (declared by R4Agent)
     _pmu: Any
     _remove_skill_dir: Any
+    _archive_before_evolve: Callable[[str, dict[str, Any]], Any]
 
     def _prune_stale_skills(self) -> int:
         """Mark evolved skills that exceed TTL as stale, then delete them.

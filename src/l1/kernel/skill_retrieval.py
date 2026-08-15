@@ -31,6 +31,7 @@ class SkillRetrievalMixin:
     # ── Attributes injected by the concrete SkillManager (see skill.py) ──
     _lock: threading.RLock
     _skills: dict[str, dict]
+    _revision: int
 
     # ── Methods provided by SkillGuidanceMixin (see skill_guidance.py) ──
     current_stage: Callable[[str, str], dict]

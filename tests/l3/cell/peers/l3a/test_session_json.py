@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from l3.cell.peers.l3a.session_json import (
     append_thought,
     append_turn,
@@ -130,7 +132,7 @@ def test_record_failed_tool_appends_multiple(tmp_path, monkeypatch):
     monkeypatch.setenv("PRAXIS_DATA_DIR", str(tmp_path / "tools2"))
     reset_sequences()
     try:
-        sid = "sess-tools2"
+        sid = f"sess-tools2-{uuid.uuid4().hex}"
         record_failed_tool(sid, turn=1, tool_name="a", error="e1")
         record_failed_tool(sid, turn=2, tool_name="b", error="e2")
         data = load_tool_failures(sid)

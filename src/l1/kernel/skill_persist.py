@@ -18,6 +18,7 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from l1.kernel.params.system import (
@@ -90,6 +91,7 @@ class SkillPersistMixin:
     _skills: dict[str, dict]
     _revision: int
     _shared_principles: str
+    _normalize_binding: Callable[[dict | None], dict[str, list[str]]]
 
     def load_dir(self, directory: str) -> int:
         """Load all skill files from a directory tree.

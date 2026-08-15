@@ -185,9 +185,9 @@ class TestA5ConfirmedMinimalAutoApproval:
         from l1.kernel.notify import get_notify
         from l3.tool_system.harness import set_harness_mode
 
-        _register("a5_nuke", danger=5, ring=ToolRing.RING_3)
+        _register("run_in_terminal", danger=5, ring=ToolRing.RING_3)
         set_harness_mode("minimal", confirmed=True)
-        result = _run("a5_nuke", "default")
+        result = _run("run_in_terminal", "default")
         assert result.get("success") is True
         assert any("auto_approved" in t or "approval" in t for t in _notify_topics())
         assert get_notify().recent()
@@ -200,15 +200,15 @@ class TestA6CapabilityDenyOverrides:
         from l3.services.capability_store import get_capability_store
         from l3.tool_system.harness import set_harness_mode
 
-        _register("a6_nuke", danger=5, ring=ToolRing.RING_3)
+        _register("run_in_terminal", danger=5, ring=ToolRing.RING_3)
         get_capability_store().issue(
             subject="default",
-            resource="tool:a6_nuke",
+            resource="tool:run_in_terminal",
             effect="deny",
             issuer="security",
         )
         set_harness_mode("minimal", confirmed=True)
-        result = _run("a6_nuke", "default")
+        result = _run("run_in_terminal", "default")
         assert result.get("success") is False
         gate_steps = _gate_results(result)
         assert "capability" in gate_steps

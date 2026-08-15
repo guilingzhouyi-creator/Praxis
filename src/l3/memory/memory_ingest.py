@@ -30,6 +30,7 @@ class MemoryIngestMixin:
     _dirty_short: Any
     _lock: Any
     _ring: Any
+    _entry_ring: dict[str, int]
     _ttl_for: Any
     long: Any
     short: Any
