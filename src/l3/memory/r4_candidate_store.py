@@ -81,9 +81,10 @@ class CandidateStore:
 
     def __init__(self, state_path: str = "") -> None:
         self._lock = threading.RLock()
-        # Serialize publication requests without extending the ledger lock
-        # across the potentially slow R4Agent evolution call.
-        self._publish_lock = threading.Lock()
+        # Serialize every operation that changes both the ledger and the
+        # skill registry without extending the ledger lock across R4 calls.
+        # RLock permits those operations to finish through transition().
+        self._lifecycle_lock = threading.RLock()
         self._state_path = state_path or os.path.join(get_paths().data_dir, R4_CANDIDATE_STATE_FILE)
         self._journal_path = f"{self._state_path}{R4_CANDIDATE_JOURNAL_SUFFIX}"
         self._archive_path = f"{self._state_path}{R4_CANDIDATE_ARCHIVE_SUFFIX}"
@@ -337,29 +338,30 @@ class CandidateStore:
     def transition(self, candidate_id: str, state: str, skill_name: str = "") -> dict[str, Any]:
         """Advance a validated candidate through its controlled lifecycle."""
         error = "" if state in R4_CANDIDATE_STATES else f"invalid candidate state: {state}"
-        with self._lock:
-            candidate = self._candidates.get(candidate_id)
-            if candidate is None and not error:
-                error = f"candidate not found: {candidate_id}"
-            if candidate and not error and state not in R4_CANDIDATE_STATE_TRANSITIONS.get(candidate["state"], ()):
-                error = f"invalid candidate transition: {candidate['state']} -> {state}"
-            if candidate and state == "validated" and not candidate.get("validation", {}).get("valid"):
-                error = "candidate must pass validation before entering validated state"
-            if candidate and state in ("canary", "active") and not candidate.get("validation", {}).get("valid"):
-                error = "candidate must validate before publication"
-            if candidate and state == "active" and candidate["state"] != "canary":
-                error = "candidate must enter canary before activation"
-            if candidate and state in ("canary", "active") and not skill_name and not candidate.get("skill_name"):
-                error = "published candidate requires a skill name"
-            if error:
-                return {"success": False, "error": error}
-            assert candidate is not None
-            candidate["state"] = state
-            if skill_name:
-                candidate["skill_name"] = skill_name
-            candidate["updated_at"] = time.time()
-            self._persist({"op": "upsert", "candidates": [candidate]})
-            return {"success": True, "candidate": self._copy(candidate)}
+        with self._lifecycle_lock:
+            with self._lock:
+                candidate = self._candidates.get(candidate_id)
+                if candidate is None and not error:
+                    error = f"candidate not found: {candidate_id}"
+                if candidate and not error and state not in R4_CANDIDATE_STATE_TRANSITIONS.get(candidate["state"], ()):
+                    error = f"invalid candidate transition: {candidate['state']} -> {state}"
+                if candidate and state == "validated" and not candidate.get("validation", {}).get("valid"):
+                    error = "candidate must pass validation before entering validated state"
+                if candidate and state in ("canary", "active") and not candidate.get("validation", {}).get("valid"):
+                    error = "candidate must validate before publication"
+                if candidate and state == "active" and candidate["state"] != "canary":
+                    error = "candidate must enter canary before activation"
+                if candidate and state in ("canary", "active") and not skill_name and not candidate.get("skill_name"):
+                    error = "published candidate requires a skill name"
+                if error:
+                    return {"success": False, "error": error}
+                assert candidate is not None
+                candidate["state"] = state
+                if skill_name:
+                    candidate["skill_name"] = skill_name
+                candidate["updated_at"] = time.time()
+                self._persist({"op": "upsert", "candidates": [candidate]})
+                return {"success": True, "candidate": self._copy(candidate)}
 
     def get(self, candidate_id: str) -> dict[str, Any] | None:
         """Return one candidate snapshot by id."""
@@ -469,10 +471,9 @@ def _publication_error(validation: dict[str, Any], intent: str) -> str:
 def publish_candidate(candidate_id: str, intent: str, scope: str = "") -> dict[str, Any]:
     """Generate a bound canary skill from a validated candidate."""
     candidate_store = get_candidate_store()
-    # Serialize lifecycle check and skill generation so concurrent requests
-    # cannot both generate a skill. The ledger lock itself is only held by
-    # CandidateStore methods and never spans the potentially slow R4 call.
-    with candidate_store._publish_lock:
+    # The ledger and skill registry must advance together. The ledger lock
+    # stays scoped to CandidateStore methods, even while R4 generation runs.
+    with candidate_store._lifecycle_lock:
         current = candidate_store.get(candidate_id)
         if current and current.get("state") in ("canary", "active"):
             return {
@@ -511,37 +512,39 @@ def publish_candidate(candidate_id: str, intent: str, scope: str = "") -> dict[s
 def activate_candidate(candidate_id: str) -> dict[str, Any]:
     """Promote a canary candidate and its skill to active injection."""
     candidate_store = get_candidate_store()
-    candidate = candidate_store.get(candidate_id)
-    if candidate is None:
-        return {"success": False, "error": f"candidate not found: {candidate_id}"}
-    if candidate.get("state") != "canary":
-        return {"success": False, "error": "candidate must be canary before activation"}
-    skill_name = str(candidate.get("skill_name") or "")
-    try:
-        from l1.kernel.skill import get_skill_manager
+    with candidate_store._lifecycle_lock:
+        candidate = candidate_store.get(candidate_id)
+        if candidate is None:
+            return {"success": False, "error": f"candidate not found: {candidate_id}"}
+        if candidate.get("state") != "canary":
+            return {"success": False, "error": "candidate must be canary before activation"}
+        skill_name = str(candidate.get("skill_name") or "")
+        try:
+            from l1.kernel.skill import get_skill_manager
 
-        updated = get_skill_manager().update(skill_name, {"status": "active"}, internal=True)
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
-    if not updated.get("success"):
-        return updated
-    return candidate_store.transition(candidate_id, "active")
+            updated = get_skill_manager().update(skill_name, {"status": "active"}, internal=True)
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+        if not updated.get("success"):
+            return updated
+        return candidate_store.transition(candidate_id, "active")
 
 
 def retire_candidate(candidate_id: str) -> dict[str, Any]:
     """Retire a candidate and remove its published skill from injection."""
     candidate_store = get_candidate_store()
-    candidate = candidate_store.get(candidate_id)
-    if candidate is None:
-        return {"success": False, "error": f"candidate not found: {candidate_id}"}
-    skill_name = str(candidate.get("skill_name") or "")
-    if skill_name:
-        try:
-            from l1.kernel.skill import get_skill_manager
+    with candidate_store._lifecycle_lock:
+        candidate = candidate_store.get(candidate_id)
+        if candidate is None:
+            return {"success": False, "error": f"candidate not found: {candidate_id}"}
+        skill_name = str(candidate.get("skill_name") or "")
+        if skill_name:
+            try:
+                from l1.kernel.skill import get_skill_manager
 
-            updated = get_skill_manager().update(skill_name, {"status": "retired"}, internal=True)
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-        if not updated.get("success"):
-            return updated
-    return candidate_store.transition(candidate_id, "retired")
+                updated = get_skill_manager().update(skill_name, {"status": "retired"}, internal=True)
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+            if not updated.get("success"):
+                return updated
+        return candidate_store.transition(candidate_id, "retired")
