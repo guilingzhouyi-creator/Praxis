@@ -90,6 +90,12 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     if summary and min_chars and len(summary) < min_chars:
         violations.append(f"summary too short ({len(summary)} < {min_chars} chars)")
 
+    # subject length guard: Conventional-Commits subjects must stay <= 72
+    # chars (AGENTS.md contract). Rejected in strict mode.
+    max_chars = policy.get("max_subject_chars", 72)
+    if max_chars and len(subject) > max_chars and strictness == "strict":
+        violations.append(f"subject too long ({len(subject)} > {max_chars} chars)")
+
     # branch-type policy: commits on a pattern-matched branch may only use
     # the branch's allowed types (fix* branches are fix-only).
     for rule in policy.get("branch_policy", {}).get("patterns", []):
@@ -99,6 +105,28 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
                 violations.append(f"branch '{branch}' allows only types {allowed}, got '{ctype}'")
 
     return violations
+
+
+def body_advisories(body: str, policy: dict | None = None) -> list[str]:
+    """Return advisory findings for a commit body (never blocks).
+
+    A non-empty body SHOULD follow the AGENTS.md template (## sections,
+    **keywords**, `files`, bullets). Findings guide agents toward uniform,
+    changelog-friendly bodies but never fail the gate.
+    """
+    policy = policy if policy is not None else _cached_policy()
+    body = body or ""
+    if not body.strip():
+        return []  # single-line commits are fine — no body to structure
+    rules = policy.get("body", {})
+    advisories: list[str] = []
+    if rules.get("require_sections") and not re.search(r"^## ", body, re.MULTILINE):
+        advisories.append("body lacks '## ' section headings (AGENTS.md template)")
+    if rules.get("require_bullets") and not re.search(r"^- ", body, re.MULTILINE):
+        advisories.append("body lacks '- ' bullets (AGENTS.md template)")
+    if rules.get("require_keywords") and "**" not in body:
+        advisories.append("body lacks '**keyword**' emphasis (AGENTS.md template)")
+    return advisories
 
 
 _cached = None
@@ -135,6 +163,36 @@ def scan_range(rev_range: str, branch: str = "", policy: dict | None = None) -> 
     return findings
 
 
+def scan_range_bodies(rev_range: str, branch: str = "", policy: dict | None = None) -> list[tuple[str, str]]:
+    """Validate subjects AND collect body advisories across a git range.
+
+    Returns (sha, advisory) pairs for body-structure findings (never
+    blocking). Subjects are validated via validate_subject; the body check
+    uses body_advisories so non-uniform bodies are surfaced without failing
+    the gate.
+    """
+    policy = policy if policy is not None else _cached_policy()
+    out = subprocess.run(
+        ["git", "log", rev_range, "--pretty=%h|%s|%B", "--no-merges"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    advisories: list[tuple[str, str]] = []
+    for block in out.stdout.split("\n\n"):
+        lines = block.splitlines()
+        if not lines:
+            continue
+        head = lines[0]
+        sha, _, subject = head.partition("|")
+        if subject.startswith(("Merge ", "Revert ")):
+            continue
+        body = "\n".join(lines[1:]) if len(lines) > 1 else ""
+        for a in body_advisories(body, policy=policy):
+            advisories.append((sha, a))
+    return advisories
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate commit subject(s) against the project commit policy")
     parser.add_argument("--subject", help="single commit subject line to validate")
@@ -147,11 +205,18 @@ def main() -> int:
             findings = scan_range(args.git_range, branch=args.branch)
             if not findings:
                 print("[commit-scan] OK — all subjects in range clean")
-                return 0
-            print(f"[commit-scan] VIOLATIONS ({len(findings)}):", file=sys.stderr)
-            for sha, v in findings:
-                print(f"  {sha} ✗ {v}", file=sys.stderr)
-            return 1
+            else:
+                print(f"[commit-scan] VIOLATIONS ({len(findings)}):", file=sys.stderr)
+                for sha, v in findings:
+                    print(f"  {sha} ✗ {v}", file=sys.stderr)
+            # Body-structure advisories (never blocking) — surface non-uniform
+            # bodies so agents align them without failing the gate.
+            advisories = scan_range_bodies(args.git_range, branch=args.branch)
+            if advisories:
+                print(f"[commit-scan] BODY ADVISORIES ({len(advisories)}):")
+                for sha, a in advisories:
+                    print(f"  {sha} ⚠ {a}")
+            return 1 if findings else 0
         if not args.subject:
             parser.error("provide --subject or --git-range")
         violations = validate_subject(args.subject, branch=args.branch)

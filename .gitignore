@@ -115,3 +115,6 @@ skills/evolved/
 
 # ── Personal notes (随笔 — intentionally NOT tracked) ──
 docs/notes/随笔/
+
+# ── Claude Code local settings (personal runtime state, never committed) ──
+.claude/

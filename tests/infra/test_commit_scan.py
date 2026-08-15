@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))  # noqa: E402
 
-from commit_scan import load_policy, parse_subject, scan_range, validate_subject  # noqa: E402
+from commit_scan import body_advisories, load_policy, parse_subject, scan_range, validate_subject  # noqa: E402
 
 
 def policy() -> dict:
@@ -71,6 +71,41 @@ def test_short_summary_flagged():
     p = policy()
     vs = validate_subject("feat(kernel): abc", policy=p)
     assert any("too short" in v for v in vs)
+
+
+def test_long_subject_rejected_strict():
+    p = policy()
+    long_subject = "feat(kernel): " + "x" * 80
+    vs = validate_subject(long_subject, policy=p)
+    assert any("subject too long" in v for v in vs)
+
+
+def test_72_char_subject_accepted():
+    p = policy()
+    # exactly at the 72-char contract boundary must pass
+    subject = "feat(kernel): " + "x" * 55  # 13 + 55 = 68 chars total
+    assert validate_subject(subject, policy=p) == []
+
+
+def test_body_advisories_empty_body_ok():
+    p = policy()
+    assert body_advisories("", policy=p) == []
+    assert body_advisories(None, policy=p) == []
+
+
+def test_body_advisories_structured_body_ok():
+    p = policy()
+    body = "## What\n- change x\n\n## Why\n- reason y with **keyword**"
+    assert body_advisories(body, policy=p) == []
+
+
+def test_body_advisories_unstructured_reported():
+    p = policy()
+    # plain prose body misses ## sections, bullets and **keywords**
+    advisories = body_advisories("just some prose explaining the change", policy=p)
+    assert any("## " in a for a in advisories)
+    assert any("bullets" in a for a in advisories)
+    assert any("keyword" in a for a in advisories)
 
 
 def test_fix_branch_policy():

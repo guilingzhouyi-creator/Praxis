@@ -26,6 +26,7 @@ types:
   - build
   - ci
   - revert
+  - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
 # Registered scopes. A `type(scope):` whose scope is NOT listed here is a
 # violation under `strict` mode (warned under `relaxed`). Keep this list in
@@ -124,6 +125,19 @@ placeholder:
   reject_cjk_summary: true     # "feat: 准备构建" — CJK placeholder subjects
   min_summary_chars: 10        # shorter summaries are flagged as suspicious
                                # (advisory under strict, reported only)
+
+# Subject length guard — Conventional-Commits subjects must stay <= 72
+# chars (AGENTS.md contract). Longer subjects are rejected in strict mode.
+max_subject_chars: 72
+
+# Body-structure advisory — a non-empty body SHOULD follow the AGENTS.md
+# template (## sections, **keywords**, `files`, bullets). Violations are
+# reported but do NOT block (advisory under strict, always non-blocking):
+# they guide agents toward uniform, changelog-friendly bodies.
+body:
+  require_sections: true   # at least one "## " section heading
+  require_bullets: true    # at least one "- " bullet
+  require_keywords: true   # at least one "**keyword**" occurrence
 
 # Strictness levels:
 #   strict (default) — full contract: scope registration + placeholder +
