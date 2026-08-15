@@ -83,6 +83,31 @@ class SkillTraceMixin:
             )
             with open(fp, "w", encoding="utf-8") as f:
                 json.dump(entry, f, indent=2)
+            # Candidate ledger: failure traces are evidence, not immediate
+            # skills. The existing lean-case path stays intact while the
+            # ledger groups evidence for a later scoped canary publication.
+            try:
+                candidate_tags = []
+                if nature:
+                    candidate_tags.append(f"{R4_CARD_TAG_PREFIX}{nature}")
+                if domain:
+                    candidate_tags.append(f"{R4_CARD_TAG_PREFIX}{domain}")
+                from l3.memory.r4_candidate_store import get_candidate_store
+
+                get_candidate_store().submit_records(
+                    [
+                        {
+                            "entry_id": os.path.basename(fp),
+                            "entry_type": "tool_failure",
+                            "agent_id": agent_id,
+                            "tags": candidate_tags,
+                            "content": f"{tool_name}: {error}",
+                        }
+                    ],
+                    source="tool_failure",
+                )
+            except Exception as exc:
+                logger.debug("R4Agent: candidate failure evidence skipped: %s", exc)
             # R4 archive: persist the raw failure trace so a generated lean case
             # can be traced back to "why it exists" (audit trail).
             try:

@@ -19,7 +19,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
 | `gatechain.py` | G1–G5 tool authorization chain (whitelist/identity/territory/escalation/composite) + stagnation callback |
-| `ports/` | 15 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
+| `ports/` | 16 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
 | `allocator.py` | Token allocation + GC |
 | `vfs.py` / `registry.py` / `registry_base` | Virtual FS, system registry |
 | `os.py` | Lifecycle: boot/shutdown/restart/watchdog |
@@ -56,6 +56,7 @@ class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broa
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
 class ProcessPort(ABC): run / run_args / spawn_interactive  → ProcessResult
+class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
 ```

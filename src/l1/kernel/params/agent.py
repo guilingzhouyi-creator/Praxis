@@ -591,6 +591,17 @@ R4_LEAN_CASES_DEFAULT: Final[int] = 5  # default limit for get_lean_cases
 R4_EVOLVED_SKILLS_DEFAULT: Final[int] = 3  # default limit for get_evolved_skills / graph diffusion
 R4_LEAN_GENERALIZE_THRESHOLD: Final[int] = 5  # per-tool lean cases → auto-generalize into one lessons skill
 
+# ── R4 candidate ledger (3.4) ──
+# Refined evidence is accumulated before an evolved skill can be published.
+R4_CANDIDATE_STATE_FILE: Final[str] = "r4_candidates.json"
+R4_CANDIDATE_ID_PREFIX: Final[str] = "r4c_"
+R4_CANDIDATE_SCHEMA_VERSION: Final[int] = 1
+R4_CANDIDATE_ENABLED_DEFAULT: Final[bool] = True
+R4_CANDIDATE_MIN_EVIDENCE: Final[int] = 2
+R4_CANDIDATE_MAX_EVIDENCE: Final[int] = 64
+R4_CANDIDATE_FINGERPRINT_LENGTH: Final[int] = 16
+R4_CANDIDATE_EVIDENCE_SUMMARY_MAX: Final[int] = 500
+
 # ── Generalization verify gate (P1-④) ──
 # Generalized skills start as candidates; card-outcome signals accumulate
 # skill-level verified/hit counters, and the gate PROMOTES to active once

@@ -19,6 +19,7 @@ from l1.kernel.params.system import (
     LOG_TRUNC_2000,
     SKILL_DISCLOSURE_DEFAULT,
     SKILL_POSTURE_DEFAULT,
+    SKILL_STATUS_DEFAULT,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,8 @@ class SkillRetrievalMixin:
             "dependencies": skill.get("dependencies") or [],
             "next": skill.get("next") or [],
             "disclosure": skill.get("disclosure", SKILL_DISCLOSURE_DEFAULT),
+            "binding": dict(skill.get("binding") or {}),
+            "status": skill.get("status") or SKILL_STATUS_DEFAULT,
             "stage": stage,
         }
 
@@ -133,6 +136,8 @@ class SkillRetrievalMixin:
                     "source": s.get("source", ""),
                     "builtin": bool(s.get("builtin")),
                     "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
+                    "binding": dict(s.get("binding") or {}),
+                    "status": s.get("status") or SKILL_STATUS_DEFAULT,
                     "disclosure": s.get("disclosure", SKILL_DISCLOSURE_DEFAULT),
                     "stages": len(s.get("stages") or []),
                     "next": s.get("next") or [],

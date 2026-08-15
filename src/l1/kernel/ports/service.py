@@ -71,6 +71,37 @@ class MonitorBusPort(ABC):
     ) -> list[dict]: ...
 
 
+# ── R4 Candidate Ledger Port ──
+
+
+class CandidateLedgerPort(ABC):
+    """R4 evidence-candidate lifecycle exposed to shell and API adapters."""
+
+    @abstractmethod
+    def list_candidates(self, state: str = "") -> list[dict]: ...
+
+    @abstractmethod
+    def get_candidate(self, candidate_id: str) -> dict | None: ...
+
+    @abstractmethod
+    def status(self) -> dict: ...
+
+    @abstractmethod
+    def set_enabled(self, enabled: bool) -> dict: ...
+
+    @abstractmethod
+    def validate(self, candidate_id: str) -> dict: ...
+
+    @abstractmethod
+    def publish(self, candidate_id: str, intent: str, scope: str = "") -> dict: ...
+
+    @abstractmethod
+    def activate(self, candidate_id: str) -> dict: ...
+
+    @abstractmethod
+    def retire(self, candidate_id: str) -> dict: ...
+
+
 # ── LLM Port ──
 
 

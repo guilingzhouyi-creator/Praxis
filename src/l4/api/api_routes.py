@@ -197,6 +197,55 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
         "l4.api_handlers.api_handlers_skills.handle_skills_distill_policy_set",
         "Update skill distillation/DPO switches (developer)",
     ),
+    # Evidence-backed R4 candidate lifecycle (collect -> validate -> canary -> active)
+    (
+        "GET",
+        "/api/v2/skills/candidates",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidates_list",
+        "List R4 skill candidates",
+    ),
+    (
+        "GET",
+        "/api/v2/skills/candidates/policy",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidates_policy_get",
+        "Get R4 candidate collection policy",
+    ),
+    (
+        "POST",
+        "/api/v2/skills/candidates/policy",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidates_policy_set",
+        "Set R4 candidate collection policy",
+    ),
+    (
+        "GET",
+        "/api/v2/skills/candidates/{candidate_id}",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidate_get",
+        "Get R4 skill candidate",
+    ),
+    (
+        "POST",
+        "/api/v2/skills/candidates/{candidate_id}/validate",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidate_validate",
+        "Validate R4 skill candidate evidence",
+    ),
+    (
+        "POST",
+        "/api/v2/skills/candidates/{candidate_id}/publish",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidate_publish",
+        "Publish R4 skill candidate as canary",
+    ),
+    (
+        "POST",
+        "/api/v2/skills/candidates/{candidate_id}/activate",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidate_activate",
+        "Activate R4 skill candidate",
+    ),
+    (
+        "POST",
+        "/api/v2/skills/candidates/{candidate_id}/retire",
+        "l4.api_handlers.api_handlers_skills.handle_skill_candidate_retire",
+        "Retire R4 skill candidate",
+    ),
     # Skill retrieval/curation pipeline policy (master switches + thresholds)
     (
         "GET",

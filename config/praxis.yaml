@@ -37,6 +37,7 @@ skill:
   auto_activate_builtin: true    # inject built-in skills into every session's system prompt
   retriever_backend: tfidf        # initial skill-retrieval backend: tfidf | embedding
   # evolve_scope: project         # "project" | "global" — where evolved skills are persisted
+  # candidate_enabled: true       # collect refined evidence before R4 skill publication
   # ── Offensive-posture gate (soft control; runtime-switchable via API) ──
   # offensive_enabled: true       # false = bypass the posture gate entirely
   # offensive_natures: [offensive] # card natures that authorize offensive-skill injection

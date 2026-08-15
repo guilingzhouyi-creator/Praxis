@@ -87,6 +87,7 @@ def _cmd_skills(args: list[str]) -> dict:
       /skills permissions              → current write-gate policy
       /skills distill [status]        → distillation/DPO master + sub switches
       /skills distill set <field> <on|off>  → toggle distill|dpo_signal|generalize|llm_distill|clustering|sampling
+    /skills candidates [list [state]|validate|publish|activate|retire|policy] → R4 candidate lifecycle
       /skills retriever [status]       → active retrieval backend (tfidf|embedding)
       /skills retriever set <backend>  → switch retrieval backend at runtime
       /skills pipeline [status]        → retrieval/curation pipeline policy + thresholds
@@ -172,6 +173,47 @@ def _cmd_skills(args: list[str]) -> dict:
             "error": f"unknown distill action: {action}",
             "suggestions": ["status", "set <distill|dpo_signal|generalize|llm_distill|clustering|sampling> <on|off>"],
         }
+
+    if sub in ("candidate", "candidates"):
+        action = rest[1] if len(rest) > 1 else "list"
+        from l1.kernel.ports import get_port
+
+        try:
+            store = get_port("r4_candidates")
+        except KeyError:
+            return {"success": False, "error": _t("shell.app_error.r4_candidate_ledger_unavailable")}
+        if action in ("list", "ls"):
+            state = rest[2] if len(rest) > 2 else ""
+            candidates = store.list_candidates(state=state)
+            return {"success": True, "candidates": candidates, "count": len(candidates), "policy": store.status()}
+        if action == "policy":
+            if len(rest) == 2:
+                return {"success": True, "policy": store.status()}
+            value = rest[2] if len(rest) > 2 else ""
+            if value not in ("on", "off", "true", "false", "1", "0"):
+                return {"success": False, "error": _t("shell.app_error.usage_skills_candidates_policy")}
+            ok, who = sm.authorize_write(agent_id, role)
+            if not ok:
+                return {"success": False, "error": f"permission denied: {who}"}
+            enabled = value in ("on", "true", "1")
+            return store.set_enabled(enabled)
+        candidate_id = rest[2] if len(rest) > 2 else ""
+        if action not in ("validate", "publish", "activate", "retire") or not candidate_id:
+            return {
+                "success": False,
+                "error": _t("shell.app_error.usage_skills_candidates"),
+            }
+        ok, who = sm.authorize_write(agent_id, role)
+        if not ok:
+            return {"success": False, "error": f"permission denied: {who}"}
+        if action == "validate":
+            return store.validate(candidate_id)
+        if action == "publish":
+            intent = " ".join(rest[3:])
+            return store.publish(candidate_id, intent)
+        if action == "activate":
+            return store.activate(candidate_id)
+        return store.retire(candidate_id)
 
     if sub == "retriever":
         # Skill retriever backend control (tfidf | embedding).  Read-only

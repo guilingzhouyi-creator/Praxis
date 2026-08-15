@@ -474,6 +474,11 @@ SKILL_POSTURE_PRODUCTIVE: Final[str] = "productive"  # normal build/dev work (de
 SKILL_POSTURE_OFFENSIVE: Final[str] = "offensive"  # reverse / attack testing
 SKILL_POSTURE_DEFAULT: Final[str] = SKILL_POSTURE_PRODUCTIVE
 SKILL_POSTURE_VALID: Final[tuple[str, ...]] = (SKILL_POSTURE_PRODUCTIVE, SKILL_POSTURE_OFFENSIVE)
+# Skill lifecycle controls publication: draft/retired skills never inject;
+# canary skills require an explicit binding target before they can inject.
+SKILL_STATUS_ACTIVE: Final[str] = "active"
+SKILL_STATUS_DEFAULT: Final[str] = SKILL_STATUS_ACTIVE
+SKILL_STATUS_VALID: Final[tuple[str, ...]] = ("draft", "canary", SKILL_STATUS_ACTIVE, "retired", "deprecated")
 # Skill disclosure depth — full (default) / index (name+desc only) / none (hidden)
 SKILL_DISCLOSURE_DEFAULT: Final[str] = "full"
 SKILL_DISCLOSURE_VALID: Final[tuple[str, ...]] = ("full", "index", "none")

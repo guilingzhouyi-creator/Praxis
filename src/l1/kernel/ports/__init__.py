@@ -35,6 +35,7 @@ from l1.kernel.ports.registry import (
 )
 from l1.kernel.ports.service import (
     AuthPort,
+    CandidateLedgerPort,
     CardRegistryPort,
     FilesystemPort,
     I18nPort,
@@ -60,6 +61,7 @@ from l1.kernel.ports.types import (
 
 __all__ = [
     "AuthPort",
+    "CandidateLedgerPort",
     "CardRegistryPort",
     "ChannelPort",
     "Endpoint",

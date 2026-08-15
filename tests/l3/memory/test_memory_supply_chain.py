@@ -47,10 +47,20 @@ def test_supply_to_r5_returns_count():
     assert n >= 0
 
 
-def test_supply_to_skills_degrades():
-    """Skill supply never raises (returns a count, possibly 0)."""
+def test_supply_to_skills_submits_candidate_without_publishing_skill(tmp_path, monkeypatch):
+    """Refined records enter the candidate ledger before R4 can publish a skill."""
+    import l3.memory.r4_candidate_store as candidates
+    from l3.memory.r4_candidate_store import CandidateStore
+
+    monkeypatch.setattr(candidates, "_store", CandidateStore(str(tmp_path / "candidates.json")))
+
     n = supply_to_skills([_record()])
+
     assert isinstance(n, int)
+    assert n == 1
+    candidate = candidates.get_candidate_store().list()[0]
+    assert candidate["state"] == "observed"
+    assert candidate["skill_name"] == ""
 
 
 def test_agent_md_active_threshold():

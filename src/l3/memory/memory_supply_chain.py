@@ -17,7 +17,7 @@ import logging
 from typing import Any
 
 from l1.kernel.params.agent import CELL_DEPARTMENT_MIN
-from l1.kernel.params.system import LOG_TRUNC_500, MEMORY_REFINERY_SUPPLY_SKILLS_DEFAULT
+from l1.kernel.params.system import MEMORY_REFINERY_SUPPLY_SKILLS_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -100,34 +100,28 @@ def re_inject_filtered(
 
 
 def supply_to_skills(records: list[dict[str, Any]]) -> int:
-    """Feed refined records into the generalized skill system (R4Agent input).
+    """Submit refined records to the R4 candidate ledger.
 
-    Supplies the top-scored records as evolution candidates; the skill
-    manager may fold them into evolved skills. Returns the count supplied.
+    The legacy function name remains for callers, but refined records no
+    longer publish an evolved skill directly. They first accumulate in the
+    candidate ledger, where evidence validation and controlled publication
+    decide whether R4Agent may generate a skill. Returns the count accepted
+    by the ledger.
 
     Args:
         records: Transformed records from MemoryRefinery.transform.
 
     Returns:
-        Number of records handed to the skill system.
+        Number of records accepted by the candidate ledger.
     """
     supplied = 0
     try:
-        from l3.memory.r4_agent import R4Agent
+        from l3.memory.r4_candidate_store import get_candidate_store
 
-        r4 = R4Agent()
-        for rec in records[:5]:
-            try:
-                r4.evolve_skill(
-                    name=f"memory-{rec.get('entry_type', 'note')}",
-                    description=f"Refined memory insight from {rec.get('agent_id', '?')}",
-                    body=str(rec.get("content") or "")[:LOG_TRUNC_500],
-                )
-                supplied += 1
-            except Exception as e:
-                logger.debug("memory_supply_chain: skill evolve skipped: %s", e)
+        accepted = get_candidate_store().submit_records(records, source="refined_memory")
+        supplied = int(accepted.get("submitted", 0) or 0)
     except Exception as e:
-        logger.debug("memory_supply_chain: skill supply skipped: %s", e)
+        logger.debug("memory_supply_chain: candidate supply skipped: %s", e)
     return supplied
 
 

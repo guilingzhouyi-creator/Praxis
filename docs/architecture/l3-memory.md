@@ -18,7 +18,7 @@ R4 archive   — lossless, append-only (fonds/series/ref-code), restore baseline
 | Multi-scope center | `central_memory.py` (register scopes: cells + L3A) |
 | Persistence | `persist.py`-style mixins; crash-safety: dirty sets cleared only after write success |
 | FTS5 / recall | `context_search.py`, `quality.py` (importance filtering) |
-| R4 agent | `r4_agent.py` (archive, skill evolution, lean cases) |
+| R4 agent | `r4_agent.py` + `r4_candidate_store.py` (archive, evidence candidates, skill evolution, lean cases) |
 | Task-aware injection | `memory_inject.py` (execute→summary / decide→Mer / resume→layered) |
 | Init from memories | `memory_init.py` (boot restores agent topology) |
 
@@ -114,6 +114,8 @@ cases. See `cross-cutting.md` for the full injection table.
   `/api/v2/memory/tool-result` (tool-result offload cache),
   `/api/v2/memory/sensitive` (sensitive-info bypass detection),
   `/api/v2/memory/compression-guard` (recursion threshold + breaker)
+- `/api/v2/skills/candidates*` (R4 evidence candidate list, validation,
+  canary publication, activation, retirement, collection policy)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
 - Tiered-cache consumers: the per-Cell `run_code` program cache
@@ -159,6 +161,35 @@ for training correction, exposed via `/api/v2/memory/corpus` + L2
 `memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
 causal audit ring correlates memory events with tool and identity context
 for M4 corpus analytics. Best-effort, never blocks the write.
+
+### R4 evidence candidates (3.4)
+
+R4 skill evolution is gated by `r4_candidate_store.py`, a persistent JSON
+ledger under the Praxis data directory. Refined-memory records and tool
+failure traces enter as evidence; they do **not** publish a skill directly.
+Candidates group records by source, entry type, tags, and normalized binding:
+
+```
+observed -> validated -> canary -> active
+                         \-> retired
+```
+
+- `validated` requires `R4_CANDIDATE_MIN_EVIDENCE` records and a valid
+  posture binding.
+- `canary` publication requires an explicit target (Cell, role, Agent, or
+  card nature). It calls the boot-managed R4Agent to generate a bound skill,
+  never a fresh R4 worker per memory write.
+- `active` promotes a canary only through the candidate control surface;
+  `retired` removes its skill from injection while retaining audit history.
+- Binding fields (`cell_ids`, `roles`, `agent_ids`, `card_natures`,
+  `postures`) persist with the skill and are applied before similarity ranking.
+  `draft`, `retired`, and `deprecated` skills are never injected.
+
+Candidate collection is independent from LLM distillation cost and is
+controlled by `skill.candidate_enabled` (params default → SettingsCenter →
+`praxis.yaml` / API / L2). The ledger and reference-channel paths are
+observability side channels: a persistence failure never blocks memory writes
+or failure-trace capture.
 
 ## Conversation-side compression (two-layer pipeline)
 

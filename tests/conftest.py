@@ -28,6 +28,7 @@ _RESETS = {
     "l3.memory.memory": ("reset_memory", None),
     "l3.memory.memory_domain_filter": ("reset_memory_filter", None),
     "l3.memory.memory_refinery": ("reset_refinery", None),
+    "l3.memory.r4_candidate_store": ("reset_candidate_store", None),
     "l3.tool_system.dvg": ("reset_dvg", None),
     "l3.memory.memory_graph": ("reset_graph", None),
     "l3.memory.memory_mer": ("reset_mer", None),

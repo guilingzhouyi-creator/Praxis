@@ -160,6 +160,7 @@ _L1_DEFAULTS: dict[str, Any] = {
     "skill.distill_sub.llm_distill": True,
     "skill.distill_sub.clustering": True,
     "skill.distill_sub.sampling": True,
+    "skill.candidate_enabled": True,
     # ── System security posture (productive | security-test) ──
     "security.mode": "productive",
     # Security-team domain bindings (attack posture): domain → skill white-list.

@@ -119,6 +119,12 @@ def wire_defaults() -> dict[str, str]:
     register_port("storage", get_storage())
     registry["storage"] = "fs"
 
+    # CandidateLedgerPort — R4 evidence lifecycle for L2/API control.
+    from l3.memory.r4_candidate_store import R4CandidateAdapter
+
+    register_port("r4_candidates", R4CandidateAdapter())
+    registry["r4_candidates"] = "r4_candidate_ledger"
+
     # Hook chain — shared LifecycleHooks singleton with EventEmitHook
     # pre-registered. Not a port: consumed via hook.get_hook_chain().
     from l3.services.hook import get_hook_chain
@@ -242,6 +248,12 @@ def wire_from_config(cfg: dict) -> dict[str, str]:
 
         register_port("storage", get_storage())
         registry["storage"] = "fs"
+
+    if not _is_registered("r4_candidates"):
+        from l3.memory.r4_candidate_store import R4CandidateAdapter
+
+        register_port("r4_candidates", R4CandidateAdapter())
+        registry["r4_candidates"] = "r4_candidate_ledger"
 
     logger.info("wiring: config-driven adapters: %s", registry)
     return registry
