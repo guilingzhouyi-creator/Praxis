@@ -251,6 +251,7 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 | Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
+| R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
 | Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
 
@@ -561,6 +562,16 @@ R4 archive   — lossless, append-only (fonds/series/ref-code), restore baseline
 | Task-aware injection | `memory_inject.py` (execute→summary / decide→Mer / resume→layered) |
 | Init from memories | `memory_init.py` (boot restores agent topology) |
 
+### Persistence concurrency
+
+`PersistableMixin` takes its JSON snapshot while the owning service's state
+lock is held, then serializes commits per persistence path. This prevents
+torn container iteration and temporary-file collisions when services restart
+or tests replace a singleton. Auto-save owns one managed worker per instance:
+restarting it signals and waits for the prior worker, and singleton resetters
+stop that worker before discarding the service. A delayed pre-reset snapshot
+cannot overwrite a later snapshot because per-path commit epochs discard it.
+
 ## Side-channels (bypass, all default off)
 
 Independent transformations that never mutate the main flow; on error they
@@ -757,6 +768,22 @@ storage and transition checks through the same typed port while the Python L3
 orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
 must preserve atomic transition semantics, bounded evidence, and best-effort
 persistence behavior.
+
+The live ledger is deliberately bounded by `R4_CANDIDATE_MAX_RECORDS`. An
+O(1) fingerprint index groups repeated evidence; when capacity is reached,
+only the oldest `observed` or `retired` record may be losslessly archived and
+evicted. If every record is lifecycle-protected, a new cluster is reported as
+capacity-limited rather than allowing the bound to grow.
+
+Persistence uses a JSON snapshot plus replayable journal batches. The hot
+path coalesces at most one pending mutation per candidate into a single
+background writer, so ordinary journal and compaction I/O never run while the
+candidate-state lock is held. `CandidateStore.flush()`/`close()` provide the
+explicit durability barrier for shutdown and tests; normal evidence capture
+remains best-effort. `CandidateLedgerPort` carries typed primitive-only
+evidence, snapshot, status, and lifecycle values so its Python adapter can be
+replaced by a Rust implementation without changing memory, API, or shell
+callers.
 
 ## Conversation-side compression (two-layer pipeline)
 

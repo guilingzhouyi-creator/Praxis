@@ -14,7 +14,15 @@ from l1.kernel.params.api import (
     LLM_DEFAULT_MAX_TOKENS,
     LLM_DEFAULT_TEMPERATURE,
 )
-from l1.kernel.ports.types import CandidateResult, CandidateSnapshot, CandidateState, CandidateStatus
+from l1.kernel.ports.types import (
+    CandidateBinding,
+    CandidateCollectionResult,
+    CandidateRecord,
+    CandidateResult,
+    CandidateSnapshot,
+    CandidateState,
+    CandidateStatus,
+)
 
 # ── I18nPort ──
 
@@ -95,6 +103,14 @@ class MonitorBusPort(ABC):
 
 class CandidateLedgerPort(ABC):
     """R4 evidence-candidate lifecycle with a serialized, Rust-friendly contract."""
+
+    @abstractmethod
+    def submit_records(
+        self,
+        records: list[CandidateRecord],
+        source: str = "refined_memory",
+        binding: CandidateBinding | None = None,
+    ) -> CandidateCollectionResult: ...
 
     @abstractmethod
     def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]: ...

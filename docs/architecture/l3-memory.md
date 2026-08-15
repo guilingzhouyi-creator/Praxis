@@ -229,6 +229,22 @@ orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
 must preserve atomic transition semantics, bounded evidence, and best-effort
 persistence behavior.
 
+The live ledger is deliberately bounded by `R4_CANDIDATE_MAX_RECORDS`. An
+O(1) fingerprint index groups repeated evidence; when capacity is reached,
+only the oldest `observed` or `retired` record may be losslessly archived and
+evicted. If every record is lifecycle-protected, a new cluster is reported as
+capacity-limited rather than allowing the bound to grow.
+
+Persistence uses a JSON snapshot plus replayable journal batches. The hot
+path coalesces at most one pending mutation per candidate into a single
+background writer, so ordinary journal and compaction I/O never run while the
+candidate-state lock is held. `CandidateStore.flush()`/`close()` provide the
+explicit durability barrier for shutdown and tests; normal evidence capture
+remains best-effort. `CandidateLedgerPort` carries typed primitive-only
+evidence, snapshot, status, and lifecycle values so its Python adapter can be
+replaced by a Rust implementation without changing memory, API, or shell
+callers.
+
 ## Conversation-side compression (two-layer pipeline)
 
 Compression is split into **two physically isolated pipelines** — one for

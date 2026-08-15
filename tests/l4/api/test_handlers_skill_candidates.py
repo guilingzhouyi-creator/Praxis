@@ -46,6 +46,31 @@ def test_candidate_policy_handler_requires_developer_role(monkeypatch, tmp_path)
     assert allowed["policy"]["enabled"] is False
 
 
+def test_candidate_list_handler_uses_registered_ledger_port():
+    """The API control surface uses a swappable ledger implementation."""
+    from l1.kernel.ports import register_port, reset_ports
+    from l4.api_handlers.api_handlers_skills import handle_skill_candidates_list
+
+    class RustLedger:
+        """Language-neutral ledger stub used to prove the API port seam."""
+
+        def list_candidates(self, state=""):
+            return [{"id": "rust-1", "state": "observed"}]
+
+        def status(self):
+            return {"enabled": True, "counts": {"observed": 1}}
+
+    reset_ports()
+    register_port("r4_candidates", RustLedger())
+    try:
+        result = handle_skill_candidates_list()
+    finally:
+        reset_ports()
+
+    assert result["count"] == 1
+    assert result["candidates"][0]["id"] == "rust-1"
+
+
 def test_candidate_lifecycle_routes_are_registered():
     """Every candidate lifecycle handler is reachable through the v2 route table."""
     from l4.api.api_routes import API_ROUTES

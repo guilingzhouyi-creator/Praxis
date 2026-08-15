@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 from l3.memory.r4_candidate_store import CandidateStore
 
@@ -24,6 +25,7 @@ def test_candidate_enabled_survives_restart(tmp_path):
     store = CandidateStore(str(path))
 
     store.set_enabled(False)
+    store.flush()
 
     restored = CandidateStore(str(path))
     assert restored.status()["enabled"] is False
@@ -44,6 +46,7 @@ def test_journal_replay_restores_mutations_before_compaction(tmp_path):
     store = CandidateStore(str(path))
     candidate = store.submit_records([_record("memory-1")])["candidates"][0]
     store.submit_records([_record("memory-2")])
+    store.flush()
 
     restored = CandidateStore(str(path)).get(candidate["id"])
     assert restored is not None
@@ -54,6 +57,7 @@ def test_submission_uses_fingerprint_index_and_skips_duplicate_persist(tmp_path,
     """Duplicate evidence resolves through the index without another disk write."""
     store = CandidateStore(str(tmp_path / "candidates.json"))
     first = store.submit_records([_record("memory-1")])["candidates"][0]
+    store.flush()
     persist_calls: list[dict] = []
     monkeypatch.setattr(store, "_persist", lambda operation=None: persist_calls.append(operation or {}))
 
@@ -78,3 +82,60 @@ def test_capacity_archives_old_observed_candidates(tmp_path, monkeypatch):
     assert store.get(second["id"]) is not None
     archived = path.with_name(f"{path.name}.archive").read_text(encoding="utf-8")
     assert first["id"] in archived
+
+
+def test_capacity_never_overflows_when_all_candidates_are_lifecycle_protected(tmp_path, monkeypatch):
+    """A full ledger rejects new evidence when no lossless eviction is available."""
+    import l3.memory.r4_candidate_store as candidate_module
+
+    monkeypatch.setattr(candidate_module, "R4_CANDIDATE_MAX_RECORDS", 1)
+    store = CandidateStore(str(tmp_path / "candidates.json"))
+    first = store.submit_records([_record("memory-1")])["candidates"][0]
+    store.submit_records([_record("memory-2")])
+    assert store.validate(first["id"])["success"] is True
+
+    blocked = store.submit_records([_record("memory-3", content="new") | {"tags": ["card:new"]}])
+
+    assert blocked["submitted"] == 0
+    assert blocked["capacity_limited"] is True
+    assert len(store.list()) == 1
+    assert store.get(first["id"])["state"] == "validated"
+
+
+def test_background_journal_write_releases_candidate_lock(tmp_path, monkeypatch):
+    """A slow journal write does not delay an independent ledger read."""
+    store = CandidateStore(str(tmp_path / "candidates.json"))
+    started = threading.Event()
+    release = threading.Event()
+    persisted = store._persist
+
+    def blocked_persist(operation=None):
+        started.set()
+        release.wait()
+        persisted(operation)
+
+    monkeypatch.setattr(store, "_persist", blocked_persist)
+    try:
+        store.submit_records([_record("memory-1")])
+        assert started.wait(1)
+        reader = threading.Thread(target=store.status)
+        reader.start()
+        reader.join(1)
+        assert not reader.is_alive()
+    finally:
+        release.set()
+        store.flush()
+
+
+def test_flush_makes_coalesced_journal_entries_durable(tmp_path):
+    """An explicit flush creates the durability barrier required by shutdown paths."""
+    path = tmp_path / "candidates.json"
+    store = CandidateStore(str(path))
+    candidate = store.submit_records([_record("memory-1")])["candidates"][0]
+    store.submit_records([_record("memory-2")])
+
+    store.flush()
+
+    restored = CandidateStore(str(path)).get(candidate["id"])
+    assert restored is not None
+    assert len(restored["evidence"]) == 2

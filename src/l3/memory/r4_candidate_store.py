@@ -10,7 +10,7 @@ import threading
 import time
 import uuid
 from contextlib import suppress
-from typing import Any
+from typing import Any, cast
 
 from l1.kernel.params.agent import (
     R4_CANDIDATE_ARCHIVE_SUFFIX,
@@ -32,7 +32,11 @@ from l1.kernel.params.system import SKILL_POSTURE_DEFAULT, SKILL_POSTURE_VALID
 from l1.kernel.paths import get_paths
 from l1.kernel.platform import ensure_dir
 from l1.kernel.ports import (
+    CandidateBinding,
+    CandidateCollectionResult,
+    CandidateEvidence,
     CandidateLedgerPort,
+    CandidateRecord,
     CandidateResult,
     CandidateSnapshot,
     CandidateState,
@@ -92,9 +96,17 @@ class CandidateStore:
         self._candidates: dict[str, dict[str, Any]] = {}
         self._fingerprint_index: dict[str, str] = {}
         self._journal_entries = 0
+        # The state lock protects indexes and candidate mutation. A separate
+        # single writer coalesces journal work so evidence capture never holds
+        # the state lock across filesystem I/O.
+        self._persistence_lock = threading.Lock()
+        self._pending_candidate_ids: set[str] = set()
+        self._pending_removals: set[str] = set()
+        self._pending_enabled: bool | None = None
+        self._persist_thread: threading.Thread | None = None
         self._restore()
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> CandidateStatus:
         """Return candidate collection state and lifecycle counts."""
         with self._lock:
             counts = {state: 0 for state in R4_CANDIDATE_STATES}
@@ -104,14 +116,18 @@ class CandidateStore:
                     counts[state] += 1
             return {"enabled": self._enabled, "counts": counts}
 
-    def set_enabled(self, enabled: bool) -> dict[str, Any]:
+    def set_enabled(self, enabled: bool) -> CandidateStatus:
         """Enable or disable candidate collection without clearing evidence."""
+        changed = False
         with self._lock:
             normalized = bool(enabled)
             if self._enabled != normalized:
                 self._enabled = normalized
-                self._persist({"op": "set_enabled", "enabled": normalized})
-            return self.status()
+                changed = True
+            result = self.status()
+        if changed:
+            self._queue_persist(enabled=normalized)
+        return result
 
     def _restore(self) -> None:
         if os.path.exists(self._state_path):
@@ -142,6 +158,15 @@ class CandidateStore:
         if isinstance(fingerprint, str) and fingerprint:
             self._fingerprint_index[fingerprint] = candidate["id"]
 
+    def _remove(self, candidate_id: str) -> dict[str, Any] | None:
+        """Remove one candidate and its fingerprint index entry."""
+        candidate = self._candidates.pop(candidate_id, None)
+        if candidate:
+            fingerprint = candidate.get("fingerprint")
+            if isinstance(fingerprint, str) and self._fingerprint_index.get(fingerprint) == candidate_id:
+                self._fingerprint_index.pop(fingerprint, None)
+        return candidate
+
     def _restore_journal(self) -> None:
         """Replay the append-only mutation journal after loading its snapshot."""
         if not os.path.exists(self._journal_path):
@@ -153,7 +178,15 @@ class CandidateStore:
                         operation = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if operation.get("op") == "set_enabled":
+                    if operation.get("op") == "batch":
+                        if "enabled" in operation:
+                            self._enabled = bool(operation["enabled"])
+                        for candidate in operation.get("candidates") or []:
+                            self._upsert(candidate)
+                        for candidate_id in operation.get("removals") or []:
+                            if isinstance(candidate_id, str):
+                                self._remove(candidate_id)
+                    elif operation.get("op") == "set_enabled":
                         self._enabled = bool(operation.get("enabled", self._enabled))
                     elif operation.get("op") == "upsert":
                         for candidate in operation.get("candidates") or []:
@@ -162,14 +195,7 @@ class CandidateStore:
                         candidate_id = operation.get("id")
                         if not isinstance(candidate_id, str):
                             continue
-                        candidate = self._candidates.pop(candidate_id, None)
-                        if candidate:
-                            fingerprint = candidate.get("fingerprint")
-                            if (
-                                isinstance(fingerprint, str)
-                                and self._fingerprint_index.get(fingerprint) == candidate_id
-                            ):
-                                self._fingerprint_index.pop(fingerprint, None)
+                        self._remove(candidate_id)
                     self._journal_entries += 1
         except Exception as exc:
             logger.warning("r4 candidate ledger journal restore failed: %s", exc)
@@ -193,13 +219,73 @@ class CandidateStore:
         except Exception as exc:
             logger.warning("r4 candidate ledger persist failed: %s", exc)
 
+    def _queue_persist(
+        self,
+        candidate_ids: set[str] | None = None,
+        removed_ids: set[str] | None = None,
+        enabled: bool | None = None,
+    ) -> None:
+        """Coalesce state changes and start the ledger's single journal writer."""
+        with self._persistence_lock:
+            if candidate_ids:
+                self._pending_candidate_ids.update(candidate_ids)
+            if removed_ids:
+                self._pending_removals.update(removed_ids)
+                self._pending_candidate_ids.difference_update(removed_ids)
+            if enabled is not None:
+                self._pending_enabled = enabled
+            if self._persist_thread is None:
+                self._persist_thread = threading.Thread(
+                    target=self._drain_persistence,
+                    daemon=True,
+                    name="r4-candidate-persist",
+                )
+                self._persist_thread.start()
+
+    def _drain_persistence(self) -> None:
+        """Flush coalesced journal operations without holding the state lock for I/O."""
+        while True:
+            with self._persistence_lock:
+                if not self._pending_candidate_ids and not self._pending_removals and self._pending_enabled is None:
+                    self._persist_thread = None
+                    return
+                candidate_ids = sorted(self._pending_candidate_ids)
+                removed_ids = sorted(self._pending_removals)
+                enabled = self._pending_enabled
+                self._pending_candidate_ids.clear()
+                self._pending_removals.clear()
+                self._pending_enabled = None
+            try:
+                self._persist_batch(candidate_ids, removed_ids, enabled)
+            except Exception as exc:
+                logger.warning("r4 candidate ledger background persist failed: %s", exc)
+
+    def _persist_batch(self, candidate_ids: list[str], removed_ids: list[str], enabled: bool | None) -> None:
+        """Capture a consistent changed-record snapshot and append one journal operation."""
+        with self._lock:
+            candidates = [
+                self._copy(self._candidates[candidate_id])
+                for candidate_id in candidate_ids
+                if candidate_id in self._candidates
+            ]
+        operation: dict[str, Any] = {"op": "batch"}
+        if enabled is not None:
+            operation["enabled"] = enabled
+        if candidates:
+            operation["candidates"] = candidates
+        if removed_ids:
+            operation["removals"] = removed_ids
+        if len(operation) > 1:
+            self._persist(operation)
+
     def _compact(self) -> None:
         """Write a complete snapshot and clear the replay journal."""
-        payload = {
-            "schema_version": R4_CANDIDATE_SCHEMA_VERSION,
-            "enabled": self._enabled,
-            "candidates": list(self._candidates.values()),
-        }
+        with self._lock:
+            payload = {
+                "schema_version": R4_CANDIDATE_SCHEMA_VERSION,
+                "enabled": self._enabled,
+                "candidates": [self._copy(candidate) for candidate in self._candidates.values()],
+            }
         temporary_path = f"{self._state_path}.tmp"
         with open(temporary_path, "w", encoding="utf-8") as state_file:
             json.dump(payload, state_file, ensure_ascii=True, indent=2, sort_keys=True)
@@ -222,25 +308,22 @@ class CandidateStore:
             logger.warning("r4 candidate archive failed: %s", exc)
             return False
 
-    def _enforce_capacity(self) -> None:
+    def _enforce_capacity(self) -> str | None:
         """Archive the oldest low-value candidates before growing the live ledger."""
         if len(self._candidates) < R4_CANDIDATE_MAX_RECORDS:
-            return
-        eligible = sorted(
+            return None
+        candidate = min(
             (candidate for candidate in self._candidates.values() if candidate.get("state") in {"retired", "observed"}),
-            key=lambda candidate: candidate.get("updated_at", 0.0),
+            key=lambda item: item.get("updated_at", 0.0),
+            default=None,
         )
-        if not eligible:
-            return
-        candidate = eligible[0]
+        if candidate is None:
+            return None
         if not self._archive(candidate):
-            return
+            return None
         candidate_id = str(candidate["id"])
-        self._candidates.pop(candidate_id, None)
-        fingerprint = candidate.get("fingerprint")
-        if isinstance(fingerprint, str) and self._fingerprint_index.get(fingerprint) == candidate_id:
-            self._fingerprint_index.pop(fingerprint, None)
-        self._persist({"op": "remove", "id": candidate_id})
+        self._remove(candidate_id)
+        return candidate_id
 
     @staticmethod
     def _fingerprint(record: dict[str, Any], source: str, binding: dict[str, list[str]]) -> str:
@@ -254,7 +337,7 @@ class CandidateStore:
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:R4_CANDIDATE_FINGERPRINT_LENGTH]
 
     @staticmethod
-    def _evidence(record: dict[str, Any], source: str) -> dict[str, Any]:
+    def _evidence(record: dict[str, Any], source: str) -> CandidateEvidence:
         entry_id = str(record.get("entry_id") or record.get("id") or "")
         content = str(record.get("content") or "")
         evidence_id = entry_id or hashlib.sha256(content.encode("utf-8")).hexdigest()[:R4_CANDIDATE_FINGERPRINT_LENGTH]
@@ -270,16 +353,18 @@ class CandidateStore:
 
     def submit_records(
         self,
-        records: list[dict[str, Any]],
+        records: list[CandidateRecord] | list[dict[str, Any]],
         source: str = "refined_memory",
-        binding: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        binding: CandidateBinding | dict[str, Any] | None = None,
+    ) -> CandidateCollectionResult:
         """Accumulate refined evidence without publishing a skill."""
-        submitted: list[dict[str, Any]] = []
+        submitted: list[CandidateSnapshot] = []
+        changed: set[str] = set()
+        removed: set[str] = set()
+        capacity_limited = False
         with self._lock:
             if not self._enabled:
                 return {"success": True, "candidates": [], "submitted": 0, "reason": "candidate collection disabled"}
-            changed: dict[str, dict[str, Any]] = {}
             for record in records:
                 if not isinstance(record, dict):
                     continue
@@ -289,7 +374,12 @@ class CandidateStore:
                 candidate = self._candidates.get(candidate_id) if candidate_id else None
                 now = time.time()
                 if candidate is None:
-                    self._enforce_capacity()
+                    evicted_id = self._enforce_capacity()
+                    if evicted_id:
+                        removed.add(evicted_id)
+                    if len(self._candidates) >= R4_CANDIDATE_MAX_RECORDS:
+                        capacity_limited = True
+                        continue
                     candidate_id = f"{R4_CANDIDATE_ID_PREFIX}{uuid.uuid4().hex}"
                     candidate = {
                         "id": candidate_id,
@@ -308,13 +398,17 @@ class CandidateStore:
                     candidate["evidence"].append(evidence)
                     candidate["evidence"] = candidate["evidence"][-R4_CANDIDATE_MAX_EVIDENCE:]
                     candidate["updated_at"] = now
-                    changed[candidate["id"]] = candidate
+                    changed.add(candidate["id"])
                 submitted.append(self._copy(candidate))
-            if changed:
-                self._persist({"op": "upsert", "candidates": list(changed.values())})
-        return {"success": True, "candidates": submitted, "submitted": len(submitted)}
+        if changed or removed:
+            self._queue_persist(changed, removed)
+        result: CandidateCollectionResult = {"success": True, "candidates": submitted, "submitted": len(submitted)}
+        if capacity_limited:
+            result["reason"] = "candidate ledger capacity reached"
+            result["capacity_limited"] = True
+        return result
 
-    def validate(self, candidate_id: str) -> dict[str, Any]:
+    def validate(self, candidate_id: str) -> CandidateResult:
         """Validate the evidence threshold before candidate publication."""
         with self._lock:
             candidate = self._candidates.get(candidate_id)
@@ -332,10 +426,11 @@ class CandidateStore:
             if valid and candidate["state"] == "observed":
                 candidate["state"] = "validated"
             candidate["updated_at"] = time.time()
-            self._persist({"op": "upsert", "candidates": [candidate]})
-            return {"success": valid, "candidate": self._copy(candidate), "reasons": reasons}
+            result: CandidateResult = {"success": valid, "candidate": self._copy(candidate), "reasons": reasons}
+        self._queue_persist({candidate_id})
+        return result
 
-    def transition(self, candidate_id: str, state: str, skill_name: str = "") -> dict[str, Any]:
+    def transition(self, candidate_id: str, state: str, skill_name: str = "") -> CandidateResult:
         """Advance a validated candidate through its controlled lifecycle."""
         error = "" if state in R4_CANDIDATE_STATES else f"invalid candidate state: {state}"
         with self._lifecycle_lock:
@@ -360,16 +455,17 @@ class CandidateStore:
                 if skill_name:
                     candidate["skill_name"] = skill_name
                 candidate["updated_at"] = time.time()
-                self._persist({"op": "upsert", "candidates": [candidate]})
-                return {"success": True, "candidate": self._copy(candidate)}
+                result: CandidateResult = {"success": True, "candidate": self._copy(candidate)}
+        self._queue_persist({candidate_id})
+        return result
 
-    def get(self, candidate_id: str) -> dict[str, Any] | None:
+    def get(self, candidate_id: str) -> CandidateSnapshot | None:
         """Return one candidate snapshot by id."""
         with self._lock:
             candidate = self._candidates.get(candidate_id)
             return self._copy(candidate) if candidate else None
 
-    def list(self, state: str = "") -> list[dict[str, Any]]:
+    def list(self, state: CandidateState | str = "") -> list[CandidateSnapshot]:
         """Return candidate snapshots ordered by their most recent update."""
         with self._lock:
             candidates = [
@@ -381,8 +477,19 @@ class CandidateStore:
             ]
 
     @staticmethod
-    def _copy(candidate: dict[str, Any]) -> dict[str, Any]:
-        return json.loads(json.dumps(candidate))
+    def _copy(candidate: dict[str, Any]) -> CandidateSnapshot:
+        return cast(CandidateSnapshot, json.loads(json.dumps(candidate)))
+
+    def flush(self) -> None:
+        """Wait until all queued journal writes for this store are complete."""
+        with self._persistence_lock:
+            worker = self._persist_thread
+        if worker and worker is not threading.current_thread():
+            worker.join()
+
+    def close(self) -> None:
+        """Drain queued persistence before releasing this store instance."""
+        self.flush()
 
 
 class R4CandidateAdapter(CandidateLedgerPort):
@@ -393,6 +500,15 @@ class R4CandidateAdapter(CandidateLedgerPort):
 
     def _candidate_store(self) -> CandidateStore:
         return self._store or get_candidate_store()
+
+    def submit_records(
+        self,
+        records: list[CandidateRecord],
+        source: str = "refined_memory",
+        binding: CandidateBinding | None = None,
+    ) -> CandidateCollectionResult:
+        """Accumulate portable evidence through the candidate ledger port."""
+        return self._candidate_store().submit_records(records, source=source, binding=binding)
 
     def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]:
         """List candidate snapshots filtered by lifecycle state."""
@@ -451,7 +567,20 @@ def reset_candidate_store() -> None:
     """Reset the candidate ledger singleton for test isolation."""
     global _store
     with _store_lock:
+        store = _store
+        if store is not None:
+            store.close()
         _store = None
+
+
+def get_candidate_ledger() -> CandidateLedgerPort:
+    """Resolve the swappable candidate-ledger port with a local fallback."""
+    from l1.kernel.ports import get_port
+
+    try:
+        return cast(CandidateLedgerPort, get_port("r4_candidates"))
+    except KeyError:
+        return R4CandidateAdapter()
 
 
 def _publication_error(validation: dict[str, Any], intent: str) -> str:

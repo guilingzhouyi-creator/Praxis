@@ -66,6 +66,7 @@ def test_candidate_ledger_restores_from_persistent_state(tmp_path):
     path = tmp_path / "candidates.json"
     first = CandidateStore(str(path))
     candidate = first.submit_records([_record("memory-1")])["candidates"][0]
+    first.flush()
 
     restored = CandidateStore(str(path)).get(candidate["id"])
 

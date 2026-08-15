@@ -116,9 +116,9 @@ def supply_to_skills(records: list[dict[str, Any]]) -> int:
     """
     supplied = 0
     try:
-        from l3.memory.r4_candidate_store import get_candidate_store
+        from l3.memory.r4_candidate_store import get_candidate_ledger
 
-        accepted = get_candidate_store().submit_records(records, source="refined_memory")
+        accepted = get_candidate_ledger().submit_records(records, source="refined_memory")
         supplied = int(accepted.get("submitted", 0) or 0)
     except Exception as e:
         logger.debug("memory_supply_chain: candidate supply skipped: %s", e)

@@ -92,9 +92,9 @@ class SkillTraceMixin:
                     candidate_tags.append(f"{R4_CARD_TAG_PREFIX}{nature}")
                 if domain:
                     candidate_tags.append(f"{R4_CARD_TAG_PREFIX}{domain}")
-                from l3.memory.r4_candidate_store import get_candidate_store
+                from l3.memory.r4_candidate_store import get_candidate_ledger
 
-                get_candidate_store().submit_records(
+                get_candidate_ledger().submit_records(
                     [
                         {
                             "entry_id": os.path.basename(fp),

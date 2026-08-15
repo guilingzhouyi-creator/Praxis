@@ -28,6 +28,13 @@ def _manager():
     return get_skill_manager()
 
 
+def _candidate_ledger():
+    """Resolve the R4 ledger through its swappable kernel port."""
+    from l3.memory.r4_candidate_store import get_candidate_ledger
+
+    return get_candidate_ledger()
+
+
 def _caller(body: dict | None) -> tuple[str, str]:
     """Extract (agent_id, role) from request body, if provided."""
     b = body or {}
@@ -273,9 +280,7 @@ def _candidate_policy_update(body: dict | None = None) -> tuple[dict | None, str
     if "enabled" not in b:
         return None, "enabled is required"
     enabled = b["enabled"] in (True, "true", 1, "1")
-    from l3.memory.r4_candidate_store import get_candidate_store
-
-    policy = get_candidate_store().set_enabled(enabled)
+    policy = _candidate_ledger().set_enabled(enabled)
     try:
         from l3.config.settings_center import get_center
 
@@ -290,18 +295,14 @@ def handle_skill_candidates_list(body: dict | None = None) -> dict:
     """GET /api/v2/skills/candidates — list evidence-backed R4 candidates."""
     b = body or {}
     state = str(b.get("state") or "")
-    from l3.memory.r4_candidate_store import get_candidate_store
-
-    store = get_candidate_store()
-    candidates = store.list(state=state)
-    return {"success": True, "candidates": candidates, "count": len(candidates), "policy": store.status()}
+    ledger = _candidate_ledger()
+    candidates = ledger.list_candidates(state=state)
+    return {"success": True, "candidates": candidates, "count": len(candidates), "policy": ledger.status()}
 
 
 def handle_skill_candidate_get(body: dict | None = None, candidate_id: str = "") -> dict:
     """GET /api/v2/skills/candidates/{candidate_id} — candidate detail."""
-    from l3.memory.r4_candidate_store import get_candidate_store
-
-    candidate = get_candidate_store().get(candidate_id)
+    candidate = _candidate_ledger().get_candidate(candidate_id)
     if candidate is None:
         return {"success": False, "error": f"candidate not found: {candidate_id}"}
     return {"success": True, "candidate": candidate}
@@ -313,9 +314,7 @@ def handle_skill_candidate_validate(body: dict | None = None, candidate_id: str 
     ok, who = _manager().authorize_write(*_caller(b))
     if not ok:
         return {"success": False, "error": f"permission denied: {who}"}
-    from l3.memory.r4_candidate_store import get_candidate_store
-
-    result = get_candidate_store().validate(candidate_id)
+    result = _candidate_ledger().validate(candidate_id)
     result["authorized"] = who
     return result
 
@@ -329,9 +328,7 @@ def handle_skill_candidate_publish(body: dict | None = None, candidate_id: str =
     scope = str(b.get("scope") or "")
     if scope and scope not in ("project", "global"):
         return {"success": False, "error": "scope must be project or global"}
-    from l3.memory.r4_candidate_store import publish_candidate
-
-    result = publish_candidate(candidate_id, str(b.get("intent") or ""), scope=scope)
+    result = _candidate_ledger().publish(candidate_id, str(b.get("intent") or ""), scope=scope)
     result["authorized"] = who
     return result
 
@@ -342,9 +339,7 @@ def handle_skill_candidate_activate(body: dict | None = None, candidate_id: str 
     ok, who = _manager().authorize_write(*_caller(b))
     if not ok:
         return {"success": False, "error": f"permission denied: {who}"}
-    from l3.memory.r4_candidate_store import activate_candidate
-
-    result = activate_candidate(candidate_id)
+    result = _candidate_ledger().activate(candidate_id)
     result["authorized"] = who
     return result
 
@@ -355,18 +350,14 @@ def handle_skill_candidate_retire(body: dict | None = None, candidate_id: str = 
     ok, who = _manager().authorize_write(*_caller(b))
     if not ok:
         return {"success": False, "error": f"permission denied: {who}"}
-    from l3.memory.r4_candidate_store import retire_candidate
-
-    result = retire_candidate(candidate_id)
+    result = _candidate_ledger().retire(candidate_id)
     result["authorized"] = who
     return result
 
 
 def handle_skill_candidates_policy_get(body: dict | None = None) -> dict:
     """GET /api/v2/skills/candidates/policy — candidate collection policy."""
-    from l3.memory.r4_candidate_store import get_candidate_store
-
-    return {"success": True, "policy": get_candidate_store().status()}
+    return {"success": True, "policy": _candidate_ledger().status()}
 
 
 def handle_skill_candidates_policy_set(body: dict | None = None) -> dict:

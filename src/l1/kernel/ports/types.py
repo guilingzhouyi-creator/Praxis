@@ -18,6 +18,42 @@ class CandidateBinding(TypedDict):
     postures: list[str]
 
 
+class CandidateEvidence(TypedDict):
+    """One normalized evidence item attached to a candidate."""
+
+    id: str
+    source: str
+    entry_id: str
+    trace_id: str
+    card_id: str
+    summary: str
+    recorded_at: float
+
+
+class CandidateValidation(TypedDict):
+    """Validation verdict persisted with a candidate snapshot."""
+
+    valid: bool
+    reasons: list[str]
+
+
+class CandidateRecord(TypedDict, total=False):
+    """Portable evidence input accepted by a candidate ledger adapter."""
+
+    id: str
+    entry_id: str
+    entry_type: str
+    cell_id: str
+    role: str
+    agent_id: str
+    tags: list[str]
+    posture: str
+    binding: CandidateBinding
+    trace_id: str
+    card_id: str
+    content: str
+
+
 class CandidateSnapshot(TypedDict, total=False):
     """Serialized candidate record crossing the kernel port boundary."""
 
@@ -25,8 +61,8 @@ class CandidateSnapshot(TypedDict, total=False):
     fingerprint: str
     state: CandidateState
     binding: CandidateBinding
-    evidence: list[dict[str, Any]]
-    validation: dict[str, Any]
+    evidence: list[CandidateEvidence]
+    validation: CandidateValidation
     skill_name: str
     created_at: float
     updated_at: float
@@ -39,6 +75,24 @@ class CandidateStatus(TypedDict):
     counts: dict[CandidateState, int]
 
 
+class CandidateCollectionResult(TypedDict, total=False):
+    """Serialized evidence-ingestion result from a candidate ledger."""
+
+    success: bool
+    candidates: list[CandidateSnapshot]
+    submitted: int
+    reason: str
+    capacity_limited: bool
+
+
+class CandidateSkillResult(TypedDict, total=False):
+    """Serialized result returned by the skill-generation boundary."""
+
+    success: bool
+    error: str
+    skill: str
+
+
 class CandidateResult(TypedDict, total=False):
     """Serialized result shared by candidate ledger adapters."""
 
@@ -48,8 +102,9 @@ class CandidateResult(TypedDict, total=False):
     candidate: CandidateSnapshot
     candidates: list[CandidateSnapshot]
     submitted: int
-    validation: dict[str, Any]
-    skill: dict[str, Any]
+    reasons: list[str]
+    validation: CandidateResult
+    skill: CandidateSkillResult
 
 
 @dataclass

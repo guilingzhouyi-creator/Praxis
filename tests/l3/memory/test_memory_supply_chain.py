@@ -63,6 +63,31 @@ def test_supply_to_skills_submits_candidate_without_publishing_skill(tmp_path, m
     assert candidate["skill_name"] == ""
 
 
+def test_supply_to_skills_uses_registered_candidate_ledger_port():
+    """Evidence ingestion uses the typed port, allowing a Rust ledger replacement."""
+    from l1.kernel.ports import register_port, reset_ports
+
+    class RecordingLedger:
+        """Minimal stand-in for a language-neutral candidate ledger."""
+
+        def __init__(self):
+            self.calls: list[tuple[list[dict], str]] = []
+
+        def submit_records(self, records, source="refined_memory", binding=None):
+            self.calls.append((records, source))
+            return {"success": True, "candidates": [], "submitted": len(records)}
+
+    ledger = RecordingLedger()
+    reset_ports()
+    register_port("r4_candidates", ledger)
+    try:
+        assert supply_to_skills([_record()]) == 1
+    finally:
+        reset_ports()
+
+    assert ledger.calls[0][1] == "refined_memory"
+
+
 def test_agent_md_active_threshold():
     """Per-Cell Agent.md activates at the department threshold (2+ Cells)."""
     assert agent_md_active(cell_count=1) is False
