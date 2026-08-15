@@ -64,25 +64,8 @@ class SessionCompressMixin:
             return 2
         return 2
 
-    def compress(self, keep_last: int = _p.SESSION_COMPRESS_KEEP, summary: str = "") -> dict:
-        """Compress session history into a summary, keeping the last N messages.
-
-        Rate-distortion aware:
-          1. Lossless snapshot — the folded messages' full text is archived
-             to R4 (fonds=AGENT:l3a, series=session_compression_snapshot)
-             BEFORE folding, so compression = deferred access, not loss.
-          2. Value-weighted summary — high-value messages (user intents,
-             card results, convention refs) are preserved in full; medium
-             ones get a preview list; low-value ones are only counted.
-          3. Distortion report — returns role/type distribution, high-value
-             preservation counts, and the snapshot archive_ref.
-        """
-        from .session_history import Message as _Message
-
-        # Phase 3.1 B6: recursive-compression threshold + circuit breaker —
-        # a tripped breaker or a reached threshold stops the pass before
-        # anything is folded (default: recursive off, breaker on). Degrades
-        # to a no-op guard when the module is unavailable.
+    def _compression_guard_check(self) -> dict | None:
+        """Return a blocked dict when the recursion circuit breaker trips."""
         try:
             from l3.agent.compression_guard import check_recursion
 
@@ -97,22 +80,21 @@ class SessionCompressMixin:
                 }
         except Exception:
             logger.debug("l3a session: compression guard skipped")
+        return None
 
+    def _split_history(self, keep_last: int) -> tuple[list, list, int, int] | None:
+        """Locked split: return (keep, old, total, before_tokens) or None when nothing to compress."""
         with self._lock:
             total = len(self.history._messages)
             if total <= keep_last:
-                return {
-                    "success": True,
-                    "note": "nothing to compress",
-                    "compressed": 0,
-                    "kept": total,
-                    "compression_ratio": 0.0,
-                }
+                return None
             keep = self.history._messages[-keep_last:]
             old = self.history._messages[:-keep_last]
             before_tokens = sum(len(m.content) // TOKEN_CHARS_PER_TOKEN + SESSION_MSG_OVERHEAD for m in old)
+        return keep, old, total, before_tokens
 
-        # ── 1. Lossless snapshot to R4 (deferred access, not loss) ──
+    def _archive_snapshot(self, old: list) -> str:
+        """Lossless snapshot of the folded messages to R4 (deferred access, not loss)."""
         snapshot_ref = ""
         try:
             import json as _json
@@ -145,13 +127,10 @@ class SessionCompressMixin:
                 snapshot_ref = f"snapshot:l3a:{self.turn_count}"
         except Exception:
             logger.debug("l3a session: compression snapshot failed")
+        return snapshot_ref
 
-        # ── 2. Five-level pipeline (Claude Code-style progressive compaction) ──
-        # Phase 3.1 B4: content-fingerprint dedup (drop stale duplicates) — repeated
-        # identical user messages inside the folded span collapse to one
-        # so stale duplicates never inflate the summary; the lossless R4
-        # snapshot above still keeps every original message. The dropped
-        # count is reported for the operator baseline.
+    def _deduplicate_span(self, old: list) -> tuple[list, int]:
+        """Drop stale duplicate user messages inside the folded span (content fingerprint)."""
         import hashlib
 
         deduplicated = 0
@@ -165,6 +144,10 @@ class SessionCompressMixin:
                     continue
                 seen_fp.add(fp)
             deduped.append(m)
+        return deduped, deduplicated
+
+    def _build_summary(self, deduped: list, summary: str) -> tuple[str, list, list, list, bool]:
+        """Five-level value-weighted summary (raw/summarized/retained/skeleton/headline)."""
         # Level 1 (raw): high-value messages preserved verbatim.
         # Level 2 (summarized): medium-value messages condensed to previews.
         # Level 3 (retained): the most recent `keep_last` messages stay raw.
@@ -198,8 +181,10 @@ class SessionCompressMixin:
         if not lines:
             lines.append("(prior conversation summarized)")
         summary_text = summary or "\n".join(lines)
+        return summary_text, high, medium, low, bool(headline)
 
-        # Persist the summary into L3A's own memory (ring 2) before folding
+    def _persist_compression_memory(self, summary_text: str, old: list, high: list, snapshot_ref: str) -> None:
+        """Persist the summary + compression index across the three memory rings."""
         try:
             from l3.memory.central_memory import get_l3a_memory
 
@@ -237,6 +222,85 @@ class SessionCompressMixin:
         except Exception:
             logger.debug("l3a session: compression memory persist failed")
 
+    def _post_compress_scan(self, summary_text: str) -> list[dict]:
+        """Record the pass for the recursion threshold and scan the summary for sensitive info."""
+        sensitive_hits: list[dict] = []
+        try:
+            from l3.agent.compression_guard import record_compress_pass
+
+            record_compress_pass(str(getattr(self, "id", "")))
+        except Exception:
+            logger.debug("l3a session: compression guard bookkeeping skipped")
+        try:
+            from l3.agent.sensitive_detect import scan_text
+
+            sensitive_hits = scan_text(summary_text)
+        except Exception:
+            logger.debug("l3a session: sensitive scan skipped")
+        if sensitive_hits:
+            logger.warning("l3a session %s: %d sensitive hit(s) in compressed summary", self.id, len(sensitive_hits))
+        return sensitive_hits
+
+    def _compact_graph(self) -> None:
+        """R5 swarm-domain graph reduction after compaction (derived layer, non-blocking)."""
+        try:
+            from l3.memory.memory_graph import get_graph as _gg
+
+            g = _gg()
+            if g.enabled:
+                g.compact(min_degree=2, dry_run=False)
+        except Exception:
+            logger.debug("l3a session: graph compact after compress failed")
+
+    def compress(self, keep_last: int = _p.SESSION_COMPRESS_KEEP, summary: str = "") -> dict:
+        """Compress session history into a summary, keeping the last N messages.
+
+        Rate-distortion aware:
+          1. Lossless snapshot — the folded messages' full text is archived
+             to R4 (fonds=AGENT:l3a, series=session_compression_snapshot)
+             BEFORE folding, so compression = deferred access, not loss.
+          2. Value-weighted summary — high-value messages (user intents,
+             card results, convention refs) are preserved in full; medium
+             ones get a preview list; low-value ones are only counted.
+          3. Distortion report — returns role/type distribution, high-value
+             preservation counts, and the snapshot archive_ref.
+        """
+        from .session_history import Message as _Message
+
+        # Phase 3.1 B6: recursive-compression threshold + circuit breaker —
+        # a tripped breaker or a reached threshold stops the pass before
+        # anything is folded (default: recursive off, breaker on). Degrades
+        # to a no-op guard when the module is unavailable.
+        blocked = self._compression_guard_check()
+        if blocked:
+            return blocked
+
+        split = self._split_history(keep_last)
+        if split is None:
+            return {
+                "success": True,
+                "note": "nothing to compress",
+                "compressed": 0,
+                "kept": len(self.history._messages),
+                "compression_ratio": 0.0,
+            }
+        keep, old, _total, before_tokens = split
+
+        # ── 1. Lossless snapshot to R4 (deferred access, not loss) ──
+        snapshot_ref = self._archive_snapshot(old)
+
+        # ── 2. Five-level pipeline (Claude Code-style progressive compaction) ──
+        # Phase 3.1 B4: content-fingerprint dedup (drop stale duplicates) — repeated
+        # identical user messages inside the folded span collapse to one
+        # so stale duplicates never inflate the summary; the lossless R4
+        # snapshot above still keeps every original message. The dropped
+        # count is reported for the operator baseline.
+        deduped, deduplicated = self._deduplicate_span(old)
+        summary_text, high, medium, low, headline = self._build_summary(deduped, summary)
+
+        # Persist the summary into L3A's own memory (ring 2) before folding
+        self._persist_compression_memory(summary_text, old, high, snapshot_ref)
+
         with self._lock:
             summary_msg = _Message(
                 id=f"sum-{uuid.uuid4().hex[:HASH_TRUNC_SHORTEST]}",
@@ -255,31 +319,10 @@ class SessionCompressMixin:
         # Phase 3.1 B6: record the compression pass for the recursion
         # threshold, and run the bypass sensitive-info scan on the folded
         # summary (default ON; hits are reported, never blocking the fold).
-        sensitive_hits: list[dict] = []
-        try:
-            from l3.agent.compression_guard import record_compress_pass
-
-            record_compress_pass(str(getattr(self, "id", "")))
-        except Exception:
-            logger.debug("l3a session: compression guard bookkeeping skipped")
-        try:
-            from l3.agent.sensitive_detect import scan_text
-
-            sensitive_hits = scan_text(summary_text)
-        except Exception:
-            logger.debug("l3a session: sensitive scan skipped")
-        if sensitive_hits:
-            logger.warning("l3a session %s: %d sensitive hit(s) in compressed summary", self.id, len(sensitive_hits))
+        sensitive_hits = self._post_compress_scan(summary_text)
         logger.info("l3a session %s: compressed %d msgs → summary (+%d kept)", self.id, len(old), keep_last)
         # ── R5 swarm-domain graph linkage: graph reduction after compaction (derived layer, failures non-blocking) ──
-        try:
-            from l3.memory.memory_graph import get_graph as _gg
-
-            g = _gg()
-            if g.enabled:
-                g.compact(min_degree=2, dry_run=False)
-        except Exception:
-            logger.debug("l3a session: graph compact after compress failed")
+        self._compact_graph()
         return {
             "success": True,
             "session_id": self.id,
@@ -304,7 +347,7 @@ class SessionCompressMixin:
                 "summarized": len(medium),
                 "retained": keep_last,
                 "skeleton": len(low),
-                "headline": bool(headline),
+                "headline": headline,
             },
             "distortion": {
                 "high_value_preserved": len(high),
