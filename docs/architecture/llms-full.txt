@@ -104,21 +104,21 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 18,861 lines |
-| L2 Shell | 35 files / 4,654 lines |
-| L3 Cell | 335 files / 72,578 lines |
-| L4 Bridge | 107 files / 22,126 lines |
+| L1 Kernel | 66 files / 18,965 lines |
+| L2 Shell | 35 files / 4,665 lines |
+| L3 Cell | 335 files / 72,610 lines |
+| L4 Bridge | 107 files / 22,124 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,928 lines |
-| L3 Memory | 44 files / 9,778 lines |
+| L3 Memory | 44 files / 9,780 lines |
 | L3 Card | 27 files / 6,443 lines |
-| L3 Services | 43 files / 11,178 lines |
+| L3 Services | 43 files / 11,186 lines |
 | L3 Bus | 17 files / 4,384 lines |
-| L3 Agent | 36 files / 7,447 lines |
+| L3 Agent | 36 files / 7,463 lines |
 | L4 Handlers | 33 files / 6,064 lines |
 | API routes | 349 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=31, skill=27, security=18, provider=17, l3a=14) |
-| Params modules / constants | 8 / 1,245 |
+| Params modules / constants | 8 / 1,252 |
 | Health | 0.758 (grade B) |
 
 ## Reading path
@@ -226,7 +226,7 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
-class ProcessPort(ABC): run / run_args / spawn_interactive  → ProcessResult
+class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
@@ -234,8 +234,10 @@ class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 
 Adapters self-register (`register_port("auth", svc)`) at service init or
 boot wiring; consumers resolve via `get_port(name)` — **duck-typed, so a
-language-agnostic kernel can swap adapters without import changes**. The
-registry is `RLock`-guarded. `WorkerPort.submit_result()` returns a
+language-agnostic kernel can swap adapters without import changes**. One-shot
+command callers use `get_process_port()`, which resolves the registered
+`"process"` adapter or a controlled stdlib fallback before boot. The registry
+is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 `TaskHandle` (future-like) so a computed value crosses the worker boundary —
 the completion half missing from fire-and-forget `submit()`.
 
@@ -246,11 +248,22 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 | Surface | Seam | Notes |
 |---|---|---|
-| Shell/command exec | `ProcessPort` (`get_port("process")`) | wraps `platform.run_shell`; the roadmap's named candidate now has a seam |
+| Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
-| Value types | `ProcessResult` / `Result` / `Event` | plain dataclasses — no interpreter object crosses the boundary |
+| Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
+
+`ProcessPort` is deliberately limited to bounded, non-interactive commands.
+Interactive shell sessions, LSP stdio servers, and supervised daemon processes
+hold Python `Popen` handles with live pipes and lifecycle callbacks; they are
+Python-only runtime implementations, not an FFI-clean port surface.
+
+`ProcessResult.error_kind` is empty for every command that actually started,
+including a child that exits with a negative signal code. Adapter failures use
+`not_found` or `execution`; timeouts set `timed_out`. Callers must branch on
+these structured fields rather than inferring failures from a synthetic return
+code.
 
 The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
@@ -348,7 +361,7 @@ l2_shell/  shared engine: dispatch (| pipeline, / commands, Direct mode, L3A)
 ```
 line ──┬─ !<intent>            → L3A direct session (cardwrite path)
        ├─ !<intent>@cell/agent → routed direct session
-       ├─ $ <command>          → raw system command (platform.run_shell)
+       ├─ $ <command>          → raw system command (ProcessPort.run)
        ├─ <tool> <args>        → tool execution (aliases: rf→read_file)
        └─ /command             → engine dispatch (dict results)
 ```
@@ -360,10 +373,10 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 
 | Boundary | Current path | Port abstraction | Rust-sink candidate |
 |----------|--------------|------------------|---------------------|
-| `$ <command>` system exec | `l1.kernel.platform.run_shell` (subprocess, cross-platform) | `platform` helpers (`grep_cmd`/`run_shell`/`IS_*`) | ✅ `run_shell` / `run_args` hot path |
+| `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `l2.shells.terminal` + `shell_completer` | — (L2 pure engine) | — (frontend dialect, no OS sink) |
+| Terminal dialing (interactive) | `l2.shell_session` live `Popen` + `shell_completer` | Python-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
 never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is
@@ -1009,7 +1022,7 @@ gated, and executed (plus the security evidence chain,
 | **Code** | `_code.py` symbol_search / issue detection | regex scanners |
 | **Web** | `_web.py` web_fetch / web_search | urllib + truncation |
 | **Package** | `_package.py` pip/npm/apt/cargo install/list | PackageManager service |
-| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform run_shell |
+| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform `ProcessPort.run` |
 | **Memory** | `_memory.py` memory_store / memory_retrieve | L3 MemoryManager |
 | **Archive** | `_archive.py` archive save/load/query | SQLite fonds/series/ref-code |
 | **Config** | `_config.py` config_get / config_set | SettingsCenter |
