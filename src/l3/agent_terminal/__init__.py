@@ -596,7 +596,7 @@ def reset_terminals() -> None:
 # Operator-gated (API /api/v2/session-monitor + L2 /session monitor),
 # default ON.
 _session_monitor_state: dict = {"enabled": SESSION_MONITOR_ENABLED_DEFAULT}
-_session_monitor_lock = threading.Lock()
+_session_monitor_lock = threading.RLock()
 
 
 def session_monitor_status() -> dict:
@@ -656,7 +656,7 @@ def session_monitor() -> dict:
 # On anomaly (e.g. stagnation), the session entity auto-reloads — distinct
 # from interrupt resume. Operator switch (API + L2), default ON.
 _auto_reload_state: dict = {"enabled": SESSION_AUTO_RELOAD_ENABLED_DEFAULT}
-_auto_reload_lock = threading.Lock()
+_auto_reload_lock = threading.RLock()
 
 
 def auto_reload_status() -> dict:

@@ -17,6 +17,7 @@ import shutil as _shutil
 import subprocess as _subprocess
 import sys as _sys
 import tempfile as _tempfile
+from collections.abc import Callable
 from pathlib import Path as _Path
 from typing import Any, Final
 
@@ -313,8 +314,8 @@ def remove_ipc_socket(socket_path: str) -> None:
 # ── Signal / shutdown ──
 
 
-def register_shutdown_handler(handler: Any) -> None:
-    """Register a shutdown handler via atexit + signal, cross-platform."""
+def register_shutdown_handler(handler: Callable[[], None]) -> None:
+    """Register a zero-argument shutdown callback for atexit and POSIX signals."""
     import atexit as _atexit
 
     _atexit.register(handler)
@@ -322,7 +323,11 @@ def register_shutdown_handler(handler: Any) -> None:
         try:
             import signal as _signal
 
-            _signal.signal(_signal.SIGTERM, handler)
-            _signal.signal(_signal.SIGINT, handler)
+            def _signal_handler(_signum: int, _frame: Any) -> None:
+                """Adapt the POSIX signal callback signature to the shutdown callback."""
+                handler()
+
+            _signal.signal(_signal.SIGTERM, _signal_handler)
+            _signal.signal(_signal.SIGINT, _signal_handler)
         except (ValueError, AttributeError):
             logger.debug("platform: signal handlers not registered (non-main thread?)")

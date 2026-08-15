@@ -350,12 +350,24 @@ class TestIpcServer:
 class TestRegisterShutdownHandler:
     """Verify register_shutdown_handler accepts a callable."""
 
-    def test_registeration(self):
+    def test_registration_adapts_zero_argument_callback_for_signals(self, monkeypatch):
+        """Install a signal adapter without changing the pytest process handlers."""
+        import atexit
+        import signal
+
         called = False
+        registered: list[object] = []
 
         def handler():
             nonlocal called
             called = True
 
-        # Should not raise
+        monkeypatch.setattr(atexit, "register", lambda callback: registered.append(callback))
+        monkeypatch.setattr(signal, "signal", lambda _sig, callback: registered.append(callback))
+
         register_shutdown_handler(handler)
+        signal_callbacks = [callback for callback in registered if callback is not handler]
+        assert len(signal_callbacks) == 2
+        for callback in signal_callbacks:
+            callback(signal.SIGTERM, None)
+        assert called is True
