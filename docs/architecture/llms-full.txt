@@ -104,9 +104,9 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 65 files / 18,093 lines |
+| L1 Kernel | 66 files / 18,320 lines |
 | L2 Shell | 35 files / 4,464 lines |
-| L3 Cell | 334 files / 71,323 lines |
+| L3 Cell | 334 files / 71,350 lines |
 | L4 Bridge | 107 files / 21,915 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,773 lines |
@@ -189,7 +189,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
 | `gatechain.py` | G1–G5 tool authorization chain (whitelist/identity/territory/escalation/composite) + stagnation callback |
-| `ports.py` | 12 `*Port(ABC)` abstractions + `register_port`/`get_port` registry |
+| `ports/` | 15 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
 | `allocator.py` | Token allocation + GC |
 | `vfs.py` / `registry.py` / `registry_base` | Virtual FS, system registry |
 | `os.py` | Lifecycle: boot/shutdown/restart/watchdog |
@@ -225,13 +225,34 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
+class ProcessPort(ABC): run / run_args / spawn_interactive  → ProcessResult
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
-  CardRegistryPort, MonitorBusPort, LLMPort
+  CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
 ```
 
 Adapters self-register (`register_port("auth", svc)`) at service init or
 boot wiring; consumers resolve via `get_port(name)` — **duck-typed, so a
-language-agnostic kernel can swap adapters without import changes**.
+language-agnostic kernel can swap adapters without import changes**. The
+registry is `RLock`-guarded. `WorkerPort.submit_result()` returns a
+`TaskHandle` (future-like) so a computed value crosses the worker boundary —
+the completion half missing from fire-and-forget `submit()`.
+
+### Rust-sink readiness (per `docs/roadmaps/frontend-kernel-roadmap.md`)
+
+The roadmap sinks hot modules to Rust **one at a time, interface unchanged,
+via the port**. What is swappable vs. what a Rust sink replaces wholesale:
+
+| Surface | Seam | Notes |
+|---|---|---|
+| Shell/command exec | `ProcessPort` (`get_port("process")`) | wraps `platform.run_shell`; the roadmap's named candidate now has a seam |
+| Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
+| Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
+| Value types | `ProcessResult` / `Result` / `Event` | plain dataclasses — no interpreter object crosses the boundary |
+| `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
+
+The event bus tracks its own in-flight counter (no CPython
+`ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
+cleanly.
 
 ## Key constants (params)
 

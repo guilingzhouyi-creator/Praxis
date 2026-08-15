@@ -34,7 +34,7 @@ from l1.kernel.params.api import (
     WORKER_POOL_QUEUE_SIZE,
     WORKER_POOL_TASK_TIMEOUT,
 )
-from l1.kernel.ports import Result, WorkerPort
+from l1.kernel.ports import Result, TaskHandle, WorkerPort
 
 logger = logging.getLogger(__name__)
 
@@ -66,24 +66,31 @@ class _Worker(threading.Thread):
             if item is None:  # sentinel: shutdown
                 pool._queue.task_done()
                 return
-            fn, args, kwargs, result_holder = item
+            fn, args, kwargs, result_holder, handle = item
             t0 = time.monotonic()
             try:
                 with pool._lock:
                     pool._active += 1
-                fn(*args, **kwargs)
+                value = fn(*args, **kwargs)
                 result_holder["success"] = True
+                if handle is not None:
+                    handle.set_result(value)
             except Exception as e:
                 result_holder["success"] = False
                 result_holder["error"] = str(e)
+                if handle is not None:
+                    handle.set_exception(e)
                 logger.debug("worker-%d: task failed: %s", self._idx, e)
             finally:
                 elapsed = time.monotonic() - t0
+                # Single critical section per task (was three acquisitions):
+                # decrement active, bump completed, and record elapsed together
+                # to cut the per-task lock churn that drove CPU anti-scaling.
                 with pool._lock:
                     pool._active -= 1
                     pool._completed += 1
+                    pool._record_task_elapsed_locked(elapsed)
                 pool._queue.task_done()
-                pool._record_task_elapsed(elapsed)
 
 
 class ThreadPoolWorker(WorkerPort):
@@ -137,23 +144,40 @@ class ThreadPoolWorker(WorkerPort):
     # ── WorkerPort interface ───────────────────────────────────────────────
 
     def submit(self, fn: Callable, *args: Any, **kwargs: Any) -> Result:
-        """Submit a callable for execution. Returns immediately.
+        """Submit a callable for execution (fire-and-forget). Returns immediately.
 
         If the queue is full, the oldest pending task is dropped (FIFO eviction).
         """
+        return self._enqueue(fn, args, kwargs, handle=None)
+
+    def submit_result(self, fn: Callable, *args: Any, **kwargs: Any) -> TaskHandle:
+        """Submit a callable and return a TaskHandle carrying its result/exception.
+
+        The completion contract missing from ``submit()``: the returned handle's
+        ``.result(timeout)`` blocks for the value (or re-raises the task error).
+        If the task is dropped by backpressure the handle never completes, so
+        always pass a timeout when awaiting.
+        """
+        handle = TaskHandle()
+        self._enqueue(fn, args, kwargs, handle=handle)
+        return handle
+
+    def _enqueue(self, fn: Callable, args: tuple, kwargs: dict, handle: TaskHandle | None) -> Result:
+        """Shared enqueue path for submit / submit_result (backpressure + grow)."""
         if self._shutdown:
             self._rejected += 1
             return Result.fail("pool is shut down")
 
         result_holder: dict = {"success": False, "error": ""}
+        item = (fn, args, kwargs, result_holder, handle)
 
         try:
-            self._queue.put_nowait((fn, args, kwargs, result_holder))
+            self._queue.put_nowait(item)
         except queue.Full:
             # Backpressure: drop oldest pending task
             try:
                 self._queue.get_nowait()
-                self._queue.put_nowait((fn, args, kwargs, result_holder))
+                self._queue.put_nowait(item)
                 self._rejected += 1  # the dropped one
             except queue.Empty:
                 self._rejected += 1
@@ -308,13 +332,17 @@ class ThreadPoolWorker(WorkerPort):
                 decision.reason,
             )
 
-    def _record_task_elapsed(self, elapsed: float) -> None:
-        """Record a task's elapsed time for the controller's slow-task detection."""
-        with self._lock:
-            self._task_elapsed_sum += elapsed
-            self._task_elapsed_count += 1
-            # Keep the window bounded: reset after 100 samples to avoid
-            # stale averages persisting through load regime changes.
-            if self._task_elapsed_count >= 100:
-                self._task_elapsed_sum = elapsed
-                self._task_elapsed_count = 1
+    def _record_task_elapsed_locked(self, elapsed: float) -> None:
+        """Record a task's elapsed time. Caller MUST hold ``self._lock``.
+
+        Lock-free body so the worker's per-task finally block can fold this into
+        its single critical section (decrement/complete/record) instead of
+        taking the lock a second time.
+        """
+        self._task_elapsed_sum += elapsed
+        self._task_elapsed_count += 1
+        # Keep the window bounded: reset after 100 samples to avoid
+        # stale averages persisting through load regime changes.
+        if self._task_elapsed_count >= 100:
+            self._task_elapsed_sum = elapsed
+            self._task_elapsed_count = 1

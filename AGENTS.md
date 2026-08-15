@@ -74,7 +74,7 @@ src/l1/kernel/ports/ — 14 `*Port(ABC)` abstractions (package: `core.py`/`servi
 - **All magic numbers go in `src/l1/kernel/params/`** — never hardcode in implementation files
 - **New kernel modules** must be exported in `kernel/__init__.py` `__all__`
 - **New config items** register defaults in `kernel/settings.py` `DEFAULTS`
-- **Use `threading.RLock`** (reentrant) for thread locks
+- **Use `threading.RLock`** (reentrant) where a lock holder may re-acquire it (e.g. `event.py`, `worker_thread.py`, the port registry); a plain `threading.Lock` is correct for flat critical sections that never re-enter (`sync.py`, `process.py`)
 - **Unified `trace_id`**: one trace id flows request → agent → tool → error via `src/l3/error_bus/core.py` (`get_trace_id`/`set_trace_id`/`trace_scope`) — propagate it in new code paths instead of minting new ids
 - **Never import `services/` inside `kernel/`** — one-way dependency
 - **Register tools** via `ToolSpec` with ring/danger/parameters in `config/tools.yaml`

@@ -9,7 +9,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from threading import RLock
+from threading import Condition as _Condition
+from threading import Lock, RLock
 from typing import Any
 
 from .params.kernel import (
@@ -63,24 +64,28 @@ class SignalType(Enum):
 
 # Extensible signal type registry — register custom signals by name
 _SIGNAL_TYPE_REGISTRY: dict[str, SignalType] = {}
+# Guards registry + SignalType._member_map_ mutation: emit_event() of a novel
+# string type can race concurrent registrations without this lock.
+_SIGNAL_TYPE_LOCK = Lock()
 
 
 def register_signal_type(name: str) -> SignalType:
     """Register a custom signal type.  Returns a new SignalType member."""
-    if name in _SIGNAL_TYPE_REGISTRY:
-        return _SIGNAL_TYPE_REGISTRY[name]
-    if hasattr(SignalType, name):
-        raise ValueError(f"SignalType.{name} already exists as a built-in member")
-    if len(_SIGNAL_TYPE_REGISTRY) >= SIGNAL_TYPE_REGISTRY_MAX:
-        raise ValueError(f"signal type registry full ({SIGNAL_TYPE_REGISTRY_MAX} types)")
-    # Dynamically extend the enum (Python 3.11+)
-    count = max(m.value for m in SignalType) + 1 if SignalType.__members__ else 1
-    new_member = object.__new__(SignalType)
-    new_member._name_ = name
-    new_member._value_ = count
-    SignalType._member_map_[name] = new_member
-    _SIGNAL_TYPE_REGISTRY[name] = new_member
-    return new_member
+    with _SIGNAL_TYPE_LOCK:
+        if name in _SIGNAL_TYPE_REGISTRY:
+            return _SIGNAL_TYPE_REGISTRY[name]
+        if hasattr(SignalType, name):
+            raise ValueError(f"SignalType.{name} already exists as a built-in member")
+        if len(_SIGNAL_TYPE_REGISTRY) >= SIGNAL_TYPE_REGISTRY_MAX:
+            raise ValueError(f"signal type registry full ({SIGNAL_TYPE_REGISTRY_MAX} types)")
+        # Dynamically extend the enum (Python 3.11+)
+        count = max(m.value for m in SignalType) + 1 if SignalType.__members__ else 1
+        new_member = object.__new__(SignalType)
+        new_member._name_ = name
+        new_member._value_ = count
+        SignalType._member_map_[name] = new_member
+        _SIGNAL_TYPE_REGISTRY[name] = new_member
+        return new_member
 
 
 def _resolve_signal_type(event_type: str) -> SignalType | None:
@@ -135,7 +140,13 @@ class EventBus:
         self._executor = ThreadPoolExecutor(max_workers=EVENT_BUS_WORKERS, thread_name_prefix="evt")
         self._shutdown = False
         self._MAX_EVT_QUEUED = EVENT_BUS_MAX_QUEUED
-        """Max pending tasks in executor queue; beyond this, new tasks are dropped."""
+        """Max in-flight tasks; beyond this, new tasks are dropped."""
+        # In-flight task counter (submitted, not yet finished). Replaces reaching
+        # into the executor's private _work_queue/_threads — keeps the bus
+        # portable to a non-CPython worker backend. The condition also lets
+        # shutdown() drain within a deadline without touching executor internals.
+        self._inflight = 0
+        self._inflight_cv = _Condition()
 
     def on(self, st: SignalType, cb: Callable) -> None:
         """Subscribe a callback to a signal type."""
@@ -193,11 +204,33 @@ class EventBus:
         return count
 
     def _bounded_submit(self, fn: Callable, *args: Any) -> None:
-        """Submit a task to the executor, dropping if the work queue is too deep."""
-        if self._executor._work_queue.qsize() >= self._MAX_EVT_QUEUED:
-            logger.warning("event_bus: executor queue full (%d), dropping task", self._MAX_EVT_QUEUED)
-            return
-        self._executor.submit(fn, *args)
+        """Submit a task to the executor, dropping if too many tasks are in flight."""
+        with self._inflight_cv:
+            if self._inflight >= self._MAX_EVT_QUEUED:
+                logger.warning("event_bus: too many in-flight tasks (%d), dropping task", self._MAX_EVT_QUEUED)
+                return
+            self._inflight += 1
+        try:
+            self._executor.submit(self._run_tracked, fn, args)
+        except RuntimeError:
+            # Executor already shut down between the flag check and submit — undo
+            # the reservation and drop the task rather than crash the emitter.
+            self._task_done()
+
+    def _run_tracked(self, fn: Callable, args: tuple) -> None:
+        """Run a dispatched callback and decrement the in-flight counter when done."""
+        try:
+            fn(*args)
+        finally:
+            self._task_done()
+
+    def _task_done(self) -> None:
+        """Mark one in-flight task finished; wake shutdown() when the pool drains."""
+        with self._inflight_cv:
+            self._inflight -= 1
+            if self._inflight <= 0:
+                self._inflight = 0
+                self._inflight_cv.notify_all()
 
     @staticmethod
     def _safe_call(cb: Callable, signal: Signal) -> None:
@@ -240,19 +273,21 @@ class EventBus:
     def stats(self) -> dict:
         """Return event bus listener and queue counters."""
         with self._lock:
-            return {
+            base = {
                 "signal_types": len(self._listeners),
                 "listeners": sum(len(v) for v in self._listeners.values()),
                 "history": len(self._history),
                 "wildcard_listeners": len(self._wildcard_listeners),
-                "queue_depth": self._executor._work_queue.qsize(),
                 "queue_max": self._MAX_EVT_QUEUED,
             }
+        with self._inflight_cv:
+            base["queue_depth"] = self._inflight
+        return base
 
     def shutdown(self, wait: bool = False, timeout: float | None = None) -> None:
         """Shut down the async dispatch executor. Idempotent.
 
-        With ``wait=True``, blocks until queued tasks drain (bounded by
+        With ``wait=True``, blocks until in-flight tasks drain (bounded by
         *timeout*) so the executor's non-daemon threads exit — repeated
         reset_bus() calls then cannot accumulate lingering threads.
         """
@@ -260,15 +295,17 @@ class EventBus:
             return
         self._shutdown = True
         # ThreadPoolExecutor.shutdown() has no timeout kwarg — stop accepting
-        # new work, then join the worker threads under an explicit deadline.
+        # new work, then drain the in-flight counter under an explicit deadline
+        # (no reach into executor internals, so a non-CPython backend works too).
         self._executor.shutdown(wait=False)
         if wait:
             deadline = None if timeout is None else _time.monotonic() + timeout
-            for t in list(self._executor._threads):
-                remaining = deadline - _time.monotonic() if deadline else None
-                if remaining is not None and remaining <= 0:
-                    break
-                t.join(timeout=remaining)
+            with self._inflight_cv:
+                while self._inflight > 0:
+                    remaining = deadline - _time.monotonic() if deadline is not None else None
+                    if remaining is not None and remaining <= 0:
+                        break
+                    self._inflight_cv.wait(remaining)
 
 
 _bus = EventBus()

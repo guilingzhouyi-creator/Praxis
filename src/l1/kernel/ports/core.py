@@ -2,11 +2,55 @@
 
 from __future__ import annotations
 
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
 from .types import Event, Result
+
+
+class TaskHandle:
+    """Future-like handle for a task submitted through ``WorkerPort.submit_result``.
+
+    Carries the task's return value (or exception) across the worker boundary so
+    a caller can await a computed result — the missing half of the fire-and-forget
+    ``submit()`` contract. Built on ``threading.Event`` in the stdlib adapter; a
+    Rust worker maps it onto its own completion primitive without changing callers.
+    """
+
+    def __init__(self) -> None:
+        self._done = threading.Event()
+        self._result: Any = None
+        self._exc: BaseException | None = None
+
+    def set_result(self, value: Any) -> None:
+        """Record a successful result and signal completion."""
+        self._result = value
+        self._done.set()
+
+    def set_exception(self, exc: BaseException) -> None:
+        """Record a task exception and signal completion."""
+        self._exc = exc
+        self._done.set()
+
+    def done(self) -> bool:
+        """Whether the task has completed (successfully or with an exception)."""
+        return self._done.is_set()
+
+    def exception(self, timeout: float | None = None) -> BaseException | None:
+        """Block until done (bounded by *timeout*); return the task exception or None."""
+        if not self._done.wait(timeout):
+            raise TimeoutError("task did not complete within timeout")
+        return self._exc
+
+    def result(self, timeout: float | None = None) -> Any:
+        """Block until done (bounded by *timeout*); return the value or re-raise."""
+        if not self._done.wait(timeout):
+            raise TimeoutError("task did not complete within timeout")
+        if self._exc is not None:
+            raise self._exc
+        return self._result
 
 
 class TransportPort(ABC):
@@ -61,3 +105,12 @@ class WorkerPort(ABC):
     def shutdown(self, wait: bool = True, timeout: float | None = None) -> Result: ...
     @abstractmethod
     def stats(self) -> dict: ...
+
+    def submit_result(self, fn: Callable, *args: Any, **kwargs: Any) -> TaskHandle:
+        """Submit a task and return a TaskHandle for its result/exception.
+
+        Non-abstract so existing WorkerPort adapters keep working unchanged;
+        adapters that support result retrieval (e.g. ThreadPoolWorker) override
+        it. The default signals that this adapter is fire-and-forget only.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support submit_result()")

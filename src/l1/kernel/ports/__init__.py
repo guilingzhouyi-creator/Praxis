@@ -2,11 +2,12 @@
 
 Split into sub-modules for maintainability:
   types.py     — Endpoint, Result, Message, Event
-  core.py      — TransportPort, ChannelPort, EventBusPort, WorkerPort
+  core.py      — TransportPort, ChannelPort, EventBusPort, WorkerPort, TaskHandle
   service.py   — I18nPort, CardRegistryPort, MonitorBusPort, LLMPort,
                  AuthPort, WebSocketPort, RpcServerPort, FilesystemPort
   storage.py   — StoragePort, FsStoragePort (TS-friendly read/write surface)
   lock.py      — LockPort, ThreadLockPort (mutex abstraction)
+  process.py   — ProcessPort, SubprocessProcessPort, ProcessResult (exec seam)
   registry.py  — register_port, get_port, reset_ports
 
 All public names are re-exported here so existing
@@ -16,10 +17,16 @@ All public names are re-exported here so existing
 from l1.kernel.ports.core import (
     ChannelPort,
     EventBusPort,
+    TaskHandle,
     TransportPort,
     WorkerPort,
 )
 from l1.kernel.ports.lock import LockPort, ThreadLockPort, new_lock
+from l1.kernel.ports.process import (
+    ProcessPort,
+    ProcessResult,
+    SubprocessProcessPort,
+)
 from l1.kernel.ports.registry import (
     _PORTS,
     get_port,
@@ -66,9 +73,13 @@ __all__ = [
     "LockPort",
     "Message",
     "MonitorBusPort",
+    "ProcessPort",
+    "ProcessResult",
     "Result",
     "RpcServerPort",
     "StoragePort",
+    "SubprocessProcessPort",
+    "TaskHandle",
     "ThreadLockPort",
     "TransportPort",
     "WebSocketPort",

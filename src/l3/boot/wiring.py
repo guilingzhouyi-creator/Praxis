@@ -105,6 +105,20 @@ def wire_defaults() -> dict[str, str]:
     get_fs_adapter()
     registry["fs"] = "fs_adapter"
 
+    # ProcessPort — subprocess adapter (Rust-sink seam over platform.run_shell)
+    from l1.kernel.ports import SubprocessProcessPort
+
+    register_port("process", SubprocessProcessPort())
+    registry["process"] = "subprocess"
+
+    # StoragePort — expose the file-storage singleton through the string
+    # registry too, so every port resolves via one convention (get_port);
+    # get_storage() remains a documented alias.
+    from l1.kernel.ports import get_storage
+
+    register_port("storage", get_storage())
+    registry["storage"] = "fs"
+
     # Hook chain — shared LifecycleHooks singleton with EventEmitHook
     # pre-registered. Not a port: consumed via hook.get_hook_chain().
     from l3.services.hook import get_hook_chain
@@ -215,6 +229,19 @@ def wire_from_config(cfg: dict) -> dict[str, str]:
 
         register_port("monitor_bus", MonitorBusAdapter())
         registry["monitor_bus"] = "monitor_bus"
+
+    # Process + storage seams (always defaults; idempotent)
+    if not _is_registered("process"):
+        from l1.kernel.ports import SubprocessProcessPort
+
+        register_port("process", SubprocessProcessPort())
+        registry["process"] = "subprocess"
+
+    if not _is_registered("storage"):
+        from l1.kernel.ports import get_storage
+
+        register_port("storage", get_storage())
+        registry["storage"] = "fs"
 
     logger.info("wiring: config-driven adapters: %s", registry)
     return registry
