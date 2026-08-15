@@ -351,6 +351,26 @@ ALWAYS run `bash scripts/sh/check-worktree.sh` (exit 0 required) before any
 merges; never leave uncommitted changes on it. A plan comes before the branch;
 the branch comes before the edit. (Per-agent multi-tree: `## Parallel collaboration`.)
 
+**Gate waivers — TWO independent exemptions (do not conflate).** The gate
+system has exactly two waivers, each granted by the user, never self-awarded:
+
+1. **Main-tree modification waiver (主树修改推进豁免)** — grants permission
+   to EDIT ON the main tree paths (`src/` `tests/` `config/` `scripts/`
+   `docs/`) instead of opening a worktree. It waives WHERE you change code,
+   NOT whether the change may ship. Default: DENIED (worktree gate above).
+   Grant signal: user approves "准许主树操作 / allowed to edit on main".
+2. **Branch pre-merge waiver (分支提前合入门禁豁免)** — grants permission to
+   MERGE a branch into `main` before it meets the net-delta gate (≥ 1000).
+   It waives WHEN a branch may merge, NOT where you edit. Default: DENIED —
+   branches MUST reach the gate to keep mainline lean; merging early is
+   exactly what the gate prevents. Grant signal: user approves
+   `MERGE_GATE_SKIP=1` (with `MERGE_GATE_REASON`).
+
+Neither waiver permits pushing to remotes by itself — pushing is governed by
+`push-both.sh` (dual remotes) and the mainline gate; a waiver only relaxes
+its own dimension (where-to-edit / when-to-merge). Never treat "allowed to
+edit on main" as "allowed to merge early", or vice versa.
+
 **Worktree venv — no isolated environment.** A worktree is a separate
 checkout and has NO `.venv/` of its own — the repo venv lives only on the
 main tree. Tests, hooks, and scripts run inside a worktree MUST target the

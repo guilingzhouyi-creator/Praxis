@@ -108,6 +108,11 @@ else
     echo "[push-both] ❌ mainline merge gate rejected — push aborted." >&2
     echo "[push-both]    Accumulate the net code delta on your worktree" >&2
     echo "[push-both]    branch (target: >= 1000 net lines) before pushing main." >&2
+    echo "[push-both]    Waiver note: early merge needs the BRANCH PRE-MERGE" >&2
+    echo "[push-both]    WAIVER (MERGE_GATE_SKIP=1 + MERGE_GATE_REASON), granted" >&2
+    echo "[push-both]    by the user only — it waives WHEN a branch merges, NOT" >&2
+    echo "[push-both]    where you edit (that is the separate main-tree" >&2
+    echo "[push-both]    modification waiver). Ask the user; never self-waive." >&2
     exit 1
   fi
   if [ "${MERGE_GATE_SKIP:-0}" = "1" ]; then

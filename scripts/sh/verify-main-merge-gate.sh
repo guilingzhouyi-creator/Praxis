@@ -236,6 +236,11 @@ echo "[merge-gate]    To keep mainline from being inflated by repeated small" >&
 echo "[merge-gate]    commits, please accumulate the net delta on your own" >&2
 echo "[merge-gate]    worktree branch (target: >= 1000 net code lines) and" >&2
 echo "[merge-gate]    only then merge locally into main." >&2
+echo "[merge-gate]    Waiver note: the branch pre-merge waiver (MERGE_GATE_SKIP=1" >&2
+echo "[merge-gate]    + MERGE_GATE_REASON) is the ONLY path to merge early — it" >&2
+echo "[merge-gate]    is granted by the user, never self-awarded. It waives WHEN" >&2
+echo "[merge-gate]    a branch merges, NOT where you edit (that is the separate" >&2
+echo "[merge-gate]    main-tree modification waiver). Ask the user, do not bypass." >&2
 
 # ── 3. Sibling-branch alignment hint (same merge-base) ───────────────────
 SIBLINGS="$(git for-each-ref --format='%(refname:short)' refs/heads \
