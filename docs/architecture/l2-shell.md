@@ -61,7 +61,7 @@ l2_shell/  shared engine: dispatch (| pipeline, / commands, Direct mode, L3A)
 ```
 line ──┬─ !<intent>            → L3A direct session (cardwrite path)
        ├─ !<intent>@cell/agent → routed direct session
-       ├─ $ <command>          → raw system command (platform.run_shell)
+       ├─ $ <command>          → raw system command (ProcessPort.run)
        ├─ <tool> <args>        → tool execution (aliases: rf→read_file)
        └─ /command             → engine dispatch (dict results)
 ```
@@ -73,10 +73,10 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 
 | Boundary | Current path | Port abstraction | Rust-sink candidate |
 |----------|--------------|------------------|---------------------|
-| `$ <command>` system exec | `l1.kernel.platform.run_shell` (subprocess, cross-platform) | `platform` helpers (`grep_cmd`/`run_shell`/`IS_*`) | ✅ `run_shell` / `run_args` hot path |
+| `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `l2.shells.terminal` + `shell_completer` | — (L2 pure engine) | — (frontend dialect, no OS sink) |
+| Terminal dialing (interactive) | `l2.shell_session` live `Popen` + `shell_completer` | Python-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
 never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is

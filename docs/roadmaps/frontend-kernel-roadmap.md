@@ -71,7 +71,7 @@ GET  /api/v2/shell/commands         → _shell_commands    → {"success": True,
 | **2. 接通补全** | `_shell_autocomplete` stub → `l2.l2_shell.completer.autocomplete()` | 同上 |
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
 | **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
-| **5. 底层边界留位** | 确认 process/fs/terminal 走 `FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`run_shell` 为 Rust 下沉候选） |
+| **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
 | **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md |
 
 > 接通 stub 是纯 Python 改动，完全符合现有架构；前端矩阵也强化了接通 `/api/v2/shell`

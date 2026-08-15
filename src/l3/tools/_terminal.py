@@ -1,10 +1,8 @@
-"""Terminal handler — cross-platform subprocess execution."""
-
-import subprocess
+"""Terminal handler — cross-platform one-shot process execution."""
 
 from l1.kernel.discovery import get_tool_config
 from l1.kernel.params.system import LOG_TRUNC_2000, LOG_TRUNC_5000
-from l1.kernel.platform import run_shell
+from l1.kernel.ports import get_process_port
 
 
 def run_in_terminal(args: dict, agent_id: str) -> dict:
@@ -14,15 +12,15 @@ def run_in_terminal(args: dict, agent_id: str) -> dict:
     if not command:
         return {"success": False, "error": "command is required"}
     try:
-        proc = run_shell(command, timeout=timeout)
+        proc = get_process_port().run(command, timeout=timeout)
+        if proc.timed_out:
+            return {"success": False, "error": "command timed out"}
         return {
             "success": proc.returncode == 0,
             "stdout": proc.stdout[:LOG_TRUNC_5000] if proc.stdout else "",
             "stderr": proc.stderr[:LOG_TRUNC_2000] if proc.stderr else "",
             "exit_code": proc.returncode,
         }
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "command timed out"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

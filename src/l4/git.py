@@ -7,11 +7,11 @@ Runs git commands via subprocess, parses structured output.
 from __future__ import annotations
 
 import logging
-import subprocess
 from typing import Any
 
 from l1.kernel.params.api import GIT_TIMEOUT
-from l1.kernel.platform import run_args
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND
+from l1.kernel.ports import ProcessOptions, get_process_port
 
 logger = logging.getLogger(__name__)
 
@@ -52,14 +52,16 @@ def _sanitize_message(msg: str) -> str:
 
 def _git(args: list[str], cwd: str) -> dict[str, Any]:
     try:
-        r = run_args(["git"] + args, cwd=cwd, timeout=GIT_TIMEOUT)
+        r = get_process_port().run_args(["git"] + args, timeout=GIT_TIMEOUT, options=ProcessOptions(cwd=cwd))
+        if r.timed_out:
+            return {"success": False, "error": "git command timed out"}
+        if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+            return {"success": False, "error": "git not found"}
+        if r.error_kind:
+            return {"success": False, "error": r.stderr.strip() or "git execution failed"}
         if r.returncode != 0:
             return {"success": False, "error": r.stderr.strip() or "git command failed"}
         return {"success": True, "stdout": r.stdout, "stderr": r.stderr}
-    except FileNotFoundError:
-        return {"success": False, "error": "git not found"}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "git command timed out"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

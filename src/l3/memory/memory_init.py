@@ -44,7 +44,7 @@ from l1.kernel.params.system import (
     MEMORY_PHASE_DIR,
 )
 from l1.kernel.paths import get_paths as _get_paths
-from l1.kernel.platform import PYTHON_EXE, run_args
+from l1.kernel.platform import PYTHON_EXE
 
 logger = logging.getLogger(__name__)
 
@@ -271,10 +271,12 @@ def shutdown_to_memories() -> dict:
     # DSL compiler
     if COMPILER_PATH.exists():
         try:
-            cr = run_args(
+            from l1.kernel.ports import ProcessOptions, get_process_port
+
+            cr = get_process_port().run_args(
                 [PYTHON_EXE, str(COMPILER_PATH)],
                 timeout=MEMORY_INIT_TIMEOUT,
-                cwd=str(MEMORIES_DIR.parent),
+                options=ProcessOptions(cwd=str(MEMORIES_DIR.parent)),
             )
             results["compiler"] = "ok" if cr.returncode == 0 else cr.stderr[:LOG_TRUNC_200]
         except Exception as e:

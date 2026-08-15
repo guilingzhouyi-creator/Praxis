@@ -56,7 +56,7 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
-class ProcessPort(ABC): run / run_args / spawn_interactive  → ProcessResult
+class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
@@ -64,8 +64,10 @@ class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 
 Adapters self-register (`register_port("auth", svc)`) at service init or
 boot wiring; consumers resolve via `get_port(name)` — **duck-typed, so a
-language-agnostic kernel can swap adapters without import changes**. The
-registry is `RLock`-guarded. `WorkerPort.submit_result()` returns a
+language-agnostic kernel can swap adapters without import changes**. One-shot
+command callers use `get_process_port()`, which resolves the registered
+`"process"` adapter or a controlled stdlib fallback before boot. The registry
+is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 `TaskHandle` (future-like) so a computed value crosses the worker boundary —
 the completion half missing from fire-and-forget `submit()`.
 
@@ -76,11 +78,22 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 | Surface | Seam | Notes |
 |---|---|---|
-| Shell/command exec | `ProcessPort` (`get_port("process")`) | wraps `platform.run_shell`; the roadmap's named candidate now has a seam |
+| Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
-| Value types | `ProcessResult` / `Result` / `Event` | plain dataclasses — no interpreter object crosses the boundary |
+| Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
+
+`ProcessPort` is deliberately limited to bounded, non-interactive commands.
+Interactive shell sessions, LSP stdio servers, and supervised daemon processes
+hold Python `Popen` handles with live pipes and lifecycle callbacks; they are
+Python-only runtime implementations, not an FFI-clean port surface.
+
+`ProcessResult.error_kind` is empty for every command that actually started,
+including a child that exits with a negative signal code. Adapter failures use
+`not_found` or `execution`; timeouts set `timed_out`. Callers must branch on
+these structured fields rather than inferring failures from a synthetic return
+code.
 
 The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in

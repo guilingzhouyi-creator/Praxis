@@ -1,7 +1,9 @@
-"""Process manager — background process lifecycle.
+"""Python-only process manager — background process lifecycle.
 
 Manages dev servers, build watchers, file watchers, etc.
 Unlike TerminalService (interactive), these are headless daemon processes.
+They retain live ``Popen`` handles and are intentionally outside the one-shot
+``ProcessPort`` value contract.
 """
 
 from __future__ import annotations

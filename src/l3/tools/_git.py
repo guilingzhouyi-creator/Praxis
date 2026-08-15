@@ -1,15 +1,22 @@
 """Git tool handlers."""
 
 from l1.kernel.discovery import get_tool_config
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND
 from l1.kernel.params.system import LOG_TRUNC_500, LOG_TRUNC_2000
-from l1.kernel.platform import run_args
+from l1.kernel.ports import get_process_port
 
 
 def _git(args_list: list[str], timeout: int | None = None) -> dict:
     if timeout is None:
         timeout = get_tool_config("git_timeout", 30)
     try:
-        r = run_args(["git"] + args_list, timeout=timeout)
+        r = get_process_port().run_args(["git"] + args_list, timeout=timeout)
+        if r.timed_out:
+            return {"success": False, "error": "git command timed out"}
+        if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+            return {"success": False, "error": "git not found"}
+        if r.error_kind:
+            return {"success": False, "error": r.stderr.strip() or "git execution failed"}
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip()[:LOG_TRUNC_2000],

@@ -33,7 +33,7 @@ from l1.kernel.params.agent import (
     SCOUT_LOOP_TIMEOUT,
     SCOUT_RESULT_TRUNC,
 )
-from l1.kernel.params.kernel import RUN_SUBPROCESS_TIMEOUT
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND, RUN_SUBPROCESS_TIMEOUT
 from l1.kernel.params.system import (
     HASH_TRUNC_LONG,
     LOG_TRUNC_40,
@@ -149,17 +149,21 @@ class ScoutSession:
             return {"success": False, "error": str(e)}
 
     def _tool_grep(self, args: dict, agent_id: str = "") -> dict:
-        import subprocess as _sp
+        from l1.kernel.ports import get_process_port
 
         pattern = args.get("pattern", "")
         path = args.get("path", ".")
         try:
             cmd = _grep_cmd(pattern, path, max_count=20)
-            r = _sp.run(cmd, capture_output=True, text=True, timeout=RUN_SUBPROCESS_TIMEOUT)
+            r = get_process_port().run_args(cmd, timeout=RUN_SUBPROCESS_TIMEOUT)
+            if r.timed_out:
+                return {"success": False, "error": "grep timed out"}
+            if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+                return {"success": False, "error": "grep tool not found"}
+            if r.error_kind:
+                return {"success": False, "error": r.stderr or "grep execution failed"}
             out = (r.stdout or "")[:SCOUT_FILE_READ_TRUNC]
             return {"success": True, "data": out} if out else {"success": True, "data": "no matches"}
-        except FileNotFoundError:
-            return {"success": False, "error": "grep tool not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

@@ -147,7 +147,12 @@ def run_args(args: list[str], timeout: float = TOOL_TERMINAL_TIMEOUT, **kwargs: 
 
 
 def create_interactive_shell(cwd: str = "") -> _subprocess.Popen:
-    """Create an interactive shell subprocess, cross-platform."""
+    """Create a Python-only interactive shell subprocess, cross-platform.
+
+    Interactive ``Popen`` lifecycle and pipe management intentionally remain
+    outside ``ProcessPort``. That port is a value-result contract for bounded,
+    non-interactive execution only.
+    """
     cmd = [SHELL_PATH] if IS_WINDOWS else [SHELL_PATH, "-i"]
     kwargs: dict = {}
     if cwd:

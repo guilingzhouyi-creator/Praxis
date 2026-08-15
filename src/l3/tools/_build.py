@@ -2,7 +2,7 @@
 
 from l1.kernel.discovery import get_config, get_tool_config
 from l1.kernel.params.system import LOG_TRUNC_2000
-from l1.kernel.platform import run_args
+from l1.kernel.ports import ProcessOptions, get_process_port
 
 _BUILD_TIMEOUT = get_tool_config("build_timeout", 300)
 
@@ -32,7 +32,7 @@ def build_project(args: dict, agent_id: str) -> dict:
     path = args.get("path", ".")
     for cmd in _get_build_detectors():
         try:
-            r = run_args(list(cmd), cwd=path, timeout=_BUILD_TIMEOUT)
+            r = get_process_port().run_args(list(cmd), timeout=_BUILD_TIMEOUT, options=ProcessOptions(cwd=path))
             if r.returncode == 0:
                 return {"success": True, "command": " ".join(cmd), "stdout": r.stdout[:LOG_TRUNC_2000]}
         except Exception:
@@ -45,7 +45,7 @@ def test_project(args: dict, agent_id: str) -> dict:
     path = args.get("path", ".")
     for cmd in _get_test_detectors():
         try:
-            r = run_args(list(cmd), cwd=path, timeout=_BUILD_TIMEOUT)
+            r = get_process_port().run_args(list(cmd), timeout=_BUILD_TIMEOUT, options=ProcessOptions(cwd=path))
             if r.returncode == 0:
                 return {"success": True, "command": " ".join(cmd), "stdout": r.stdout[:LOG_TRUNC_2000]}
             # Framework ran but tests failed: parse failure detail so the

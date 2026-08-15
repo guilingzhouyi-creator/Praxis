@@ -19,7 +19,7 @@ gated, and executed (plus the security evidence chain,
 | **Code** | `_code.py` symbol_search / issue detection | regex scanners |
 | **Web** | `_web.py` web_fetch / web_search | urllib + truncation |
 | **Package** | `_package.py` pip/npm/apt/cargo install/list | PackageManager service |
-| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform run_shell |
+| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform `ProcessPort.run` |
 | **Memory** | `_memory.py` memory_store / memory_retrieve | L3 MemoryManager |
 | **Archive** | `_archive.py` archive save/load/query | SQLite fonds/series/ref-code |
 | **Config** | `_config.py` config_get / config_set | SettingsCenter |

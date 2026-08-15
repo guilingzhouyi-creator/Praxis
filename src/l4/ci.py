@@ -7,13 +7,13 @@ Supports local execution and GitHub Actions integration.
 from __future__ import annotations
 
 import logging
-import subprocess
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 
 from l1.kernel.params.api import CI_SHELL_TIMEOUT
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND
 from l1.kernel.params.system import (
     CI_DEFAULT_LIST_LIMIT,
     CI_DEFAULT_LOG_LINES,
@@ -23,7 +23,7 @@ from l1.kernel.params.system import (
     LOG_TRUNC_20,
     LOG_TRUNC_500,
 )
-from l1.kernel.platform import run_shell
+from l1.kernel.ports import ProcessOptions, get_process_port
 from l3._base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,22 @@ class CIService(BaseService):
                 # pipeline contract is that `cmd` is a single shell command
                 # string, so the platform adapter supplies the configured
                 # shell and its platform-specific command flag.
-                r = run_shell(cmd, cwd=cwd, timeout=step_timeout)
+                r = get_process_port().run(cmd, timeout=step_timeout, options=ProcessOptions(cwd=cwd))
+                if r.timed_out:
+                    run.status = PipelineStatus.TIMEOUT
+                    run.error = f"Step {i + 1} ({action}) timed out"
+                    run.output.append(f"TIMEOUT: {run.error}")
+                    break
+                if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+                    run.status = PipelineStatus.FAILED
+                    run.error = f"Step {i + 1} ({action}): command not found: {cmd}"
+                    run.output.append(f"FAILED: {run.error}")
+                    break
+                if r.error_kind:
+                    run.status = PipelineStatus.FAILED
+                    run.error = f"Step {i + 1} ({action}): execution failed: {r.stderr}"
+                    run.output.append(f"FAILED: {run.error}")
+                    break
                 step["exit_code"] = r.returncode
                 if r.stdout:
                     run.output.extend(r.stdout.splitlines()[-LOG_TRUNC_20:])
@@ -143,16 +158,6 @@ class CIService(BaseService):
                     run.output.append(f"FAILED: {run.error}")
                     break
                 run.output.append(f"PASS: {action}")
-            except subprocess.TimeoutExpired:
-                run.status = PipelineStatus.TIMEOUT
-                run.error = f"Step {i + 1} ({action}) timed out"
-                run.output.append(f"TIMEOUT: {run.error}")
-                break
-            except FileNotFoundError:
-                run.status = PipelineStatus.FAILED
-                run.error = f"Step {i + 1} ({action}): command not found: {cmd}"
-                run.output.append(f"FAILED: {run.error}")
-                break
             except Exception as e:
                 run.status = PipelineStatus.FAILED
                 run.error = f"Step {i + 1} ({action}): {e}"

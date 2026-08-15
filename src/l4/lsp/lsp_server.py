@@ -1,9 +1,10 @@
-"""LSP server process + configuration — extracted from lsp_manager.py.
+"""Python-only LSP server process + configuration — extracted from lsp_manager.py.
 
 ``LanguageServer`` manages one JSON-RPC-over-stdio LSP process (lifecycle,
 handshake, request/response matching, background reader thread); the module
 also carries the per-language server-command / file-extension maps and the
-coordinate helpers used by LspManager.
+coordinate helpers used by LspManager. The live stdio ``Popen`` lifecycle is
+intentionally outside the one-shot ``ProcessPort`` value contract.
 """
 
 from __future__ import annotations
