@@ -1,13 +1,13 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 30 | **COMPLETE**: 1 (3%) | **INCOMPLETE**: 29 (97%, premature stops caught)
+**Runs**: 31 | **COMPLETE**: 2 (6%) | **INCOMPLETE**: 29 (94%, premature stops caught)
 **Duration**: avg 11s / P95 20s | **Longest INCOMPLETE streak**: 29 consecutive
-**Gate exemptions** (MERGE_GATE_SKIP in history): 5
+**Gate exemptions** (MERGE_GATE_SKIP in history): 2
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
 | 2026-08-14 | 21 | 1 | 5% |
-| 2026-08-15 | 9 | 0 | 0% |
+| 2026-08-15 | 10 | 1 | 10% |
 
 **Failures by check** (which gate caught premature stops):
 - `changelog`: 28 (97% of incomplete)
@@ -21,15 +21,15 @@
 - `audit`: 1 (3% of incomplete)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 28/29 (97%)
-- `changelog`: 1/29 (3%)
-- `complex`: 27/29 (93%)
-- `cycle`: 27/29 (93%)
-- `delta`: 7/30 (23%)
-- `docs`: 28/30 (93%)
-- `index`: 27/29 (93%)
-- `lint`: 23/30 (77%)
-- `singleton`: 23/29 (79%)
+- `audit`: 29/30 (97%)
+- `changelog`: 2/30 (7%)
+- `complex`: 28/30 (93%)
+- `cycle`: 28/30 (93%)
+- `delta`: 8/31 (26%)
+- `docs`: 29/31 (94%)
+- `index`: 28/30 (93%)
+- `lint`: 24/31 (77%)
+- `singleton`: 24/30 (80%)
 
 **Failure pairs** (checks failing together):
 - `changelog + delta`: 22
@@ -40,5 +40,5 @@
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
-- `mega_funcs`: 0.0 / 8.44 / 0.0 / 9.0
-- `net_delta`: 807.0 / 231.12 / -2.0 / 807.0
+- `mega_funcs`: 0.0 / 7.94 / 0.0 / 9.0
+- `net_delta`: 3828.0 / 442.71 / -2.0 / 3828.0
