@@ -25,6 +25,8 @@ from l1.kernel.params.agent import (
     R4_CANDIDATE_MIN_EVIDENCE,
     R4_CANDIDATE_SCHEMA_VERSION,
     R4_CANDIDATE_STATE_FILE,
+    R4_CANDIDATE_STATE_TRANSITIONS,
+    R4_CANDIDATE_STATES,
 )
 from l1.kernel.params.system import SKILL_POSTURE_DEFAULT, SKILL_POSTURE_VALID
 from l1.kernel.paths import get_paths
@@ -38,15 +40,6 @@ from l1.kernel.ports import (
 )
 
 logger = logging.getLogger(__name__)
-
-_CANDIDATE_STATES = frozenset({"observed", "validated", "canary", "active", "retired"})
-_CANDIDATE_TRANSITIONS = {
-    "observed": frozenset({"validated", "retired"}),
-    "validated": frozenset({"canary", "retired"}),
-    "canary": frozenset({"active", "retired"}),
-    "active": frozenset({"retired"}),
-    "retired": frozenset(),
-}
 
 
 def normalize_binding(
@@ -103,7 +96,7 @@ class CandidateStore:
     def status(self) -> dict[str, Any]:
         """Return candidate collection state and lifecycle counts."""
         with self._lock:
-            counts = {state: 0 for state in _CANDIDATE_STATES}
+            counts = {state: 0 for state in R4_CANDIDATE_STATES}
             for candidate in self._candidates.values():
                 state = candidate.get("state")
                 if state in counts:
@@ -343,12 +336,12 @@ class CandidateStore:
 
     def transition(self, candidate_id: str, state: str, skill_name: str = "") -> dict[str, Any]:
         """Advance a validated candidate through its controlled lifecycle."""
-        error = "" if state in _CANDIDATE_STATES else f"invalid candidate state: {state}"
+        error = "" if state in R4_CANDIDATE_STATES else f"invalid candidate state: {state}"
         with self._lock:
             candidate = self._candidates.get(candidate_id)
             if candidate is None and not error:
                 error = f"candidate not found: {candidate_id}"
-            if candidate and not error and state not in _CANDIDATE_TRANSITIONS.get(candidate["state"], frozenset()):
+            if candidate and not error and state not in R4_CANDIDATE_STATE_TRANSITIONS.get(candidate["state"], ()):
                 error = f"invalid candidate transition: {candidate['state']} -> {state}"
             if candidate and state == "validated" and not candidate.get("validation", {}).get("valid"):
                 error = "candidate must pass validation before entering validated state"

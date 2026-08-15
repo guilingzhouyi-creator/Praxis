@@ -303,7 +303,14 @@ def cfg_skill(cfg: dict, s: Any, results: dict) -> None:
     try:
         from l3.memory.r4_candidate_store import get_candidate_store
 
-        get_candidate_store().set_enabled(bool(center.get("skill.candidate_enabled", True)))
+        candidate_store = get_candidate_store()
+        if isinstance(cfg, dict) and "candidate_enabled" in cfg:
+            # An explicit deployment setting is authoritative.
+            candidate_store.set_enabled(bool(cfg["candidate_enabled"]))
+        else:
+            # Preserve the ledger's persisted runtime switch across boot; the
+            # SettingsCenter default must not overwrite it implicitly.
+            center.set_l2("skill.candidate_enabled", candidate_store.status()["enabled"])
     except Exception:
         logger.debug("cfg_skill: candidate ledger policy push skipped")
     results["skill"] = True
