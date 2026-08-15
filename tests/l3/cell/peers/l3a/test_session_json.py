@@ -171,7 +171,8 @@ def test_session_history_switch(tmp_path, monkeypatch):
     reset_sequences()
     reset_history()
     try:
-        set_history(enabled=False)
+        result = set_history(enabled=False)
+        assert result == {"success": True, "enabled": False}
         assert history_status()["enabled"] is False
         r = query_session_history()
         assert r.get("disabled") is True
