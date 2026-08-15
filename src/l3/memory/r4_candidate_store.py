@@ -29,6 +29,13 @@ from l1.kernel.ports import CandidateLedgerPort
 logger = logging.getLogger(__name__)
 
 _CANDIDATE_STATES = frozenset({"observed", "validated", "canary", "active", "retired"})
+_CANDIDATE_TRANSITIONS = {
+    "observed": frozenset({"validated", "retired"}),
+    "validated": frozenset({"canary", "retired"}),
+    "canary": frozenset({"active", "retired"}),
+    "active": frozenset({"retired"}),
+    "retired": frozenset(),
+}
 
 
 def normalize_binding(
@@ -70,6 +77,9 @@ class CandidateStore:
 
     def __init__(self, state_path: str = "") -> None:
         self._lock = threading.RLock()
+        # Serialize publication requests without extending the ledger lock
+        # across the potentially slow R4Agent evolution call.
+        self._publish_lock = threading.Lock()
         self._state_path = state_path or os.path.join(get_paths().data_dir, R4_CANDIDATE_STATE_FILE)
         self._enabled = R4_CANDIDATE_ENABLED_DEFAULT
         self._candidates: dict[str, dict[str, Any]] = {}
@@ -221,6 +231,10 @@ class CandidateStore:
             candidate = self._candidates.get(candidate_id)
             if candidate is None and not error:
                 error = f"candidate not found: {candidate_id}"
+            if candidate and not error and state not in _CANDIDATE_TRANSITIONS.get(candidate["state"], frozenset()):
+                error = f"invalid candidate transition: {candidate['state']} -> {state}"
+            if candidate and state == "validated" and not candidate.get("validation", {}).get("valid"):
+                error = "candidate must pass validation before entering validated state"
             if candidate and state in ("canary", "active") and not candidate.get("validation", {}).get("valid"):
                 error = "candidate must validate before publication"
             if candidate and state == "active" and candidate["state"] != "canary":
@@ -345,32 +359,43 @@ def _publication_error(validation: dict[str, Any], intent: str) -> str:
 def publish_candidate(candidate_id: str, intent: str, scope: str = "") -> dict[str, Any]:
     """Generate a bound canary skill from a validated candidate."""
     candidate_store = get_candidate_store()
-    validation = candidate_store.validate(candidate_id)
-    error = _publication_error(validation, intent)
-    if error:
-        return {"success": False, "error": error, "validation": validation}
-    candidate = validation["candidate"]
-    binding = candidate.get("binding") or {}
-    try:
-        from l3.memory.r4_agent import get_r4_agent
+    # Serialize lifecycle check and skill generation so concurrent requests
+    # cannot both generate a skill. The ledger lock itself is only held by
+    # CandidateStore methods and never spans the potentially slow R4 call.
+    with candidate_store._publish_lock:
+        current = candidate_store.get(candidate_id)
+        if current and current.get("state") in ("canary", "active"):
+            return {
+                "success": False,
+                "error": f"candidate already published in {current['state']} state",
+                "candidate": current,
+            }
+        validation = candidate_store.validate(candidate_id)
+        error = _publication_error(validation, intent)
+        if error:
+            return {"success": False, "error": error, "validation": validation}
+        candidate = validation["candidate"]
+        binding = candidate.get("binding") or {}
+        try:
+            from l3.memory.r4_agent import get_r4_agent
 
-        cell_ids = binding.get("cell_ids") or []
-        evolved = get_r4_agent().evolve_skill(
-            intent=intent,
-            cell_id=cell_ids[0] if cell_ids else "",
-            scope=scope,
-            binding=binding,
-            status="canary",
-        )
-    except Exception as exc:
-        logger.warning("r4 candidate publish failed: %s", exc)
-        return {"success": False, "error": str(exc)}
-    if not evolved.get("success"):
-        return evolved
-    transition = candidate_store.transition(candidate_id, "canary", skill_name=str(evolved.get("skill") or ""))
-    if not transition.get("success"):
-        return transition
-    return {"success": True, "candidate": transition["candidate"], "skill": evolved}
+            cell_ids = binding.get("cell_ids") or []
+            evolved = get_r4_agent().evolve_skill(
+                intent=intent,
+                cell_id=cell_ids[0] if cell_ids else "",
+                scope=scope,
+                binding=binding,
+                status="canary",
+            )
+        except Exception as exc:
+            logger.warning("r4 candidate publish failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+        if not evolved.get("success"):
+            return evolved
+        transition = candidate_store.transition(candidate_id, "canary", skill_name=str(evolved.get("skill") or ""))
+        if not transition.get("success"):
+            return transition
+        return {"success": True, "candidate": transition["candidate"], "skill": evolved}
 
 
 def activate_candidate(candidate_id: str) -> dict[str, Any]:

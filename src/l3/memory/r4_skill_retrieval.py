@@ -167,8 +167,15 @@ class SkillRetrievalMixin:
         evolved = []
         for s in skills:
             binding = s.get("binding") or {}
-            has_agent_binding = bool(binding.get("agent_ids")) if isinstance(binding, dict) else False
-            if agent_id and agent_id not in s.get("tags", []) and not has_agent_binding:
+            has_explicit_binding = (
+                any(binding.get(key) for key in ("cell_ids", "roles", "agent_ids", "card_natures"))
+                if isinstance(binding, dict)
+                else False
+            )
+            # Legacy evolved skills use an agent tag as their scope.  An
+            # explicit Cell/role/card binding supersedes that legacy filter;
+            # skill_is_injectable() performs the authoritative scope check.
+            if agent_id and not has_explicit_binding and agent_id not in s.get("tags", []):
                 continue
             if allow and s["name"] not in allow:
                 continue
