@@ -36,8 +36,7 @@ def test_load_thought_lessons_from_session_json(tmp_path, monkeypatch):
     try:
         append_thought("sess-1", turn=1, input_seq=1, reasoning_text="step through the diff")
         lessons = load_thought_lessons()
-        assert len(lessons) >= 1
-        lesson = lessons[0]
+        lesson = next(lesson for lesson in lessons if "[session:sess-1]" in lesson["prompt"])
         assert lesson["tool"] == "thought"
         assert "step through the diff" in lesson["knowledge"]["lesson"]
         assert lesson["knowledge"]["source"] == "session_thoughts"

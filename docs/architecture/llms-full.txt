@@ -707,6 +707,28 @@ controlled by `skill.candidate_enabled` (params default → SettingsCenter →
 observability side channels: a persistence failure never blocks memory writes
 or failure-trace capture.
 
+#### Candidate performance and rewrite seam
+
+The candidate ledger is on a memory-refinery write path, so its hot path has
+explicit bounds: fingerprint lookup is indexed (not a full-candidate scan),
+evidence is capped by the `R4_CANDIDATE_MAX_EVIDENCE` parameter, and the lock
+does not cover LLM calls or skill publication. Persistence is a side channel;
+an I/O failure degrades the ledger operation without blocking the originating
+memory or tool-failure write. Implementations should keep serialized snapshots
+and compaction policy behind the store boundary so write latency does not grow
+with the lifetime of the archive.
+
+`CandidateLedgerPort` is the language-neutral adapter seam for listing,
+validation, lifecycle transitions, and policy state. Candidate records use a
+stable JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`,
+`validation`, `state`, and timestamps); lifecycle state names and limits come
+from `params/` and remain the single source of truth. Publication intent and
+LLM orchestration stay in L3 above the port. A future Rust ledger can therefore
+replace indexed storage and transition checks through the same port while the
+Python L3 orchestration, API, L2 shell, and callers remain unchanged. The
+Rust adapter must preserve atomic transition semantics, bounded evidence, and
+best-effort persistence behavior.
+
 ## Conversation-side compression (two-layer pipeline)
 
 Compression is split into **two physically isolated pipelines** — one for
