@@ -62,6 +62,8 @@ from l1.kernel.params.system import (
     SKILL_OFFENSIVE_AUTHORIZED_NATURES,
     SKILL_OFFENSIVE_ENABLED,
     SKILL_POSTURE_DEFAULT,
+    SKILL_STATUS_DEFAULT,
+    SKILL_STATUS_VALID,
     SKILL_STRATEGY_CAPABILITY_VIEW,
     SKILL_WRITE_MIN_RING,
     SKILL_WRITE_ROLES,
@@ -268,6 +270,49 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             for cell_set in self._cell_skill_map.values():
                 cell_set.discard(name)
 
+    @staticmethod
+    def _normalize_binding(binding: dict | None) -> dict[str, list[str]]:
+        """Normalize the optional injection binding stored on a skill."""
+        source = binding if isinstance(binding, dict) else {}
+        normalized: dict[str, list[str]] = {}
+        for key in ("cell_ids", "roles", "agent_ids", "card_natures", "postures"):
+            value = source.get(key, [])
+            if isinstance(value, str):
+                value = [value]
+            normalized[key] = sorted({item.strip() for item in value if isinstance(item, str) and item.strip()})
+        return normalized
+
+    def skill_is_injectable(
+        self,
+        skill: dict,
+        agent_id: str = "",
+        cell_id: str = "",
+        role: str = "",
+        card_tags: list[str] | None = None,
+        posture: str = SKILL_POSTURE_DEFAULT,
+    ) -> bool:
+        """Return whether a skill lifecycle state and binding allow injection."""
+        status = str(skill.get("status", SKILL_STATUS_DEFAULT) or SKILL_STATUS_DEFAULT)
+        if status not in SKILL_STATUS_VALID or status in ("draft", "retired", "deprecated"):
+            return False
+        binding = self._normalize_binding(skill.get("binding"))
+        explicit_targets = any(binding[key] for key in ("cell_ids", "roles", "agent_ids", "card_natures"))
+        resolved_role = role or _derive_role(agent_id)
+        card_natures = {
+            tag[len("card:") :] if tag.startswith("card:") else tag
+            for tag in (card_tags or [])
+            if isinstance(tag, str) and tag
+        }
+        constraints = (
+            status != "canary" or explicit_targets,
+            not binding["cell_ids"] or cell_id in binding["cell_ids"],
+            not binding["roles"] or resolved_role in binding["roles"],
+            not binding["agent_ids"] or agent_id in binding["agent_ids"],
+            not binding["card_natures"] or bool(card_natures.intersection(binding["card_natures"])),
+            not binding["postures"] or posture in binding["postures"],
+        )
+        return all(constraints)
+
     def authorize_write(self, agent_id: str = "", role: str = "", internal: bool = False) -> tuple[bool, str]:
         """Check whether a caller may create/update/delete skills.
 
@@ -331,6 +376,8 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
         next_skills: list[str] | None = None,
         knowledge: dict | None = None,
         layer: str = "",
+        binding: dict | None = None,
+        status: str = "",
         agent_id: str = "",
         role: str = "",
         internal: bool = False,
@@ -365,6 +412,8 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             "loaded_at": __import__("time").time(),
             "useful_count": 0,
             "layer": layer if layer in ("exec", "decision") else "",
+            "binding": self._normalize_binding(binding),
+            "status": status if status in SKILL_STATUS_VALID else "",
         }
         return self.register(name, data, agent_id=agent_id, role=role, internal=internal)
 

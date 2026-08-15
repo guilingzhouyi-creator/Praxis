@@ -119,6 +119,23 @@ class TestCfgSkillHandler:
         calls = [c.args for c in center.set_l2.call_args_list]
         assert ("skill.evolve_scope", "bogus") not in calls
 
+    def test_cfg_skill_preserves_persisted_candidate_switch_without_override(self, mocker):
+        """Boot keeps the ledger switch when YAML omits candidate_enabled."""
+        from l3.config.config_handlers import cfg_skill
+
+        mocker.patch("l1.kernel.skill.get_skill_manager")
+        mock_center = mocker.patch("l3.config.settings_center.get_center")
+        center = mock_center.return_value
+        center.get.return_value = None
+        store = mocker.Mock()
+        store.status.return_value = {"enabled": False}
+        mocker.patch("l3.memory.r4_candidate_store.get_candidate_store", return_value=store)
+
+        cfg_skill({}, None, {})
+
+        store.set_enabled.assert_not_called()
+        center.set_l2.assert_any_call("skill.candidate_enabled", False)
+
 
 class TestCellSkillBinding:
     def test_bind_and_unbind_skill(self):

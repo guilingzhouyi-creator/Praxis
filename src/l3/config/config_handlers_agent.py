@@ -232,6 +232,8 @@ def cfg_skill(cfg: dict, s: Any, results: dict) -> None:
                                        via the API)
       - offensive_natures            : card natures that authorize injecting
                                        offensive-posture skills
+    - candidate_enabled            : collect refined evidence for the R4
+                           candidate ledger before publication
     """
     from l1.kernel.skill import get_skill_manager
     from l3.config.settings_center import get_center
@@ -270,6 +272,8 @@ def cfg_skill(cfg: dict, s: Any, results: dict) -> None:
             center.set_l2("skill.offensive_enabled", bool(cfg["offensive_enabled"]))
         if "offensive_natures" in cfg and isinstance(cfg["offensive_natures"], list):
             center.set_l2("skill.offensive_natures", [n for n in cfg["offensive_natures"] if isinstance(n, str)])
+        if "candidate_enabled" in cfg:
+            center.set_l2("skill.candidate_enabled", bool(cfg["candidate_enabled"]))
         if "attack" in cfg and isinstance(cfg["attack"], dict):
             domains = cfg["attack"].get("domains")
             if isinstance(domains, dict):
@@ -296,4 +300,17 @@ def cfg_skill(cfg: dict, s: Any, results: dict) -> None:
         sub=_sub_switches or None,
         source="config",
     )
+    try:
+        from l3.memory.r4_candidate_store import get_candidate_store
+
+        candidate_store = get_candidate_store()
+        if isinstance(cfg, dict) and "candidate_enabled" in cfg:
+            # An explicit deployment setting is authoritative.
+            candidate_store.set_enabled(bool(cfg["candidate_enabled"]))
+        else:
+            # Preserve the ledger's persisted runtime switch across boot; the
+            # SettingsCenter default must not overwrite it implicitly.
+            center.set_l2("skill.candidate_enabled", candidate_store.status()["enabled"])
+    except Exception:
+        logger.debug("cfg_skill: candidate ledger policy push skipped")
     results["skill"] = True

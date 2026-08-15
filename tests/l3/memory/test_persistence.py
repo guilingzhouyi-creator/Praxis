@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -60,9 +62,10 @@ def test_register_and_migrate():
 class _TestPersistable(PersistableMixin):
     persistence_kind = "card_registry"
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, interval: float = 0.0):
         self._data: dict = {}
-        self._init_persistence(path, 0.0)
+        self._lock = threading.RLock()
+        self._init_persistence(path, interval)
         self._restore()
 
     def _serialize(self) -> dict:
@@ -71,6 +74,25 @@ class _TestPersistable(PersistableMixin):
     def _deserialize(self, data: dict) -> bool:
         self._data = dict(data)
         return True
+
+
+class _BlockingPersistable(_TestPersistable):
+    """Persistable test double that exposes concurrent serialization."""
+
+    def __init__(self, path: str):
+        self._serialize_entered = threading.Event()
+        self._serialize_release = threading.Event()
+        self._active_serializers = 0
+        self.max_active_serializers = 0
+        super().__init__(path)
+
+    def _serialize(self) -> dict:
+        self._active_serializers += 1
+        self.max_active_serializers = max(self.max_active_serializers, self._active_serializers)
+        self._serialize_entered.set()
+        self._serialize_release.wait()
+        self._active_serializers -= 1
+        return dict(self._data)
 
 
 def test_persist_round_trip():
@@ -97,6 +119,15 @@ def test_persist_missing_file_returns_success_false():
         assert "no file" in result.get("error", "")
 
 
+def test_empty_persist_path_disables_io():
+    """An empty path disables persistence without creating a ``.tmp`` file."""
+    obj = _TestPersistable("")
+    obj._data = {"hello": "world"}
+
+    assert obj._persist() == {"success": True, "skipped": True, "reason": "persistence disabled"}
+    assert obj._restore() == {"success": False, "error": "no persistence path"}
+
+
 def test_persist_corrupted_file():
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "bad.json")
@@ -105,6 +136,121 @@ def test_persist_corrupted_file():
         obj = _TestPersistable(path)
         result = obj._restore()
         assert result["success"] is False
+
+
+def test_persist_serializes_one_snapshot_at_a_time():
+    """Concurrent saves serialize while holding the owner's state lock."""
+    with tempfile.TemporaryDirectory() as td:
+        obj = _BlockingPersistable(os.path.join(td, "concurrent.json"))
+        first = threading.Thread(target=obj._persist)
+        second = threading.Thread(target=obj._persist)
+        first.start()
+        assert obj._serialize_entered.wait(timeout=1.0)
+        second.start()
+        assert obj.max_active_serializers == 1
+        obj._serialize_release.set()
+        first.join(timeout=1.0)
+        second.join(timeout=1.0)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert obj.max_active_serializers == 1
+
+
+def test_persist_serializes_commits_for_shared_path(monkeypatch):
+    """Separate services sharing a path cannot write its temporary file concurrently."""
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "shared.json")
+        first = _TestPersistable(path)
+        second = _TestPersistable(path)
+        commit_entered = threading.Event()
+        commit_release = threading.Event()
+        active_commits = 0
+        max_active_commits = 0
+        commit_lock = threading.Lock()
+        original_replace = os.replace
+
+        def _replace(source: str, destination: str) -> None:
+            nonlocal active_commits, max_active_commits
+            with commit_lock:
+                active_commits += 1
+                max_active_commits = max(max_active_commits, active_commits)
+            commit_entered.set()
+            commit_release.wait(timeout=1.0)
+            try:
+                original_replace(source, destination)
+            finally:
+                with commit_lock:
+                    active_commits -= 1
+
+        monkeypatch.setattr(os, "replace", _replace)
+        first_write = threading.Thread(target=first._persist)
+        second_write = threading.Thread(target=second._persist)
+        first_write.start()
+        assert commit_entered.wait(timeout=1.0)
+        second_write.start()
+        assert max_active_commits == 1
+        commit_release.set()
+        first_write.join(timeout=1.0)
+        second_write.join(timeout=1.0)
+
+        assert not first_write.is_alive()
+        assert not second_write.is_alive()
+        assert max_active_commits == 1
+
+
+def test_restarting_auto_save_stops_previous_worker():
+    """A second start invalidates and joins the previous auto-save worker."""
+    with tempfile.TemporaryDirectory() as td:
+        obj = _TestPersistable(os.path.join(td, "autosave.json"), interval=60.0)
+        obj._start_auto_save()
+        first_stop = obj._auto_save_stop
+        first_worker = obj._auto_save_thread
+        obj._start_auto_save()
+        try:
+            assert first_stop is not None and first_stop.is_set()
+            assert first_worker is not None and not first_worker.is_alive()
+            assert obj._auto_save_thread is not None and obj._auto_save_thread.is_alive()
+        finally:
+            obj._stop_auto_save()
+
+
+def test_stop_auto_save_signals_and_joins_worker():
+    """Stopping auto-save leaves no active background worker behind."""
+    with tempfile.TemporaryDirectory() as td:
+        obj = _TestPersistable(os.path.join(td, "autosave.json"), interval=60.0)
+        obj._start_auto_save()
+        stop = obj._auto_save_stop
+        worker = obj._auto_save_thread
+        obj._stop_auto_save()
+
+        assert stop is not None and stop.is_set()
+        assert worker is not None and not worker.is_alive()
+        assert obj._auto_save_stop is None
+        assert obj._auto_save_thread is None
+
+
+def test_concurrent_persist_uses_unique_temporary_paths(tmp_path):
+    path = str(tmp_path / "shared.json")
+    writers = 8
+    barrier = threading.Barrier(writers)
+    objects = []
+    for index in range(writers):
+        obj = _TestPersistable(path)
+        obj._data = {"writer": index}
+        objects.append(obj)
+
+    def _save(obj):
+        barrier.wait()
+        return obj.save()
+
+    with ThreadPoolExecutor(max_workers=writers) as executor:
+        results = list(executor.map(_save, objects))
+
+    assert all(result["success"] for result in results)
+    restored = _TestPersistable(path)
+    assert restored._data["writer"] in range(writers)
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 # ── CardRegistry persistence tests ──
@@ -148,6 +294,18 @@ def test_card_registry_persist_empty():
         stats2 = reg2.stats()
         assert stats2["total"] == 0
     reset_registry()
+
+
+def test_registry_reset_stops_auto_save_worker(monkeypatch, tmp_path):
+    """Singleton reset terminates the registry worker before discarding it."""
+    import l3.card.card_registry as card_registry
+
+    registry = CardRegistry(persist_path=str(tmp_path / "cards.json"))
+    worker = registry._auto_save_thread
+    monkeypatch.setattr(card_registry, "_registry", registry)
+    card_registry.reset_registry()
+
+    assert worker is not None and not worker.is_alive()
 
 
 # ── TodoTable persistence tests ──

@@ -15,6 +15,7 @@ from l1.kernel.params.system import (
     SKILL_DISCLOSURE_DEFAULT,
     SKILL_POSTURE_DEFAULT,
     SKILL_POSTURE_VALID,
+    SKILL_STATUS_DEFAULT,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,17 +59,20 @@ class SkillPersistMixin:
         stages: list[dict] | None = None,
         next_skills: list[str] | None = None,
         scope: str = "",
+        binding: dict | None = None,
+        status: str = SKILL_STATUS_DEFAULT,
     ) -> str:
         """Persist a skill as SKILL.md with round-trip frontmatter.
 
         Frontmatter carries name/description/tags/allowed_tools/variables/
-        disable-model-invocation/dependencies/dependency-kind/posture so a
-        reload via SkillManager._load_markdown() restores them; the prompt is
-        the body. Shared by evolve_skill (LLM) and _generalize_lean_cases
-        (rule-based) so both survive restart via the boot discovery dirs.  An
-        explicit ``scope`` overrides the configured evolution scope for this
-        write. Invalid ``posture`` values fall back to the safe default so a
-        caller can never escalate a skill's posture through persistence.
+        disable-model-invocation/dependencies/dependency-kind/posture/
+        binding/status so a reload via SkillManager._load_markdown() restores
+        them; the prompt is the body. Shared by evolve_skill (LLM) and
+        _generalize_lean_cases (rule-based) so both survive restart via the
+        boot discovery dirs. An explicit ``scope`` overrides the configured
+        evolution scope for this write. Invalid ``posture`` values fall back
+        to the safe default so a caller can never escalate a skill's posture
+        through persistence.
         """
         import os
 
@@ -93,6 +97,10 @@ class SkillPersistMixin:
             meta["stages"] = [s for s in stages if isinstance(s, dict)]
         if next_skills:
             meta["next"] = [n for n in next_skills if isinstance(n, str)]
+        if binding:
+            meta["binding"] = binding
+        if status != SKILL_STATUS_DEFAULT:
+            meta["status"] = status
         if allowed_tools:
             meta["allowed_tools"] = allowed_tools
         if variables:

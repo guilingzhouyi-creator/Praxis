@@ -11,9 +11,17 @@ def _no_toolchain_run(args, **kwargs):
     raise FileNotFoundError("no such toolchain")
 
 
+class _NoToolchainPort:
+    """Minimal process fake that makes every detector unavailable."""
+
+    def run_args(self, args, **kwargs):
+        """Raise the legacy no-toolchain error for the build handler."""
+        return _no_toolchain_run(args, **kwargs)
+
+
 class TestBuildProject:
     def test_no_path(self, monkeypatch):
-        monkeypatch.setattr(_build, "run_args", _no_toolchain_run)
+        monkeypatch.setattr(_build, "get_process_port", lambda: _NoToolchainPort())
         r = _build.build_project({}, "agent-a")
         assert isinstance(r, dict)
         assert "success" in r
@@ -26,7 +34,7 @@ class TestBuildProject:
 
 class TestTestProject:
     def test_no_path(self, monkeypatch):
-        monkeypatch.setattr(_build, "run_args", _no_toolchain_run)
+        monkeypatch.setattr(_build, "get_process_port", lambda: _NoToolchainPort())
         r = _build.test_project({}, "agent-a")
         assert isinstance(r, dict)
         assert "success" in r

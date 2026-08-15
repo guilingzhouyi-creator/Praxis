@@ -10,11 +10,11 @@ wrappers.
 from __future__ import annotations
 
 import logging
-import subprocess
 from collections import deque
 
 from l1.kernel.params.agent import DEFAULT_CELL_ID, SIGNAL_TARGET_L3
 from l1.kernel.params.api import SHELL_CMD_TIMEOUT
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND
 from l1.kernel.params.system import (
     LOG_TRUNC_50,
     LOG_TRUNC_100,
@@ -24,7 +24,7 @@ from l1.kernel.params.system import (
     TERMINAL_OUTPUT_MAX_LINES,
     TOOL_RESULT_DISPLAY_LIMIT,
 )
-from l1.kernel.platform import run_shell
+from l1.kernel.ports import get_process_port
 from l2.i18n import t
 
 from ..shell_completer import TerminalCompleter, get_aliases, get_command_help, get_command_names
@@ -54,7 +54,7 @@ class TerminalShell(Shell):
 
         Dialect:
           ``!<intent>@<cell>/<agent>`` → L3A direct intent (scout subcommand)
-          ``$ <command>``              → raw system command (via subprocess)
+          ``$ <command>``              → raw system command (via ProcessPort)
           ``/<engine command>``        → L2 command engine (dispatch)
           ``<tool> <args>``            → direct tool execution (aliases: rf→read_file)
           ``help`` / ``tools`` / ``status`` → shell-level built-ins
@@ -202,11 +202,22 @@ class TerminalShell(Shell):
             return {"success": False, "type": "scout", "task": task, "error": str(e)}
 
     def _system_result(self, cmd: str) -> dict:
-        """Execute a raw system command via subprocess (Bash/PowerShell)."""
+        """Execute a raw system command through the one-shot process port."""
         if not cmd:
             return {"success": True, "type": "system", "command": ""}
         try:
-            proc = run_shell(cmd, timeout=SHELL_CMD_TIMEOUT)
+            proc = get_process_port().run(cmd, timeout=SHELL_CMD_TIMEOUT)
+            if proc.timed_out:
+                return {"success": False, "type": "system", "command": cmd, "error": "timeout"}
+            if proc.error_kind == PROCESS_ERROR_NOT_FOUND:
+                return {"success": False, "type": "system", "command": cmd, "error": "shell not found"}
+            if proc.error_kind:
+                return {
+                    "success": False,
+                    "type": "system",
+                    "command": cmd,
+                    "error": proc.stderr or "shell execution failed",
+                }
             return {
                 "success": proc.returncode == 0,
                 "type": "system",
@@ -215,10 +226,6 @@ class TerminalShell(Shell):
                 "stderr": proc.stderr or "",
                 "returncode": proc.returncode,
             }
-        except subprocess.TimeoutExpired:
-            return {"success": False, "type": "system", "command": cmd, "error": "timeout"}
-        except FileNotFoundError:
-            return {"success": False, "type": "system", "command": cmd, "error": "shell not found"}
         except Exception as e:
             return {"success": False, "type": "system", "command": cmd, "error": str(e)}
 

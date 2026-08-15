@@ -18,9 +18,19 @@ R4 archive   — lossless, append-only (fonds/series/ref-code), restore baseline
 | Multi-scope center | `central_memory.py` (register scopes: cells + L3A) |
 | Persistence | `persist.py`-style mixins; crash-safety: dirty sets cleared only after write success |
 | FTS5 / recall | `context_search.py`, `quality.py` (importance filtering) |
-| R4 agent | `r4_agent.py` (archive, skill evolution, lean cases) |
+| R4 agent | `r4_agent.py` + `r4_candidate_store.py` (archive, evidence candidates, skill evolution, lean cases) |
 | Task-aware injection | `memory_inject.py` (execute→summary / decide→Mer / resume→layered) |
 | Init from memories | `memory_init.py` (boot restores agent topology) |
+
+### Persistence concurrency
+
+`PersistableMixin` takes its JSON snapshot while the owning service's state
+lock is held, then serializes commits per persistence path. This prevents
+torn container iteration and temporary-file collisions when services restart
+or tests replace a singleton. Auto-save owns one managed worker per instance:
+restarting it signals and waits for the prior worker, and singleton resetters
+stop that worker before discarding the service. A delayed pre-reset snapshot
+cannot overwrite a later snapshot because per-path commit epochs discard it.
 
 ## Side-channels (bypass, all default off)
 
@@ -114,6 +124,8 @@ cases. See `cross-cutting.md` for the full injection table.
   `/api/v2/memory/tool-result` (tool-result offload cache),
   `/api/v2/memory/sensitive` (sensitive-info bypass detection),
   `/api/v2/memory/compression-guard` (recursion threshold + breaker)
+- `/api/v2/skills/candidates*` (R4 evidence candidate list, validation,
+  canary publication, activation, retirement, collection policy)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
 - Tiered-cache consumers: the per-Cell `run_code` program cache
@@ -159,6 +171,79 @@ for training correction, exposed via `/api/v2/memory/corpus` + L2
 `memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
 causal audit ring correlates memory events with tool and identity context
 for M4 corpus analytics. Best-effort, never blocks the write.
+
+### R4 evidence candidates (3.4)
+
+R4 skill evolution is gated by `r4_candidate_store.py`, a persistent JSON
+ledger under the Praxis data directory. Refined-memory records and tool
+failure traces enter as evidence; they do **not** publish a skill directly.
+Candidates group records by source, entry type, tags, and normalized binding:
+
+```
+observed -> validated -> canary -> active
+                         \-> retired
+```
+
+- `validated` requires `R4_CANDIDATE_MIN_EVIDENCE` records and a valid
+  posture binding.
+- `canary` publication requires an explicit target (Cell, role, Agent, or
+  card nature). It calls the boot-managed R4Agent to generate a bound skill,
+  never a fresh R4 worker per memory write.
+- `active` promotes a canary only through the candidate control surface;
+  `retired` removes its skill from injection while retaining audit history.
+- Binding fields (`cell_ids`, `roles`, `agent_ids`, `card_natures`,
+  `postures`) persist with the skill and are applied before similarity ranking.
+  `draft`, `retired`, and `deprecated` skills are never injected.
+
+Candidate collection is independent from LLM distillation cost and is
+controlled by `skill.candidate_enabled` (params default → SettingsCenter →
+`praxis.yaml` / API / L2). The ledger and reference-channel paths are
+observability side channels: a persistence failure never blocks memory writes
+or failure-trace capture.
+
+#### Candidate performance and rewrite seam
+
+The candidate ledger is on a memory-refinery write path, so its hot path has
+explicit bounds: fingerprint lookup is indexed (not a full-candidate scan),
+evidence is capped by the `R4_CANDIDATE_MAX_EVIDENCE` parameter, and the lock
+does not cover LLM calls or skill publication. Persistence is a side channel;
+an I/O failure degrades the ledger operation without blocking the originating
+memory or tool-failure write. Implementations should keep serialized snapshots
+and compaction policy behind the store boundary so write latency does not grow
+with the lifetime of the archive. The reference implementation appends
+mutations to the `R4_CANDIDATE_JOURNAL_SUFFIX` journal, compacts at
+`R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES`, and bounds the live set with
+`R4_CANDIDATE_MAX_RECORDS`; evicted records go to
+`R4_CANDIDATE_ARCHIVE_SUFFIX` for lossless retention.
+
+`CandidateLedgerPort` is the language-neutral adapter seam for listing,
+validation, lifecycle transitions, and policy state. Its typed boundary uses
+`CandidateSnapshot`, `CandidateStatus`, `CandidateResult`, and `CandidateState`
+from `l1.kernel.ports.types`; each value remains serializable to the stable
+JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`, `validation`,
+`state`, and timestamps). Lifecycle state names and limits come from `params/`
+and remain the single source of truth. Publication intent and LLM orchestration
+stay in L3 above the port. A future Rust ledger can therefore replace indexed
+storage and transition checks through the same typed port while the Python L3
+orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
+must preserve atomic transition semantics, bounded evidence, and best-effort
+persistence behavior.
+
+The live ledger is deliberately bounded by `R4_CANDIDATE_MAX_RECORDS`. An
+O(1) fingerprint index groups repeated evidence; when capacity is reached,
+only the oldest `observed` or `retired` record may be losslessly archived and
+evicted. If every record is lifecycle-protected, a new cluster is reported as
+capacity-limited rather than allowing the bound to grow.
+
+Persistence uses a JSON snapshot plus replayable journal batches. The hot
+path coalesces at most one pending mutation per candidate into a single
+background writer, so ordinary journal and compaction I/O never run while the
+candidate-state lock is held. `CandidateStore.flush()`/`close()` provide the
+explicit durability barrier for shutdown and tests; normal evidence capture
+remains best-effort. `CandidateLedgerPort` carries typed primitive-only
+evidence, snapshot, status, and lifecycle values so its Python adapter can be
+replaced by a Rust implementation without changing memory, API, or shell
+callers.
 
 ## Conversation-side compression (two-layer pipeline)
 

@@ -229,6 +229,12 @@ IDENTITY_BINDING_MAX_CHARS: Final[int] = 1200
 IDENTITY_BINDING_MAX_PER_CELL: Final[int] = 32
 IDENTITY_BINDING_WRITE_MIN_RING: Final[int] = 3
 IDENTITY_BINDING_WRITE_ROLES: Final[list[str]] = ["l3", "deployer", "default"]
+IDENTITY_BINDING_STATE_LOCK_SUFFIX: Final[str] = ".lock"
+IDENTITY_BINDING_STATE_TEMP_PREFIX: Final[str] = ".identity-binding-"
+IDENTITY_BINDING_STATE_TEMP_SUFFIX: Final[str] = ".tmp"
+IDENTITY_BINDING_PERSIST_UPSERT: Final[str] = "upsert"
+IDENTITY_BINDING_PERSIST_UNBIND: Final[str] = "unbind"
+IDENTITY_BINDING_PERSIST_CLEAR: Final[str] = "clear"
 
 
 # ── Department division (Phase 3: cell-count-triggered specialization) ──
@@ -590,6 +596,34 @@ R4_TERRITORY: Final[list[str]] = ["archive", "memory"]
 R4_LEAN_CASES_DEFAULT: Final[int] = 5  # default limit for get_lean_cases
 R4_EVOLVED_SKILLS_DEFAULT: Final[int] = 3  # default limit for get_evolved_skills / graph diffusion
 R4_LEAN_GENERALIZE_THRESHOLD: Final[int] = 5  # per-tool lean cases → auto-generalize into one lessons skill
+
+# ── R4 candidate ledger (3.4) ──
+# Refined evidence is accumulated before an evolved skill can be published.
+R4_CANDIDATE_STATE_FILE: Final[str] = "r4_candidates.json"
+R4_CANDIDATE_ID_PREFIX: Final[str] = "r4c_"
+R4_CANDIDATE_SCHEMA_VERSION: Final[int] = 1
+R4_CANDIDATE_ENABLED_DEFAULT: Final[bool] = True
+R4_CANDIDATE_MIN_EVIDENCE: Final[int] = 2
+R4_CANDIDATE_MAX_EVIDENCE: Final[int] = 64
+R4_CANDIDATE_FINGERPRINT_LENGTH: Final[int] = 16
+R4_CANDIDATE_EVIDENCE_SUMMARY_MAX: Final[int] = 500
+# Stable lifecycle vocabulary shared by Python and language-neutral adapters.
+R4_CANDIDATE_STATES: Final[tuple[str, ...]] = ("observed", "validated", "canary", "active", "retired")
+R4_CANDIDATE_STATE_TRANSITIONS: Final[dict[str, tuple[str, ...]]] = {
+    "observed": ("validated", "retired"),
+    "validated": ("canary", "retired"),
+    "canary": ("active", "retired"),
+    "active": ("retired",),
+    "retired": (),
+}
+# Append-only journal suffix used for low-contention candidate persistence.
+R4_CANDIDATE_JOURNAL_SUFFIX: Final[str] = ".journal"
+# Compact the candidate journal into the snapshot after this many mutations.
+R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES: Final[int] = 128
+# Bound the live candidate set; evicted records are retained in an archive.
+R4_CANDIDATE_MAX_RECORDS: Final[int] = 4096
+# Archive suffix for candidates evicted after the live-set bound is reached.
+R4_CANDIDATE_ARCHIVE_SUFFIX: Final[str] = ".archive"
 
 # ── Generalization verify gate (P1-④) ──
 # Generalized skills start as candidates; card-outcome signals accumulate

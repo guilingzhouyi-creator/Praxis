@@ -16,6 +16,7 @@ from l1.kernel.params.agent import (
     TERMINAL_CONTEXT_RECENT,
 )
 from l1.kernel.params.api import SHELL_CMD_TIMEOUT
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND, PROCESS_RETURN_EXECUTION_ERROR
 from l1.kernel.params.system import (
     LOG_TRUNC_40,
     LOG_TRUNC_200,
@@ -148,8 +149,6 @@ def _exec_shell_session(session_id: str, command: str, prompt_str: str):
 
 def handle_shell(term, card, phases):
     """Execute shell command with prompt, coloring, session support, structured errors."""
-    import subprocess
-
     from l1.kernel.platform import SHELL_PROMPT
 
     command = card.params.get("command", card.target)
@@ -169,9 +168,24 @@ def handle_shell(term, card, phases):
             return session_result
 
     try:
-        from l1.kernel.platform import run_shell
+        from l1.kernel.ports import get_process_port
 
-        r = run_shell(command, timeout=timeout)
+        r = get_process_port().run(command, timeout=timeout)
+        if r.timed_out:
+            phases.append("shell_timeout")
+            return (
+                f"{prompt_str}{command}\nTIMEOUT after {timeout}s",
+                [{"exit_code": -1, "timed_out": True, "timeout": timeout}],
+                False,
+            )
+        if r.error_kind:
+            is_not_found = r.error_kind == PROCESS_ERROR_NOT_FOUND
+            phases.append("shell_not_found" if is_not_found else "shell_error")
+            message = (
+                f"command not found: {command.split()[0]}" if is_not_found else r.stderr or "command execution failed"
+            )
+            error = "command not found" if is_not_found else r.error_kind
+            return message, [{"exit_code": PROCESS_RETURN_EXECUTION_ERROR, "error": error}], False
         out = (r.stdout or "")[:LOG_TRUNC_3000]
         err = (r.stderr or "")[:LOG_TRUNC_1000]
         exit_code = r.returncode
@@ -189,21 +203,11 @@ def handle_shell(term, card, phases):
                     "exit_code": exit_code,
                     "stdout_len": len(r.stdout or ""),
                     "stderr_len": len(r.stderr or ""),
-                    "timed_out": False,
+                    "timed_out": r.timed_out,
                 }
             ],
             success,
         )
-    except subprocess.TimeoutExpired:
-        phases.append("shell_timeout")
-        return (
-            f"{prompt_str}{command}\nTIMEOUT after {timeout}s",
-            [{"exit_code": -1, "timed_out": True, "timeout": timeout}],
-            False,
-        )
-    except FileNotFoundError:
-        phases.append("shell_not_found")
-        return f"command not found: {command.split()[0]}", [{"exit_code": -2, "error": "command not found"}], False
     except Exception as e:
         phases.append("shell_error")
         return str(e), [{"exit_code": -3, "error": str(e)}], False
@@ -218,38 +222,42 @@ def handle_write(term, card, phases):
 
 def _handle_grep(args, agent):
     """Inline grep tool."""
-    import subprocess as _sp
+    from l1.kernel.ports import get_process_port
 
     cmd_list = _grep_cmd(args.get("pattern", ""), args.get("path", "."))
     try:
-        r = _sp.run(
-            cmd_list, capture_output=True, text=True, timeout=get_tool_config("grep_timeout", TOOL_GREP_TIMEOUT)
-        )
+        r = get_process_port().run_args(cmd_list, timeout=get_tool_config("grep_timeout", TOOL_GREP_TIMEOUT))
+        if r.timed_out:
+            return {"success": False, "error": "grep timed out"}
+        if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+            return {"success": False, "error": "grep tool not found"}
+        if r.error_kind:
+            return {"success": False, "error": r.stderr or "grep execution failed"}
         out = (r.stdout or "")[:LOG_TRUNC_4000] or "no matches"
         return {"success": True, "data": out}
-    except FileNotFoundError:
-        return {"success": False, "error": "grep tool not found"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def _handle_shell(args, agent):
     """Inline shell tool."""
-    import subprocess as _sp
-
-    from l1.kernel.platform import run_shell as _run_shell
+    from l1.kernel.ports import get_process_port
 
     cmd = args.get("command", "")
     if not cmd:
         return {"success": False, "error": "command required"}
     try:
-        r = _run_shell(cmd, timeout=SHELL_CMD_TIMEOUT)
+        r = get_process_port().run(cmd, timeout=SHELL_CMD_TIMEOUT)
+        if r.timed_out:
+            return {"success": False, "error": "timeout"}
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout[:LOG_TRUNC_3000],
             "stderr": r.stderr[:LOG_TRUNC_1000],
             "exit_code": r.returncode,
         }
-    except _sp.TimeoutExpired:
-        return {"success": False, "error": "timeout"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def _handle_edit(args, agent):

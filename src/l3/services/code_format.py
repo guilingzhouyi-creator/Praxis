@@ -2,7 +2,7 @@
 
 L3 service powering the ``format_file`` / ``format_project`` tools and the
 automatic post-write formatting hook. Formatters run as subprocesses (stdin →
-stdout) via ``l1.kernel.platform.run_args``; the formatted content is staged
+stdout) via ``ProcessPort``; the formatted content is staged
 through the resource buffer so per-hunk attribution is preserved. Constants
 live in ``params/tool.py`` — no hardcoded formatter names or timeouts here.
 """
@@ -67,13 +67,17 @@ def _read_text(path: str) -> str:
 
 def _run_format(full: str, det: tuple[str, ...], content: str) -> dict:
     """Run the formatter subprocess (stdin → stdout) and return the result dict."""
-    from l1.kernel.platform import run_args
+    from l1.kernel.ports import ProcessOptions, get_process_port
 
     try:
-        r = run_args(list(det) + ["-"], timeout=TOOL_FORMAT_TIMEOUT, input=content)
+        r = get_process_port().run_args(
+            list(det) + ["-"], timeout=TOOL_FORMAT_TIMEOUT, options=ProcessOptions(input_text=content)
+        )
     except Exception as e:
         logger.debug("code_format: %s failed: %s", det[0], e)
         return {"success": False, "error": f"format failed: {e}", "path": full}
+    if r.timed_out:
+        return {"success": False, "error": f"format timed out after {TOOL_FORMAT_TIMEOUT}s", "path": full}
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "").strip() or f"{det[0]} exited {r.returncode}"
         return {"success": False, "error": err[:LOG_TRUNC_200], "path": full}

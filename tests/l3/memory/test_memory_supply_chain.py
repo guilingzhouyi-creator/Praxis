@@ -47,10 +47,45 @@ def test_supply_to_r5_returns_count():
     assert n >= 0
 
 
-def test_supply_to_skills_degrades():
-    """Skill supply never raises (returns a count, possibly 0)."""
+def test_supply_to_skills_submits_candidate_without_publishing_skill(tmp_path, monkeypatch):
+    """Refined records enter the candidate ledger before R4 can publish a skill."""
+    import l3.memory.r4_candidate_store as candidates
+    from l3.memory.r4_candidate_store import CandidateStore
+
+    monkeypatch.setattr(candidates, "_store", CandidateStore(str(tmp_path / "candidates.json")))
+
     n = supply_to_skills([_record()])
+
     assert isinstance(n, int)
+    assert n == 1
+    candidate = candidates.get_candidate_store().list()[0]
+    assert candidate["state"] == "observed"
+    assert candidate["skill_name"] == ""
+
+
+def test_supply_to_skills_uses_registered_candidate_ledger_port():
+    """Evidence ingestion uses the typed port, allowing a Rust ledger replacement."""
+    from l1.kernel.ports import register_port, reset_ports
+
+    class RecordingLedger:
+        """Minimal stand-in for a language-neutral candidate ledger."""
+
+        def __init__(self):
+            self.calls: list[tuple[list[dict], str]] = []
+
+        def submit_records(self, records, source="refined_memory", binding=None):
+            self.calls.append((records, source))
+            return {"success": True, "candidates": [], "submitted": len(records)}
+
+    ledger = RecordingLedger()
+    reset_ports()
+    register_port("r4_candidates", ledger)
+    try:
+        assert supply_to_skills([_record()]) == 1
+    finally:
+        reset_ports()
+
+    assert ledger.calls[0][1] == "refined_memory"
 
 
 def test_agent_md_active_threshold():

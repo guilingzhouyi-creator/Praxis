@@ -306,7 +306,13 @@ class SkillGeneralizeMixin:
             logger.debug("R4Agent: skill graph linkage skipped: %s", e)
 
     def evolve_skill(
-        self, intent: str, cell_id: str = "", scope: str = "", extra_tags: list[str] | None = None
+        self,
+        intent: str,
+        cell_id: str = "",
+        scope: str = "",
+        extra_tags: list[str] | None = None,
+        binding: dict | None = None,
+        status: str = "active",
     ) -> dict:
         """Use LLM to generate a new skill definition from a natural language intent.
 
@@ -364,6 +370,8 @@ class SkillGeneralizeMixin:
                 procedures=skill_procs,
                 allowed_tools=skill_tools,
                 posture=skill_posture,
+                binding=binding,
+                status=status,
                 internal=True,
             )
             if existing:
@@ -407,6 +415,8 @@ class SkillGeneralizeMixin:
                 variables=skill_def.get("variables"),
                 posture=skill_posture,
                 scope=scope,
+                binding=binding,
+                status=status,
             )
 
             if self._pmu:

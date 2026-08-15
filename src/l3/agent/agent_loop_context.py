@@ -353,6 +353,7 @@ class AgentLoopContextMixin:
                 query=(getattr(self, "task", "") or "") + self._card_query_boost(),
                 agent_id=self.agent_id,
                 cell_id=self._cell_id,
+                role=getattr(self, "_role", ""),
                 limit=LOOP_EVOLVED_SKILLS_LIMIT,
                 tags=getattr(self, "_card_tags", []) or [],
             )

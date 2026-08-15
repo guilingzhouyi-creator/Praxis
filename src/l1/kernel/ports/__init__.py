@@ -23,9 +23,11 @@ from l1.kernel.ports.core import (
 )
 from l1.kernel.ports.lock import LockPort, ThreadLockPort, new_lock
 from l1.kernel.ports.process import (
+    ProcessOptions,
     ProcessPort,
     ProcessResult,
     SubprocessProcessPort,
+    get_process_port,
 )
 from l1.kernel.ports.registry import (
     _PORTS,
@@ -35,6 +37,7 @@ from l1.kernel.ports.registry import (
 )
 from l1.kernel.ports.service import (
     AuthPort,
+    CandidateLedgerPort,
     CardRegistryPort,
     FilesystemPort,
     I18nPort,
@@ -52,6 +55,15 @@ from l1.kernel.ports.storage import (
     set_storage,
 )
 from l1.kernel.ports.types import (
+    CandidateBinding,
+    CandidateCollectionResult,
+    CandidateEvidence,
+    CandidateRecord,
+    CandidateResult,
+    CandidateSnapshot,
+    CandidateState,
+    CandidateStatus,
+    CandidateValidation,
     Endpoint,
     Event,
     Message,
@@ -60,7 +72,17 @@ from l1.kernel.ports.types import (
 
 __all__ = [
     "AuthPort",
+    "CandidateBinding",
+    "CandidateCollectionResult",
+    "CandidateEvidence",
+    "CandidateResult",
+    "CandidateRecord",
+    "CandidateLedgerPort",
     "CardRegistryPort",
+    "CandidateSnapshot",
+    "CandidateState",
+    "CandidateStatus",
+    "CandidateValidation",
     "ChannelPort",
     "Endpoint",
     "Event",
@@ -74,6 +96,7 @@ __all__ = [
     "Message",
     "MonitorBusPort",
     "ProcessPort",
+    "ProcessOptions",
     "ProcessResult",
     "Result",
     "RpcServerPort",
@@ -86,6 +109,7 @@ __all__ = [
     "WorkerPort",
     "_PORTS",
     "get_port",
+    "get_process_port",
     "get_storage",
     "new_lock",
     "register_port",

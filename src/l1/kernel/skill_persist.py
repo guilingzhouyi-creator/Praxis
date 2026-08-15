@@ -18,6 +18,7 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from l1.kernel.params.system import (
@@ -27,6 +28,8 @@ from l1.kernel.params.system import (
     SKILL_DISCLOSURE_VALID,
     SKILL_POSTURE_DEFAULT,
     SKILL_POSTURE_VALID,
+    SKILL_STATUS_DEFAULT,
+    SKILL_STATUS_VALID,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +91,7 @@ class SkillPersistMixin:
     _skills: dict[str, dict]
     _revision: int
     _shared_principles: str
+    _normalize_binding: Callable[[dict | None], dict[str, list[str]]]
 
     def load_dir(self, directory: str) -> int:
         """Load all skill files from a directory tree.
@@ -203,6 +207,8 @@ class SkillPersistMixin:
             # malformed frontmatter never escalates a skill's posture.
             "posture": self._normalize_posture(meta.get("posture")),
             "disclosure": self._normalize_disclosure(meta.get("disclosure")),
+            "binding": self._normalize_binding(meta.get("binding")),
+            "status": self._normalize_status(meta.get("status")),
             # Quest-style staged skills: ordered stages, each with
             # id/name/instructions/completion — progressive disclosure reveals
             # only the active stage (see current_stage/advance_stage).
@@ -261,6 +267,13 @@ class SkillPersistMixin:
         if isinstance(value, str) and value in SKILL_DISCLOSURE_VALID:
             return value
         return SKILL_DISCLOSURE_DEFAULT
+
+    @staticmethod
+    def _normalize_status(value: Any) -> str:
+        """Normalize a persisted lifecycle state to the active default."""
+        if isinstance(value, str) and value in SKILL_STATUS_VALID:
+            return value
+        return SKILL_STATUS_DEFAULT
 
     def _extract_rules(self, body: str) -> list[str]:
         """Extract DO/DON'T rules from markdown body.

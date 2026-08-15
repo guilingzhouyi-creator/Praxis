@@ -113,6 +113,43 @@ class TestAstDiagnostics:
         finally:
             os.unlink(tmp)
 
+    def test_missing_pyright_process_result_uses_ast_fallback(self, tmp_path, monkeypatch):
+        """Treat a ProcessPort missing-binary value result like the legacy exception."""
+        from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND, PROCESS_RETURN_EXECUTION_ERROR
+        from l1.kernel.ports import ProcessOptions, ProcessPort, ProcessResult
+        from l4.lsp.lsp_manager import LspManager
+
+        class _MissingPyrightPort(ProcessPort):
+            """Report pyright as unavailable without leaking an exception."""
+
+            def run(self, cmd: str, timeout: float = 0, options: ProcessOptions | None = None) -> ProcessResult:
+                """Satisfy the port contract; this path only uses argument execution."""
+                return ProcessResult(
+                    returncode=PROCESS_RETURN_EXECUTION_ERROR,
+                    stderr="pyright not found",
+                    error_kind=PROCESS_ERROR_NOT_FOUND,
+                )
+
+            def run_args(
+                self, args: list[str], timeout: float = 0, options: ProcessOptions | None = None
+            ) -> ProcessResult:
+                """Return the missing-binary value result under test."""
+                return ProcessResult(
+                    returncode=PROCESS_RETURN_EXECUTION_ERROR,
+                    stderr="pyright not found",
+                    error_kind=PROCESS_ERROR_NOT_FOUND,
+                )
+
+        bad = tmp_path / "broken.py"
+        bad.write_text("def f(:\n", encoding="utf-8")
+        monkeypatch.setattr("l4.lsp.lsp_manager.get_process_port", lambda: _MissingPyrightPort())
+
+        result = LspManager()._fallback_diagnostics(str(bad))
+
+        assert result["source"] == "ast"
+        assert result["diagnostics"]
+        assert result["diagnostics"][0]["severity"] == "error"
+
 
 class TestLanguageDetection:
     """Language detection"""

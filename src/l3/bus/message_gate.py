@@ -197,4 +197,6 @@ def get_gate() -> MessageGateEngine:
 def reset_gate() -> None:
     """Reset the MessageGateEngine singleton. Returns None."""
     global _gate
+    if _gate is not None:
+        _gate._stop_auto_save()
     _gate = None

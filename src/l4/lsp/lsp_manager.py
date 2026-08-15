@@ -28,12 +28,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-import subprocess
 import threading
 from pathlib import Path
 
 from l1.kernel.params.api import LSP_MANAGER_TIMEOUT
-from l1.kernel.platform import DEFAULT_ENCODING
+from l1.kernel.ports import get_process_port
 
 from .lsp_diagnostics import (  # noqa: F401 — re-export
     DiagnosticCache,
@@ -170,16 +169,16 @@ class LspManager:
         if path.suffix == ".py":
             try:
                 # Try pyright
-                r = subprocess.run(
+                r = get_process_port().run_args(
                     ["pyright", str(path)],
-                    capture_output=True,
-                    text=True,
-                    encoding=DEFAULT_ENCODING,
-                    errors="replace",
                     timeout=LSP_MANAGER_TIMEOUT,
                 )
+                if r.timed_out or r.error_kind:
+                    return {"success": True, "diagnostics": self._ast_diagnostics(file_path), "source": "ast"}
                 stdout = r.stdout or r.stderr
                 diags = self._parse_pyright_output(stdout, str(path))
+                if r.returncode != 0 and not diags:
+                    return {"success": True, "diagnostics": self._ast_diagnostics(file_path), "source": "ast"}
                 return {"success": True, "diagnostics": diags}
             except Exception:
                 # Fall back to ast

@@ -19,7 +19,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 import threading
 from dataclasses import dataclass
 
@@ -31,7 +30,7 @@ from l1.kernel.params.system import (
     LSP_PYTHON_EXT,
     TOOL_LSP_SYMBOL_LIMIT,
 )
-from l1.kernel.platform import DEFAULT_ENCODING
+from l1.kernel.ports import get_process_port
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +58,8 @@ class LocalAnalyzer:
 
     def _check_pyright(self) -> bool:
         try:
-            r = subprocess.run(
+            r = get_process_port().run_args(
                 ["pyright", "--version"],
-                capture_output=True,
-                text=True,
-                encoding=DEFAULT_ENCODING,
-                errors="replace",
                 timeout=SUBPROCESS_SHORT_TIMEOUT,
             )
             return r.returncode == 0
@@ -177,12 +172,8 @@ class LocalAnalyzer:
         if self._pyright_ok:
             full = os.path.join(self.root, file_path) if not os.path.isabs(file_path) else file_path
             try:
-                r = subprocess.run(
+                r = get_process_port().run_args(
                     ["pyright", full, "--outputjson"],
-                    capture_output=True,
-                    text=True,
-                    encoding=DEFAULT_ENCODING,
-                    errors="replace",
                     timeout=LSP_DIAG_TIMEOUT,
                 )
                 if r.returncode in (0, 1) and r.stdout:

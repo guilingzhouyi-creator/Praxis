@@ -348,4 +348,6 @@ def stats() -> dict:
 def reset_gate() -> None:
     """Reset the singleton gate so the next access re-creates it."""
     global _gate
+    if _gate is not None:
+        _gate._stop_auto_save()
     _gate = None

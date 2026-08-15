@@ -52,11 +52,12 @@ def _run_grep(pattern: str, path: str, fixed: bool = False) -> list[dict]:
     the command itself fails (per project convention, no hand-rolled
     platform dispatch in implementation code).
     """
-    from l1.kernel.platform import grep_cmd, run_args
+    from l1.kernel.platform import grep_cmd
+    from l1.kernel.ports import get_process_port
 
     try:
         cmd = grep_cmd(pattern, path, fixed=fixed)
-        r = run_args(cmd, timeout=get_tool_config("search_timeout", 30))
+        r = get_process_port().run_args(cmd, timeout=get_tool_config("search_timeout", 30))
         if r.returncode == 0:
             return _parse_grep_output(r.stdout.splitlines())
         logger.debug("_search: grep_cmd returned %s", r.returncode)

@@ -285,11 +285,11 @@ def _execute_tests() -> dict:
     """
     from l3.tool_system._build import _get_test_detectors
 
-    from l1.kernel.platform import run_args
+    from l1.kernel.ports import get_process_port
 
     for cmd in _get_test_detectors():
         try:
-            r = run_args(list(cmd), timeout=AUTO_TEST_TIMEOUT)
+            r = get_process_port().run_args(list(cmd), timeout=AUTO_TEST_TIMEOUT)
             output = f"{r.stdout}\n{r.stderr}"[:LOG_TRUNC_2000]
             failures = parse_pytest_failures(output)
             return {

@@ -48,7 +48,7 @@ flowchart TB
         PROC["ProcessTable"]
         GATE["GateChain G1-G5"]
         CONST["Constitution"]
-        PORTS["Ports (12 ABC abstractions)"]
+        PORTS["Ports (15 ABC abstractions)"]
         PARAMS["params: 1,057 constants"]
     end
 
@@ -104,21 +104,21 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 18,477 lines |
-| L2 Shell | 35 files / 4,602 lines |
-| L3 Cell | 334 files / 71,931 lines |
-| L4 Bridge | 107 files / 21,963 lines |
+| L1 Kernel | 66 files / 19,129 lines |
+| L2 Shell | 35 files / 4,665 lines |
+| L3 Cell | 335 files / 72,868 lines |
+| L4 Bridge | 107 files / 22,115 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,928 lines |
-| L3 Memory | 43 files / 9,162 lines |
-| L3 Card | 27 files / 6,443 lines |
-| L3 Services | 43 files / 11,178 lines |
-| L3 Bus | 17 files / 4,384 lines |
-| L3 Agent | 36 files / 7,446 lines |
-| L4 Handlers | 33 files / 5,950 lines |
-| API routes | 341 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=31, skill=19, security=18, provider=17, l3a=14) |
-| Params modules / constants | 8 / 1,222 |
+| L3 Memory | 44 files / 9,912 lines |
+| L3 Card | 27 files / 6,451 lines |
+| L3 Services | 43 files / 11,188 lines |
+| L3 Bus | 17 files / 4,386 lines |
+| L3 Agent | 36 files / 7,463 lines |
+| L4 Handlers | 33 files / 6,055 lines |
+| API routes | 349 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=31, skill=27, security=18, provider=17, l3a=14) |
+| Params modules / constants | 8 / 1,253 |
 | Health | 0.758 (grade B) |
 
 ## Reading path
@@ -189,13 +189,14 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
 | `gatechain.py` | G1–G5 tool authorization chain (whitelist/identity/territory/escalation/composite) + stagnation callback |
-| `ports/` | 15 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
+| `ports/` | 16 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
 | `allocator.py` | Token allocation + GC |
 | `vfs.py` / `registry.py` / `registry_base` | Virtual FS, system registry |
 | `os.py` | Lifecycle: boot/shutdown/restart/watchdog |
 | `ipc.py` / `net.py` / `net_transport.py` | IPC channel, cross-cell mesh, TLS transport |
 | `process.py` audit, `reputation.py` trust, `swapper.py` ring swapping, `interrupt.py` IRQ table |
 | `skill.py` | SkillManager (load/create/evolve/usage, write-gated) |
+| `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
 | `prompts.py` | Prompt registry (L3A system/parse templates, verification culture) |
 | `params/*` | 1,067 compile-time constants (kernel/allocator/sync/gatechain/agent/tool/api/system/…) |
 
@@ -225,15 +226,18 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
-class ProcessPort(ABC): run / run_args / spawn_interactive  → ProcessResult
+class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
+class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
 ```
 
 Adapters self-register (`register_port("auth", svc)`) at service init or
 boot wiring; consumers resolve via `get_port(name)` — **duck-typed, so a
-language-agnostic kernel can swap adapters without import changes**. The
-registry is `RLock`-guarded. `WorkerPort.submit_result()` returns a
+language-agnostic kernel can swap adapters without import changes**. One-shot
+command callers use `get_process_port()`, which resolves the registered
+`"process"` adapter or a controlled stdlib fallback before boot. The registry
+is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 `TaskHandle` (future-like) so a computed value crosses the worker boundary —
 the completion half missing from fire-and-forget `submit()`.
 
@@ -244,15 +248,36 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 | Surface | Seam | Notes |
 |---|---|---|
-| Shell/command exec | `ProcessPort` (`get_port("process")`) | wraps `platform.run_shell`; the roadmap's named candidate now has a seam |
+| Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
-| Value types | `ProcessResult` / `Result` / `Event` | plain dataclasses — no interpreter object crosses the boundary |
+| R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
+| Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
+
+`ProcessPort` is deliberately limited to bounded, non-interactive commands.
+Interactive shell sessions, LSP stdio servers, and supervised daemon processes
+hold Python `Popen` handles with live pipes and lifecycle callbacks; they are
+Python-only runtime implementations, not an FFI-clean port surface.
+
+`ProcessResult.error_kind` is empty for every command that actually started,
+including a child that exits with a negative signal code. Adapter failures use
+`not_found` or `execution`; timeouts set `timed_out`. Callers must branch on
+these structured fields rather than inferring failures from a synthetic return
+code.
 
 The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
 cleanly.
+
+### Identity-binding persistence
+
+`IdentityBindingManager` captures an immutable binding snapshot and local
+revision while holding its registry lock. A state-path lock then serializes a
+read/merge/write transaction across manager instances: only the committed
+bind, unbind, or clear delta is applied to the current durable JSON state.
+Each replacement uses a uniquely named sibling temporary file, so concurrent
+writers never share a `.tmp` path and unrelated bindings remain intact.
 
 ## Key constants (params)
 
@@ -337,7 +362,7 @@ l2_shell/  shared engine: dispatch (| pipeline, / commands, Direct mode, L3A)
 ```
 line ──┬─ !<intent>            → L3A direct session (cardwrite path)
        ├─ !<intent>@cell/agent → routed direct session
-       ├─ $ <command>          → raw system command (platform.run_shell)
+       ├─ $ <command>          → raw system command (ProcessPort.run)
        ├─ <tool> <args>        → tool execution (aliases: rf→read_file)
        └─ /command             → engine dispatch (dict results)
 ```
@@ -349,10 +374,10 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 
 | Boundary | Current path | Port abstraction | Rust-sink candidate |
 |----------|--------------|------------------|---------------------|
-| `$ <command>` system exec | `l1.kernel.platform.run_shell` (subprocess, cross-platform) | `platform` helpers (`grep_cmd`/`run_shell`/`IS_*`) | ✅ `run_shell` / `run_args` hot path |
+| `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `l2.shells.terminal` + `shell_completer` | — (L2 pure engine) | — (frontend dialect, no OS sink) |
+| Terminal dialing (interactive) | `l2.shell_session` live `Popen` + `shell_completer` | Python-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
 never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is
@@ -533,9 +558,19 @@ R4 archive   — lossless, append-only (fonds/series/ref-code), restore baseline
 | Multi-scope center | `central_memory.py` (register scopes: cells + L3A) |
 | Persistence | `persist.py`-style mixins; crash-safety: dirty sets cleared only after write success |
 | FTS5 / recall | `context_search.py`, `quality.py` (importance filtering) |
-| R4 agent | `r4_agent.py` (archive, skill evolution, lean cases) |
+| R4 agent | `r4_agent.py` + `r4_candidate_store.py` (archive, evidence candidates, skill evolution, lean cases) |
 | Task-aware injection | `memory_inject.py` (execute→summary / decide→Mer / resume→layered) |
 | Init from memories | `memory_init.py` (boot restores agent topology) |
+
+### Persistence concurrency
+
+`PersistableMixin` takes its JSON snapshot while the owning service's state
+lock is held, then serializes commits per persistence path. This prevents
+torn container iteration and temporary-file collisions when services restart
+or tests replace a singleton. Auto-save owns one managed worker per instance:
+restarting it signals and waits for the prior worker, and singleton resetters
+stop that worker before discarding the service. A delayed pre-reset snapshot
+cannot overwrite a later snapshot because per-path commit epochs discard it.
 
 ## Side-channels (bypass, all default off)
 
@@ -629,6 +664,8 @@ cases. See `cross-cutting.md` for the full injection table.
   `/api/v2/memory/tool-result` (tool-result offload cache),
   `/api/v2/memory/sensitive` (sensitive-info bypass detection),
   `/api/v2/memory/compression-guard` (recursion threshold + breaker)
+- `/api/v2/skills/candidates*` (R4 evidence candidate list, validation,
+  canary publication, activation, retirement, collection policy)
 - Ports: none dedicated (memory accessed in-process); profile exposes
   port `"profile"` for cross-service queries
 - Tiered-cache consumers: the per-Cell `run_code` program cache
@@ -674,6 +711,79 @@ for training correction, exposed via `/api/v2/memory/corpus` + L2
 `memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
 causal audit ring correlates memory events with tool and identity context
 for M4 corpus analytics. Best-effort, never blocks the write.
+
+### R4 evidence candidates (3.4)
+
+R4 skill evolution is gated by `r4_candidate_store.py`, a persistent JSON
+ledger under the Praxis data directory. Refined-memory records and tool
+failure traces enter as evidence; they do **not** publish a skill directly.
+Candidates group records by source, entry type, tags, and normalized binding:
+
+```
+observed -> validated -> canary -> active
+                         \-> retired
+```
+
+- `validated` requires `R4_CANDIDATE_MIN_EVIDENCE` records and a valid
+  posture binding.
+- `canary` publication requires an explicit target (Cell, role, Agent, or
+  card nature). It calls the boot-managed R4Agent to generate a bound skill,
+  never a fresh R4 worker per memory write.
+- `active` promotes a canary only through the candidate control surface;
+  `retired` removes its skill from injection while retaining audit history.
+- Binding fields (`cell_ids`, `roles`, `agent_ids`, `card_natures`,
+  `postures`) persist with the skill and are applied before similarity ranking.
+  `draft`, `retired`, and `deprecated` skills are never injected.
+
+Candidate collection is independent from LLM distillation cost and is
+controlled by `skill.candidate_enabled` (params default → SettingsCenter →
+`praxis.yaml` / API / L2). The ledger and reference-channel paths are
+observability side channels: a persistence failure never blocks memory writes
+or failure-trace capture.
+
+#### Candidate performance and rewrite seam
+
+The candidate ledger is on a memory-refinery write path, so its hot path has
+explicit bounds: fingerprint lookup is indexed (not a full-candidate scan),
+evidence is capped by the `R4_CANDIDATE_MAX_EVIDENCE` parameter, and the lock
+does not cover LLM calls or skill publication. Persistence is a side channel;
+an I/O failure degrades the ledger operation without blocking the originating
+memory or tool-failure write. Implementations should keep serialized snapshots
+and compaction policy behind the store boundary so write latency does not grow
+with the lifetime of the archive. The reference implementation appends
+mutations to the `R4_CANDIDATE_JOURNAL_SUFFIX` journal, compacts at
+`R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES`, and bounds the live set with
+`R4_CANDIDATE_MAX_RECORDS`; evicted records go to
+`R4_CANDIDATE_ARCHIVE_SUFFIX` for lossless retention.
+
+`CandidateLedgerPort` is the language-neutral adapter seam for listing,
+validation, lifecycle transitions, and policy state. Its typed boundary uses
+`CandidateSnapshot`, `CandidateStatus`, `CandidateResult`, and `CandidateState`
+from `l1.kernel.ports.types`; each value remains serializable to the stable
+JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`, `validation`,
+`state`, and timestamps). Lifecycle state names and limits come from `params/`
+and remain the single source of truth. Publication intent and LLM orchestration
+stay in L3 above the port. A future Rust ledger can therefore replace indexed
+storage and transition checks through the same typed port while the Python L3
+orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
+must preserve atomic transition semantics, bounded evidence, and best-effort
+persistence behavior.
+
+The live ledger is deliberately bounded by `R4_CANDIDATE_MAX_RECORDS`. An
+O(1) fingerprint index groups repeated evidence; when capacity is reached,
+only the oldest `observed` or `retired` record may be losslessly archived and
+evicted. If every record is lifecycle-protected, a new cluster is reported as
+capacity-limited rather than allowing the bound to grow.
+
+Persistence uses a JSON snapshot plus replayable journal batches. The hot
+path coalesces at most one pending mutation per candidate into a single
+background writer, so ordinary journal and compaction I/O never run while the
+candidate-state lock is held. `CandidateStore.flush()`/`close()` provide the
+explicit durability barrier for shutdown and tests; normal evidence capture
+remains best-effort. `CandidateLedgerPort` carries typed primitive-only
+evidence, snapshot, status, and lifecycle values so its Python adapter can be
+replaced by a Rust implementation without changing memory, API, or shell
+callers.
 
 ## Conversation-side compression (two-layer pipeline)
 
@@ -939,7 +1049,7 @@ gated, and executed (plus the security evidence chain,
 | **Code** | `_code.py` symbol_search / issue detection | regex scanners |
 | **Web** | `_web.py` web_fetch / web_search | urllib + truncation |
 | **Package** | `_package.py` pip/npm/apt/cargo install/list | PackageManager service |
-| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform run_shell |
+| **Terminal** | `_terminal.py` execute_shell | RING_3 approval-gated; cross-platform `ProcessPort.run` |
 | **Memory** | `_memory.py` memory_store / memory_retrieve | L3 MemoryManager |
 | **Archive** | `_archive.py` archive save/load/query | SQLite fonds/series/ref-code |
 | **Config** | `_config.py` config_get / config_set | SettingsCenter |

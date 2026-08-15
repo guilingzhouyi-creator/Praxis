@@ -7,6 +7,20 @@
 
 ### 修复
 
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
 - **Fix (scripts)**: match docs(changelog) prefix in skip regex
 - **Fix (scripts)**: skip docs(changelog) commits in changelog scan
 - **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
@@ -19,8 +33,93 @@
 - **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
 - **Fix (test)**: align githooks COAUTH fixture
 
+### 性能
+
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
+
+### 新增
+
+- **Feat (kernel)**: adopt ProcessPort execution boundary
+- **Feat (skill)**: gate evolution through candidates
+- **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
+- **Feat (ci)**: enforce subject length and body structure in commit-scan
+- **Feat (ci)**: enforce commit-scan policy across all gates
+- **Feat (audit)**: non-English residue scanner — full-CJK plane, strict non-ASCII, docstring + md coverage, CI gate
+- **Feat (judge)**: extend judge dashboard with metrics, branch, duration and pair analytics
+- **Feat (opencode)**: add completion-judge and net-delta-gate skills, dedupe
+- **Feat (atomcode)**: sync skills with the updated OpenCode skill set
+- **Feat (generalize)**: bidirectional generalization pipeline (session-JSON supply, layered skill libs, memory feedback, verify gate, ring promotion)
+- **Feat (session)**: session-management system (dual identity, monitor, auto-reload, decision-layer JSON trio, history, loader)
+- **Feat (prompts)**: unified layered system-prompt architecture (Cell/global libraries, versioning, bypass monitor)
+- **Feat (memory)**: expose execution-layer context audit via API + L2
+- **Feat (agent)**: per-Cell context audit across the execution layer
+- **Feat (agent)**: per-entity context snapshot for precise context management
+- **Feat (memory)**: correlate reference-channel memory events with refined records
+- **Feat (memory)**: structured tool-result register (fast path) + teardown-scoped reclaim
+- **Feat (memory)**: reclaim conversation-side caches at Cell teardown
+- **Feat (opencode)**: align agent skills with AGENTS.md gates and CI policies
+- **Feat (memory)**: domain-filtered R4 archive, RC linkage, corpus surface, conversation caches, five-level compression, guardrails
+- **Feat (skills)**: align atomcode skills with AGENTS.md + CI gates (lean)
+- **Feat (gate)**: three locks on the net-delta gate (comments/deletion/hygiene)
+- **Feat (judge)**: extend CompletionJudge to 11 checks (6 new dimensions)
+- **Feat (attack)**: attack-posture tool suite + tooling linkage gaps
+- **Feat (judge)**: committed dashboard — auto-updated on every mainline merge
+- **Feat (tool-presentation)**: assemble stable-prefix prompt for vendor KV caches
+- **Feat (tool-presentation)**: write back successful run_code results to cache
+- **Feat (tool-presentation)**: wire run_code SDK bindings to the tool pipeline
+- **Feat (harness)**: expose code level via L2 harness command + i18n
+- **Feat (harness)**: unify tool-usage control bar (two classes + control line)
+- **Feat (judge)**: quantify CompletionJudge effectiveness (auto-log + stats)
+- **Feat (judge)**: CompletionJudge — machine decides "done", not the agent
+- **Feat (tool-presentation)**: enforce tools:code-only in the tool pipeline
+- **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
+- **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
+- **Feat**: baseline — fresh single-commit repository
+
+### 变更
+
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
+
 ### 文档
 
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh doc-stats + changelog after cleanup
 - **Docs (infra)**: fill 111 missing public docstrings
 - **Docs (stats)**: refresh judge dashboard
@@ -66,80 +165,6 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
-
-### 变更
-
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 新增
-
-- **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
-- **Feat (ci)**: enforce subject length and body structure in commit-scan
-- **Feat (ci)**: enforce commit-scan policy across all gates
-- **Feat (audit)**: non-English residue scanner — full-CJK plane, strict non-ASCII, docstring + md coverage, CI gate
-- **Feat (judge)**: extend judge dashboard with metrics, branch, duration and pair analytics
-- **Feat (opencode)**: add completion-judge and net-delta-gate skills, dedupe
-- **Feat (atomcode)**: sync skills with the updated OpenCode skill set
-- **Feat (generalize)**: bidirectional generalization pipeline (session-JSON supply, layered skill libs, memory feedback, verify gate, ring promotion)
-- **Feat (session)**: session-management system (dual identity, monitor, auto-reload, decision-layer JSON trio, history, loader)
-- **Feat (prompts)**: unified layered system-prompt architecture (Cell/global libraries, versioning, bypass monitor)
-- **Feat (memory)**: expose execution-layer context audit via API + L2
-- **Feat (agent)**: per-Cell context audit across the execution layer
-- **Feat (agent)**: per-entity context snapshot for precise context management
-- **Feat (memory)**: correlate reference-channel memory events with refined records
-- **Feat (memory)**: structured tool-result register (fast path) + teardown-scoped reclaim
-- **Feat (memory)**: reclaim conversation-side caches at Cell teardown
-- **Feat (opencode)**: align agent skills with AGENTS.md gates and CI policies
-- **Feat (memory)**: domain-filtered R4 archive, RC linkage, corpus surface, conversation caches, five-level compression, guardrails
-- **Feat (skills)**: align atomcode skills with AGENTS.md + CI gates (lean)
-- **Feat (gate)**: three locks on the net-delta gate (comments/deletion/hygiene)
-- **Feat (judge)**: extend CompletionJudge to 11 checks (6 new dimensions)
-- **Feat (attack)**: attack-posture tool suite + tooling linkage gaps
-- **Feat (judge)**: committed dashboard — auto-updated on every mainline merge
-- **Feat (tool-presentation)**: assemble stable-prefix prompt for vendor KV caches
-- **Feat (tool-presentation)**: write back successful run_code results to cache
-- **Feat (tool-presentation)**: wire run_code SDK bindings to the tool pipeline
-- **Feat (harness)**: expose code level via L2 harness command + i18n
-- **Feat (harness)**: unify tool-usage control bar (two classes + control line)
-- **Feat (judge)**: quantify CompletionJudge effectiveness (auto-log + stats)
-- **Feat (judge)**: CompletionJudge — machine decides "done", not the agent
-- **Feat (tool-presentation)**: enforce tools:code-only in the tool pipeline
-- **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
-- **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
-- **Feat**: baseline — fresh single-commit repository
-
-### 性能
-
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ## [0.4.1] - 2026-08-07
 

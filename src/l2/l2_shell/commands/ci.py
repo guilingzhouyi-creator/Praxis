@@ -69,20 +69,20 @@ def _resolve_scope_key(key: str, cell_id: str, agent_id: str) -> str:
     return f"ci.review.{suffix}"
 
 
-def _ci_list(svc, rest: list[str]) -> dict:
+def _ci_list(svc, rest: list[str], *_context: object) -> dict:
     """`ci list [status]` — query review records by status."""
     status = rest[1] if len(rest) > 1 else ""
     return svc.query(status=status)
 
 
-def _ci_show(svc, rest: list[str]) -> dict:
+def _ci_show(svc, rest: list[str], *_context: object) -> dict:
     """`ci show <card_id>` — show a single review record."""
     if len(rest) < 2:
         return {"success": False, "error": _t("shell.app_error.usage_ci_show")}
     return svc.query(card_id=rest[1], limit=1)
 
 
-def _ci_rerun(svc, rest: list[str]) -> dict:
+def _ci_rerun(svc, rest: list[str], *_context: object) -> dict:
     """`ci rerun <card_id>` — rerun a review (write surface required)."""
     if len(rest) < 2:
         return {"success": False, "error": _t("shell.app_error.usage_ci_rerun")}
@@ -91,7 +91,7 @@ def _ci_rerun(svc, rest: list[str]) -> dict:
     return svc.rerun(rest[1])
 
 
-def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str) -> dict:
+def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str, _admin: bool = False) -> dict:
     """`ci config [--cell X] [--agent Y]` — show global/effective settings."""
     from l4.ci_review import CI_SETTING_SUFFIXES
 

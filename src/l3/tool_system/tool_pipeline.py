@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from l1.kernel import get_event_bus
 from l1.kernel.allocator import get_allocator
@@ -157,9 +157,9 @@ class ToolPipeline(PipelineStepsMixin):
         if harness_mode not in HARNESS_MODES:
             harness_mode = HARNESS_MODE_DEFAULT
         preset = HARNESS_PRESETS[harness_mode]
-        _skip = set(preset["steps"])  # type: ignore[arg-type]
-        _toolset: tuple[str, ...] | None = preset["toolset"]  # type: ignore[assignment]
-        _presentation: str = preset["presentation"]  # type: ignore[assignment]
+        _skip = set(cast(tuple[str, ...], preset["steps"]))
+        _toolset = cast(tuple[str, ...] | None, preset["toolset"])
+        _presentation = cast(str, preset["presentation"])
 
         # Code Mode / PTC (tools:code-only): under ``code`` presentation (from
         # the harness preset or an explicit runtime switch) the model may call

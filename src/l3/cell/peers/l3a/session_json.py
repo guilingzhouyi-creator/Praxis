@@ -33,7 +33,7 @@ _lock = threading.RLock()
 _seq: dict[str, int] = {}
 # History-module operator switch (API + L2), default ON.
 _history_state: dict = {"enabled": SESSION_HISTORY_ENABLED_DEFAULT}
-_history_lock = threading.Lock()
+_history_lock = threading.RLock()
 
 
 def history_status() -> dict:

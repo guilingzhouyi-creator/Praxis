@@ -71,7 +71,7 @@ GET  /api/v2/shell/commands         → _shell_commands    → {"success": True,
 | **2. 接通补全** | `_shell_autocomplete` stub → `l2.l2_shell.completer.autocomplete()` | 同上 |
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
 | **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
-| **5. 底层边界留位** | 确认 process/fs/terminal 走 `FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`run_shell` 为 Rust 下沉候选） |
+| **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
 | **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md |
 
 > 接通 stub 是纯 Python 改动，完全符合现有架构；前端矩阵也强化了接通 `/api/v2/shell`
@@ -98,6 +98,12 @@ Rust 迁移铺路，明确 `l1_kernel_rs` 复用同一套常量与决策公式�
 - P 低 ⇒ 瓶颈在 LLM 调用延迟，Rust 收益有限，推迟到需要时再做。
 
 判定的是**迁移顺序与时机**，不改变"Rust 下沉内核"这一方向。
+
+证据必须来自已完成的真实 L1 基准：`bench_scale.py --mode amdahl --agents 1,2,4,8 --json <result>`
+在目标平台上完整执行。该工作负载固定总 work items，并实际穿过 `ThreadPoolWorker`、`Mutex` 与
+`RingChannel`；报告必须显示每档完成数等于固定总量，同时保留吞吐、操作延迟、调度排队等待和锁等待。
+**只有这样的已完成 JSON 结果才能作为 Rust 优先级证据。** 合成 `sleep`/hash、每个 worker 重复整套工作，
+或未实际运行的示例数字都不能用于决定迁移顺序。
 
 ### 4.3 无侵入下沉路径
 
@@ -137,14 +143,14 @@ l1_kernel_rs（模块级，非整体重写）
 M0  现网基线（当前）           — 快速核心套件全绿；契约框架已注册（stub）
 M1  L2 抽象完整               — Phase 1–3 接通 /api/v2/shell 三端点；TS/TUI 可作纯 HTTP 客户端
 M2  会话收尾 + 文档            — Phase 4–6；l2-shell.md 契约面显式化
-M3  Rust 下沉优先级判定       — bench_scale 产出缩放曲线；据 P 值定"先迁移哪个热路径"
+M3  Rust 下沉优先级判定       — 完成真实固定总量 L1 基准；据 P 值和锁/队列等待定"先迁移哪个热路径"
 M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Python 灰度共存，接口不变
 ```
 
-> **M3 实测（2026-08-13, WSL2 / 32 CPU / Python 3.12）**:`bench_scale.py --mode amdahl` 双侧
-> serial P ≈ 0.000（低串行）——I/O 曲线饱和（speedup 0.99–1.00，延迟主导），CPU 曲线反缩放
-> （8 workers → 0.73，进程/锁开销随 worker 增长）。结论：**Rust 下沉暂不优先**——瓶颈在
-> LLM/I/O 延迟而非内核串行段，按 §4.2 推迟到缩放曲线显示高串行时再迁移；保持 Python 首选实现。
+> **M3 证据状态：未在仓库中固化任何特定平台结果。** 过去的 `sleep`/SHA 与每 worker 全量工作曲线
+> 不代表固定总量的 L1 热路径，因此撤回其 Rust 优先级结论。每次决定迁移顺序前，均须按 §4.2 在目标平台
+> 完成真实基准并保存 JSON，再根据 P 值、吞吐、队列等待和锁等待决定首个 Rust 下沉模块；在此之前，Python
+> 保持首选实现。
 
 ---
 

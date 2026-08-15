@@ -26,6 +26,7 @@ import socket
 import threading
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
 
@@ -107,6 +108,8 @@ class TcpAdapter(TransportPort):
         self._handlers: dict[str, Callable] = {}
         self._lock = threading.Lock()
         self._sockets: list[socket.socket] = []
+        self._threads: list[threading.Thread] = []
+        self._stop_event = threading.Event()
 
     # ── Socket factory helpers (centralize address family for dual-stack) ──
 
@@ -120,6 +123,20 @@ class TcpAdapter(TransportPort):
         """Create a UDP socket using the configured address family."""
         return socket.socket(TRANSPORT_SOCKET_FAMILY, socket.SOCK_DGRAM)
 
+    def _track_socket(self, sock: socket.socket) -> bool:
+        """Track a socket unless shutdown has already started."""
+        with self._lock:
+            if not self._running or self._stop_event.is_set():
+                return False
+            self._sockets.append(sock)
+            return True
+
+    def _discard_socket(self, sock: socket.socket) -> None:
+        """Remove a socket from the tracked set when its owner exits."""
+        with self._lock:
+            with suppress(ValueError):
+                self._sockets.remove(sock)
+
     # ── Port lifecycle ───────────────────────────────────────────────────
 
     def start(self, node_id: str, config: Any) -> PortResult:
@@ -130,30 +147,42 @@ class TcpAdapter(TransportPort):
             if isinstance(config, TransportConfig)
             else TransportConfig(port=int(config) if isinstance(config, (int, str)) else PRAXIS_PORT_DEFAULT)
         )
-        self._running = True
         cfg = self._config
-
-        # UDP discovery threads
-        threading.Thread(target=self._udp_listener, daemon=True, name="tcp-udp-listen").start()
-        threading.Thread(target=self._udp_announcer, daemon=True, name="tcp-udp-announce").start()
-
-        # TCP listener — connections submitted to worker pool
-        threading.Thread(target=self._tcp_listener, daemon=True, name="tcp-listen").start()
+        threads = [
+            threading.Thread(target=self._udp_listener, daemon=True, name="tcp-udp-listen"),
+            threading.Thread(target=self._udp_announcer, daemon=True, name="tcp-udp-announce"),
+            threading.Thread(target=self._tcp_listener, daemon=True, name="tcp-listen"),
+        ]
+        with self._lock:
+            self._running = True
+            self._stop_event.clear()
+            self._threads.extend(threads)
+            for thread in threads:
+                thread.start()
 
         logger.info("TcpAdapter started: %s port=%d discovery=%d", node_id, cfg.port, cfg.discovery_port)
         return PortResult.ok(node_id=node_id, port=cfg.port, transport=self.name)
 
     def stop(self) -> PortResult:
         """Stop the transport: close sockets, channel, and worker. Returns a result dict."""
-        self._running = False
-        # Close sockets immediately to unblock listener threads
         with self._lock:
-            for s in list(self._sockets):
-                try:
-                    s.close()
-                except Exception:
-                    logger.debug("net: socket close error during stop")
+            self._running = False
+            self._stop_event.set()
+            sockets = list(self._sockets)
             self._sockets.clear()
+            threads = list(self._threads)
+            self._threads.clear()
+        # Close sockets immediately to unblock listener threads.
+        for s in sockets:
+            try:
+                with suppress(OSError):
+                    s.shutdown(socket.SHUT_RDWR)
+                s.close()
+            except Exception:
+                logger.debug("net: socket close error during stop")
+        for thread in threads:
+            if thread is not threading.current_thread():
+                thread.join()
         self._channel.close()
         self._worker.shutdown(wait=False)
         logger.info("TcpAdapter stopped: %s", self._node_id)
@@ -173,15 +202,21 @@ class TcpAdapter(TransportPort):
         except (ValueError, AttributeError):
             return PortResult.fail(f"invalid endpoint: {target.address}")
 
+        s: socket.socket | None = None
         try:
             s = self._new_tcp_socket()
             s.settimeout(self._config.socket_timeout if self._config else 10)
             s.connect((host, port))
             s.sendall(data)
-            s.close()
             return PortResult.ok(sent=True, target=target.address)
         except Exception as e:
             return PortResult.fail(str(e))
+        finally:
+            if s is not None:
+                try:
+                    s.close()
+                except OSError:
+                    logger.debug("net: socket close error after send")
 
     def register_handler(self, msg_type: str, handler: Callable) -> None:
         """Register a direct handler for incoming messages of *msg_type*."""
@@ -214,18 +249,27 @@ class TcpAdapter(TransportPort):
             sock.bind(("", config.discovery_port))
         except OSError:
             logger.warning("TcpAdapter: discovery port %d in use", config.discovery_port)
+            sock.close()
             return
-        with self._lock:
-            self._sockets.append(sock)
+        if not self._track_socket(sock):
+            sock.close()
+            return
         while self._running:
             try:
                 data, addr = sock.recvfrom(1024)
                 self._on_announcement(data, addr)
             except TimeoutError:
                 continue
+            except OSError:
+                if not self._running:
+                    break
+                logger.debug("discovery listener: socket closed unexpectedly")
+                break
             except Exception:
                 logger.debug("discovery listener: unexpected error, continuing")
                 continue
+        self._discard_socket(sock)
+        sock.close()
 
     def _on_announcement(self, data: bytes, addr: tuple) -> None:
         try:
@@ -281,8 +325,9 @@ class TcpAdapter(TransportPort):
             logger.warning("TcpAdapter: SO_BROADCAST not allowed (permissions), peer discovery disabled")
             sock.close()
             return
-        with self._lock:
-            self._sockets.append(sock)
+        if not self._track_socket(sock):
+            sock.close()
+            return
         announcement = json.dumps(
             {
                 "id": self._node_id,
@@ -293,7 +338,7 @@ class TcpAdapter(TransportPort):
         ).encode()
 
         broadcast_addr = "255.255.255.255"
-        while self._running:
+        while self._running and not self._stop_event.is_set():
             try:
                 sock.sendto(announcement, (broadcast_addr, config.discovery_port))
             except PermissionError:
@@ -303,6 +348,8 @@ class TcpAdapter(TransportPort):
                 )
                 break
             except OSError as e:
+                if not self._running:
+                    break
                 # EPERM, EACCES, or WSAEACCES on Windows; WSAEADDRNOTAVAIL
                 if getattr(e, "winerror", None) in (10013, 10049, 10051):
                     logger.debug("TcpAdapter: UDP broadcast blocked (winerror=%s)", getattr(e, "winerror", "?"))
@@ -319,7 +366,10 @@ class TcpAdapter(TransportPort):
                 logger.warning("TcpAdapter: announce error: %s", e)
             except Exception as e:
                 logger.warning("TcpAdapter: announce error: %s", e)
-            time.sleep(config.broadcast_interval)
+            if self._running:
+                self._stop_event.wait(config.broadcast_interval)
+        self._discard_socket(sock)
+        sock.close()
 
     # ── TCP listener ─────────────────────────────────────────────────────
 
@@ -333,15 +383,16 @@ class TcpAdapter(TransportPort):
         except OSError:
             logger.debug("TcpAdapter: SO_REUSEADDR failed (best-effort; Windows port exclusivity)")
         sock.settimeout(5)
-        with self._lock:
-            self._sockets.append(sock)
+        if not self._track_socket(sock):
+            sock.close()
+            return
         try:
             sock.bind((config.host, config.port))
             sock.listen(TCP_LISTEN_BACKLOG)
         except OSError:
-            logger.warning("TcpAdapter: port %d in use", config.port)
-            with self._lock:
-                self._sockets.remove(sock)
+            if self._running:
+                logger.warning("TcpAdapter: port %d in use", config.port)
+            self._discard_socket(sock)
             sock.close()
             return
         while self._running:
@@ -351,6 +402,13 @@ class TcpAdapter(TransportPort):
                 self._worker.submit(self._handle_conn, conn, addr)
             except TimeoutError:
                 continue
+            except OSError:
+                if not self._running:
+                    break
+                logger.debug("tcp listener: socket closed unexpectedly")
+                break
+        self._discard_socket(sock)
+        sock.close()
 
     def _handle_conn(self, conn: socket.socket, addr: tuple) -> None:
         try:

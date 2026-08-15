@@ -45,6 +45,18 @@ INTERRUPT_QUERY_LIMIT: Final[int] = 20
 REGISTRY_QUERY_LIMIT: Final[int] = 20
 
 
+# ── Process port ──
+# Value carried when the adapter could not start a process. Callers must use
+# ProcessResult.error_kind rather than interpreting this compatibility value.
+PROCESS_RETURN_EXECUTION_ERROR: Final[int] = -2
+# Value carried when bounded process execution exceeds its timeout.
+PROCESS_RETURN_TIMEOUT: Final[int] = -1
+# Structured ProcessResult error categories crossing the process port.
+PROCESS_ERROR_NONE: Final[str] = ""
+PROCESS_ERROR_NOT_FOUND: Final[str] = "not_found"
+PROCESS_ERROR_EXECUTION: Final[str] = "execution"
+
+
 # ── Tool chain ──
 TOOLCHAIN_MAX_CALLS: Final[int] = 5000
 # Default page size for tool-chain queries

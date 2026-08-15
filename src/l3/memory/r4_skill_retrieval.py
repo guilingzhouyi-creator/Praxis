@@ -112,6 +112,7 @@ class SkillRetrievalMixin:
         self,
         agent_id: str = "",
         cell_id: str = "",
+        role: str = "",
         limit: int = R4_EVOLVED_SKILLS_DEFAULT,
         graph_diffusion: bool = False,
         tags: list[str] | None = None,
@@ -128,7 +129,7 @@ class SkillRetrievalMixin:
         from l1.kernel.skill import get_skill_manager
 
         sm = get_skill_manager()
-        cache_key = ("evolved", agent_id, cell_id, limit, graph_diffusion, tuple(tags or ()))
+        cache_key = ("evolved", agent_id, cell_id, role, limit, graph_diffusion, tuple(tags or ()))
         rev = sm.revision()
         cached = self._skill_cache.get(cache_key)
         if cached and cached[0] == rev:
@@ -146,12 +147,16 @@ class SkillRetrievalMixin:
                                 continue
                             if not _passes_card_tags(s, tags):
                                 continue
+                            if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
+                                continue
                             evolved.append(
                                 {
                                     "name": s["name"],
                                     "description": s.get("description", ""),
                                     "prompt": s["prompt"],
                                     "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
+                                    "binding": s.get("binding") or {},
+                                    "status": s.get("status", "active"),
                                 }
                             )
                     if evolved:
@@ -161,11 +166,22 @@ class SkillRetrievalMixin:
         skills = sm.list_skills(tags=["evolved"], limit=limit * 2, sort_by="loaded_at", include_prompt=True)
         evolved = []
         for s in skills:
-            if agent_id and agent_id not in s.get("tags", []):
+            binding = s.get("binding") or {}
+            has_explicit_binding = (
+                any(binding.get(key) for key in ("cell_ids", "roles", "agent_ids", "card_natures"))
+                if isinstance(binding, dict)
+                else False
+            )
+            # Legacy evolved skills use an agent tag as their scope.  An
+            # explicit Cell/role/card binding supersedes that legacy filter;
+            # skill_is_injectable() performs the authoritative scope check.
+            if agent_id and not has_explicit_binding and agent_id not in s.get("tags", []):
                 continue
             if allow and s["name"] not in allow:
                 continue
             if not _passes_card_tags(s, tags):
+                continue
+            if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                 continue
             if s.get("prompt"):
                 evolved.append(
@@ -174,6 +190,8 @@ class SkillRetrievalMixin:
                         "description": s.get("description", ""),
                         "prompt": s["prompt"],
                         "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
+                        "binding": s.get("binding") or {},
+                        "status": s.get("status", "active"),
                     }
                 )
         evolved = evolved[:limit]
@@ -185,6 +203,7 @@ class SkillRetrievalMixin:
         query: str = "",
         agent_id: str = "",
         cell_id: str = "",
+        role: str = "",
         limit: int = R4_EVOLVED_SKILLS_DEFAULT,
         graph_diffusion: bool = False,
         tags: list[str] | None = None,
@@ -212,10 +231,20 @@ class SkillRetrievalMixin:
         min_score = float(policy.get("retrieval_min_score", R4_RETRIEVAL_MIN_SCORE))
         if not retrieval_enabled or not query:
             return self.get_evolved_skills(
-                agent_id=agent_id, cell_id=cell_id, limit=limit, graph_diffusion=graph_diffusion, tags=tags
+                agent_id=agent_id,
+                cell_id=cell_id,
+                role=role,
+                limit=limit,
+                graph_diffusion=graph_diffusion,
+                tags=tags,
             )
         base = self.get_evolved_skills(
-            agent_id=agent_id, cell_id=cell_id, limit=limit * 4, graph_diffusion=graph_diffusion, tags=tags
+            agent_id=agent_id,
+            cell_id=cell_id,
+            role=role,
+            limit=limit * 4,
+            graph_diffusion=graph_diffusion,
+            tags=tags,
         )
         if not base:
             return []

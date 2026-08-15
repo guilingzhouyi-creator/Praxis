@@ -45,7 +45,8 @@ Pure L3 service, no L4 imports at module level (mirrors `file_editor.py`):
   (`FORMAT_EXTENSION_TOOL` map in params; e.g. `.py → ruff` with
   `black`/`autopep8` fallback).
 - `format_file(path: str, tool: str = "") -> dict` — run the formatter via
-  `l1.kernel.platform.run_shell(...)` with `TOOL_FORMAT_TIMEOUT`; returns
+  `ProcessPort.run_args(..., options=ProcessOptions(input_text=...))` with
+  `TOOL_FORMAT_TIMEOUT`; returns
   `{"success", "tool", "changed", "detail"}`. Missing formatter → graceful
   `{"success": False, "error": "formatter unavailable"}` (never raises).
 - `format_project(root: str = "", tool: str = "") -> dict` — walk formattable

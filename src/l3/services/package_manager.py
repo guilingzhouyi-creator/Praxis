@@ -7,11 +7,11 @@ Integrates with kernel settings for proxy configuration.
 from __future__ import annotations
 
 import logging
-import subprocess
 import threading
 from dataclasses import dataclass
 from typing import Any
 
+from l1.kernel.params.kernel import PROCESS_ERROR_NOT_FOUND
 from l1.kernel.params.system import LOG_TRUNC_500, LOG_TRUNC_2000
 from l1.kernel.params.tool import (
     TOOL_APT_INSTALL_TIMEOUT,
@@ -55,10 +55,16 @@ class PackageManager(BaseService):
 
     def _run(self, cmd: list[str], timeout: int = TOOL_PACKAGE_MANAGER_TIMEOUT) -> dict:
         """Run a package manager command."""
-        from l1.kernel.platform import run_args
+        from l1.kernel.ports import get_process_port
 
         try:
-            r = run_args(cmd, timeout=timeout)
+            r = get_process_port().run_args(cmd, timeout=timeout)
+            if r.timed_out:
+                return {"success": False, "error": f"command timed out after {timeout}s"}
+            if r.error_kind == PROCESS_ERROR_NOT_FOUND:
+                return {"success": False, "error": f"command not found: {cmd[0]}"}
+            if r.error_kind:
+                return {"success": False, "error": r.stderr.strip() or "command execution failed"}
             with self._lock:
                 self._total_operations += 1
                 if r.returncode != 0:
@@ -69,10 +75,6 @@ class PackageManager(BaseService):
                 "stderr": r.stderr[:LOG_TRUNC_500],
                 "exit_code": r.returncode,
             }
-        except FileNotFoundError:
-            return {"success": False, "error": f"command not found: {cmd[0]}"}
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": f"command timed out after {timeout}s"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

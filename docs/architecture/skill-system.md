@@ -111,6 +111,15 @@ never breaks the mutation).
 Driven by `tick()` (background loop, gated by GateChain identity +
 constitution). Skill-relevant steps:
 
+0. **Evidence candidates**: `MemoryRefinery` and `SkillTraceMixin` submit
+  refined records and tool failures to `r4_candidate_store.py`. The ledger
+  groups evidence by source/type/tags/binding, persists it, and keeps it in
+  `observed` state until the evidence threshold validates it. Publication is
+  explicit: a developer-gated API or L2 command supplies an evolution intent,
+  then R4Agent generates a scoped `canary` skill. Only a canary can be
+  promoted to `active`; retirement also removes the linked skill from the
+  injection pool. This prevents a single refined record from becoming a
+  globally injected skill.
 1. **Failure traces → lean cases**: `tool_pipeline` records failures via
    `track_tool_failure(agent_id, tool, args, error, turn_log, domain, nature)`
    → JSON traces in lean dir → `_process_failure_traces()` creates
@@ -198,11 +207,13 @@ one. `_score_distill_candidate` is a three-signal heuristic verifier:
 
 ## 4. Retrieval & ranking (L3, `skill_retriever.py` + `r4_skill_feedback.py`)
 
-- **`get_evolved_skills(agent_id, cell_id, limit, graph_diffusion, tags)`**:
-  filters agent tag (strict membership), Cell whitelist, card-tag OR-match
-  (`_passes_card_tags`: untagged universal, `card:*`-tagged gated); graph
-  diffusion (BFS along R5 edges) with linear fallback; cached on
-  `revision()`.
+- **`get_evolved_skills(agent_id, cell_id, role, limit, graph_diffusion,
+  tags)`**: filters legacy agent tags, Cell whitelist, card-tag OR-match
+  (`_passes_card_tags`: untagged universal, `card:*`-tagged gated), then
+  lifecycle/binding scope. `draft`, `retired`, and `deprecated` never inject;
+  a `canary` additionally requires a matching explicit Cell/role/Agent/card
+  target and posture. Graph diffusion (BFS along R5 edges) has a linear
+  fallback and the result is cached on `revision()`.
 - **`retrieve_skills(query, ..., tags)`**: tfidf (or embedding backend)
   rank of candidates by description+prompt cosine similarity, min-score
   floor, fallback to loaded-at order. Backends pluggable:
@@ -272,16 +283,21 @@ structured body — rules/procedures and the active atomic unit
 ## 6. Governance surfaces
 
 - **L2 shell `/skills`**: list/lean/get (public); create/update/delete/
-  reload/evolve/permissions/retriever/distill (developer-gated via
+  reload/evolve/permissions/retriever/distill/candidates (developer-gated via
   `--role`). `/skills distill [status|set <field> <on|off>]` toggles the
-  distillation/DPO master + sub switches at runtime.
+  distillation/DPO master + sub switches at runtime. `/skills candidates`
+  lists the ledger; `validate|publish|activate|retire` drive its lifecycle;
+  `policy <on|off>` controls collection.
+  L2 resolves this lifecycle through L1 `CandidateLedgerPort` (`r4_candidates`),
+  registered by L3 boot wiring; it never imports the L3 ledger directly.
 - **L4 API** `/api/v2/skills/*`: list/get/create/update/delete/reload/
-  permissions/retriever/offensive-policy/distill-policy (GET+POST,
-  developer-gated).
+  permissions/retriever/offensive-policy/distill-policy/candidates
+  (GET+POST, developer-gated where mutable).
 - **Config**: `params/` defaults ← `settings_center` L2 ← `praxis.yaml`
   `skill:` section (retriever_backend, evolve_scope, offensive_enabled,
   offensive_natures, distill_enabled, dpo_signal_enabled,
-  distill_sub.{generalize,llm_distill,clustering,sampling}, cell.skills).
+  distill_sub.{generalize,llm_distill,clustering,sampling},
+  candidate_enabled, cell.skills).
 
 ### 6.1 Distillation/DPO master switches (API-controlled)
 

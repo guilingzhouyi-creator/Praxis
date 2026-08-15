@@ -1,4 +1,8 @@
-"""Terminal session management — cross-platform subprocess sessions."""
+"""Python-only terminal session management — cross-platform subprocess sessions.
+
+Interactive ``Popen`` handles remain outside ``ProcessPort`` because their
+live pipes and lifecycle cannot cross the one-shot value-result boundary.
+"""
 
 from __future__ import annotations
 

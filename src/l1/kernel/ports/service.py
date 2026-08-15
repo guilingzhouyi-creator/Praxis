@@ -14,6 +14,15 @@ from l1.kernel.params.api import (
     LLM_DEFAULT_MAX_TOKENS,
     LLM_DEFAULT_TEMPERATURE,
 )
+from l1.kernel.ports.types import (
+    CandidateBinding,
+    CandidateCollectionResult,
+    CandidateRecord,
+    CandidateResult,
+    CandidateSnapshot,
+    CandidateState,
+    CandidateStatus,
+)
 
 # ── I18nPort ──
 
@@ -87,6 +96,45 @@ class MonitorBusPort(ABC):
         self, type_prefix: str = "", severity: str = "", source: str = "", since: float = 0.0, limit: int = 100
     ) -> list[dict]:
         """Query recent monitoring events matching the filters."""
+
+
+# ── R4 Candidate Ledger Port ──
+
+
+class CandidateLedgerPort(ABC):
+    """R4 evidence-candidate lifecycle with a serialized, Rust-friendly contract."""
+
+    @abstractmethod
+    def submit_records(
+        self,
+        records: list[CandidateRecord],
+        source: str = "refined_memory",
+        binding: CandidateBinding | None = None,
+    ) -> CandidateCollectionResult: ...
+
+    @abstractmethod
+    def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]: ...
+
+    @abstractmethod
+    def get_candidate(self, candidate_id: str) -> CandidateSnapshot | None: ...
+
+    @abstractmethod
+    def status(self) -> CandidateStatus: ...
+
+    @abstractmethod
+    def set_enabled(self, enabled: bool) -> CandidateStatus: ...
+
+    @abstractmethod
+    def validate(self, candidate_id: str) -> CandidateResult: ...
+
+    @abstractmethod
+    def publish(self, candidate_id: str, intent: str, scope: str = "") -> CandidateResult: ...
+
+    @abstractmethod
+    def activate(self, candidate_id: str) -> CandidateResult: ...
+
+    @abstractmethod
+    def retire(self, candidate_id: str) -> CandidateResult: ...
 
 
 # ── LLM Port ──

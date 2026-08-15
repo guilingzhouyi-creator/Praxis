@@ -150,9 +150,9 @@ class PythonLanguageBackend(CodeLanguageBackend):
         """Execute a Python program via the interpreter with a hard timeout."""
         import sys
 
-        from l1.kernel.platform import run_shell
+        from l1.kernel.ports import get_process_port
 
-        return run_shell(f"{sys.executable} {program_path}", timeout=timeout)
+        return get_process_port().run(f"{sys.executable} {program_path}", timeout=timeout)
 
 
 def register_language_backend(backend: CodeLanguageBackend) -> bool:

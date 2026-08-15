@@ -57,8 +57,8 @@ as backward-compatible aliases.
        def render_sdk(self, tools): ...   # emit TS bindings (deterministic!)
        def render_usage(self): ...        # TS usage text
        def execute(self, path, timeout):
-           from l1.kernel.platform import run_shell
-           return run_shell(f"node {path}", timeout=timeout)
+           from l1.kernel.ports import get_process_port
+           return get_process_port().run(f"node {path}", timeout=timeout)
    ```
 
 2. **Register** in `tool_presentation.py` at import time (alongside
@@ -74,7 +74,7 @@ as backward-compatible aliases.
    composite backend design.
 
 4. **Execution runtime**: TypeScript execution requires Node on the host
-   (the same constraint as any `run_shell`-based tool). Deterministic SDK
+   (the same constraint as any `ProcessPort`-based tool). Deterministic SDK
    rendering keeps the prompt prefix byte-stable for vendor KV-cache hits.
 
 ## 3. Adding a Rust backend
@@ -88,7 +88,7 @@ roadmap's Rust kernel sink (`l1_kernel_rs`):
    timeout.
 2. **Kernel integration**: when `l1_kernel_rs` ships (per the roadmap's
    scaling-curve gating), the `execute()` path may be delegated to the Rust
-   kernel's process/fs ports instead of `run_shell` — the backend seam
+   kernel's process/fs ports — the backend seam
    isolates this swap; port abstractions keep callers unchanged.
 3. **Constants**: reuse `params/` + `config/praxis.yaml` as the single
    source of truth (no duplicated decision formulas), mirroring the roadmap
@@ -99,7 +99,7 @@ roadmap's Rust kernel sink (`l1_kernel_rs`):
 | Rule | Rationale |
 |---|---|
 | Never compare `language != "python"` in framework code | A new backend must not require touching the rejection logic |
-| `execute()` returns a `run_shell`-like object (`returncode/stdout/stderr`) | Callers (`_run_code.py`) are contract-bound, not interpreter-bound |
+| `execute()` returns `ProcessResult` (`returncode`/`stdout`/`stderr`/`timed_out`/`error_kind`) | Callers (`_run_code.py`) are contract-bound, not interpreter-bound; adapter errors are distinct from child exits |
 | SDK rendering stays deterministic (sorted tools, fixed ordering) | Byte-stable prompt prefix → vendor KV-cache hits |
 | Usage text comes from `backend.render_usage()` (prompt override only as a global fallback) | Language-specific instructions travel with the backend |
 | Cache entries carry `language` from the backend/config default | Future cross-language cache separation keys on this field |

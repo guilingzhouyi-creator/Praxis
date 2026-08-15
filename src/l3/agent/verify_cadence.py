@@ -65,10 +65,10 @@ class VerifyCadence:
         The *cwd* is verified against the project root via resolved path.
         """
         import shlex
-        import subprocess as _sp
         from pathlib import Path
 
         from l1.kernel.discovery import get_tool_config as _get_tc
+        from l1.kernel.ports import ProcessOptions, get_process_port
 
         if timeout is None:
             timeout = int(_get_tc("handler_timeout", 60))
@@ -81,9 +81,13 @@ class VerifyCadence:
             except ValueError:
                 return {"success": False, "exit_code": -1, "evidence": f"cwd '{cwd}' escapes project root"}
         try:
-            r = _sp.run(
-                shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout, cwd=cwd or None
+            r = get_process_port().run_args(
+                shlex.split(command), timeout=timeout, options=ProcessOptions(cwd=cwd or None)
             )
+            if r.timed_out:
+                entry = {"command": command, "exit_code": -1, "passed": False, "evidence": f"timeout ({timeout}s)"}
+                self._evidence.append(entry)
+                return {"success": False, "exit_code": -1, "evidence": f"timeout ({timeout}s)"}
             passed = r.returncode == 0
             evidence = f"exit {r.returncode}"
             if passed:
@@ -99,10 +103,6 @@ class VerifyCadence:
                 "stdout": r.stdout[: self.LOG_TRUNC_500],
                 "stderr": r.stderr[: self.LOG_TRUNC_500],
             }
-        except _sp.TimeoutExpired:
-            entry = {"command": command, "exit_code": -1, "passed": False, "evidence": f"timeout ({timeout}s)"}
-            self._evidence.append(entry)
-            return {"success": False, "exit_code": -1, "evidence": f"timeout ({timeout}s)"}
         except Exception as e:
             entry = {"command": command, "exit_code": -1, "passed": False, "evidence": str(e)}
             self._evidence.append(entry)

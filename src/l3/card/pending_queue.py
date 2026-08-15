@@ -346,4 +346,6 @@ def get_queue() -> PendingQueue:
 def reset_queue() -> None:
     """Reset the PendingQueue singleton to None."""
     global _queue
+    if _queue is not None:
+        _queue._stop_auto_save()
     _queue = None

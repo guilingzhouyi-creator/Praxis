@@ -28,6 +28,13 @@ def _manager():
     return get_skill_manager()
 
 
+def _candidate_ledger():
+    """Resolve the R4 ledger through its swappable kernel port."""
+    from l3.memory.r4_candidate_store import get_candidate_ledger
+
+    return get_candidate_ledger()
+
+
 def _caller(body: dict | None) -> tuple[str, str]:
     """Extract (agent_id, role) from request body, if provided."""
     b = body or {}
@@ -261,6 +268,104 @@ def handle_skills_pipeline_set(body: dict | None = None) -> dict:
         logger.debug("skills: pipeline policy SettingsCenter mirror skipped", exc_info=True)
     policy["authorized"] = who
     return policy
+
+
+def _candidate_policy_update(body: dict | None = None) -> tuple[dict | None, str | None]:
+    """Authorize and apply an R4 candidate collection policy update."""
+    b = body or {}
+    agent_id, role = _caller(b)
+    ok, who = _manager().authorize_write(agent_id, role)
+    if not ok:
+        return None, f"permission denied: {who}"
+    if "enabled" not in b:
+        return None, "enabled is required"
+    enabled = b["enabled"] in (True, "true", 1, "1")
+    policy = _candidate_ledger().set_enabled(enabled)
+    try:
+        from l3.config.settings_center import get_center
+
+        get_center().set_l2("skill.candidate_enabled", enabled)
+    except Exception:
+        logger.debug("skills: candidate policy SettingsCenter mirror skipped", exc_info=True)
+    policy["authorized"] = who
+    return policy, None
+
+
+def handle_skill_candidates_list(body: dict | None = None) -> dict:
+    """GET /api/v2/skills/candidates — list evidence-backed R4 candidates."""
+    b = body or {}
+    state = str(b.get("state") or "")
+    ledger = _candidate_ledger()
+    candidates = ledger.list_candidates(state=state)
+    return {"success": True, "candidates": candidates, "count": len(candidates), "policy": ledger.status()}
+
+
+def handle_skill_candidate_get(body: dict | None = None, candidate_id: str = "") -> dict:
+    """GET /api/v2/skills/candidates/{candidate_id} — candidate detail."""
+    candidate = _candidate_ledger().get_candidate(candidate_id)
+    if candidate is None:
+        return {"success": False, "error": f"candidate not found: {candidate_id}"}
+    return {"success": True, "candidate": candidate}
+
+
+def handle_skill_candidate_validate(body: dict | None = None, candidate_id: str = "") -> dict:
+    """POST /api/v2/skills/candidates/{candidate_id}/validate — validate evidence."""
+    b = body or {}
+    ok, who = _manager().authorize_write(*_caller(b))
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    result = _candidate_ledger().validate(candidate_id)
+    result["authorized"] = who
+    return result
+
+
+def handle_skill_candidate_publish(body: dict | None = None, candidate_id: str = "") -> dict:
+    """POST /api/v2/skills/candidates/{candidate_id}/publish — create a canary skill."""
+    b = body or {}
+    ok, who = _manager().authorize_write(*_caller(b))
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    scope = str(b.get("scope") or "")
+    if scope and scope not in ("project", "global"):
+        return {"success": False, "error": "scope must be project or global"}
+    result = _candidate_ledger().publish(candidate_id, str(b.get("intent") or ""), scope=scope)
+    result["authorized"] = who
+    return result
+
+
+def handle_skill_candidate_activate(body: dict | None = None, candidate_id: str = "") -> dict:
+    """POST /api/v2/skills/candidates/{candidate_id}/activate — promote canary skill."""
+    b = body or {}
+    ok, who = _manager().authorize_write(*_caller(b))
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    result = _candidate_ledger().activate(candidate_id)
+    result["authorized"] = who
+    return result
+
+
+def handle_skill_candidate_retire(body: dict | None = None, candidate_id: str = "") -> dict:
+    """POST /api/v2/skills/candidates/{candidate_id}/retire — retire candidate and skill."""
+    b = body or {}
+    ok, who = _manager().authorize_write(*_caller(b))
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    result = _candidate_ledger().retire(candidate_id)
+    result["authorized"] = who
+    return result
+
+
+def handle_skill_candidates_policy_get(body: dict | None = None) -> dict:
+    """GET /api/v2/skills/candidates/policy — candidate collection policy."""
+    return {"success": True, "policy": _candidate_ledger().status()}
+
+
+def handle_skill_candidates_policy_set(body: dict | None = None) -> dict:
+    """POST /api/v2/skills/candidates/policy — update collection policy."""
+    policy, error = _candidate_policy_update(body)
+    if error:
+        return {"success": False, "error": error}
+    return {"success": True, "policy": policy}
 
 
 def handle_skills_disclosure_get(body: dict | None = None) -> dict:

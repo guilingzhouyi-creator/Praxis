@@ -153,6 +153,56 @@ def _skills_distill(sm, rest: list[str]) -> dict:
     }
 
 
+def _candidate_policy(sm, store, rest: list[str], role: str, agent_id: str) -> dict:
+    """Read or update candidate generation policy."""
+    if len(rest) == 2:
+        return {"success": True, "policy": store.status()}
+    value = rest[2] if len(rest) > 2 else ""
+    valid = ("on", "off", "true", "false", "1", "0")
+    if value not in valid:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_candidates_policy")}
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    return store.set_enabled(value in ("on", "true", "1"))
+
+
+def _candidate_transition(sm, store, action: str, rest: list[str], role: str, agent_id: str) -> dict:
+    """Apply a lifecycle transition after checking the write gate."""
+    candidate_id = rest[2] if len(rest) > 2 else ""
+    valid_actions = ("validate", "publish", "activate", "retire")
+    if action not in valid_actions or not candidate_id:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_candidates")}
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    transitions = {
+        "validate": lambda: store.validate(candidate_id),
+        "publish": lambda: store.publish(candidate_id, " ".join(rest[3:])),
+        "activate": lambda: store.activate(candidate_id),
+        "retire": lambda: store.retire(candidate_id),
+    }
+    return transitions[action]()
+
+
+def _skills_candidates(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Control the evidence-backed R4 candidate lifecycle through its L1 port."""
+    from l1.kernel.ports import get_port
+
+    try:
+        store = get_port("r4_candidates")
+    except KeyError:
+        return {"success": False, "error": _t("shell.app_error.r4_candidate_ledger_unavailable")}
+    action = rest[1] if len(rest) > 1 else "list"
+    if action in ("list", "ls"):
+        state = rest[2] if len(rest) > 2 else ""
+        candidates = store.list_candidates(state=state)
+        return {"success": True, "candidates": candidates, "count": len(candidates), "policy": store.status()}
+    if action == "policy":
+        return _candidate_policy(sm, store, rest, role, agent_id)
+    return _candidate_transition(sm, store, action, rest, role, agent_id)
+
+
 def _skills_retriever(sm, rest: list[str]) -> dict:
     """Skill retriever backend control (tfidf | embedding)."""
     action = rest[1] if len(rest) > 1 else "status"
@@ -324,6 +374,8 @@ _SKILL_HANDLERS: dict[str, Callable[..., dict]] = {
     "get": lambda sm, rest, role, agent_id: _skills_get(sm, rest),
     "permissions": lambda sm, rest, role, agent_id: _skills_permissions(sm, rest),
     "distill": lambda sm, rest, role, agent_id: _skills_distill(sm, rest),
+    "candidate": _skills_candidates,
+    "candidates": _skills_candidates,
     "retriever": lambda sm, rest, role, agent_id: _skills_retriever(sm, rest),
     "pipeline": lambda sm, rest, role, agent_id: _skills_pipeline(sm, rest),
     "disclosure": lambda sm, rest, role, agent_id: _skills_disclosure(sm, rest),

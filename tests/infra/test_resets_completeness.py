@@ -46,7 +46,6 @@ KNOWN_GAPS = frozenset(
         "l1.kernel.model_registry",
         "l1.kernel.net",
         "l1.kernel.os",
-        "l1.kernel.paths",
         "l1.kernel.process",
         "l1.kernel.registry",
         "l1.kernel.resource",
