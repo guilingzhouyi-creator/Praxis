@@ -6,7 +6,7 @@ docs/architecture/README.md (navigation + generated numbers + design principles)
 ## Index
 
 - [README.md](README.md): Layer reference index: navigation, numbers snapshot, system overview diagram, reading paths, main data flows, design principles
-- [l1-kernel.md](l1-kernel.md): Kernel: process table, sync, event bus, constitution, GateChain G1-G5, port abstractions, 1,233 params constants across 8 modules
+- [l1-kernel.md](l1-kernel.md): Kernel: process table, sync, event bus, constitution, GateChain G1-G5, port abstractions, 1,239 params constants across 8 modules
 - [l2-shell.md](l2-shell.md): Shell: 48 YAML commands + 12 code-registered, i18n, completer, agent selector, dict-in/dict-out handler contract
 - [l3-card-lifecycle.md](l3-card-lifecycle.md): Card lifecycle: produce (L3A cardwrite) -> execute (plan/agents/tools) -> approve (GateChain/approval gate) -> complete -> R4 archive, with state diagram
 - [l3-memory.md](l3-memory.md): Memory: 4 rings + side-channels (Mer symbolization, R5 graph, user profile) + system-prompt injection, with Mer pipeline diagram
