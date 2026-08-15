@@ -86,57 +86,80 @@ class StagnationDetector:
 
             state["last_check"] = time.time()
 
-            # 1. SPINNING — same hash repeated
-            if len(history) >= STAGNATION_SPIN_THRESHOLD:
-                last_n = history[-STAGNATION_SPIN_THRESHOLD:]
-                if len(set(last_n)) == 1:
-                    self._total_stagnations += 1
-                    self._fire(agent_id, "SPINNING", f"same output repeated {STAGNATION_SPIN_THRESHOLD}x: {last_n[0]}")
-                    return {
-                        "stagnant": True,
-                        "pattern": "SPINNING",
-                        "hash": last_n[0],
-                        "count": STAGNATION_SPIN_THRESHOLD,
-                    }
-
-            # 2. OSCILLATION — A→B→A→B pattern
-            if len(history) >= 4:
-                last_4 = history[-4:]
-                if last_4[0] == last_4[2] and last_4[1] == last_4[3] and last_4[0] != last_4[1]:
-                    self._total_stagnations += 1
-                    self._fire(
-                        agent_id,
-                        "OSCILLATION",
-                        f"A→B→A→B pattern: {last_4[0][:HASH_TRUNC_SHORT]}↔{last_4[1][:HASH_TRUNC_SHORT]}",
-                    )
-                    return {"stagnant": True, "pattern": "OSCILLATION", "hash_a": last_4[0], "hash_b": last_4[1]}
-
-            # 3. NO_DRIFT — progress flat
-            if len(progress) >= 3:
-                recent = progress[-3:]
-                if max(recent) - min(recent) < STAGNATION_NO_DRIFT_EPSILON:
-                    self._total_stagnations += 1
-                    self._fire(agent_id, "NO_DRIFT", f"progress flat: {recent}")
-                    return {"stagnant": True, "pattern": "NO_DRIFT", "recent_progress": recent}
-
-            # 4. DIMINISHING_RETURNS — each step makes less progress
-            if len(progress) >= 4:
-                deltas = [progress[i + 1] - progress[i] for i in range(len(progress) - 1)]
-                recent_deltas = deltas[-3:]
-                if all(d < STAGNATION_DIMINISHING_RATE for d in recent_deltas) and all(d >= 0 for d in recent_deltas):
-                    self._total_stagnations += 1
-                    self._fire(
-                        agent_id, "DIMINISHING_RETURNS", f"progress deltas: {[round(d, 3) for d in recent_deltas]}"
-                    )
-                    return {"stagnant": True, "pattern": "DIMINISHING_RETURNS", "deltas": recent_deltas}
-
-            # 5. MAX_ITERATIONS hard cap
-            if len(history) >= STAGNATION_MAX_ITERATIONS:
-                self._total_stagnations += 1
-                self._fire(agent_id, "MAX_ITERATIONS", f"hit hard cap of {STAGNATION_MAX_ITERATIONS}")
-                return {"stagnant": True, "pattern": "MAX_ITERATIONS", "iterations": len(history)}
+            for detector in (
+                self._check_spinning,
+                self._check_oscillation,
+                self._check_no_drift,
+                self._check_diminishing_returns,
+                self._check_max_iterations,
+            ):
+                hit = detector(agent_id, history, progress)
+                if hit is not None:
+                    return hit
 
             return {"stagnant": False}
+
+    def _check_spinning(self, agent_id: str, history: list[str], progress: list[float]) -> dict | None:
+        """Detect the SPINNING pattern — same output repeated; None when absent."""
+        if len(history) < STAGNATION_SPIN_THRESHOLD:
+            return None
+        last_n = history[-STAGNATION_SPIN_THRESHOLD:]
+        if len(set(last_n)) == 1:
+            self._total_stagnations += 1
+            self._fire(agent_id, "SPINNING", f"same output repeated {STAGNATION_SPIN_THRESHOLD}x: {last_n[0]}")
+            return {
+                "stagnant": True,
+                "pattern": "SPINNING",
+                "hash": last_n[0],
+                "count": STAGNATION_SPIN_THRESHOLD,
+            }
+        return None
+
+    def _check_oscillation(self, agent_id: str, history: list[str], progress: list[float]) -> dict | None:
+        """Detect the OSCILLATION pattern — A→B→A→B; None when absent."""
+        if len(history) < 4:
+            return None
+        last_4 = history[-4:]
+        if last_4[0] == last_4[2] and last_4[1] == last_4[3] and last_4[0] != last_4[1]:
+            self._total_stagnations += 1
+            self._fire(
+                agent_id,
+                "OSCILLATION",
+                f"A→B→A→B pattern: {last_4[0][:HASH_TRUNC_SHORT]}↔{last_4[1][:HASH_TRUNC_SHORT]}",
+            )
+            return {"stagnant": True, "pattern": "OSCILLATION", "hash_a": last_4[0], "hash_b": last_4[1]}
+        return None
+
+    def _check_no_drift(self, agent_id: str, history: list[str], progress: list[float]) -> dict | None:
+        """Detect the NO_DRIFT pattern — progress flat; None when absent."""
+        if len(progress) < 3:
+            return None
+        recent = progress[-3:]
+        if max(recent) - min(recent) < STAGNATION_NO_DRIFT_EPSILON:
+            self._total_stagnations += 1
+            self._fire(agent_id, "NO_DRIFT", f"progress flat: {recent}")
+            return {"stagnant": True, "pattern": "NO_DRIFT", "recent_progress": recent}
+        return None
+
+    def _check_diminishing_returns(self, agent_id: str, history: list[str], progress: list[float]) -> dict | None:
+        """Detect the DIMINISHING_RETURNS pattern — decreasing progress deltas; None when absent."""
+        if len(progress) < 4:
+            return None
+        deltas = [progress[i + 1] - progress[i] for i in range(len(progress) - 1)]
+        recent_deltas = deltas[-3:]
+        if all(d < STAGNATION_DIMINISHING_RATE for d in recent_deltas) and all(d >= 0 for d in recent_deltas):
+            self._total_stagnations += 1
+            self._fire(agent_id, "DIMINISHING_RETURNS", f"progress deltas: {[round(d, 3) for d in recent_deltas]}")
+            return {"stagnant": True, "pattern": "DIMINISHING_RETURNS", "deltas": recent_deltas}
+        return None
+
+    def _check_max_iterations(self, agent_id: str, history: list[str], progress: list[float]) -> dict | None:
+        """Detect the MAX_ITERATIONS hard cap; None when under the cap."""
+        if len(history) < STAGNATION_MAX_ITERATIONS:
+            return None
+        self._total_stagnations += 1
+        self._fire(agent_id, "MAX_ITERATIONS", f"hit hard cap of {STAGNATION_MAX_ITERATIONS}")
+        return {"stagnant": True, "pattern": "MAX_ITERATIONS", "iterations": len(history)}
 
     def _fire(self, agent_id: str, pattern: str, reason: str) -> None:
         """Fire stagnation interrupt and log."""

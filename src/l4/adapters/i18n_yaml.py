@@ -86,6 +86,7 @@ class YamlI18nAdapter(I18nPort):
             self._ensure_loaded(locale)
 
     def get_locale(self) -> str:
+        """Return the active locale code."""
         return self._locale
 
     def get_available(self) -> list[str]:

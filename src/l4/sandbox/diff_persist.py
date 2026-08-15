@@ -75,6 +75,7 @@ class DiffPersistStore:
         return {"success": True, "enabled": self._enabled}
 
     def enabled(self) -> bool:
+        """Whether the diff ring is currently enabled."""
         return self._enabled
 
     # ── Append / flush ──

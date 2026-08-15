@@ -111,6 +111,7 @@ class DvgGraph:
             temp: set[str] = set()
 
             def visit(node: str) -> bool:
+                """DFS visit for topological sort; False marks a cycle."""
                 if node in visited:
                     return True
                 if node in temp:

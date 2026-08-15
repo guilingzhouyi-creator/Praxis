@@ -450,32 +450,40 @@ def configure_paths(
 
 
 def data_dir() -> str:
+    """Backward-compatible accessor: the runtime data directory."""
     return get_paths().data_dir
 
 
 def config_dir() -> str:
+    """Backward-compatible accessor: the runtime config directory."""
     return get_paths().config_dir
 
 
 def skill_evolved_dir() -> str:
+    """Backward-compatible accessor: the global evolved-skills directory."""
     return get_paths().skill_evolved_dir
 
 
 def skill_project_evolved_dir() -> str:
+    """Backward-compatible accessor: the project-scope evolved-skills directory."""
     return get_paths().skill_project_evolved_dir
 
 
 def skill_lean_dir() -> str:
+    """Backward-compatible accessor: the lean-case skills directory."""
     return get_paths().skill_lean_dir
 
 
 def memories_dir() -> str:
+    """Backward-compatible accessor: the runtime memories directory."""
     return get_paths().memories_dir
 
 
 def events_db() -> str:
+    """Backward-compatible accessor: the events database path."""
     return get_paths().events_db
 
 
 def monitor_bus_log() -> str:
+    """Backward-compatible accessor: the monitor-bus log path."""
     return get_paths().monitor_bus_log

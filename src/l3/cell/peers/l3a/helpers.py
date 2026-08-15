@@ -246,6 +246,14 @@ def get_convergence_queue(cell_id: str) -> list[dict]:
         return []
 
 
+def _anchor_result(content: str, issue_id: str, anchor: str) -> dict | None:
+    """Resolve an anchor navigation read; None when the anchor is missing."""
+    block = _extract_block(content, anchor)
+    if block is None:
+        return {"success": False, "error": f"anchor not found: {anchor}", "valid_anchors": _list_anchors(content)}
+    return {"success": True, "issue_id": issue_id, "anchor": anchor, "content": block, "size": len(block)}
+
+
 def l3a_convention_handler(args: dict, agent_id: str = "") -> dict:
     """Read a converged convention document on demand.
 
@@ -277,10 +285,9 @@ def l3a_convention_handler(args: dict, agent_id: str = "") -> dict:
         return {"success": True, "issue_id": issue_id, "action": "index", "index": _build_index(content)}
 
     if anchor:
-        block = _extract_block(content, anchor)
-        if block is None:
-            return {"success": False, "error": f"anchor not found: {anchor}", "valid_anchors": _list_anchors(content)}
-        return {"success": True, "issue_id": issue_id, "anchor": anchor, "content": block, "size": len(block)}
+        result = _anchor_result(content, issue_id, anchor)
+        if result is not None:
+            return result
 
     if agent_filter:
         block = _extract_agent_lines(content, agent_filter)

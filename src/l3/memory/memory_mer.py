@@ -51,6 +51,7 @@ class MerTransformer:
 
     @property
     def enabled(self) -> bool:
+        """Whether the Mer transformer is enabled."""
         return self._enabled
 
     def set_enabled(self, flag: bool) -> None:

@@ -59,52 +59,80 @@ class TransportPort(ABC):
     name: str = "abstract.transport"
 
     @abstractmethod
-    def start(self, node_id: str, config: Any) -> Result: ...
+    def start(self, node_id: str, config: Any) -> Result:
+        """Start the transport bound to *node_id* with the given config."""
+
     @abstractmethod
-    def stop(self) -> Result: ...
+    def stop(self) -> Result:
+        """Stop the transport and release its resources."""
+
     @abstractmethod
-    def send(self, target: Any, data: bytes) -> Result: ...
+    def send(self, target: Any, data: bytes) -> Result:
+        """Send raw *data* bytes to the remote *target* endpoint."""
+
     @abstractmethod
-    def register_handler(self, msg_type: str, handler: Callable) -> None: ...
+    def register_handler(self, msg_type: str, handler: Callable) -> None:
+        """Register a callback for incoming messages of *msg_type*."""
 
 
 class ChannelPort(ABC):
     """Message channel — decouples producer from consumer, with backpressure."""
 
     @abstractmethod
-    def put(self, item: Any, timeout: float | None = None) -> bool: ...
+    def put(self, item: Any, timeout: float | None = None) -> bool:
+        """Enqueue *item*; return False when the timeout expires or channel closes."""
+
     @abstractmethod
-    def get(self, timeout: float | None = None) -> Any | None: ...
+    def get(self, timeout: float | None = None) -> Any | None:
+        """Dequeue the next item; return None on timeout or when closed."""
+
     @abstractmethod
-    def size(self) -> int: ...
+    def size(self) -> int:
+        """Number of items currently queued."""
+
     @abstractmethod
-    def capacity(self) -> int: ...
+    def capacity(self) -> int:
+        """Maximum number of items the channel can hold."""
+
     @abstractmethod
-    def close(self) -> None: ...
+    def close(self) -> None:
+        """Close the channel; blocked producers/consumers unblock."""
 
 
 class EventBusPort(ABC):
     """Publish/subscribe event bus — decouples event producers from consumers."""
 
     @abstractmethod
-    def emit(self, event: Event) -> None: ...
+    def emit(self, event: Event) -> None:
+        """Publish *event* to all matching subscribers."""
+
     @abstractmethod
-    def subscribe(self, handler: Callable | None = None, pattern: str | None = None) -> str: ...
+    def subscribe(self, handler: Callable | None = None, pattern: str | None = None) -> str:
+        """Subscribe *handler* (optionally filtered by *pattern*); return a sub id."""
+
     @abstractmethod
-    def unsubscribe(self, sub_id: str) -> bool: ...
+    def unsubscribe(self, sub_id: str) -> bool:
+        """Remove a subscription by id; return whether it existed."""
+
     @abstractmethod
-    def stats(self) -> dict: ...
+    def stats(self) -> dict:
+        """Return bus statistics (subscriber count, emitted events)."""
 
 
 class WorkerPort(ABC):
     """Abstract concurrency executor — decouples task submission from execution."""
 
     @abstractmethod
-    def submit(self, fn: Callable, *args: Any, **kwargs: Any) -> Result: ...
+    def submit(self, fn: Callable, *args: Any, **kwargs: Any) -> Result:
+        """Schedule *fn* for execution; return a Result (fire-and-forget)."""
+
     @abstractmethod
-    def shutdown(self, wait: bool = True, timeout: float | None = None) -> Result: ...
+    def shutdown(self, wait: bool = True, timeout: float | None = None) -> Result:
+        """Stop accepting work and drain/stop workers; return a Result."""
+
     @abstractmethod
-    def stats(self) -> dict: ...
+    def stats(self) -> dict:
+        """Return worker-pool statistics (pending, running, completed)."""
 
     def submit_result(self, fn: Callable, *args: Any, **kwargs: Any) -> TaskHandle:
         """Submit a task and return a TaskHandle for its result/exception.

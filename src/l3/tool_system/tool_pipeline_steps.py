@@ -106,10 +106,87 @@ class PipelineStepsMixin:
         # 1. Validate tool exists
         if not _registry and not _executor:
             return {"success": False, "error": _l2_t("core.pipeline_not_initialized")}
+        pre_approved, head_error = self._run_preflight_head(
+            agent_id=agent_id,
+            tool_ring_str=tool_ring_str,
+            tool_name=tool_name,
+            args=args,
+            _skip=_skip,
+            result=result,
+        )
+        if head_error is not None:
+            return head_error
+        return self._run_preflight_tail(
+            agent_id=agent_id,
+            tool_ring_str=tool_ring_str,
+            token_budget=token_budget,
+            result=result,
+            _skip=_skip,
+            tool_name=tool_name,
+            args=args,
+            spec=spec,
+            pre_approved=pre_approved,
+            domain=domain,
+            call_id=call_id,
+            _start=_start,
+        )
 
-        # 1b. DVG dependency availability (B2): refuse dispatch when a
-        # prerequisite tool declared in config/discovery/dvg.yaml is not
-        # registered. Non-fatal when the DVG is empty/disabled.
+    def _run_preflight_head(
+        self,
+        *,
+        agent_id: str,
+        tool_ring_str: str,
+        tool_name: str,
+        args: dict,
+        _skip: set[str],
+        result: dict,
+    ) -> tuple[bool, dict | None]:
+        """Run the pre-approval gates (DVG, clearance, scout, approval)."""
+        dvg_error = self._check_dvg(tool_name)
+        if dvg_error is not None:
+            return False, dvg_error
+        clearance_error = self._check_clearance(agent_id, tool_ring_str)
+        if clearance_error is not None:
+            return False, clearance_error
+        pre_approved, approval_error = self._check_approval(tool_name, agent_id, args, _skip, result)
+        if approval_error is not None:
+            return False, approval_error
+        return pre_approved, None
+
+    def _run_preflight_tail(
+        self,
+        *,
+        agent_id: str,
+        tool_ring_str: str,
+        token_budget: int,
+        result: dict,
+        _skip: set[str],
+        tool_name: str,
+        args: dict,
+        spec: _ToolSpec | None,
+        pre_approved: bool,
+        domain: str,
+        call_id: str,
+        _start: float,
+    ) -> dict | None:
+        """Run the post-approval gates (rate, constitution, gatechain, sandbox)."""
+        rate_error = self._check_rate_limit(agent_id, tool_ring_str, token_budget, result, _skip)
+        if rate_error is not None:
+            return rate_error
+        fpath = (args or {}).get("path", "")
+        territory_str = (args or {}).get("territory", "")
+        constitution_error = self._check_constitution(tool_name, agent_id, fpath or tool_name, territory_str, result)
+        if constitution_error is not None:
+            return constitution_error
+        gatechain_error = self._check_gatechain(
+            tool_name, agent_id, args, result, fpath, territory_str, pre_approved, domain, call_id
+        )
+        if gatechain_error is not None:
+            return gatechain_error
+        return self._run_sandbox_gate(tool_name, agent_id, args, result, spec, token_budget, call_id, _start)
+
+    def _check_dvg(self, tool_name: str) -> dict | None:
+        """Check DVG dependency availability; None when dispatch may proceed."""
         try:
             from l3.tool_system.dvg import get_dvg
 
@@ -117,16 +194,20 @@ class PipelineStepsMixin:
                 return {"success": False, "error": f"tool '{tool_name}' has unregistered prerequisites (DVG)"}
         except Exception as e:
             logger.debug("tool_pipeline: dvg check skipped: %s", e)
+        return None
 
-        # 2. Clearance
+    def _check_clearance(self, agent_id: str, tool_ring_str: str) -> dict | None:
+        """Check ring clearance and scout restriction; None when allowed."""
         if not _facade().agent_can_access(agent_id, tool_ring_str):
             return {"success": False, "error": _l2_t("core.pipeline_no_clearance", ring=tool_ring_str)}
-
-        # 3. Scout restriction (single source: kernel.params.SCOUT_*)
         if agent_id == SCOUT_AGENT_NAME and tool_ring_str != SCOUT_RING_LIMIT:
             return {"success": False, "error": _l2_t("core.pipeline_scout_ring1")}
+        return None
 
-        # 3b. ToolPolicy approval check (skipped in semi/minimal harness modes)
+    def _check_approval(
+        self, tool_name: str, agent_id: str, args: dict, _skip: set[str], result: dict
+    ) -> tuple[bool, dict | None]:
+        """Run the ToolPolicy approval gate; returns (pre_approved, blocking_result)."""
         pre_approved = False
         if "approval" not in _skip:
             try:
@@ -137,7 +218,7 @@ class PipelineStepsMixin:
                     result["steps"].append({"phase": "approval", "request_id": ar.id, "status": "pending"})
                     status = ar.wait(timeout=get_config("persistence", {}).get("approval_wait_timeout", 300))
                     if status != "approved":
-                        return {
+                        return False, {
                             "success": False,
                             "error": f"approval {status}",
                             "approval_id": ar.id,
@@ -147,8 +228,12 @@ class PipelineStepsMixin:
                     pre_approved = True
             except Exception as e:
                 logger.warning("approval check failed: %s", e)
+        return pre_approved, None
 
-        # 4. Rate limit (Ring 3 slowest, Ring 1 fastest) — skipped in minimal
+    def _check_rate_limit(
+        self, agent_id: str, tool_ring_str: str, token_budget: int, result: dict, _skip: set[str]
+    ) -> dict | None:
+        """Check Ring-scaled rate limits; None when the call may proceed."""
         if "rate" not in _skip:
             rr = self._rate_scheduler.check(agent_id, tool_ring_str)
             result["steps"].append({"phase": "rate", **rr})
@@ -160,16 +245,31 @@ class PipelineStepsMixin:
                     "rate": rr,
                     "steps": result["steps"],
                 }
+        return None
 
-        # 5. Constitution (pass file path as target for territory enforcement)
-        fpath = (args or {}).get("path", "")
-        territory_str = (args or {}).get("territory", "")
-        cc = self.constitution.is_allowed(tool_name, agent_id, target=fpath or tool_name, territory=territory_str)
+    def _check_constitution(
+        self, tool_name: str, agent_id: str, target: str, territory: str, result: dict
+    ) -> dict | None:
+        """Check constitution territory enforcement; None when allowed."""
+        cc = self.constitution.is_allowed(tool_name, agent_id, target=target, territory=territory)
         result["steps"].append({"phase": "constitution", **cc})
         if not cc["allowed"]:
             return {"success": False, "error": _l2_t("core.pipeline_constitution_blocked"), "steps": result["steps"]}
+        return None
 
-        # 5b. GateChain G1-G5 (with ApprovalPolicy danger override)
+    def _check_gatechain(
+        self,
+        tool_name: str,
+        agent_id: str,
+        args: dict,
+        result: dict,
+        fpath: str,
+        territory_str: str,
+        pre_approved: bool,
+        domain: str,
+        call_id: str,
+    ) -> dict | None:
+        """Run the GateChain G1-G5 checks (with ApprovalPolicy danger override)."""
         try:
             # Resolve per-cell/per-agent danger level (agent_id format: cell-role or cell.agent)
             try:
@@ -227,8 +327,20 @@ class PipelineStepsMixin:
             logger.error("gatechain check failed, blocking: %s", e)
             result["steps"].append({"phase": "gatechain", "decision": "BLOCK", "error": str(e)})
             return {"success": False, "error": f"gatechain unavailable: {e}", "steps": result["steps"]}
+        return None
 
-        # 5c. Sandbox gate (for terminal/process tools with sandbox_profile)
+    def _run_sandbox_gate(
+        self,
+        tool_name: str,
+        agent_id: str,
+        args: dict,
+        result: dict,
+        spec: _ToolSpec | None,
+        token_budget: int,
+        call_id: str,
+        _start: float,
+    ) -> dict | None:
+        """Run the sandbox gate for sandbox-profiled tools; None when no gate applies."""
         try:
             _sb_profile = spec.sandbox_profile if spec else None
             if _sb_profile:

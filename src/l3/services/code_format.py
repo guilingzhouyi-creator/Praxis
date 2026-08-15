@@ -65,6 +65,31 @@ def _read_text(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def _run_format(full: str, det: tuple[str, ...], content: str) -> dict:
+    """Run the formatter subprocess (stdin → stdout) and return the result dict."""
+    from l1.kernel.platform import run_args
+
+    try:
+        r = run_args(list(det) + ["-"], timeout=TOOL_FORMAT_TIMEOUT, input=content)
+    except Exception as e:
+        logger.debug("code_format: %s failed: %s", det[0], e)
+        return {"success": False, "error": f"format failed: {e}", "path": full}
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "").strip() or f"{det[0]} exited {r.returncode}"
+        return {"success": False, "error": err[:LOG_TRUNC_200], "path": full}
+
+    formatted = (r.stdout or "").rstrip("\n") + "\n" if r.stdout else content
+    changed = formatted != content
+    if changed:
+        try:
+            from l3.resource_buffer.manager import get_manager
+
+            get_manager().stage(full, formatted, op="format")
+        except Exception as e:
+            logger.debug("code_format: buffer stage failed: %s", e)
+    return {"success": True, "tool": det[0], "changed": changed, "path": full}
+
+
 def format_file(path: str, tool: str = "") -> dict:
     """Format a single file with the configured formatter.
 
@@ -95,27 +120,7 @@ def format_file(path: str, tool: str = "") -> dict:
     except (OSError, UnicodeDecodeError) as e:
         return {"success": False, "error": f"read failed: {e}", "path": full}
 
-    from l1.kernel.platform import run_args
-
-    try:
-        r = run_args(list(det) + ["-"], timeout=TOOL_FORMAT_TIMEOUT, input=content)
-    except Exception as e:
-        logger.debug("code_format: %s failed: %s", det[0], e)
-        return {"success": False, "error": f"format failed: {e}", "path": full}
-    if r.returncode != 0:
-        err = (r.stderr or r.stdout or "").strip() or f"{det[0]} exited {r.returncode}"
-        return {"success": False, "error": err[:LOG_TRUNC_200], "path": full}
-
-    formatted = (r.stdout or "").rstrip("\n") + "\n" if r.stdout else content
-    changed = formatted != content
-    if changed:
-        try:
-            from l3.resource_buffer.manager import get_manager
-
-            get_manager().stage(full, formatted, op="format")
-        except Exception as e:
-            logger.debug("code_format: buffer stage failed: %s", e)
-    return {"success": True, "tool": det[0], "changed": changed, "path": full}
+    return _run_format(full, det, content)
 
 
 def format_project(root: str = "", tool: str = "") -> dict:

@@ -115,6 +115,16 @@ COMM_CONSTRAINTS: dict[str, bool] = {
     "agent_to_human": False,  # forbidden, must go through L3
 }
 
+# Role-pair → constraint label (§2.3); the agent↔agent pair is resolved
+# dynamically via cell membership (intra vs cross) in ``_resolve_constraint``.
+_ROLE_CONSTRAINTS: dict[tuple[str, str], str] = {
+    ("l3", "agent"): "l3_to_agent",
+    ("agent", "l3"): "agent_to_l3",
+    ("agent", "scout"): "agent_to_scout",
+    ("scout", "agent"): "scout_to_agent",
+    ("scout", "scout"): "scout_to_scout",
+}
+
 
 class IpcBus(BaseService):
     """L3 Message Bus — central IPC routing (§2.1).
@@ -249,25 +259,16 @@ class IpcBus(BaseService):
         return ""
 
     def _resolve_constraint(self, sender: str, receiver: str) -> str:
+        """Resolve the routing constraint label for a sender/receiver pair."""
         if not sender or not receiver:
             return "unknown"
         sp = self._role_prefix(sender)
         rp = self._role_prefix(receiver)
-        if sp == "l3" and rp == "agent":
-            return "l3_to_agent"
-        if sp == "agent" and rp == "l3":
-            return "agent_to_l3"
         if sp == "agent" and rp == "agent":
             if self._same_cell(sender, receiver):
                 return "agent_to_agent_intra"
             return "agent_to_agent_cross"
-        if sp == "agent" and rp == "scout":
-            return "agent_to_scout"
-        if sp == "scout" and rp == "agent":
-            return "scout_to_agent"
-        if sp == "scout" and rp == "scout":
-            return "scout_to_scout"
-        return "unknown"
+        return _ROLE_CONSTRAINTS.get((sp, rp), "unknown")
 
     def _same_cell(self, a: str, b: str) -> bool:
         with self._lock:

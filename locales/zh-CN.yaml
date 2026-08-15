@@ -94,6 +94,8 @@ shell:
     usage_skills_create: "用法: /skills create <name> <desc> <prompt> [--role <role>]"
     usage_skills_update: "用法: /skills update <name> <field> <value> [--role <role>]"
     usage_skills_delete: "用法: /skills delete <name> [--role <role>]"
+    usage_session_reload: "用法: /session reload <agent_id> [reason=...]"
+    usage_session_resume: "用法: /session resume <session_id> [page=N]"
     usage_skills_pipeline_invalid_number: "无效的数字值"
     usage_settings: "用法: /settings [global|cell <id>|agent <id>|pool scout|pool subagent]"
     usage_settings_pool: "用法: /settings pool [scout|subagent] [cell_id]"

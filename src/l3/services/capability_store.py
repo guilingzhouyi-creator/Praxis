@@ -249,23 +249,21 @@ class CapabilityStore(PersistableMixin):
         constraints: dict[str, Any] | None,
         uses_remaining: int,
     ) -> bool:
-        if effect not in EFFECTS:
-            return False
-        if not issuer or not subject or not resource:
-            return False
-        if not resource.startswith((RESOURCE_PATH, RESOURCE_TOOL)):
-            return False
-        if resource in (RESOURCE_PATH, RESOURCE_TOOL):
-            return False  # bare typed-global wildcards rejected
-        if "*" in resource:
-            return False  # no wildcard authority anywhere in the resource
-        if set(rights) - set(_RIGHTS_PUBLIC):
-            return False
-        if uses_remaining < -1:
-            return False
-        if constraints is not None and set(constraints) - _KNOWN_CONSTRAINTS:
-            return False
-        return not (subject in ("*", "") or issuer in ("*", ""))
+        invalid = (
+            effect not in EFFECTS
+            or not issuer
+            or not subject
+            or not resource
+            or not resource.startswith((RESOURCE_PATH, RESOURCE_TOOL))
+            or resource in (RESOURCE_PATH, RESOURCE_TOOL)  # bare typed-global wildcards rejected
+            or "*" in resource  # no wildcard authority anywhere in the resource
+            or set(rights) - set(_RIGHTS_PUBLIC)
+            or uses_remaining < -1
+            or (constraints is not None and set(constraints) - _KNOWN_CONSTRAINTS)
+            or subject in ("*", "")
+            or issuer in ("*", "")
+        )
+        return not invalid
 
 
 def _resource_covers(grant_resource: str, asked_resource: str) -> bool:

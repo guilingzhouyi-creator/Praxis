@@ -112,6 +112,7 @@ class MemoryGraph(SemanticExtractionMixin):
 
     @property
     def enabled(self) -> bool:
+        """Whether the R5 memory graph is enabled."""
         return self._enabled
 
     def set_enabled(self, flag: bool) -> None:
@@ -126,6 +127,7 @@ class MemoryGraph(SemanticExtractionMixin):
 
     @property
     def edge_mode(self) -> str:
+        """The current semantic-extraction edge mode."""
         return self._edge_mode
 
     def set_edge_mode(self, mode: str) -> dict:
@@ -436,17 +438,9 @@ class MemoryGraph(SemanticExtractionMixin):
 
         Returns: {"success": True, "edge_id": ...} or error dict.
         """
-        if self._conn is None:
-            return {"success": False, "error": "no connection"}
-        if not self._enabled:
-            return {"success": False, "error": "graph disabled"}
-        rel = relation.strip().lower()
-        if rel not in _SEMANTIC_RELATIONS:
-            return {"success": False, "error": f"relation must be one of {sorted(_SEMANTIC_RELATIONS)}"}
-        if not from_id or not to_id or from_id == to_id:
-            return {"success": False, "error": "from_id/to_id required and distinct"}
-        if self._edge_exists(from_id, to_id, rel):
-            return {"success": False, "error": "edge already exists"}
+        rel, error = self._resolve_semantic_edge(from_id, to_id, relation)
+        if error:
+            return error
         try:
             eid = self._insert_edge(from_id, to_id, rel, float(weight), created_by, time.time())
             if not eid:
@@ -463,6 +457,21 @@ class MemoryGraph(SemanticExtractionMixin):
             return {"success": True, "edge_id": eid, "relation": rel}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def _resolve_semantic_edge(self, from_id: str, to_id: str, relation: str):
+        """Validate a semantic edge; returns (relation, None) when valid, else (None, error_dict)."""
+        if self._conn is None:
+            return None, {"success": False, "error": "no connection"}
+        if not self._enabled:
+            return None, {"success": False, "error": "graph disabled"}
+        rel = relation.strip().lower()
+        if rel not in _SEMANTIC_RELATIONS:
+            return None, {"success": False, "error": f"relation must be one of {sorted(_SEMANTIC_RELATIONS)}"}
+        if not from_id or not to_id or from_id == to_id:
+            return None, {"success": False, "error": "from_id/to_id required and distinct"}
+        if self._edge_exists(from_id, to_id, rel):
+            return None, {"success": False, "error": "edge already exists"}
+        return rel, None
 
     def semantic_edges(self, limit: int = 50) -> list[dict]:
         """List semantic edges only (contradicts/depends_on/refines)."""

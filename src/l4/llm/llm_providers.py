@@ -100,6 +100,7 @@ class OpenAIProvider(_ProviderHelperMixin):
 
     @property
     def capabilities(self) -> set[str]:
+        """The set of optional capabilities this provider supports."""
         return {"max_tokens", "temperature", "reasoning_effort", "context_window", "tool_use", "streaming"}
 
     def probe(self) -> dict:
@@ -294,6 +295,7 @@ class AnthropicProvider(_ProviderHelperMixin):
 
     @property
     def capabilities(self) -> set[str]:
+        """The set of optional capabilities this provider supports."""
         return {"max_tokens", "temperature", "thinking_budget", "context_window", "tool_use", "vision"}
 
     def probe(self) -> dict:
@@ -451,6 +453,7 @@ class OllamaProvider(_ProviderHelperMixin):
 
     @property
     def capabilities(self) -> set[str]:
+        """The set of optional capabilities this provider supports."""
         return {"max_tokens", "temperature", "context_window"}
 
     def probe(self) -> dict:

@@ -140,11 +140,7 @@ def _serialize(value: Any) -> Any:
         return list(value)
     if isinstance(value, dict):
         return {str(k): _serialize(v) for k, v in value.items()}
-    if isinstance(value, float):
-        return value
-    if isinstance(value, int):
-        return value
-    if isinstance(value, bool):
+    if isinstance(value, (float, int, bool)):
         return value
     return str(value)
 

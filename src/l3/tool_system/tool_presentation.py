@@ -102,10 +102,12 @@ class PythonLanguageBackend(CodeLanguageBackend):
 
     @property
     def language(self) -> str:
+        """Language identifier of this backend (e.g. \"python\")."""
         return "python"
 
     @property
     def file_suffix(self) -> str:
+        """File suffix for this backend's generated code (e.g. \".py\")."""
         return ".py"
 
     def render_sdk(self, tools: list[dict]) -> str:

@@ -7,6 +7,7 @@ creation entry point (evolve_skill). Composed by SkillEvolutionMixin.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -186,6 +187,124 @@ class SkillGeneralizeMixin:
             generalized += 1
         return generalized
 
+    def _generate_skill_definition(self, intent: str) -> tuple[str, dict]:
+        """Call the LLM skill architect and parse the JSON skill definition."""
+        from l1.kernel.prompts import get_prompt
+        from l3.memory.r4_agent import _resolve_model_spec
+        from l3.services.model_service import get_service as _get_model_service
+        from l4.llm.llm import get_engine
+
+        system = get_prompt("r4_agent.skill_architect", "")
+        prompt = f"Create a skill for: {intent.strip()}"
+        engine = get_engine()
+        model_kwargs = _get_model_service().resolve_dict(_resolve_model_spec())
+        # Explicit kwargs take precedence — drop overlapping keys from the config dict.
+        for _k in ("prompt", "system", "max_tokens", "user_id"):
+            model_kwargs.pop(_k, None)
+        result = engine.generate(
+            prompt=prompt, system=system, max_tokens=SKILL_ARCHITECT_MAX_TOKENS, user_id="r4-agent", **model_kwargs
+        )
+
+        content = result.get("content", "").strip()
+        # Strip any markdown fences if present
+        if content.startswith("```"):
+            lines = content.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            content = "\n".join(lines).strip()
+
+        skill_def = json.loads(content)
+        name = skill_def.get("name", f"evolved-{int(time.time())}")
+        return name, skill_def
+
+    def _backup_existing_skill(self, sm: Any, name: str) -> dict | None:
+        """Backup the existing skill under a versioned name before overwrite.
+
+        Order matters: backup first, then overwrite-create. The old skill
+        is NOT deleted before the new one exists, so a failure between
+        steps never leaves the registry without the original skill.
+        """
+        existing = sm.get(name)
+        if not existing:
+            return None
+        backup_name = f"{name}_v{int(time.time())}"
+        # R4 archive: persist the pre-evolution version (audit/rollback baseline).
+        self._archive_before_evolve(name, existing)
+        sm.create(
+            name=backup_name,
+            description=(existing.get("description") or ""),
+            prompt=(existing.get("prompt") or ""),
+            tags=(existing.get("tags") or ["evolved"]) + ["backup"],
+            rules=existing.get("rules") or [],
+            procedures=existing.get("procedures") or [],
+            allowed_tools=existing.get("allowed_tools"),
+            internal=True,
+        )
+        return existing
+
+    def _normalize_skill_fields(
+        self, skill_def: dict, extra_tags: list[str] | None
+    ) -> tuple[list[str], str, str, list[str], list[dict], Any, str]:
+        """Type-guard the LLM output so malformed fields cannot corrupt SKILL.md round-trip."""
+        skill_tags = [str(t) for t in (skill_def.get("tags") or []) if isinstance(t, str)] + ["evolved"]
+        if extra_tags:
+            skill_tags += [t for t in extra_tags if isinstance(t, str) and t not in skill_tags][:R4_CARD_TAG_MAX]
+        skill_desc = skill_def.get("description")
+        skill_desc = skill_desc if isinstance(skill_desc, str) else ""
+        skill_prompt = skill_def.get("prompt")
+        skill_prompt = skill_prompt if isinstance(skill_prompt, str) else ""
+        skill_rules = [r for r in (skill_def.get("rules") or []) if isinstance(r, str)]
+        skill_procs = [p for p in (skill_def.get("procedures") or []) if isinstance(p, dict)]
+        skill_tools = skill_def.get("allowed_tools")
+        if not isinstance(skill_tools, list) or not all(isinstance(t, str) for t in skill_tools):
+            skill_tools = None
+        # Posture: carried through round-trip persistence; invalid values
+        # from the LLM fall back to the safe default (productive).
+        skill_posture = skill_def.get("posture", SKILL_POSTURE_DEFAULT)
+        if skill_posture not in SKILL_POSTURE_VALID:
+            skill_posture = SKILL_POSTURE_DEFAULT
+        return skill_tags, skill_desc, skill_prompt, skill_rules, skill_procs, skill_tools, skill_posture
+
+    def _scrub_contract_violations(self, skill_prompt: str, skill_desc: str, name: str) -> tuple[str, str, list[str]]:
+        """Scrub constitutional/project-literal violations; report the violation list."""
+        from l1.kernel.skill import validate_skill_content as _validate_content
+        from l3.memory.r4_skill_evolution import _scrub_skill_prompt
+
+        violations = _validate_content(skill_prompt, skill_desc)
+        if not violations:
+            return skill_prompt, skill_desc, []
+        logger.warning(
+            "R4Agent: evolved skill '%s' violates content contract, scrubbing: %s",
+            name,
+            "; ".join(violations),
+        )
+        skill_prompt = _scrub_skill_prompt(skill_prompt, violations)
+        skill_desc = skill_desc if _validate_content(skill_prompt, skill_desc) == [] else ""
+        return skill_prompt, skill_desc, violations
+
+    def _link_skill_graph(self, name: str, existing: dict | None, cell_id: str) -> None:
+        """R5 graph linkage: `refines` edge + type_chain hook (non-blocking, defaults off)."""
+        try:
+            from l3.memory.memory_graph import get_graph as _get_graph
+
+            g = _get_graph()
+            if existing:
+                g.add_semantic_edge(from_id=f"{name}_v", to_id=name, relation="refines", created_by="r4-agent")
+            g.remember_hook(
+                entry_id=name,
+                agent_id=self.agent_id,
+                entry_type="skill",
+                cell_id=cell_id,
+                recent=[{"id": f"{name}_v", "entry_type": "skill", "agent_id": self.agent_id, "cell_id": cell_id}]
+                if existing
+                else [],
+                created_by="r4-agent",
+            )
+        except Exception as e:
+            logger.debug("R4Agent: skill graph linkage skipped: %s", e)
+
     def evolve_skill(
         self, intent: str, cell_id: str = "", scope: str = "", extra_tags: list[str] | None = None
     ) -> dict:
@@ -209,104 +328,33 @@ class SkillGeneralizeMixin:
             return {"success": False, "error": "usage: /skills evolve <description>"}
 
         try:
-            import json
-
-            from l1.kernel.prompts import get_prompt
             from l1.kernel.skill import get_skill_manager
-            from l4.llm.llm import get_engine
 
-            system = get_prompt("r4_agent.skill_architect", "")
-            prompt = f"Create a skill for: {intent.strip()}"
-            engine = get_engine()
-            from l3.memory.r4_agent import _resolve_model_spec
-            from l3.services.model_service import get_service as _get_model_service
-
-            model_kwargs = _get_model_service().resolve_dict(_resolve_model_spec())
-            # Explicit kwargs take precedence — drop overlapping keys from the config dict.
-            for _k in ("prompt", "system", "max_tokens", "user_id"):
-                model_kwargs.pop(_k, None)
-            result = engine.generate(
-                prompt=prompt, system=system, max_tokens=SKILL_ARCHITECT_MAX_TOKENS, user_id="r4-agent", **model_kwargs
-            )
-
-            content = result.get("content", "").strip()
-            # Strip any markdown fences if present
-            if content.startswith("```"):
-                lines = content.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                content = "\n".join(lines).strip()
-
-            skill_def = json.loads(content)
-            name = skill_def.get("name", f"evolved-{int(time.time())}")
+            name, skill_def = self._generate_skill_definition(intent)
 
             # Register with SkillManager
             sm = get_skill_manager()
 
             # Check for existing skill with same name → versioning
-            # Order matters: backup first, then overwrite-create. The old skill
-            # is NOT deleted before the new one exists, so a failure between
-            # steps never leaves the registry without the original skill.
-            existing = sm.get(name)
-            if existing:
-                backup_name = f"{name}_v{int(time.time())}"
-                # R4 archive: persist the pre-evolution version (audit/rollback baseline).
-                self._archive_before_evolve(name, existing)
-                sm.create(
-                    name=backup_name,
-                    description=(existing.get("description") or ""),
-                    prompt=(existing.get("prompt") or ""),
-                    tags=(existing.get("tags") or ["evolved"]) + ["backup"],
-                    rules=existing.get("rules") or [],
-                    procedures=existing.get("procedures") or [],
-                    allowed_tools=existing.get("allowed_tools"),
-                    internal=True,
-                )
+            existing = self._backup_existing_skill(sm, name)
 
             # Normalize LLM output — type-guard every field so a malformed
             # response (prompt/description as dict, rules as non-str, …) cannot
             # corrupt the SKILL.md round-trip on reload.
-            skill_tags = [str(t) for t in (skill_def.get("tags") or []) if isinstance(t, str)] + ["evolved"]
-            if extra_tags:
-                skill_tags += [t for t in extra_tags if isinstance(t, str) and t not in skill_tags][:R4_CARD_TAG_MAX]
-            skill_desc = skill_def.get("description")
-            skill_desc = skill_desc if isinstance(skill_desc, str) else ""
-            skill_prompt = skill_def.get("prompt")
-            skill_prompt = skill_prompt if isinstance(skill_prompt, str) else ""
-            skill_rules = [r for r in (skill_def.get("rules") or []) if isinstance(r, str)]
-            skill_procs = [p for p in (skill_def.get("procedures") or []) if isinstance(p, dict)]
-            skill_tools = skill_def.get("allowed_tools")
-            if not isinstance(skill_tools, list) or not all(isinstance(t, str) for t in skill_tools):
-                skill_tools = None
-            # Posture: carried through round-trip persistence; invalid values
-            # from the LLM fall back to the safe default (productive).
-            skill_posture = skill_def.get("posture", SKILL_POSTURE_DEFAULT)
-            if skill_posture not in SKILL_POSTURE_VALID:
-                skill_posture = SKILL_POSTURE_DEFAULT
+            skill_tags, skill_desc, skill_prompt, skill_rules, skill_procs, skill_tools, skill_posture = (
+                self._normalize_skill_fields(skill_def, extra_tags)
+            )
             # Content contract (parity with the built-in catalog): a skill
             # that instructs constitutional violations or embeds
             # project-specific literals must not enter the registry. We
             # scrub the prompt (drop the violating lines) and, if the body
             # is left empty, reject the evolution entirely.
-            from l1.kernel.skill import validate_skill_content as _validate_content
-            from l3.memory.r4_skill_evolution import _scrub_skill_prompt
-
-            violations = _validate_content(skill_prompt, skill_desc)
-            if violations:
-                logger.warning(
-                    "R4Agent: evolved skill '%s' violates content contract, scrubbing: %s",
-                    name,
-                    "; ".join(violations),
-                )
-                skill_prompt = _scrub_skill_prompt(skill_prompt, violations)
-                skill_desc = skill_desc if _validate_content(skill_prompt, skill_desc) == [] else ""
-                if not skill_prompt.strip():
-                    return {
-                        "success": False,
-                        "error": f"skill '{name}' rejected: content contract violations: {violations}",
-                    }
+            skill_prompt, skill_desc, violations = self._scrub_contract_violations(skill_prompt, skill_desc, name)
+            if violations and not skill_prompt.strip():
+                return {
+                    "success": False,
+                    "error": f"skill '{name}' rejected: content contract violations: {violations}",
+                }
             sm.create(
                 name=name,
                 description=skill_desc,
@@ -340,24 +388,7 @@ class SkillGeneralizeMixin:
             # R5 graph linkage: versioning creates a `refines` edge (old → new)
             # and a `type_chain` edge (same-agent evolution chain) when the
             # graph is enabled.  Non-blocking — graph defaults to off.
-            try:
-                from l3.memory.memory_graph import get_graph as _get_graph
-
-                g = _get_graph()
-                if existing:
-                    g.add_semantic_edge(from_id=backup_name, to_id=name, relation="refines", created_by="r4-agent")
-                g.remember_hook(
-                    entry_id=name,
-                    agent_id=self.agent_id,
-                    entry_type="skill",
-                    cell_id=cell_id,
-                    recent=[{"id": backup_name, "entry_type": "skill", "agent_id": self.agent_id, "cell_id": cell_id}]
-                    if existing
-                    else [],
-                    created_by="r4-agent",
-                )
-            except Exception as e:
-                logger.debug("R4Agent: skill graph linkage skipped: %s", e)
+            self._link_skill_graph(name, existing, cell_id)
 
             # Persist as SKILL.md — shared helper keeps round-trip frontmatter
             # (tags/allowed_tools/variables survive reload) for both the LLM
