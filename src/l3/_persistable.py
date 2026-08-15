@@ -57,6 +57,8 @@ class PersistableMixin(ABC):
         return self._restore()
 
     def _persist(self) -> dict:
+        if not self._persist_path:
+            return {"success": True, "skipped": True, "reason": "persistence disabled"}
         data = self._serialize()
         data = stamp(data, self.persistence_kind)
         try:
@@ -70,6 +72,8 @@ class PersistableMixin(ABC):
             return {"success": False, "error": str(e)}
 
     def _restore(self) -> dict:
+        if not self._persist_path:
+            return {"success": False, "error": "no persistence path"}
         if not os.path.exists(self._persist_path):
             return {"success": False, "error": "no file"}
         try:

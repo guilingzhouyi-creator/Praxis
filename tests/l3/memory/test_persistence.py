@@ -97,6 +97,15 @@ def test_persist_missing_file_returns_success_false():
         assert "no file" in result.get("error", "")
 
 
+def test_empty_persist_path_disables_io():
+    """An empty path disables persistence without creating a ``.tmp`` file."""
+    obj = _TestPersistable("")
+    obj._data = {"hello": "world"}
+
+    assert obj._persist() == {"success": True, "skipped": True, "reason": "persistence disabled"}
+    assert obj._restore() == {"success": False, "error": "no persistence path"}
+
+
 def test_persist_corrupted_file():
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "bad.json")
