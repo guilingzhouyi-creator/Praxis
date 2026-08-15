@@ -52,6 +52,25 @@ def _match_keywords(text: str, keywords: tuple[str, ...]) -> bool:
     return any(k in low for k in keywords)
 
 
+def _classify_card(card) -> str | None:
+    """Classify the injection dimension from card metadata; None when classification fails."""
+    try:
+        nature = str(getattr(card, "nature", "") or "").lower()
+        action = str(getattr(card, "action", "") or "").lower()
+        target = str(getattr(card, "target", "") or "")
+        hay = f"{nature} {action} {target}"
+        if nature == "decision" or "decision" in hay or "issue" in nature:
+            return TASK_DECIDE
+        if _match_keywords(hay, _DECIDE_KEYWORDS):
+            return TASK_DECIDE
+        if _match_keywords(hay, _RESUME_KEYWORDS):
+            return TASK_RESUME
+        return TASK_EXECUTE  # execution cards default to summary
+    except Exception:
+        logger.debug("memory_inject: task type classification failed, falling back", exc_info=True)
+    return None
+
+
 def classify_task(card=None, prompt: str = "") -> str:
     """Classify the injection dimension by task source.
 
@@ -59,20 +78,9 @@ def classify_task(card=None, prompt: str = "") -> str:
     prompt is the fallback (L3A path).
     """
     if card is not None:
-        try:
-            nature = str(getattr(card, "nature", "") or "").lower()
-            action = str(getattr(card, "action", "") or "").lower()
-            target = str(getattr(card, "target", "") or "")
-            hay = f"{nature} {action} {target}"
-            if nature == "decision" or "decision" in hay or "issue" in nature:
-                return TASK_DECIDE
-            if _match_keywords(hay, _DECIDE_KEYWORDS):
-                return TASK_DECIDE
-            if _match_keywords(hay, _RESUME_KEYWORDS):
-                return TASK_RESUME
-            return TASK_EXECUTE  # execution cards default to summary
-        except Exception:
-            logger.debug("memory_inject: task type classification failed, falling back", exc_info=True)
+        task = _classify_card(card)
+        if task is not None:
+            return task
     if _match_keywords(prompt, _DECIDE_KEYWORDS):
         return TASK_DECIDE
     if _match_keywords(prompt, _RESUME_KEYWORDS):

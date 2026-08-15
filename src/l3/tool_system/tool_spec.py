@@ -312,6 +312,64 @@ def tool(
     return decorator
 
 
+def _validate_tool(spec, tool_name: str, args: dict) -> dict | None:
+    """Return a terminal error result for an unknown/muted/invalid tool; None when valid."""
+    if not spec:
+        return {"success": False, "error": f"unknown tool: {tool_name}"}
+    # Mute check (fast path before validation)
+    if is_muted(tool_name):
+        return {"success": False, "error": f"tool muted: {tool_name}", "muted": True}
+    # Validate parameters
+    errors = spec.validate(args)
+    if errors:
+        return {"success": False, "error": "; ".join(errors)}
+    return None
+
+
+def _result_store_hit(_rs, spec, tool_name: str, args: dict, is_write: bool) -> tuple[dict | None, str]:
+    """Query/invalidate the ResultStore cache; returns (cached_copy_or_None, fingerprint)."""
+    if not is_write and spec.ring == RING_1:
+        _fp = _rs.fingerprint(tool_name, args)
+        _cached = _rs.get(_fp)
+        if _cached is not None:
+            logger.debug("result_store HIT: %s %s", tool_name, str(args)[:LOG_TRUNC_60])
+            return dict(_cached), _fp  # return a copy
+    else:
+        _fp = ""
+        # Invalidate matching cache entries for write tools
+        if is_write:
+            _rs.invalidate_for_tool(tool_name, args)
+    return None, _fp
+
+
+def _run_pre_hooks(tool_name: str, current_args: dict, agent_id: str) -> tuple[dict, dict | None]:
+    """Run middleware pre-hooks; returns (args, blocking result) when a hook blocks."""
+    for hook in _MIDDLEWARE:
+        if hook["type"] == "pre":
+            try:
+                result = hook["fn"](tool_name, current_args, agent_id)
+                if result is None:
+                    return current_args, {"success": False, "error": f"blocked by middleware: {hook['name']}"}
+                if isinstance(result, dict):
+                    current_args.update(result)
+            except Exception as e:
+                logger.warning("middleware pre-hook failed: %s", e)
+    return current_args, None
+
+
+def _run_handler(spec, current_args: dict, agent_id: str, tool_name: str) -> tuple[dict, dict | None]:
+    """Invoke the tool handler; returns (result, error result) when it fails."""
+    if spec.handler is None:
+        return {}, {"success": False, "error": f"{tool_name}: no handler registered"}
+    try:
+        result = spec.handler(current_args, agent_id)
+        if not isinstance(result, dict):
+            return {}, {"success": False, "error": f"{tool_name}: handler returned non-dict"}
+    except Exception as e:
+        return {}, {"success": False, "error": f"{tool_name}: {e}"}
+    return result, None
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Execution with middleware
 # ═════════════════════════════════════════════════════════════════════════════
@@ -320,17 +378,9 @@ def tool(
 def execute_tool_spec(tool_name: str, args: dict, agent_id: str = "") -> dict:
     """Execute a tool through the registry, with mute and middleware support."""
     spec = get_tool(tool_name)
-    if not spec:
-        return {"success": False, "error": f"unknown tool: {tool_name}"}
-
-    # Mute check (fast path before validation)
-    if is_muted(tool_name):
-        return {"success": False, "error": f"tool muted: {tool_name}", "muted": True}
-
-    # Validate parameters
-    errors = spec.validate(args)
-    if errors:
-        return {"success": False, "error": "; ".join(errors)}
+    invalid = _validate_tool(spec, tool_name, args)
+    if invalid is not None:
+        return invalid
 
     # ── ResultStore: try cache hit for read-only tools ──
     from l3.memory.result_store import get_result_store as _get_rs
@@ -339,40 +389,20 @@ def execute_tool_spec(tool_name: str, args: dict, agent_id: str = "") -> dict:
 
     _rs = _get_rs()
     is_write = tool_name in ToolConfigCls.write_tool_names()
-    if not is_write and spec.ring == RING_1:
-        _fp = _rs.fingerprint(tool_name, args)
-        _cached = _rs.get(_fp)
-        if _cached is not None:
-            logger.debug("result_store HIT: %s %s", tool_name, str(args)[:LOG_TRUNC_60])
-            return dict(_cached)  # return a copy
-    else:
-        _fp = ""
-        # Invalidate matching cache entries for write tools
-        if is_write:
-            _rs.invalidate_for_tool(tool_name, args)
+    cached, _fp = _result_store_hit(_rs, spec, tool_name, args, is_write)
+    if cached is not None:
+        return cached
 
     # Pre-hooks
     current_args = dict(args)
-    for hook in _MIDDLEWARE:
-        if hook["type"] == "pre":
-            try:
-                result = hook["fn"](tool_name, current_args, agent_id)
-                if result is None:
-                    return {"success": False, "error": f"blocked by middleware: {hook['name']}"}
-                if isinstance(result, dict):
-                    current_args.update(result)
-            except Exception as e:
-                logger.warning("middleware pre-hook failed: %s", e)
+    current_args, blocked = _run_pre_hooks(tool_name, current_args, agent_id)
+    if blocked is not None:
+        return blocked
 
     # Execute
-    if spec.handler is None:
-        return {"success": False, "error": f"{tool_name}: no handler registered"}
-    try:
-        result = spec.handler(current_args, agent_id)
-        if not isinstance(result, dict):
-            return {"success": False, "error": f"{tool_name}: handler returned non-dict"}
-    except Exception as e:
-        return {"success": False, "error": f"{tool_name}: {e}"}
+    result, handler_error = _run_handler(spec, current_args, agent_id, tool_name)
+    if handler_error is not None:
+        return handler_error
 
     # ── ResultStore: store result for cache hit on future calls ──
     if not is_write and _fp and result.get("success", False):

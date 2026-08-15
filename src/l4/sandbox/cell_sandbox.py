@@ -166,50 +166,67 @@ class CellSandbox:
         if safe_rel is None:
             return {"success": False, "error": f"invalid rel_path: {rel_path!r}"}
 
-        # 1. Own sandbox (agent's own pending edits)
+        own = self._read_own_sandbox(safe_rel, agent_id)
+        if own is not None:
+            return own
+        upstream = self._read_upstream(safe_rel, agent_id, depends_on)
+        if upstream is not None:
+            return upstream
+        project = self._read_project(safe_rel)
+        if project is not None:
+            return project
+        return {"success": False, "error": "file not found"}
+
+    def _read_own_sandbox(self, safe_rel: str, agent_id: str) -> dict | None:
+        """Read the agent's own sandbox copy; return None when absent or unreadable."""
         sandbox_file = self._agent_path(agent_id) / safe_rel
-        if sandbox_file.exists():
+        if not sandbox_file.exists():
+            return None
+        try:
+            content = sandbox_file.read_text(encoding="utf-8")
+            return {
+                "success": True,
+                "content": content,
+                "source": "sandbox",
+                "path": str(sandbox_file),
+                "agent_id": agent_id,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _read_upstream(self, safe_rel: str, agent_id: str, depends_on: list[str] | None) -> dict | None:
+        """Read from upstream agents' sandboxes via the task dependency chain."""
+        if not depends_on:
+            return None
+        for upstream_id in depends_on:
+            if upstream_id == agent_id:
+                continue
+            up_file = self._agent_path(upstream_id) / safe_rel
+            if not up_file.exists():
+                continue
             try:
-                content = sandbox_file.read_text(encoding="utf-8")
+                content = up_file.read_text(encoding="utf-8")
                 return {
                     "success": True,
                     "content": content,
-                    "source": "sandbox",
-                    "path": str(sandbox_file),
-                    "agent_id": agent_id,
+                    "source": "upstream",
+                    "path": str(up_file),
+                    "agent_id": upstream_id,
                 }
             except Exception as e:
                 return {"success": False, "error": str(e)}
+        return None
 
-        # 2. Upstream agents via task dependency chain
-        if depends_on:
-            for upstream_id in depends_on:
-                if upstream_id == agent_id:
-                    continue
-                up_file = self._agent_path(upstream_id) / safe_rel
-                if up_file.exists():
-                    try:
-                        content = up_file.read_text(encoding="utf-8")
-                        return {
-                            "success": True,
-                            "content": content,
-                            "source": "upstream",
-                            "path": str(up_file),
-                            "agent_id": upstream_id,
-                        }
-                    except Exception as e:
-                        return {"success": False, "error": str(e)}
-
-        # 3. Project base
+    def _read_project(self, safe_rel: str) -> dict | None:
+        """Read from the project base directory; return None when the file is absent."""
         real_file = self.project_root / safe_rel
-        if real_file.exists():
-            try:
-                content = real_file.read_text(encoding="utf-8")
-                return {"success": True, "content": content, "source": "project", "path": str(real_file)}
-            except Exception as e:
-                return {"success": False, "error": str(e)}
-
-        return {"success": False, "error": "file not found"}
+        if not real_file.exists():
+            return None
+        try:
+            content = real_file.read_text(encoding="utf-8")
+            return {"success": True, "content": content, "source": "project", "path": str(real_file)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def write(
         self,

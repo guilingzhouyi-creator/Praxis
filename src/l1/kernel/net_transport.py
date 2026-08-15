@@ -191,9 +191,11 @@ class TcpAdapter(TransportPort):
     # ── Accessors ──
 
     def get_channel(self) -> ChannelPort:
+        """Return the underlying channel port."""
         return self._channel
 
     def get_worker(self) -> WorkerPort:
+        """Return the underlying worker port."""
         return self._worker
 
     # ── UDP discovery (listener) ──────────────────────────────────────────

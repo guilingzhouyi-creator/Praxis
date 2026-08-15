@@ -74,6 +74,7 @@ _RESETS = {
     "l3.memory.skill_retriever": ("reset_retriever", None),
     "l1.kernel.skill": ("reset_skill_manager", None),
     "l1.kernel.identity_binding": ("reset_identity_binding_manager", None),
+    "l1.kernel.ports.storage": ("reset_storage", None),
     "l3.tool_system.posture_matrix": ("reset_posture_matrix", None),
     "l3.memory.tiered_cache": ("reset_tiered_cache", None),
     "l3.services.review_pipeline": ("reset_review_pipeline", None),

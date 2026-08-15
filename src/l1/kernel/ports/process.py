@@ -76,6 +76,7 @@ class SubprocessProcessPort(ProcessPort):
     name: str = "subprocess.process"
 
     def run(self, cmd: str, timeout: float = TOOL_TERMINAL_TIMEOUT, **kwargs: Any) -> ProcessResult:
+        """Run *cmd* through the platform shell helper; translate failures to Results."""
         from l1.kernel.platform import run_shell
 
         try:
@@ -90,6 +91,7 @@ class SubprocessProcessPort(ProcessPort):
         return ProcessResult(returncode=cp.returncode, stdout=_to_text(cp.stdout), stderr=_to_text(cp.stderr))
 
     def run_args(self, args: list[str], timeout: float = TOOL_TERMINAL_TIMEOUT, **kwargs: Any) -> ProcessResult:
+        """Run a pre-split argument list via the platform helper; translate failures."""
         from l1.kernel.platform import run_args as _run_args
 
         try:
@@ -103,6 +105,7 @@ class SubprocessProcessPort(ProcessPort):
         return ProcessResult(returncode=cp.returncode, stdout=_to_text(cp.stdout), stderr=_to_text(cp.stderr))
 
     def spawn_interactive(self, cwd: str = "") -> Any:
+        """Spawn an interactive shell process in *cwd* via the platform helper."""
         from l1.kernel.platform import create_interactive_shell
 
         return create_interactive_shell(cwd=cwd)

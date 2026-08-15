@@ -54,14 +54,7 @@ class LLMRetryMixin:
 
         provider_name = self.config.provider
         if provider_name == "mock":
-            data = json.loads(body)
-            prompt = data["messages"][-1]["content"]
-            return {
-                "content": f"[mock] tool_use: {prompt[:LOG_TRUNC_60]}...",
-                "tool_calls": [],
-                "cache_hit_tokens": 0,
-                "cache_miss_tokens": 0,
-            }
+            return self._mock_response(body)
 
         provider = self._provider
         headers = {"Content-Type": "application/json"}
@@ -79,51 +72,72 @@ class LLMRetryMixin:
         try:
             code, raw, resp_headers = http_post(url, body, headers, LLM_HTTP_TIMEOUT)
         except (OSError, TimeoutError, http.client.HTTPException) as e:
-            err = str(e)
-            if (
-                any(x in err for x in ("timeout", "reset", "refused", "timed out", "BadStatusLine"))
-                and retry_count < LLM_MAX_TRANSIENT_RETRIES
-            ):
-                wait = LLM_TRANSIENT_BACKOFF_BASE * (retry_count + 1)
-                _time.sleep(wait)
-                return self._call_api(body, retry_count + 1)
-            return {"content": "", "tool_calls": [], "cache_hit_tokens": 0, "cache_miss_tokens": 0, "error": err}
+            return self._transient_retry(body, retry_count, str(e), _time)
         if code >= 400:
-            body_text = raw.decode(errors="replace")[:LOG_TRUNC_200]
-            if code == 429 and retry_count < LLM_MAX_RATE_LIMIT_RETRIES:
-                wait = LLM_RATE_LIMIT_WAIT
-                ra = resp_headers.get("retry-after", "")
-                if ra and ra.isdigit():
-                    wait = int(ra)
-                _time.sleep(wait)
-                return self._call_api(body, retry_count + 1)
-            if code in (413, 400) and "too long" in body_text.lower() and retry_count < LLM_MAX_OVERFLOW_RETRIES:
-                logger.warning("llm overflow, compact+retry (attempt %d/%d)", retry_count + 1, LLM_MAX_OVERFLOW_RETRIES)
-                try:
-                    from .memory.memory import get_memory
+            return self._http_error_retry(body, retry_count, code, raw, resp_headers, _time)
+        return self._success_response(body, retry_count, raw, provider_name, _time)
 
-                    get_memory().compact("system")
-                except Exception:
-                    logger.debug("llm: memory compact failed")
-                return self._call_api(body, retry_count + 1)
-            return {
-                "content": "",
-                "tool_calls": [],
-                "cache_hit_tokens": 0,
-                "cache_miss_tokens": 0,
-                "error": f"HTTP {code}: {body_text}",
-            }
+    def _mock_response(self, body: bytes) -> dict:
+        """Build the mock provider response from the request body."""
+        data = json.loads(body)
+        prompt = data["messages"][-1]["content"]
+        return {
+            "content": f"[mock] tool_use: {prompt[:LOG_TRUNC_60]}...",
+            "tool_calls": [],
+            "cache_hit_tokens": 0,
+            "cache_miss_tokens": 0,
+        }
 
+    def _error_payload(self, err: str) -> dict:
+        """Build an empty tool response that carries a provider error string."""
+        return {
+            "content": "",
+            "tool_calls": [],
+            "cache_hit_tokens": 0,
+            "cache_miss_tokens": 0,
+            "error": err,
+        }
+
+    def _transient_retry(self, body: bytes, retry_count: int, err: str, _time) -> dict:
+        """Retry transient transport errors with linear backoff, else return an error payload."""
+        if (
+            any(x in err for x in ("timeout", "reset", "refused", "timed out", "BadStatusLine"))
+            and retry_count < LLM_MAX_TRANSIENT_RETRIES
+        ):
+            wait = LLM_TRANSIENT_BACKOFF_BASE * (retry_count + 1)
+            _time.sleep(wait)
+            return self._call_api(body, retry_count + 1)
+        return self._error_payload(err)
+
+    def _http_error_retry(
+        self, body: bytes, retry_count: int, code: int, raw: bytes, resp_headers: dict, _time
+    ) -> dict:
+        """Handle a non-2xx HTTP status — rate-limit and overflow retries, else an error payload."""
+        body_text = raw.decode(errors="replace")[:LOG_TRUNC_200]
+        if code == 429 and retry_count < LLM_MAX_RATE_LIMIT_RETRIES:
+            wait = LLM_RATE_LIMIT_WAIT
+            ra = resp_headers.get("retry-after", "")
+            if ra and ra.isdigit():
+                wait = int(ra)
+            _time.sleep(wait)
+            return self._call_api(body, retry_count + 1)
+        if code in (413, 400) and "too long" in body_text.lower() and retry_count < LLM_MAX_OVERFLOW_RETRIES:
+            logger.warning("llm overflow, compact+retry (attempt %d/%d)", retry_count + 1, LLM_MAX_OVERFLOW_RETRIES)
+            try:
+                from .memory.memory import get_memory
+
+                get_memory().compact("system")
+            except Exception:
+                logger.debug("llm: memory compact failed")
+            return self._call_api(body, retry_count + 1)
+        return self._error_payload(f"HTTP {code}: {body_text}")
+
+    def _success_response(self, body: bytes, retry_count: int, raw: bytes, provider_name: str, _time) -> dict:
+        """Parse a 2xx body, retry empty responses, and build the provider-specific result."""
         try:
             data = json.loads(raw)
         except Exception:
-            return {
-                "content": "",
-                "tool_calls": [],
-                "cache_hit_tokens": 0,
-                "cache_miss_tokens": 0,
-                "error": f"json decode: {raw[:LOG_TRUNC_200].decode(errors='replace')}",
-            }
+            return self._error_payload(f"json decode: {raw[:LOG_TRUNC_200].decode(errors='replace')}")
 
         # Empty response detection
         content = ""

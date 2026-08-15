@@ -37,6 +37,7 @@ class CacheEntry:
 
     @property
     def expired(self) -> bool:
+        """Whether the cache entry has outlived its TTL."""
         return time.time() > self.expires_at
 
 

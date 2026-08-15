@@ -102,6 +102,7 @@ def diff_structured(body: dict) -> dict:
 
     found_cell: str = ""
     result = None
+    entry = None
 
     if cell_id:
         sb = sb_mgr.get_cell(cell_id)
@@ -136,6 +137,11 @@ def diff_structured(body: dict) -> dict:
     if not result:
         return {"success": False, "error": f"no sandbox entry for {path}"}
 
+    return _diff_structured_response(mode, entry, result, path, found_cell)
+
+
+def _diff_structured_response(mode: str, entry, result, path: str, found_cell: str) -> dict:
+    """Build the success response for a resolved sandbox entry."""
     if mode == "summary":
         return {
             "success": True,

@@ -82,14 +82,17 @@ class DecomposePlan:
 
     @property
     def total_slices(self) -> int:
+        """Total number of decomposition slices."""
         return len(self.slices)
 
     @property
     def completed_slices(self) -> int:
+        """Number of slices that reached the CONVERGED state."""
         return sum(1 for s in self.slices if s.state in (DecomposeState.CONVERGED,))
 
     @property
     def failed_slices(self) -> int:
+        """Number of slices in the FAILED state."""
         return sum(1 for s in self.slices if s.state == DecomposeState.FAILED)
 
 

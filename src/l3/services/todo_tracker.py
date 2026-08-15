@@ -155,11 +155,13 @@ class TodoTracker:
             )
             self._persist()
             return "pending"
+        return self._transition(task, content, status)
+
+    def _transition(self, task: dict, content: str, status: str) -> str:
+        """Apply a status transition to an existing task and return its new status."""
         old = task["status"]
-        if old == "verified" and status == "verified":
-            return "verified"
         if old == "verified":
-            return f"error: task '{content[:LOG_TRUNC_40]}' is already verified"
+            return "verified" if status == "verified" else f"error: task '{content[:LOG_TRUNC_40]}' is already verified"
         if old == "escalated" and status != "waived":
             return f"error: task '{content[:LOG_TRUNC_40]}' is escalated"
         if old == "waived" and status not in ("verified", "waived"):
@@ -193,23 +195,35 @@ class TodoTracker:
         entry = {"phase": phase, "exit_code": exit_code, "evidence": evidence, "attempt": task["attempts"] + 1}
         task["evidence"].append(entry)
         ok = exit_code == 0
+        return self._record_phase(task, content, phase, ok, evidence)
+
+    def _record_phase(self, task: dict, content: str, phase: str, ok: bool, evidence: str) -> dict:
+        """Dispatch an attempt to its phase handler; unknown phases error."""
         if phase == "execute":
-            if ok:
-                task["status"] = "verifying"
-                self._persist()
-                return {"action": "verify", "task": content[:LOG_TRUNC_40], "detail": "run verification checks"}
-            return self._fail_task(task)
+            return self._record_execute(task, content, ok)
         if phase == "verify":
-            if task["status"] != "verifying":
-                return {"action": "error", "detail": "task not in verify phase"}
-            if ok:
-                if not evidence:
-                    return {"action": "error", "detail": "passing verify requires --evidence"}
-                task["status"] = "verified"
-                self._persist()
-                return {"action": "done", "task": content[:LOG_TRUNC_40], "detail": "verified", "evidence": evidence}
-            return self._fail_task(task)
+            return self._record_verify(task, content, ok, evidence)
         return {"action": "error", "detail": f"unknown phase: {phase}"}
+
+    def _record_execute(self, task: dict, content: str, ok: bool) -> dict:
+        """Handle an execute-phase attempt and return the next action."""
+        if ok:
+            task["status"] = "verifying"
+            self._persist()
+            return {"action": "verify", "task": content[:LOG_TRUNC_40], "detail": "run verification checks"}
+        return self._fail_task(task)
+
+    def _record_verify(self, task: dict, content: str, ok: bool, evidence: str) -> dict:
+        """Handle a verify-phase attempt and return the next action."""
+        if task["status"] != "verifying":
+            return {"action": "error", "detail": "task not in verify phase"}
+        if ok:
+            if not evidence:
+                return {"action": "error", "detail": "passing verify requires --evidence"}
+            task["status"] = "verified"
+            self._persist()
+            return {"action": "done", "task": content[:LOG_TRUNC_40], "detail": "verified", "evidence": evidence}
+        return self._fail_task(task)
 
     def _fail_task(self, task: dict) -> dict:
         task["attempts"] += 1

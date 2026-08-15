@@ -128,14 +128,9 @@ class VFS:
     def read(self, path: str, agent_ring: int = VFS_DEFAULT_MIN_RING) -> dict:
         """Read a file through VFS. Checks mount permissions."""
         # Kernel virtual filesystems — dynamic content
-        if path.startswith("/proc"):
-            return self.proc_read(path)
-        if path.startswith("/sys"):
-            return self.sys_read(path)
-        if path.startswith("/skills"):
-            return self.skill_read(path)
-        if path.startswith("/dev"):
-            return self.dev_read(path)
+        kernel = self._read_kernel_vfs(path)
+        if kernel is not None:
+            return kernel
 
         mp, rel, real = self._resolve(path)
         if not mp:
@@ -157,6 +152,22 @@ class VFS:
             return {"success": True, "content": content, "mount": mp.name}
 
         # Real file
+        return self._read_real_file(mp, real, path)
+
+    def _read_kernel_vfs(self, path: str) -> dict | None:
+        """Dispatch kernel virtual filesystems; return None for ordinary mounts."""
+        if path.startswith("/proc"):
+            return self.proc_read(path)
+        if path.startswith("/sys"):
+            return self.sys_read(path)
+        if path.startswith("/skills"):
+            return self.skill_read(path)
+        if path.startswith("/dev"):
+            return self.dev_read(path)
+        return None
+
+    def _read_real_file(self, mp: MountPoint, real: str, path: str) -> dict:
+        """Read a real file through the mount and cache its content."""
         try:
             with open(real, encoding="utf-8", errors="replace") as f:
                 content = f.read()
@@ -260,6 +271,10 @@ class VFS:
             return {"success": False, "error": "EROFS: read-only mount", "error_code": "EROFS"}
         with self._cache_lock:
             self._cache.pop(path, None)
+        return self._unlink_resolved(mp, path, real)
+
+    def _unlink_resolved(self, mp: MountPoint, path: str, real: str) -> dict:
+        """Delete the file backing a resolved mount — virtual or real."""
         if mp.mount_type == MountType.VIRTUAL:
             with self._virtual_lock:
                 if path not in self._virtual_files:
@@ -410,18 +425,28 @@ class VFS:
                     f"{p['pid']}\t{p['name']}\t{p['role']}\t{p['state']}\t{p['ring']}\t{p['uptime']}s" for p in procs
                 )
                 return {"success": True, "content": content}
-            try:
-                pid = int(parts[1])
-            except ValueError:
-                return {"success": False, "error": "ENOENT", "error_code": "ENOENT"}
-            table = get_table()
-            pcb = table.get(pid)
-            if pcb:
-                s = pcb.snapshot()
-                content = "\n".join(f"{k}: {v}" for k, v in s.items())
-                return {"success": True, "content": content}
-            return {"success": False, "error": f"ENOENT: no process {pid}", "error_code": "ENOENT"}
+            detail = self._proc_read_process(parts)
+            if detail is not None:
+                return detail
         return {"success": False, "error": "ENOENT", "error_code": "ENOENT"}
+
+    def _proc_read_process(self, parts: list[str]) -> dict | None:
+        """Read a single PID entry from /proc; return None when the path is not a PID lookup."""
+        if len(parts) != 2 or parts[0] != "proc":
+            return None
+        try:
+            pid = int(parts[1])
+        except ValueError:
+            return {"success": False, "error": "ENOENT", "error_code": "ENOENT"}
+        from .process import get_table
+
+        table = get_table()
+        pcb = table.get(pid)
+        if pcb:
+            s = pcb.snapshot()
+            content = "\n".join(f"{k}: {v}" for k, v in s.items())
+            return {"success": True, "content": content}
+        return {"success": False, "error": f"ENOENT: no process {pid}", "error_code": "ENOENT"}
 
 
 _vfs: VFS | None = None

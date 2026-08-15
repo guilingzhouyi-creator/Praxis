@@ -103,6 +103,7 @@ class RingChannel(ChannelPort):
             return self._count
 
     def capacity(self) -> int:
+        """Return the maximum number of buffered items."""
         return self._capacity
 
     def close(self) -> None:

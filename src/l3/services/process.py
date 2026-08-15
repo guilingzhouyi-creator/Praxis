@@ -35,6 +35,7 @@ class ProcessHandle:
 
     @property
     def exit_code(self) -> int | None:
+        """The process exit code, or None while still running."""
         return self.process.poll() if self.process else None
 
     def kill(self) -> None:

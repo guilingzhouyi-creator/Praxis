@@ -51,46 +51,35 @@ def _audience_label(agent_id: str) -> str:
     return audience_of(agent_id)
 
 
-def use_skill(args: dict, agent_id: str) -> dict:
-    """Execute a skill by name; returns the structured agent-facing view.
+def _load_skill_for_use(args: dict, agent_id: str):
+    """Resolve the skill manager and skill for a use_skill call.
 
-    Usage:
-      use_skill(name="refactor", function_name="validate", goal="split")
-      use_skill(name="tdd", structured=true)  → structured view (default)
-      use_skill(name="tdd", full=true)        → full body (write-gated)
-
-    The structured view (rules/procedures/stages as machine-readable items,
-    no markdown body) is the runtime contract; the full body is a privileged
-    read for the human/review layer. Audience routing: a skill tagged for
-    another domain is refused.
+    Returns ``(sm, skill_data, error_result)``; ``skill_data`` is None on error.
     """
     name = args.get("name", "")
     if not name:
-        return {"success": False, "error": "skill name is required"}
-
+        return None, None, {"success": False, "error": "skill name is required"}
     try:
         from l1.kernel.skill import get_skill_manager
 
         sm = get_skill_manager()
     except Exception as e:
-        return {"success": False, "error": f"skill manager unavailable: {e}"}
-
+        return None, None, {"success": False, "error": f"skill manager unavailable: {e}"}
     skill_data = sm.get(name)
     if not skill_data:
-        return {"success": False, "error": f"skill '{name}' not found"}
-
+        return sm, None, {"success": False, "error": f"skill '{name}' not found"}
     from l1.kernel.skill import skill_visible
 
     if not skill_visible(skill_data, agent_id):
-        return {"success": False, "error": f"skill '{name}' is not in the {_audience_label(agent_id)} domain"}
+        return sm, None, {"success": False, "error": f"skill '{name}' is not in the {_audience_label(agent_id)} domain"}
+    return sm, skill_data, None
 
-    # Posture gate (default-deny, runtime policy): offensive-posture skills
-    # require the SkillManager offensive policy to authorize the driving card
-    # nature. The tool pipeline forwards the card nature as ``_card_nature``;
-    # disabling the policy at runtime bypasses the gate (soft control).
+
+def _posture_gate(sm, skill_data: dict, name: str, args: dict) -> dict | None:
+    """Enforce the offensive-posture gate; None when the call may proceed."""
     if skill_data.get("posture") == SKILL_POSTURE_OFFENSIVE:
         nature = str(args.get("_card_nature", ""))
-        if not get_skill_manager().offensive_authorized(nature):
+        if not sm.offensive_authorized(nature):
             # P1: record use_skill posture denials in StatsCenter.
             try:
                 from l3.tool_system.security_mode import ingest_security_metric
@@ -122,7 +111,7 @@ def use_skill(args: dict, agent_id: str) -> dict:
         try:
             from l3.tool_system.security_evidence import DECISION_ALLOW, DECISION_BYPASS, record_evidence
 
-            pol_enabled = get_skill_manager().offensive_policy().get("enabled", True)
+            pol_enabled = sm.offensive_policy().get("enabled", True)
             record_evidence(
                 phase="use_skill",
                 gate="posture_use",
@@ -133,44 +122,44 @@ def use_skill(args: dict, agent_id: str) -> dict:
             )
         except Exception:
             pass
+    return None
 
-    # Structured agent-facing view is the default contract (rules/procedures/
-    # stages as machine-readable items — no markdown body). The full body is a
-    # privileged read (full=True, write gate) for the human/review layer.
-    structured = bool(args.get("structured", True))
-    full = bool(args.get("full", False))
 
-    if full:
-        ok, who = sm.authorize_write(args.get("_agent_id", ""), args.get("_role", ""))
-        if not ok:
-            return {"success": False, "error": f"permission denied: {who}"}
-        variables = skill_data.get("variables", [])
-        expanded = skill_data.get("prompt", "")
-        for v in variables or []:
-            val = args.get(v.lower(), "")
-            if val:
-                expanded = expanded.replace(f"${v.upper()}", str(val))
-        sm.bump_usage(name)
-        return {
-            "success": True,
-            "skill": name,
-            "prompt": expanded,
-            "description": skill_data.get("description", "")[:LOG_TRUNC_60],
-            "full": True,
-            "variables": variables or [],
-            "allowed_tools": skill_data.get("allowed_tools") or [],
-        }
+def _use_skill_full(sm, skill_data: dict, name: str, args: dict) -> dict:
+    """Return the full skill body — a privileged read (write-gated) for the human/review layer."""
+    ok, who = sm.authorize_write(args.get("_agent_id", ""), args.get("_role", ""))
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    variables = skill_data.get("variables", [])
+    expanded = skill_data.get("prompt", "")
+    for v in variables or []:
+        val = args.get(v.lower(), "")
+        if val:
+            expanded = expanded.replace(f"${v.upper()}", str(val))
+    sm.bump_usage(name)
+    return {
+        "success": True,
+        "skill": name,
+        "prompt": expanded,
+        "description": skill_data.get("description", "")[:LOG_TRUNC_60],
+        "full": True,
+        "variables": variables or [],
+        "allowed_tools": skill_data.get("allowed_tools") or [],
+    }
 
-    if structured:
-        view = sm.structured_skill(name, agent_id)
-        if not view.get("success"):
-            return {"success": False, "error": view.get("error", "skill unavailable")}
-        sm.bump_usage(name)
-        view["skill"] = name
-        return view
 
-    # Legacy raw mode: current stage instructions for staged skills, else the
-    # full body (explicit opt-out from the structured contract).
+def _use_skill_structured(sm, skill_data: dict, name: str, agent_id: str) -> dict:
+    """Return the machine-readable structured skill view (default runtime contract)."""
+    view = sm.structured_skill(name, agent_id)
+    if not view.get("success"):
+        return {"success": False, "error": view.get("error", "skill unavailable")}
+    sm.bump_usage(name)
+    view["skill"] = name
+    return view
+
+
+def _use_skill_legacy(sm, skill_data: dict, name: str, args: dict, agent_id: str) -> dict:
+    """Return the legacy raw-mode skill view (explicit opt-out from the structured contract)."""
     stage_info: dict = {}
     if skill_data.get("stages"):
         stage_info = sm.current_stage(name, agent_id)
@@ -206,3 +195,40 @@ def use_skill(args: dict, agent_id: str) -> dict:
         result["stage_id"] = (stage_info.get("stage") or {}).get("id", "")
         result["next_stage"] = stage_info.get("next_stage")
     return result
+
+
+def use_skill(args: dict, agent_id: str) -> dict:
+    """Execute a skill by name; returns the structured agent-facing view.
+
+    Usage:
+      use_skill(name="refactor", function_name="validate", goal="split")
+      use_skill(name="tdd", structured=true)  → structured view (default)
+      use_skill(name="tdd", full=true)        → full body (write-gated)
+
+    The structured view (rules/procedures/stages as machine-readable items,
+    no markdown body) is the runtime contract; the full body is a privileged
+    read for the human/review layer. Audience routing: a skill tagged for
+    another domain is refused.
+    """
+    sm, skill_data, load_error = _load_skill_for_use(args, agent_id)
+    if load_error is not None:
+        return load_error
+    name = args.get("name", "")
+
+    posture_error = _posture_gate(sm, skill_data, name, args)
+    if posture_error is not None:
+        return posture_error
+
+    # Structured agent-facing view is the default contract (rules/procedures/
+    # stages as machine-readable items — no markdown body). The full body is a
+    # privileged read (full=True, write gate) for the human/review layer.
+    structured = bool(args.get("structured", True))
+    full = bool(args.get("full", False))
+
+    if full:
+        return _use_skill_full(sm, skill_data, name, args)
+
+    if structured:
+        return _use_skill_structured(sm, skill_data, name, agent_id)
+
+    return _use_skill_legacy(sm, skill_data, name, args, agent_id)

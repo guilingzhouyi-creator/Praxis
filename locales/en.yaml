@@ -101,6 +101,8 @@ shell:
     usage_skills_candidates: "usage: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "usage: /skills candidates policy <on|off>"
     r4_candidate_ledger_unavailable: "R4 candidate ledger unavailable: boot the runtime first"
+    usage_session_reload: "usage: /session reload <agent_id> [reason=...]"
+    usage_session_resume: "usage: /session resume <session_id> [page=N]"
     usage_skills_pipeline_invalid_number: "invalid numeric value"
     usage_settings: "usage: /settings [global|cell <id>|agent <id>|pool scout|pool subagent]"
     usage_settings_pool: "usage: /settings pool [scout|subagent] [cell_id]"

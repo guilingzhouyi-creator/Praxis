@@ -22,8 +22,11 @@ class I18nPort(ABC):
     """Internationalization port — key-based translation lookup."""
 
     @abstractmethod
-    def t(self, key: str, **kwargs: Any) -> str: ...
+    def t(self, key: str, **kwargs: Any) -> str:
+        """Translate *key* in the active locale, formatting with *kwargs*."""
+
     def t_locale(self, locale: str, key: str, **kwargs: Any) -> str:
+        """Translate *key* in an explicit *locale* without switching the active one."""
         current = self.get_locale()
         result: str = key
         try:
@@ -34,15 +37,24 @@ class I18nPort(ABC):
         return result
 
     @abstractmethod
-    def set_locale(self, locale: str) -> None: ...
+    def set_locale(self, locale: str) -> None:
+        """Switch the active locale."""
+
     @abstractmethod
-    def get_locale(self) -> str: ...
+    def get_locale(self) -> str:
+        """Return the active locale code."""
+
     @abstractmethod
-    def get_available(self) -> list[str]: ...
+    def get_available(self) -> list[str]:
+        """Return the list of available locale codes."""
+
     @abstractmethod
-    def register(self, locale: str, data: dict[str, str | dict]) -> None: ...
+    def register(self, locale: str, data: dict[str, str | dict]) -> None:
+        """Register translation data for *locale*."""
+
     @abstractmethod
-    def register_file(self, locale: str, path: str) -> bool: ...
+    def register_file(self, locale: str, path: str) -> bool:
+        """Load translation data for *locale* from *path*; return success."""
 
 
 # ── CardRegistryPort ──
@@ -52,9 +64,12 @@ class CardRegistryPort(ABC):
     """Card type registry — query and install card definitions."""
 
     @abstractmethod
-    def list_types(self) -> list[dict]: ...
+    def list_types(self) -> list[dict]:
+        """List registered card type definitions."""
+
     @abstractmethod
-    def install_def(self, cdef: dict, source: str = "") -> bool: ...
+    def install_def(self, cdef: dict, source: str = "") -> bool:
+        """Install a card type definition; return success."""
 
 
 # ── MonitorBusPort ──
@@ -64,11 +79,14 @@ class MonitorBusPort(ABC):
     """Monitoring event bus — structured event emission and query."""
 
     @abstractmethod
-    def emit(self, type_: str, source: str, severity: str, message: str, data: dict | None = None) -> None: ...
+    def emit(self, type_: str, source: str, severity: str, message: str, data: dict | None = None) -> None:
+        """Emit a structured monitoring event."""
+
     @abstractmethod
     def query(
         self, type_prefix: str = "", severity: str = "", source: str = "", since: float = 0.0, limit: int = 100
-    ) -> list[dict]: ...
+    ) -> list[dict]:
+        """Query recent monitoring events matching the filters."""
 
 
 # ── R4 Candidate Ledger Port ──
@@ -135,15 +153,24 @@ class LLMPort(ABC):
     @abstractmethod
     def tool_use(
         self, prompt: str, tools: list, system: str = "", max_turns: int = 10, user_id: str = "", **model_kwargs: Any
-    ) -> dict: ...
+    ) -> dict:
+        """Run a multi-turn tool-use loop; return the result dict."""
+
     @abstractmethod
-    def generate(self, prompt: str, system: str = "", user_id: str = "", **model_kwargs: Any) -> dict: ...
+    def generate(self, prompt: str, system: str = "", user_id: str = "", **model_kwargs: Any) -> dict:
+        """Generate a completion for *prompt*; return the result dict."""
+
     @abstractmethod
-    def context_window(self, cell_id: str = "", agent_id: str = "") -> dict: ...
+    def context_window(self, cell_id: str = "", agent_id: str = "") -> dict:
+        """Return context-window usage statistics for a cell/agent."""
+
     @abstractmethod
-    def optimize_prompt(self, prompt: str, system: str = "") -> tuple[str, str]: ...
+    def optimize_prompt(self, prompt: str, system: str = "") -> tuple[str, str]:
+        """Return an optimized (prompt, system) pair."""
+
     @abstractmethod
-    def provider_status(self) -> dict: ...
+    def provider_status(self) -> dict:
+        """Return LLM provider status (health, model, latency)."""
 
 
 # ── Auth Port ──
@@ -153,13 +180,20 @@ class AuthPort(ABC):
     """Auth — token issuance, verification, revocation and refresh."""
 
     @abstractmethod
-    def issue_token(self, identity: str, ttl: float = AUTH_TOKEN_TTL_SECONDS) -> dict: ...
+    def issue_token(self, identity: str, ttl: float = AUTH_TOKEN_TTL_SECONDS) -> dict:
+        """Issue a token for *identity* with the given TTL; return the token dict."""
+
     @abstractmethod
-    def verify_token(self, token: str) -> dict: ...
+    def verify_token(self, token: str) -> dict:
+        """Verify *token*; return identity/validity details."""
+
     @abstractmethod
-    def revoke_token(self, token: str) -> dict: ...
+    def revoke_token(self, token: str) -> dict:
+        """Revoke *token*; return the revocation result."""
+
     @abstractmethod
-    def refresh_token(self, token: str) -> dict: ...
+    def refresh_token(self, token: str) -> dict:
+        """Refresh *token*; return the new token dict."""
 
 
 # ── WebSocket Port ──
@@ -169,15 +203,24 @@ class WebSocketPort(ABC):
     """WebSocket — bidirectional client channels for realtime frontend interaction."""
 
     @abstractmethod
-    def upgrade(self, request: Any) -> Any: ...
+    def upgrade(self, request: Any) -> Any:
+        """Upgrade an HTTP request to a WebSocket connection handle."""
+
     @abstractmethod
-    def recv(self, conn: Any) -> dict | None: ...
+    def recv(self, conn: Any) -> dict | None:
+        """Receive the next message dict from *conn*; None when closed."""
+
     @abstractmethod
-    def send(self, conn: Any, msg: dict) -> bool: ...
+    def send(self, conn: Any, msg: dict) -> bool:
+        """Send *msg* over *conn*; return success."""
+
     @abstractmethod
-    def close(self, conn: Any) -> None: ...
+    def close(self, conn: Any) -> None:
+        """Close a WebSocket connection."""
+
     @abstractmethod
-    def broadcast(self, event: str, data: dict) -> None: ...
+    def broadcast(self, event: str, data: dict) -> None:
+        """Broadcast *event* with *data* to all connected clients."""
 
 
 # ── RPC Server Port ──
@@ -187,11 +230,16 @@ class RpcServerPort(ABC):
     """RPC server — remote method invocation for distributed cells/nodes."""
 
     @abstractmethod
-    def register_handler(self, method: str, handler: Callable) -> None: ...
+    def register_handler(self, method: str, handler: Callable) -> None:
+        """Register a handler for an RPC *method*."""
+
     @abstractmethod
-    def call(self, method: str, params: dict | None = None) -> dict: ...
+    def call(self, method: str, params: dict | None = None) -> dict:
+        """Invoke an RPC *method* with *params*; return the result dict."""
+
     @abstractmethod
-    def notify(self, method: str, params: dict | None = None) -> None: ...
+    def notify(self, method: str, params: dict | None = None) -> None:
+        """Fire an RPC notification (no response expected)."""
 
 
 # ── Filesystem Port ──
@@ -201,10 +249,17 @@ class FilesystemPort(ABC):
     """Filesystem — file read/write, tree listing and change watching."""
 
     @abstractmethod
-    def read(self, path: str) -> dict: ...
+    def read(self, path: str) -> dict:
+        """Read a file; return content in the result dict."""
+
     @abstractmethod
-    def write(self, path: str, content: str) -> dict: ...
+    def write(self, path: str, content: str) -> dict:
+        """Write *content* to a file; return the result dict."""
+
     @abstractmethod
-    def list_tree(self, root: str) -> dict: ...
+    def list_tree(self, root: str) -> dict:
+        """List the file tree under *root*; return entries in the result dict."""
+
     @abstractmethod
-    def watch(self, root: str, callback: Callable) -> dict: ...
+    def watch(self, root: str, callback: Callable) -> dict:
+        """Watch *root* for changes, invoking *callback*; return the watch handle."""

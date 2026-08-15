@@ -99,23 +99,17 @@ def wire_kernel_os() -> None:
         logger.warning("kernel OS wiring skipped: %s", e)
 
 
-def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interactive: bool = True) -> dict:
-    """Full kernel boot sequence.
-
-    Args:
-        agent_config: list of (agent_id, role, territory) tuples.
-        interactive: If True, runs bootstrap wizard on first boot.
-    """
-    global _BOOT_STARTED, _BOOT_RESULT
-
-    # Lifecycle: enter BOOTING state
+def _enter_booting_state() -> None:
+    """Transition to the BOOTING lifecycle state (non-fatal)."""
     try:
         if not transition(LifecycleState.BOOTING):
             logger.warning("boot: cannot enter BOOTING from %s", get_lifecycle().state().value)
     except Exception as e:
         logger.warning("boot: lifecycle transition failed: %s", e)
 
-    # Retry safety: if previous boot failed, reset singletons first
+
+def _reset_singletons_on_retry() -> None:
+    """Reset singletons first if the previous boot failed (retry safety)."""
     if _BOOT_RESULT and not _BOOT_RESULT.get("success"):
         logger.warning("previous boot failed — resetting singletons for retry")
         try:
@@ -125,10 +119,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
         except Exception:
             logger.warning("singleton reset unavailable, proceeding anyway")
 
-    wire_kernel_os()
 
-    # Bridge L1 PraxisError → L3 ErrorBus. Registered early so any kernel
-    # error raised during boot is captured (idempotent; safe to re-register).
+def _wire_error_capture() -> None:
+    """Bridge L1 PraxisError into the L3 ErrorBus (idempotent, early)."""
     try:
         from l1.kernel.errors import set_error_capture_handler
 
@@ -146,9 +139,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
     except Exception as e:
         logger.warning("boot: error capture wiring failed: %s", e)
 
-    # Register default port adapters (i18n, worker, channel, event_bus, ...)
-    # early so cfg_language (load_config step) can switch the active locale
-    # and other services can resolve ports instead of relying on lazy fallbacks.
+
+def _wire_default_ports() -> None:
+    """Register default port adapters early so cfg_language can switch locale."""
     try:
         from .wiring import wire_defaults
 
@@ -157,10 +150,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
     except Exception as e:
         logger.warning("boot wiring: %s", e)
 
-    _BOOT_STARTED = time.time()
-    _BOOT_STEPS.clear()
 
-    # First-boot bootstrap wizard
+def _run_bootstrap(interactive: bool) -> None:
+    """Run the first-boot bootstrap wizard when needed."""
     try:
         from l3.config.bootstrap import needs_bootstrap, run_bootstrap
 
@@ -176,7 +168,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
         capture("bootstrap check failed", exc=e, component="kernel")
         logger.warning("bootstrap check: %s", e)
 
-    # Lifecycle: install check (migrations + seed)
+
+def _run_install_check() -> None:
+    """Run the lifecycle install check (migrations + seed)."""
     try:
         lc = get_lifecycle()
         lc.load()
@@ -191,7 +185,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
         capture("install check failed", exc=e, component="kernel")
         logger.warning("boot install check: %s", e)
 
-    # Register shutdown handler (atexit + signal) so state is always saved
+
+def _register_shutdown_handler() -> None:
+    """Register the atexit + signal shutdown handler so state is always saved."""
     try:
         from .lifecycle import register_shutdown_handler
 
@@ -203,7 +199,9 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
         capture("shutdown handler failed", exc=e, component="kernel")
         logger.warning("boot shutdown handler: %s", e)
 
-    # Restore previous state if available
+
+def _restore_previous_state() -> None:
+    """Restore previous kernel state if available."""
     try:
         from l1.kernel.persist import restore
 
@@ -214,24 +212,32 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
     except Exception as e:
         logger.warning("boot restore: %s", e)
 
-    # Start auto-save background thread
-    if PERSIST_AUTO:
 
-        def _save_loop():
-            while True:
-                time.sleep(PERSIST_INTERVAL)
-                try:
-                    from l1.kernel.persist import save
+def _auto_save_loop() -> None:
+    """Periodic kernel state save (daemon thread target)."""
+    while True:
+        time.sleep(PERSIST_INTERVAL)
+        try:
+            from l1.kernel.persist import save
 
-                    save()
-                except Exception as e:
-                    logger.warning("auto-save failed: %s", e)
+            save()
+        except Exception as e:
+            logger.warning("auto-save failed: %s", e)
 
-        t = threading.Thread(target=_save_loop, daemon=True, name="persist")
-        t.start()
-        logger.info("auto-save started (every %.0fs)", PERSIST_INTERVAL)
 
-    # Try to load agent config from memories first
+def _start_auto_save() -> None:
+    """Start the auto-save background thread if enabled."""
+    if not PERSIST_AUTO:
+        return
+    t = threading.Thread(target=_auto_save_loop, daemon=True, name="persist")
+    t.start()
+    logger.info("auto-save started (every %.0fs)", PERSIST_INTERVAL)
+
+
+def _resolve_agent_config(
+    agent_config: list[tuple[str, str, list[str]]] | None,
+) -> list[tuple[str, str, list[str]]]:
+    """Load agent config from memories, else derive from territory paths."""
     if agent_config is None:
         try:
             from l3.memory.memory_init import init_from_memories
@@ -247,11 +253,15 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
     if agent_config is None:
         # Generate agent config from territory paths (roles from constitution)
         agent_config = [(role, role, list(paths)) for role, paths in TERRITORY_PATHS.items()][:3]
+    return agent_config
 
-    # Early L2 load: push praxis.yaml overrides into SettingsCenter BEFORE the
-    # DAG runs, so early steps (load_constitution) can read L2 settings.
-    # Only load + flatten here (no handler side effects); the full apply
-    # (start_api, device registration, etc.) happens once in load_config.
+
+def _early_l2_load() -> None:
+    """Push praxis.yaml overrides into SettingsCenter before the DAG runs.
+
+    Only load + flatten here (no handler side effects); the full apply
+    (start_api, device registration, etc.) happens once in load_config.
+    """
     try:
         from l3.config.config_loader import load as _early_load
         from l3.config.settings_center import SettingsCenter
@@ -263,19 +273,13 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
     except Exception as e:
         logger.warning("boot early L2 load failed: %s", e)
 
-    # Reset+register: boot_registry maintains its own lock/state
-    from .boot_registry import reset_registry as _reset_boot_registry
 
-    _reset_boot_registry()
-    _register_default_boot_steps(agent_config)
-    lock_registry()
-
-    order = resolve_boot_order()
-    results: dict[str, Any] = {}
-    success = True
-
+def _execute_boot_steps(order: list[str]) -> tuple[dict, bool]:
+    """Run each boot step in order; returns (results, success)."""
     from .boot_registry import _boot_registry
 
+    results: dict[str, Any] = {}
+    success = True
     for name in order:
         step = _boot_registry.get(name)
         if not step:
@@ -307,8 +311,15 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
             results[name] = {"success": False, "error": str(e)}
             success = False
             break
+    return results, success
 
-    elapsed = time.time() - _BOOT_STARTED
+
+def _finalize_boot(
+    success: bool, elapsed: float, agent_config: list[tuple[str, str, list[str]]], results: dict
+) -> dict:
+    """Assemble the boot result, snapshot, health check, event, and lifecycle transition."""
+    global _BOOT_RESULT
+
     cell_result = results.get("create_cell", {})
     _BOOT_RESULT = {
         "success": success,
@@ -367,6 +378,56 @@ def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interacti
 
     logger.info("boot %s in %.2fs: %s", "OK" if success else "FAILED", elapsed, _BOOT_STEPS)
     return _BOOT_RESULT
+
+
+def boot(agent_config: list[tuple[str, str, list[str]]] | None = None, interactive: bool = True) -> dict:
+    """Full kernel boot sequence.
+
+    Args:
+        agent_config: list of (agent_id, role, territory) tuples.
+        interactive: If True, runs bootstrap wizard on first boot.
+    """
+    global _BOOT_STARTED, _BOOT_RESULT
+
+    # Lifecycle: enter BOOTING state + retry safety (reset singletons first)
+    _enter_booting_state()
+    _reset_singletons_on_retry()
+
+    wire_kernel_os()
+
+    # Bridge L1 PraxisError → L3 ErrorBus. Registered early so any kernel
+    # error raised during boot is captured (idempotent; safe to re-register).
+    _wire_error_capture()
+
+    # Register default port adapters (i18n, worker, channel, event_bus, ...)
+    # early so cfg_language (load_config step) can switch the active locale
+    # and other services can resolve ports instead of relying on lazy fallbacks.
+    _wire_default_ports()
+
+    _BOOT_STARTED = time.time()
+    _BOOT_STEPS.clear()
+
+    _run_bootstrap(interactive)
+    _run_install_check()
+    _register_shutdown_handler()
+    _restore_previous_state()
+    _start_auto_save()
+
+    resolved_config = _resolve_agent_config(agent_config)
+    _early_l2_load()
+
+    # Reset+register: boot_registry maintains its own lock/state
+    from .boot_registry import reset_registry as _reset_boot_registry
+
+    _reset_boot_registry()
+    _register_default_boot_steps(resolved_config)
+    lock_registry()
+
+    order = resolve_boot_order()
+    results, success = _execute_boot_steps(order)
+
+    elapsed = time.time() - _BOOT_STARTED
+    return _finalize_boot(success, elapsed, resolved_config, results)
 
 
 def _register_default_boot_steps(agent_config: list | None) -> None:

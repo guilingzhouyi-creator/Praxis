@@ -174,6 +174,7 @@ class CellMmu:
 
     @property
     def tlb(self) -> CellTlb:
+        """The MMU's translation lookaside buffer."""
         return self._tlb
 
     # ── Translation ───────────────────────────────────────────────

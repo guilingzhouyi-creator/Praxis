@@ -36,6 +36,7 @@ class PlanStep:
 
     @property
     def elapsed(self) -> float:
+        """Elapsed seconds since start (or 0 when never started)."""
         if self.completed_at:
             return self.completed_at - self.started_at
         return time.time() - self.started_at if self.started_at else 0.0

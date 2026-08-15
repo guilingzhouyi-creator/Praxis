@@ -57,10 +57,8 @@ class AgentLoopContextMixin:
             return ""
         return " " + " ".join(tags)
 
-    def _build_run_context(
-        self, max_steps: int, model_config: dict | None, engine: Any
-    ) -> tuple[str, list, list, dict]:
-        """Build system prompt, wrap tools, and prepare model kwargs."""
+    def _resolve_model_kwargs(self, model_config: dict | None) -> dict:
+        """Extract model kwargs from config and apply chat-params hooks."""
         model_kwargs: dict = {}
         if model_config:
             for key in ("model", "max_tokens", "temperature", "reasoning_effort", "thinking_budget"):
@@ -74,7 +72,10 @@ class AgentLoopContextMixin:
                     model_kwargs.update(override)
             except Exception as e:
                 logger.warning("chat params hook failed: %s", e)
-        self._register_todowrite()
+        return model_kwargs
+
+    def _resolve_base_system(self, max_steps: int) -> str:
+        """Resolve the base system prompt (explicit, role-keyed, or default template)."""
         todo_reminder = self._todo.reminder()
 
         if self._system:
@@ -106,7 +107,10 @@ class AgentLoopContextMixin:
             system = (system + "\n\n" + vc) if system else vc
         if todo_reminder:
             system = (system + "\n\n" + todo_reminder) if system else todo_reminder
+        return system
 
+    def _inject_constitution(self, system: str) -> str:
+        """Append the constitutional summary (inject-gated, non-fatal)."""
         try:
             from l1.kernel.constitution import get_constitution
 
@@ -115,10 +119,10 @@ class AgentLoopContextMixin:
                 system = (system + "\n\n" + const_summary) if system else const_summary
         except (ImportError, AttributeError):
             logger.debug("agent_loop: constitution summary failed")
+        return system
 
-        # Identity binding (Phase 1): inject the Cell's role-bound strict-role
-        # fragment. Gated by prompt.inject.identity; length is bounded by the
-        # binding's max_chars (resolve_fragment truncates to the limit).
+    def _inject_identity_role(self, system: str) -> str:
+        """Append the Cell's role-bound strict-role fragment (Phase 1)."""
         try:
             from l1.kernel.identity_binding import get_identity_binding_manager
 
@@ -128,12 +132,10 @@ class AgentLoopContextMixin:
                     system = (system + "\n\n" + fragment) if system else fragment
         except (ImportError, AttributeError):
             logger.debug("agent_loop: identity binding injection failed")
+        return system
 
-        # Identity binding (A2): HTN-C task dispatch matches the driving
-        # intent to a generic identity field (build/test/review) and its
-        # fragment is injected into the session context. Non-fatal. The
-        # empty-intent case short-circuits before any prompt-registry lookups
-        # (hot path: this runs on every system-prompt assembly).
+    def _inject_identity_htn(self, system: str) -> str:
+        """Append the HTN-C task-intent identity fragment (A2, non-fatal)."""
         try:
             from l3.bus.htn_planner import match_identity
 
@@ -147,11 +149,10 @@ class AgentLoopContextMixin:
                             system = (system + "\n\n" + _id_frag) if system else _id_frag
         except Exception as e:
             logger.debug("agent_loop: HTN-C identity injection failed: %s", e)
+        return system
 
-        # Identity binding ([3] card-domain linkage): the driving card's
-        # structured domain (card_unified.summary.columns["domain"]) hits a
-        # binding whose domain_tags name that domain — the matched
-        # domain-expert fragment is injected alongside the role fragment.
+    def _inject_identity_card_domain(self, system: str) -> str:
+        """Append the card-domain expert fragment (card-domain linkage)."""
         try:
             from l1.kernel.identity_binding import get_identity_binding_manager
 
@@ -163,13 +164,10 @@ class AgentLoopContextMixin:
                         system = (system + "\n\n" + _domain_frag) if system else _domain_frag
         except Exception as e:
             logger.debug("agent_loop: card-domain identity injection failed: %s", e)
+        return system
 
-        # Phase 3 M3: per-Cell Agents handbook (Cell-{cell_id}-Agents.md) —
-        # the Cell's department brief + constitution digest. Injected when
-        # the handbook exists in the L3 tiered-cache mirror (written by
-        # agents_md.write_agents_md) so the Cell's peer agents carry their
-        # department program. Gated by prompt.inject.skills (bounded token
-        # budget), degrades silently when absent/unavailable.
+    def _inject_cell_handbook(self, system: str) -> str:
+        """Append the per-Cell Agents handbook (Phase 3 M3, inject-gated)."""
         try:
             if _inject_enabled("skills") and self._cell_id:
                 from l3.memory.tiered_cache import get_tiered_cache
@@ -180,12 +178,10 @@ class AgentLoopContextMixin:
                     system = (system + "\n\n" + _text[:LOOP_CONTEXT_BUDGET_SKILL]) if system else _text
         except Exception as e:
             logger.debug("agent_loop: per-Cell handbook injection failed: %s", e)
+        return system
 
-        # Phase 3.2: Cell-domain shared prompt library — upper-layer shared
-        # base (all 3 Peer Agent sessions) + lower-layer dynamic doc
-        # (Agent.Cell doc), auto-hit by context pressure. Injected after the
-        # handbook so the layered pool overlays the department program.
-        # Gated by the library switch (default ON), degrades silently.
+    def _inject_cell_prompt_library(self, system: str) -> str:
+        """Append the Cell-domain shared prompt library (Phase 3.2)."""
         try:
             if self._cell_id:
                 from l3.agent.prompt_library import prompt_library_status, resolve_cell_prompt
@@ -197,11 +193,10 @@ class AgentLoopContextMixin:
                         system = (system + "\n\n" + _lib_text) if system else _lib_text
         except Exception as e:
             logger.debug("agent_loop: Cell prompt-library injection failed: %s", e)
+        return system
 
-        # Phase 3.2: global shared prompt library — cross-Cell sub-libraries
-        # (security / performance / extension) selected by the system from
-        # load + domain (never the user). Injected after the Cell library.
-        # Gated by the library switch (default ON), degrades silently.
+    def _inject_global_prompt_library(self, system: str) -> str:
+        """Append the global shared prompt library (Phase 3.2, load+domain driven)."""
         try:
             from l3.agent.global_prompt_library import (
                 global_prompt_library_status,
@@ -216,19 +211,26 @@ class AgentLoopContextMixin:
                     system = (system + "\n\n" + _global_text) if system else _global_text
         except Exception as e:
             logger.debug("agent_loop: global prompt-library injection failed: %s", e)
+        return system
 
-        # Tool presentation (Code Mode / PTC): filter the model-facing tools by
-        # the presentation mode and inject the run_code SDK + usage when the
-        # transport is exposed. ``native`` (default) hides run_code; ``code``
-        # exposes only it (tools:code-only); ``both`` exposes everything.
-        # The language backend owns the SDK and usage text — the framework
-        # never hardcodes a language.
+    def _inject_system_extras(self, system: str) -> str:
+        """Append all gated OS-managed fragments in assembly order."""
+        system = self._inject_constitution(system)
+        system = self._inject_identity_role(system)
+        system = self._inject_identity_htn(system)
+        system = self._inject_identity_card_domain(system)
+        system = self._inject_cell_handbook(system)
+        system = self._inject_cell_prompt_library(system)
+        return self._inject_global_prompt_library(system)
+
+    def _wrap_presentation_tools(self) -> tuple[list, list, bool]:
+        """Filter/wrap model-facing tools by presentation mode; returns (wrapped, read_only, code_mode)."""
         from l1.kernel.params.tool import (
             TOOL_PRESENTATION_BOTH,
             TOOL_PRESENTATION_CODE,
             TOOL_PRESENTATION_NATIVE,
         )
-        from l3.tool_system.tool_presentation import get_language_backend, get_presentation_mode
+        from l3.tool_system.tool_presentation import get_presentation_mode
 
         presentation = get_presentation_mode()
         code_mode = presentation in (TOOL_PRESENTATION_CODE, TOOL_PRESENTATION_BOTH)
@@ -253,36 +255,60 @@ class AgentLoopContextMixin:
             wrapped_tools.append(wrapped)
             if t.parallel_safe:
                 read_only_tools.append(wrapped)
-        if code_mode:
-            backend = get_language_backend()
-            if backend is not None:
-                sdk = backend.render_sdk(
-                    [
-                        {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": [
-                                {"name": p.name, "type": p.type, "description": p.description}
-                                for p in (t.parameters or [])
-                            ],
-                        }
-                        for t in self._tools
-                    ]
-                )
-                # Language-specific usage from the backend; a praxis.yaml
-                # prompt override (agent_loop.run_code_usage) wins if present.
-                # Monitored getter: counts usage for the bypass monitor
-                # (engineering/debug mode, 3.2).
-                from l1.kernel.prompts import get_prompt_monitored
+        return wrapped_tools, read_only_tools, code_mode
 
-                usage = get_prompt_monitored("agent_loop.run_code_usage", "") or backend.render_usage()
-                # Stable-prefix assembly: system + usage + SDK form the
-                # byte-stable prefix every request reuses (vendor KV-cache
-                # hits); the incremental suffix (program/patch/results) is
-                # appended later by the conversation.
-                from l3.tool_system.tool_presentation import assemble_code_prompt
+    def _assemble_code_mode(self, system: str, code_mode: bool) -> str:
+        """Assemble the byte-stable code-mode prefix (SDK + usage) when exposed."""
+        if not code_mode:
+            return system
+        from l3.tool_system.tool_presentation import assemble_code_prompt, get_language_backend
 
-                system = assemble_code_prompt(system, sdk, usage)
+        backend = get_language_backend()
+        if backend is None:
+            return system
+        sdk = backend.render_sdk(
+            [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": [
+                        {"name": p.name, "type": p.type, "description": p.description} for p in (t.parameters or [])
+                    ],
+                }
+                for t in self._tools
+            ]
+        )
+        # Language-specific usage from the backend; a praxis.yaml
+        # prompt override (agent_loop.run_code_usage) wins if present.
+        # Monitored getter: counts usage for the bypass monitor
+        # (engineering/debug mode, 3.2).
+        from l1.kernel.prompts import get_prompt_monitored
+
+        usage = get_prompt_monitored("agent_loop.run_code_usage", "") or backend.render_usage()
+        # Stable-prefix assembly: system + usage + SDK form the
+        # byte-stable prefix every request reuses (vendor KV-cache
+        # hits); the incremental suffix (program/patch/results) is
+        # appended later by the conversation.
+        return assemble_code_prompt(system, sdk, usage)
+
+    def _build_run_context(
+        self, max_steps: int, model_config: dict | None, engine: Any
+    ) -> tuple[str, list, list, dict]:
+        """Build system prompt, wrap tools, and prepare model kwargs."""
+        model_kwargs = self._resolve_model_kwargs(model_config)
+
+        self._register_todowrite()
+        system = self._resolve_base_system(max_steps)
+        system = self._inject_system_extras(system)
+
+        # Tool presentation (Code Mode / PTC): filter the model-facing tools by
+        # the presentation mode and inject the run_code SDK + usage when the
+        # transport is exposed. ``native`` (default) hides run_code; ``code``
+        # exposes only it (tools:code-only); ``both`` exposes everything.
+        # The language backend owns the SDK and usage text — the framework
+        # never hardcodes a language.
+        wrapped_tools, read_only_tools, code_mode = self._wrap_presentation_tools()
+        system = self._assemble_code_mode(system, code_mode)
         return system, wrapped_tools, read_only_tools, model_kwargs
 
     def _inject_extra_context(self, system: str) -> str:

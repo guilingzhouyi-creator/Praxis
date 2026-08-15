@@ -101,6 +101,8 @@ shell:
     usage_skills_candidates: "사용법: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "사용법: /skills candidates policy <on|off>"
     r4_candidate_ledger_unavailable: "R4 후보 원장을 사용할 수 없습니다: 먼저 런타임을 부팅하세요"
+    usage_session_reload: "사용법: /session reload <agent_id> [reason=...]"
+    usage_session_resume: "사용법: /session resume <session_id> [page=N]"
     usage_skills_pipeline_invalid_number: "잘못된 숫자 값입니다"
     usage_settings: "사용법: /settings [global|cell <id>|agent <id>|pool scout|pool subagent]"
     usage_settings_pool: "사용법: /settings pool [scout|subagent] [cell_id]"

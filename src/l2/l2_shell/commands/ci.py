@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from l2.i18n import t as _t
 
@@ -68,6 +69,97 @@ def _resolve_scope_key(key: str, cell_id: str, agent_id: str) -> str:
     return f"ci.review.{suffix}"
 
 
+def _ci_list(svc, rest: list[str]) -> dict:
+    """`ci list [status]` — query review records by status."""
+    status = rest[1] if len(rest) > 1 else ""
+    return svc.query(status=status)
+
+
+def _ci_show(svc, rest: list[str]) -> dict:
+    """`ci show <card_id>` — show a single review record."""
+    if len(rest) < 2:
+        return {"success": False, "error": _t("shell.app_error.usage_ci_show")}
+    return svc.query(card_id=rest[1], limit=1)
+
+
+def _ci_rerun(svc, rest: list[str]) -> dict:
+    """`ci rerun <card_id>` — rerun a review (write surface required)."""
+    if len(rest) < 2:
+        return {"success": False, "error": _t("shell.app_error.usage_ci_rerun")}
+    if not svc._surface_writable("shell"):
+        return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
+    return svc.rerun(rest[1])
+
+
+def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str) -> dict:
+    """`ci config [--cell X] [--agent Y]` — show global/effective settings."""
+    from l4.ci_review import CI_SETTING_SUFFIXES
+
+    settings: dict = {}
+    effective: dict = {}
+    for suffix in sorted(CI_SETTING_SUFFIXES):
+        global_key = f"ci.review.{suffix}"
+        settings[global_key] = center.get(global_key)
+        effective[suffix] = svc._effective(suffix, agent_id, cell_id, center.get(global_key))
+    return {
+        "success": True,
+        "settings": settings,
+        "effective": effective,
+        "scope": {"cell": cell_id, "agent": agent_id},
+        "control": {
+            "api": {"writable": svc._surface_writable("api")},
+            "shell": {"writable": svc._surface_writable("shell")},
+        },
+    }
+
+
+def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
+    """`ci set <key> <value> [--cell X] [--agent Y] [--admin]` — set a review setting."""
+    from l4.ci_review import CI_SETTING_SUFFIXES, _is_allowed_key, _is_control_key
+
+    if len(rest) < 3:
+        return {"success": False, "error": _t("shell.app_error.usage_ci_set")}
+    full_key = _resolve_scope_key(rest[1], cell_id, agent_id)
+    if not _is_allowed_key(full_key):
+        return {
+            "success": False,
+            "error": f"key not writable: {full_key}",
+            "allowed": sorted(CI_SETTING_SUFFIXES),
+        }
+    if _is_control_key(full_key):
+        if not admin:
+            return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
+    elif not svc._surface_writable("shell"):
+        return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
+    value = _parse_value(" ".join(rest[2:]))
+    center.set(full_key, value)
+    return {"success": True, "key": full_key, "value": value}
+
+
+def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
+    """`ci toggle [--cell X] [--agent Y] [--admin]` — flip the enabled switch."""
+    from l4.ci_review import _is_control_key
+
+    full_key = _resolve_scope_key("enabled", cell_id, agent_id)
+    if _is_control_key(full_key) and not admin:
+        return {"success": False, "error": _t("shell.app_error.ci_admin_required")}
+    if not svc._surface_writable("shell"):
+        return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
+    enabled = not bool(center.get(full_key, True))
+    center.set(full_key, enabled)
+    return {"success": True, "key": full_key, "enabled": enabled}
+
+
+_CI_HANDLERS: dict[str, Callable] = {
+    "list": _ci_list,
+    "show": _ci_show,
+    "rerun": _ci_rerun,
+    "config": _ci_config,
+    "set": _ci_set,
+    "toggle": _ci_toggle,
+}
+
+
 def _cmd_ci(args: list[str]) -> dict:
     """Show CI review stats/reports, inspect or set review switches.
 
@@ -77,76 +169,19 @@ def _cmd_ci(args: list[str]) -> dict:
     """
     try:
         from l3.config.settings_center import get_center
-        from l4.ci_review import (
-            CI_SETTING_SUFFIXES,
-            _is_allowed_key,
-            _is_control_key,
-            get_service,
-        )
+        from l4.ci_review import get_service
 
         rest, cell_id, agent_id, admin = _parse_flags(args)
         svc = get_service()
         center = get_center()
         if not rest:
             return {"success": True, **svc.stats()}
-        sub = rest[0].lower()
-        if sub == "list":
-            status = rest[1] if len(rest) > 1 else ""
-            return svc.query(status=status)
-        if sub == "show":
-            if len(rest) < 2:
-                return {"success": False, "error": _t("shell.app_error.usage_ci_show")}
-            return svc.query(card_id=rest[1], limit=1)
-        if sub == "rerun":
-            if len(rest) < 2:
-                return {"success": False, "error": _t("shell.app_error.usage_ci_rerun")}
-            if not svc._surface_writable("shell"):
-                return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
-            return svc.rerun(rest[1])
-        if sub == "config":
-            settings: dict = {}
-            effective: dict = {}
-            for suffix in sorted(CI_SETTING_SUFFIXES):
-                global_key = f"ci.review.{suffix}"
-                settings[global_key] = center.get(global_key)
-                effective[suffix] = svc._effective(suffix, agent_id, cell_id, center.get(global_key))
+        handler = _CI_HANDLERS.get(rest[0].lower())
+        if not handler:
             return {
-                "success": True,
-                "settings": settings,
-                "effective": effective,
-                "scope": {"cell": cell_id, "agent": agent_id},
-                "control": {
-                    "api": {"writable": svc._surface_writable("api")},
-                    "shell": {"writable": svc._surface_writable("shell")},
-                },
+                "success": False,
+                "error": f"unknown ci subcommand: {rest[0].lower()} (expected config|set|toggle|rerun|list|show)",
             }
-        if sub == "set":
-            if len(rest) < 3:
-                return {"success": False, "error": _t("shell.app_error.usage_ci_set")}
-            full_key = _resolve_scope_key(rest[1], cell_id, agent_id)
-            if not _is_allowed_key(full_key):
-                return {
-                    "success": False,
-                    "error": f"key not writable: {full_key}",
-                    "allowed": sorted(CI_SETTING_SUFFIXES),
-                }
-            if _is_control_key(full_key):
-                if not admin:
-                    return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
-            elif not svc._surface_writable("shell"):
-                return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
-            value = _parse_value(" ".join(rest[2:]))
-            center.set(full_key, value)
-            return {"success": True, "key": full_key, "value": value}
-        if sub == "toggle":
-            full_key = _resolve_scope_key("enabled", cell_id, agent_id)
-            if _is_control_key(full_key) and not admin:
-                return {"success": False, "error": _t("shell.app_error.ci_admin_required")}
-            if not svc._surface_writable("shell"):
-                return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
-            enabled = not bool(center.get(full_key, True))
-            center.set(full_key, enabled)
-            return {"success": True, "key": full_key, "enabled": enabled}
-        return {"success": False, "error": f"unknown ci subcommand: {sub} (expected config|set|toggle|rerun|list|show)"}
+        return handler(svc, center, rest, cell_id, agent_id, admin)
     except Exception as e:
         return {"success": False, "error": f"[E_CI_REVIEW_CMD] {e}"}

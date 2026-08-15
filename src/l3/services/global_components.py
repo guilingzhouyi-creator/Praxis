@@ -101,6 +101,7 @@ class StatsCenterComponent(Component):
 
     @property
     def center(self):
+        """The wrapped stats center."""
         return self._center
 
 
@@ -131,6 +132,7 @@ class RecordCenterComponent(Component):
 
     @property
     def center(self):
+        """The wrapped record center."""
         return self._center
 
 
@@ -187,6 +189,7 @@ class CentralControllerComponent(Component):
 
     @property
     def controller(self):
+        """The wrapped central controller."""
         return self._controller
 
 
