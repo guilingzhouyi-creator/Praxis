@@ -5,6 +5,7 @@ Routes `/l3a` to the L3A daemon dispatch.
 
 from __future__ import annotations
 
+from l2.i18n import t as _t
 from l3.cell.peers.l3a import dispatch as _l3a_dispatch
 
 _l3a_initialized = False
@@ -71,7 +72,7 @@ def _cmd_session_reload(args: list[str]) -> dict:
     from l3.agent_terminal import auto_reload_session
 
     if not args:
-        return {"success": False, "error": "usage: /session reload <agent_id> [reason=...]"}
+        return {"success": False, "error": _t("shell.app_error.usage_session_reload")}
     agent_id = args[0]
     reason = ""
     for arg in args[1:]:
@@ -121,7 +122,7 @@ def _cmd_session_resume(args: list[str]) -> dict:
         unknown / empty).
     """
     if not args:
-        return {"success": False, "error": "usage: /session resume <session_id> [page=N]"}
+        return {"success": False, "error": _t("shell.app_error.usage_session_resume")}
     session_id = args[0]
     page = 0
     for arg in args[1:]:

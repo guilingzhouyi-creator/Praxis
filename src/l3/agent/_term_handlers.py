@@ -64,6 +64,26 @@ def register_func_handler(action: str, handler_fn: Any) -> None:
     _FUNC_HANDLERS[action] = handler_fn
 
 
+def _resolve_legacy_handler(term, action: str):
+    """Resolve an action via the legacy registries (func handlers, action table, handler map)."""
+    direct_fn = _FUNC_HANDLERS.get(action)
+    if direct_fn:
+        return direct_fn
+    direct = _ACTION_HANDLERS.get(action)
+    if direct:
+        return getattr(term, direct, None)
+    for prefix, method in sorted(_ACTION_HANDLERS.items(), key=lambda x: -len(x[0])):
+        if action.startswith(prefix):
+            return getattr(term, method, None)
+    fn = _HANDLER_MAP.get(action)
+    if fn:
+        return fn
+    for prefix, fn in sorted(_HANDLER_MAP.items(), key=lambda x: -len(x[0])):
+        if action.startswith(prefix):
+            return fn
+    return None
+
+
 def get_action_handler(term, action: str):
     """Resolve action → handler via ToolConfig first, then legacy registries."""
     try:
@@ -81,22 +101,7 @@ def get_action_handler(term, action: str):
             )
     except Exception:
         logger.debug("_term_handlers: handler resolution failed")
-    direct_fn = _FUNC_HANDLERS.get(action)
-    if direct_fn:
-        return direct_fn
-    direct = _ACTION_HANDLERS.get(action)
-    if direct:
-        return getattr(term, direct, None)
-    for prefix, method in sorted(_ACTION_HANDLERS.items(), key=lambda x: -len(x[0])):
-        if action.startswith(prefix):
-            return getattr(term, method, None)
-    fn = _HANDLER_MAP.get(action)
-    if fn:
-        return fn
-    for prefix, fn in sorted(_HANDLER_MAP.items(), key=lambda x: -len(x[0])):
-        if action.startswith(prefix):
-            return fn
-    return None
+    return _resolve_legacy_handler(term, action)
 
 
 # ── Default handlers (extensible) ──
@@ -121,10 +126,29 @@ def handle_scout(term, card, phases):
     return str(sr.get("output", [])), sr.get("findings", []), True
 
 
+def _exec_shell_session(session_id: str, command: str, prompt_str: str):
+    """Run ``command`` in a live named shell session; ``None`` when no live session applies."""
+    import time as _time
+
+    try:
+        from l3.shell import get_manager as _sh
+
+        sm = _sh()
+        existing = sm.get(session_id)
+        if existing and existing.is_alive():
+            sm.write(session_id, command + "\n")
+            _time.sleep(POLL_INTERVAL_HANDLER)
+            out = sm.get_output(session_id)
+            output = "\n".join(out[-TERMINAL_OUTPUT_MAX_LINES:])[:TERMINAL_OUTPUT_MAX_CHARS]
+            return f"{prompt_str}{command}\n{output}", [], True
+    except Exception as e:
+        return f"session error: {e}", [], False
+    return None
+
+
 def handle_shell(term, card, phases):
     """Execute shell command with prompt, coloring, session support, structured errors."""
     import subprocess
-    import time as _time
 
     from l1.kernel.platform import SHELL_PROMPT
 
@@ -140,19 +164,9 @@ def handle_shell(term, card, phases):
     phases.append("shell")
 
     if session_id:
-        try:
-            from l3.shell import get_manager as _sh
-
-            sm = _sh()
-            existing = sm.get(session_id)
-            if existing and existing.is_alive():
-                sm.write(session_id, command + "\n")
-                _time.sleep(POLL_INTERVAL_HANDLER)
-                out = sm.get_output(session_id)
-                output = "\n".join(out[-TERMINAL_OUTPUT_MAX_LINES:])[:TERMINAL_OUTPUT_MAX_CHARS]
-                return f"{prompt_str}{command}\n{output}", [], True
-        except Exception as e:
-            return f"session error: {e}", [], False
+        session_result = _exec_shell_session(session_id, command, prompt_str)
+        if session_result is not None:
+            return session_result
 
     try:
         from l1.kernel.platform import run_shell

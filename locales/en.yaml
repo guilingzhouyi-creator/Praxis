@@ -98,6 +98,8 @@ shell:
     usage_skills_create: "usage: /skills create <name> <desc> <prompt> [--role <role>]"
     usage_skills_update: "usage: /skills update <name> <field> <value> [--role <role>]"
     usage_skills_delete: "usage: /skills delete <name> [--role <role>]"
+    usage_session_reload: "usage: /session reload <agent_id> [reason=...]"
+    usage_session_resume: "usage: /session resume <session_id> [page=N]"
     usage_skills_pipeline_invalid_number: "invalid numeric value"
     usage_settings: "usage: /settings [global|cell <id>|agent <id>|pool scout|pool subagent]"
     usage_settings_pool: "usage: /settings pool [scout|subagent] [cell_id]"

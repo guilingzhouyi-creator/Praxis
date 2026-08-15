@@ -45,19 +45,25 @@ def classify_hunk_semantic(hunk: dict) -> str:
     if added.replace(" ", "").replace("\t", "") == removed.replace(" ", "").replace("\t", ""):
         return "reformat"
 
-    # Rename detection
-    if "def " in added and "def " in removed:
-        return "rename"
-    if "class " in added and "class " in removed:
+    # Rename detection (def or class declaration renamed)
+    if ("def " in added and "def " in removed) or ("class " in added and "class " in removed):
         return "rename"
 
     # Import change
+    import_label = _classify_import_change(added, removed)
+    if import_label is not None:
+        return import_label
+
+    return "logic_change"
+
+
+def _classify_import_change(added: str, removed: str) -> str | None:
+    """Classify an import-related hunk; return None when not an import change."""
     if "import " in added or "from " in added:
         if "import " in removed or "from " in removed:
             return "import_change"
         return "import_added"
-
-    return "logic_change"
+    return None
 
 
 def compute_hunks(

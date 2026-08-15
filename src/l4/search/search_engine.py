@@ -54,7 +54,8 @@ class SearchEngine:
         """Unified search entry.
 
         mode:
-          "auto"     — smart selection (uppercase/dot → symbol search; import/lib → doc search; otherwise semantic search)
+          "auto"     — smart selection (uppercase/dot → symbol search; import/lib → doc search; otherwise
+                       semantic search)
           "semantic" — semantic search
           "symbol"   — symbol search
           "docs"     — doc search
@@ -65,7 +66,10 @@ class SearchEngine:
             return self._symbol.search(query, root_dir=root_dir, max_results=max_results)
         if mode == "docs":
             return self._docs.search(query, max_results=max_results)
-        # auto: smart selection
+        return self._search_auto(query, root_dir, max_results)
+
+    def _search_auto(self, query: str, root_dir: str, max_results: int) -> dict:
+        """Smart selection — symbol/doc for dotted or uppercase queries, doc for import-ish, else semantic."""
         if "." in query or query[0].isupper():
             sym_r = self._symbol.search(query, root_dir=root_dir, max_results=max_results)
             if sym_r.get("total_matches", 0) > 0:

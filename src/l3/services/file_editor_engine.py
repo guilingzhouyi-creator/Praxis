@@ -17,6 +17,25 @@ from .file_editor_models import DiffEdit, EditOperation
 logger = logging.getLogger(__name__)
 
 
+def _stage_and_write(path: Path, final: str) -> dict | None:
+    """Stage an edit through the resource buffer and write it back to disk.
+
+    Returns an error dict when staging or writing fails; ``None`` on success.
+    """
+    try:
+        from l3.resource_buffer.manager import get_manager
+
+        get_manager().stage(str(path), final, op="edit")
+    except (ImportError, AttributeError) as e:
+        return {"success": False, "error": f"buffer stage failed: {e}", "file": str(path)}
+
+    try:
+        path.write_text(final, encoding="utf-8")
+    except OSError as e:
+        return {"success": False, "error": f"write failed: {e}", "file": str(path)}
+    return None
+
+
 class EditEngine:
     """File edit engine — Diff semantic matching + atomic batch + history stack."""
 
@@ -76,20 +95,11 @@ class EditEngine:
         else:
             final = new_content
 
-        try:
-            from l3.resource_buffer.manager import get_manager
-
-            get_manager().stage(str(path), final, op="edit")
-        except (ImportError, AttributeError) as e:
-            return {"success": False, "error": f"buffer stage failed: {e}", "file": str(path)}
-
-        # Write back to disk (batch_edit parity) — buffer stage records the
-        # sandbox intent; the file itself must reflect the edit so undo/redo
-        # and direct readers see the change.
-        try:
-            path.write_text(final, encoding="utf-8")
-        except OSError as e:
-            return {"success": False, "error": f"write failed: {e}", "file": str(path)}
+        # Buffer stage records the sandbox intent; the file itself must reflect
+        # the edit so undo/redo and direct readers see the change.
+        error = _stage_and_write(path, final)
+        if error is not None:
+            return error
 
         op = EditOperation(
             edits=[{"path": str(path), "old": old, "new": new, "line": edit.start_line or 1}],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from l2.i18n import t as _t
@@ -37,33 +38,58 @@ def _cmd_cron(args: list[str]) -> dict:
     return {"success": False, "error": _t("shell.app_error.usage_cron")}
 
 
+def _model_switch_cmd(args: list[str]) -> dict:
+    """Handle `model switch <name> <provider> [model]` with arg guard."""
+    if len(args) < 3:
+        return {"success": False, "error": _t("shell.app_error.usage_model")}
+    return _model_switch(args[1], args[2], args[3] if len(args) > 3 else "")
+
+
+def _model_set_cmd(args: list[str]) -> dict:
+    """Handle `model set <k> <v> <scope>` with arg guard."""
+    if len(args) < 4:
+        return {"success": False, "error": _t("shell.app_error.usage_model")}
+    return _model_set(args[1], args[2], args[3])
+
+
+_MODEL_HANDLERS: dict[str, Callable[[list[str]], dict]] = {
+    "list": lambda args: _model_list(),
+    "status": lambda args: _model_status(),
+    "switch": _model_switch_cmd,
+    "health": lambda args: _model_health(args[1] if len(args) > 1 else ""),
+    "set": _model_set_cmd,
+    "spec": lambda args: _cmd_model_spec(args[1:]),
+}
+
+
 def _cmd_model(args: list[str]) -> dict:
     if not args:
         return _model_list()
-    sub = args[0].lower()
-    if sub == "list":
-        return _model_list()
-    if sub == "status":
-        return _model_status()
-    if sub == "switch" and len(args) >= 3:
-        return _model_switch(args[1], args[2], args[3] if len(args) > 3 else "")
-    if sub == "health":
-        return _model_health(args[1] if len(args) > 1 else "")
-    if sub == "set" and len(args) >= 4:
-        return _model_set(args[1], args[2], args[3])
-    if sub == "spec":
-        return _cmd_model_spec(args[1:])
-    return {"success": False, "error": _t("shell.app_error.usage_model")}
+    handler = _MODEL_HANDLERS.get(args[0].lower())
+    if not handler:
+        return {"success": False, "error": _t("shell.app_error.usage_model")}
+    return handler(args)
+
+
+def _model_spec_caps(args: list[str]) -> dict:
+    """Handle `model spec caps [max_reasoning] [max_budget]`."""
+    from l4.api_handlers.api_handlers_providers import handle_think_caps_get, handle_think_caps_set
+
+    if len(args) < 2:
+        return handle_think_caps_get({})
+    caps: dict[str, object] = {"max_reasoning": args[1]}
+    if len(args) >= 3:
+        try:
+            caps["max_budget"] = int(args[2])
+        except ValueError:
+            return {"success": False, "error": _t("shell.app_error.model_budget_int")}
+    return handle_think_caps_set(caps)
 
 
 def _cmd_model_spec(args: list[str]) -> dict:
     """Model-spec / strategy panel: view, switch packs, set caps."""
     from l3.services.model_service import get_service as _ms
-    from l4.api_handlers.api_handlers_providers import (
-        handle_model_spec_overview,
-        handle_think_caps_get,
-        handle_think_caps_set,
-    )
+    from l4.api_handlers.api_handlers_providers import handle_model_spec_overview
 
     if not args:
         return handle_model_spec_overview({})
@@ -73,15 +99,7 @@ def _cmd_model_spec(args: list[str]) -> dict:
     if sub == "clear" and len(args) >= 2:
         return _ms().clear_strategy(args[1])
     if sub == "caps":
-        if len(args) >= 2:
-            caps: dict[str, object] = {"max_reasoning": args[1]}
-            if len(args) >= 3:
-                try:
-                    caps["max_budget"] = int(args[2])
-                except ValueError:
-                    return {"success": False, "error": _t("shell.app_error.model_budget_int")}
-            return handle_think_caps_set(caps)
-        return handle_think_caps_get({})
+        return _model_spec_caps(args)
     if sub == "peer":
         return _cmd_model_spec_peer(args[1:])
     return {

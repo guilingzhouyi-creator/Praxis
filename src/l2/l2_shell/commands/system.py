@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from l2.i18n import t as _t
 
@@ -171,36 +172,39 @@ def _skills_retriever(sm, rest: list[str]) -> dict:
     }
 
 
+def _skills_pipeline_set(sm, rest: list[str]) -> dict:
+    """`skills pipeline set <field> <value>` — tune retrieval/curation policy."""
+    field = rest[2] if len(rest) > 2 else ""
+    value = rest[3] if len(rest) > 3 else ""
+    if field in ("retrieval", "curation") and value in ("on", "off", "true", "false", "1", "0"):
+        flag = value in ("on", "true", "1")
+        return sm.set_pipeline_policy(**{field: flag}, source="shell")
+    if field == "contrib_min_trials" and value.isdigit():
+        return sm.set_pipeline_policy(contrib_min_trials=int(value), source="shell")
+    if field in ("contrib_min_ratio", "retrieval_min_score"):
+        try:
+            fv = float(value)
+        except ValueError:
+            return {"success": False, "error": _t("shell.app_error.usage_skills_pipeline_invalid_number")}
+        return sm.set_pipeline_policy(**{field: fv}, source="shell")
+    return {
+        "success": False,
+        "error": f"invalid pipeline field/value: {field} {value}",
+        "suggestions": [
+            "status",
+            "set <retrieval|curation> <on|off>",
+            "set <contrib_min_trials|contrib_min_ratio|retrieval_min_score> <number>",
+        ],
+    }
+
+
 def _skills_pipeline(sm, rest: list[str]) -> dict:
     """Retrieval/curation pipeline policy (status public; tuning developer-only)."""
     action = rest[1] if len(rest) > 1 else "status"
     if action == "status":
         return {"success": True, "policy": sm.pipeline_policy()}
     if action == "set":
-        field = rest[2] if len(rest) > 2 else ""
-        value = rest[3] if len(rest) > 3 else ""
-        if field in ("retrieval", "curation") and value in ("on", "off", "true", "false", "1", "0"):
-            flag = value in ("on", "true", "1")
-            return sm.set_pipeline_policy(**{field: flag}, source="shell")
-        if field == "contrib_min_trials" and value.isdigit():
-            return sm.set_pipeline_policy(contrib_min_trials=int(value), source="shell")
-        if field in ("contrib_min_ratio", "retrieval_min_score"):
-            try:
-                fv = float(value)
-            except ValueError:
-                return {"success": False, "error": _t("shell.app_error.usage_skills_pipeline_invalid_number")}
-            if field == "contrib_min_ratio":
-                return sm.set_pipeline_policy(contrib_min_ratio=fv, source="shell")
-            return sm.set_pipeline_policy(retrieval_min_score=fv, source="shell")
-        return {
-            "success": False,
-            "error": f"invalid pipeline field/value: {field} {value}",
-            "suggestions": [
-                "status",
-                "set <retrieval|curation> <on|off>",
-                "set <contrib_min_trials|contrib_min_ratio|retrieval_min_score> <number>",
-            ],
-        }
+        return _skills_pipeline_set(sm, rest)
     return {
         "success": False,
         "error": f"unknown pipeline action: {action}",
@@ -313,6 +317,25 @@ def _skills_reload(sm, rest: list[str], role: str, agent_id: str) -> dict:
     return {"success": True, "loaded": count, "authorized": who}
 
 
+_SKILL_HANDLERS: dict[str, Callable[..., dict]] = {
+    "list": lambda sm, rest, role, agent_id: _skills_list(sm, rest),
+    "ls": lambda sm, rest, role, agent_id: _skills_list(sm, rest),
+    "lean": lambda sm, rest, role, agent_id: _skills_lean(sm, rest),
+    "get": lambda sm, rest, role, agent_id: _skills_get(sm, rest),
+    "permissions": lambda sm, rest, role, agent_id: _skills_permissions(sm, rest),
+    "distill": lambda sm, rest, role, agent_id: _skills_distill(sm, rest),
+    "retriever": lambda sm, rest, role, agent_id: _skills_retriever(sm, rest),
+    "pipeline": lambda sm, rest, role, agent_id: _skills_pipeline(sm, rest),
+    "disclosure": lambda sm, rest, role, agent_id: _skills_disclosure(sm, rest),
+    "guidance": lambda sm, rest, role, agent_id: _skills_guidance(sm, rest),
+    "evolve": _skills_evolve,
+    "create": _skills_create,
+    "update": _skills_update,
+    "delete": _skills_delete,
+    "reload": _skills_reload,
+}
+
+
 def _cmd_skills(args: list[str]) -> dict:
     """Manage skills — list/get are public; create/update/delete/reload are developer-only.
 
@@ -349,40 +372,14 @@ def _cmd_skills(args: list[str]) -> dict:
     role, agent_id, rest = _parse_skill_args(args)
     sub = rest[0] if rest else "list"
 
-    if sub in ("list", "ls"):
-        return _skills_list(sm, rest)
-    if sub == "lean":
-        return _skills_lean(sm, rest)
-    if sub == "get":
-        return _skills_get(sm, rest)
-    if sub == "permissions":
-        return _skills_permissions(sm, rest)
-    if sub == "distill":
-        return _skills_distill(sm, rest)
-    if sub == "retriever":
-        return _skills_retriever(sm, rest)
-    if sub == "pipeline":
-        return _skills_pipeline(sm, rest)
-    if sub == "disclosure":
-        return _skills_disclosure(sm, rest)
-    if sub == "guidance":
-        return _skills_guidance(sm, rest)
-    if sub == "evolve":
-        return _skills_evolve(sm, rest, role, agent_id)
-    if sub == "create":
-        return _skills_create(sm, rest, role, agent_id)
-    if sub == "update":
-        return _skills_update(sm, rest, role, agent_id)
-    if sub == "delete":
-        return _skills_delete(sm, rest, role, agent_id)
-    if sub == "reload":
-        return _skills_reload(sm, rest, role, agent_id)
-
-    return {
-        "success": False,
-        "error": f"unknown skills subcommand: {sub}",
-        "suggestions": ["list", "get", "create", "update", "delete", "reload", "permissions"],
-    }
+    handler = _SKILL_HANDLERS.get(sub)
+    if not handler:
+        return {
+            "success": False,
+            "error": f"unknown skills subcommand: {sub}",
+            "suggestions": ["list", "get", "create", "update", "delete", "reload", "permissions"],
+        }
+    return handler(sm, rest, role, agent_id)
 
 
 def _cmd_process(args: list[str]) -> dict:
