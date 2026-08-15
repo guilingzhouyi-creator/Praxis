@@ -9,29 +9,15 @@ layer so ``get_config()`` consumers see them before YAML overrides merge.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+
+from l1.kernel.discovery import discover, register, register_discovery_dir
 
 logger = logging.getLogger(__name__)
 
 
-def _init_discovery() -> dict:
-    """Auto-discover declarative YAML config snippets from config/discovery/.
-
-    Merges them on top of params-derived defaults so later boot steps
-    (load_config, load_tools, etc.) see the merged result.
-    """
-    from l1.kernel.discovery import (
-        discover,
-        register,
-        register_discovery_dir,
-    )
-    from l1.kernel.params import agent as _pag
-    from l1.kernel.params import api as _pa
-    from l1.kernel.params import gatechain as _pgc
-    from l1.kernel.params import kernel as _pk
-    from l1.kernel.params import system as _ps
-    from l1.kernel.params import tool as _pt
-
-    # Register params-derived defaults for each config section
+def _register_build_test_detectors() -> None:
+    """Register build/test detector command tables (params-independent)."""
     register(
         "build_detectors",
         {
@@ -52,19 +38,19 @@ def _init_discovery() -> dict:
             "vstest": {"cmd": ["vstest.console"]},
         },
     )
-    register("provider_urls", dict(_pa.LLM_PROVIDER_URLS))
-    # Ring → gate requirements (tool_spec.py reads get_config("ring_gates"))
+
+
+def _register_gate_sections() -> None:
+    """Register gate-related sections (ring gates, danger levels, constitution)."""
+    from l1.kernel.params import agent as _pag
+    from l1.kernel.params import gatechain as _pgc
+    from l1.kernel.params import kernel as _pk
+
     register(
         "ring_gates",
-        {
-            _pk.RING_1: ["G1", "G2"],
-            _pk.RING_2_5: ["G1", "G2", "G3", "G4"],
-            _pk.RING_3: ["G1", "G2", "G3", "G4", "G5"],
-        },
+        {_pk.RING_1: ["G1", "G2"], _pk.RING_2_5: ["G1", "G2", "G3", "G4"], _pk.RING_3: ["G1", "G2", "G3", "G4", "G5"]},
     )
-    # GateChain action-level danger ratings (gatechain.py reads this)
     register("gatechain_danger_levels", dict(_pgc.GATECHAIN_DANGER_LEVELS))
-    # Constitution action sets (constitution.py reads get_config("constitution"))
     register(
         "constitution",
         {
@@ -74,7 +60,16 @@ def _init_discovery() -> dict:
             "scout_blocked": sorted(_pag.CONSTITUTION_SCOUT_BLOCKED),
         },
     )
-    # Tool rate limiting (scheduler_rate.py reads get_config("tool_rates"))
+
+
+def _register_service_defaults() -> None:
+    """Register runtime limits + tool/persistence defaults (params → config fallback)."""
+    from l1.kernel.params import agent as _pag
+    from l1.kernel.params import api as _pa
+    from l1.kernel.params import system as _ps
+    from l1.kernel.params import tool as _pt
+
+    register("provider_urls", dict(_pa.LLM_PROVIDER_URLS))
     register(
         "tool_rates",
         {
@@ -83,7 +78,6 @@ def _init_discovery() -> dict:
             "ring_3": _pt.TOOL_RATE_RING_3,
         },
     )
-    # Service timeouts (convention.py reads get_config("services"))
     register(
         "services",
         {
@@ -104,30 +98,6 @@ def _init_discovery() -> dict:
             "convention_timeout": _pag.CONVENTION_TIMEOUT,
         },
     )
-
-    # ── agent_configs.yaml sections (consumed only) ──
-    register("skill_dirs", [".praxis/skills", "skills", ".skills"])
-    register(
-        "shell_aliases",
-        {
-            "rf": "read_file",
-            "wf": "write_file",
-            "ls": "list_directory",
-            "g": "grep",
-            "glob": "glob",
-            "cat": "read_file",
-            "h": "help",
-            "q": "exit",
-            "st": "status",
-            "tl": "tools",
-            "clr": "clear",
-            "hist": "history",
-        },
-    )
-
-    # Register tool timeout defaults (params → get_config fallback)
-    # Covers every key consumed via get_tool_config() so praxis.yaml/discovery
-    # overrides actually take effect instead of silently falling back.
     register(
         "tool",
         {
@@ -150,8 +120,6 @@ def _init_discovery() -> dict:
             "format_auto": _pt.TOOL_FORMAT_AUTO,
         },
     )
-
-    # Register persistence defaults (params → get_config fallback)
     register(
         "persistence",
         {
@@ -169,10 +137,6 @@ def _init_discovery() -> dict:
             "dialogue_session": _ps.DIALOGUE_SESSION_AUTO_SAVE,
         },
     )
-
-    # Register service runtime limits (params → get_config fallback).
-    # Declared declaratively in config/discovery/service_limits.yaml; consumers
-    # read via get_config("service_limits", {}).get(key, params_default).
     register(
         "service_limits",
         {
@@ -203,9 +167,30 @@ def _init_discovery() -> dict:
         },
     )
 
-    # Sections consumed outside ConfigDiscovery (owners read the YAML files
-    # directly) — registered so discover() merges them without
-    # unregistered-section warnings.
+
+def _register_consumer_sections() -> None:
+    """Register sections consumed by direct YAML readers (no merge warnings)."""
+    import l1.kernel.settings as _settings_mod
+    from l1.kernel.params import system as _ps
+
+    register("skill_dirs", [".praxis/skills", "skills", ".skills"])
+    register(
+        "shell_aliases",
+        {
+            "rf": "read_file",
+            "wf": "write_file",
+            "ls": "list_directory",
+            "g": "grep",
+            "glob": "glob",
+            "cat": "read_file",
+            "h": "help",
+            "q": "exit",
+            "st": "status",
+            "tl": "tools",
+            "clr": "clear",
+            "hist": "history",
+        },
+    )
     register("departments", {})  # department.py reads departments.yaml directly
     register("diff_languages", {})  # diff_language.py reads diff_languages.yaml directly
     register("diff_dictionary", {})  # diff_dict.py reads the diff_dictionary section
@@ -215,8 +200,6 @@ def _init_discovery() -> dict:
     # Shell family (boot_steps/shells.py reads get_config("shells")) —
     # params-derived defaults sourced from the settings registry so the
     # family master switch and default dialect are never hardcoded here.
-    import l1.kernel.settings as _settings_mod
-
     register(
         "shells",
         {
@@ -226,9 +209,6 @@ def _init_discovery() -> dict:
             "bindings": {},
         },
     )
-
-    # Declarative surfaces without consumers yet — registered with params
-    # defaults so discover() hosts them (consumable via get_config).
     register(
         "review",
         {
@@ -242,10 +222,9 @@ def _init_discovery() -> dict:
         {"api_enabled": True, "domains": {k: dict(v) for k, v in _ps.POSTURE_MATRIX_DEFAULT.items()}},
     )
 
-    # Register discovery directory
-    from pathlib import Path as _Path
 
-    dd = _Path(__file__).resolve().parent.parent.parent.parent.parent / "config" / "discovery"
+def _register_discovery_sources(dd: Path) -> None:
+    """Register the discovery directory + identity_roles.yaml overrides."""
     register_discovery_dir(str(dd))
 
     # identity_roles.yaml: three-identity keyword overrides (config-driven,
@@ -261,6 +240,22 @@ def _init_discovery() -> dict:
             logger.info("discovery: identity_roles overrides loaded (%d key(s))", len(roles_data))
     except Exception as e:
         logger.warning("discovery: identity_roles load skipped: %s", e)
+
+
+def _init_discovery() -> dict:
+    """Auto-discover declarative YAML config snippets from config/discovery/.
+
+    Merges them on top of params-derived defaults so later boot steps
+    (load_config, load_tools, etc.) see the merged result.
+    """
+    _register_build_test_detectors()
+    _register_gate_sections()
+    _register_service_defaults()
+    _register_consumer_sections()
+
+    # Register discovery directory
+    dd = Path(__file__).resolve().parent.parent.parent.parent.parent / "config" / "discovery"
+    _register_discovery_sources(dd)
 
     # Run discovery (scans YAML → merges on top of defaults)
     n = discover()
