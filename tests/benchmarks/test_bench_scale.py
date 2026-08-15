@@ -23,6 +23,11 @@ def test_split_fixed_work_rejects_impossible_worker_count() -> None:
         bench_scale._split_fixed_work(3, 4)
 
 
+def test_percentile_uses_nearest_rank() -> None:
+    """High percentiles select the correct tail rank for short samples."""
+    assert bench_scale._percentile([1.0, 2.0], 0.95) == 2.0
+
+
 def test_amdahl_fit_reports_serial_fraction_not_parallel_fraction() -> None:
     """Known Amdahl timings recover the serial fraction used by the verdict."""
     agent_counts = [1, 2, 4]

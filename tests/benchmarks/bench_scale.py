@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import math
 import os
 import platform
 import sys
@@ -110,7 +111,7 @@ def _percentile(values: list[float], percentile: float) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    index = min(int((len(ordered) - 1) * percentile), len(ordered) - 1)
+    index = min(math.ceil(len(ordered) * percentile) - 1, len(ordered) - 1)
     return ordered[index]
 
 
