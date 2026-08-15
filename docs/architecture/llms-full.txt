@@ -716,18 +716,24 @@ does not cover LLM calls or skill publication. Persistence is a side channel;
 an I/O failure degrades the ledger operation without blocking the originating
 memory or tool-failure write. Implementations should keep serialized snapshots
 and compaction policy behind the store boundary so write latency does not grow
-with the lifetime of the archive.
+with the lifetime of the archive. The reference implementation appends
+mutations to the `R4_CANDIDATE_JOURNAL_SUFFIX` journal, compacts at
+`R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES`, and bounds the live set with
+`R4_CANDIDATE_MAX_RECORDS`; evicted records go to
+`R4_CANDIDATE_ARCHIVE_SUFFIX` for lossless retention.
 
 `CandidateLedgerPort` is the language-neutral adapter seam for listing,
-validation, lifecycle transitions, and policy state. Candidate records use a
-stable JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`,
-`validation`, `state`, and timestamps); lifecycle state names and limits come
-from `params/` and remain the single source of truth. Publication intent and
-LLM orchestration stay in L3 above the port. A future Rust ledger can therefore
-replace indexed storage and transition checks through the same port while the
-Python L3 orchestration, API, L2 shell, and callers remain unchanged. The
-Rust adapter must preserve atomic transition semantics, bounded evidence, and
-best-effort persistence behavior.
+validation, lifecycle transitions, and policy state. Its typed boundary uses
+`CandidateSnapshot`, `CandidateStatus`, `CandidateResult`, and `CandidateState`
+from `l1.kernel.ports.types`; each value remains serializable to the stable
+JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`, `validation`,
+`state`, and timestamps). Lifecycle state names and limits come from `params/`
+and remain the single source of truth. Publication intent and LLM orchestration
+stay in L3 above the port. A future Rust ledger can therefore replace indexed
+storage and transition checks through the same typed port while the Python L3
+orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
+must preserve atomic transition semantics, bounded evidence, and best-effort
+persistence behavior.
 
 ## Conversation-side compression (two-layer pipeline)
 
