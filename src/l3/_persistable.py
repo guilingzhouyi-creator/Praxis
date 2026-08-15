@@ -95,7 +95,8 @@ class PersistableMixin(ABC):
 
     def _persist(self, _auto_save_generation: int | None = None) -> dict:
         """Write a consistent snapshot to disk, superseding older snapshots."""
-        if not self._persist_path:
+        persist_path = self._persist_path
+        if not persist_path:
             return {"success": True, "skipped": True, "reason": "persistence disabled"}
         lock = self._lock
         try:
@@ -124,18 +125,18 @@ class PersistableMixin(ABC):
                 with path_state.epoch_lock:
                     if epoch < path_state.committed_epoch:
                         return {"success": True, "skipped": True, "reason": "superseded"}
-                parent_dir = os.path.dirname(os.path.abspath(self._persist_path))
+                parent_dir = os.path.dirname(os.path.abspath(persist_path))
                 os.makedirs(parent_dir, exist_ok=True)
                 descriptor, tmp_path = tempfile.mkstemp(
-                    prefix=f".{os.path.basename(self._persist_path)}.", suffix=".tmp", dir=parent_dir
+                    prefix=f".{os.path.basename(persist_path)}.", suffix=".tmp", dir=parent_dir
                 )
                 with os.fdopen(descriptor, "w", encoding="utf-8") as f:
                     f.write(payload)
-                os.replace(tmp_path, self._persist_path)
+                os.replace(tmp_path, persist_path)
                 tmp_path = None
                 with path_state.epoch_lock:
                     path_state.committed_epoch = epoch
-            return {"success": True, "path": self._persist_path}
+            return {"success": True, "path": persist_path}
         except Exception as e:
             logger.warning("persist %s: %s", self.persistence_kind, e)
             return {"success": False, "error": str(e)}
