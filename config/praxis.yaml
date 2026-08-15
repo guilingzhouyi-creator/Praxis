@@ -87,7 +87,7 @@ language: en
 # ── LLM ──
 llm:
   provider: ollama              # mock | ollama | openai | anthropic
-  # model: <MODEL_NAME>          # Example: qwen2.5-coder:7b (ollama local default), gpt-4o (openai),
+  # model: <MODEL_NAME>          # Example: codellama:7b (ollama local default), gpt-4o (openai),
   #                              # deepseek-v4 (deepseek), claude-sonnet-4-20250514 (anthropic).
   #                              # Omitted → falls back to params/api.py DEFAULT_MODEL_*.
   # api_url: <LLM_API_URL>       # Example: http://localhost:11434 (ollama); official provider endpoints

@@ -25,7 +25,7 @@ class TestL3AIntegration:
         from l3.cell.peers.l3a.model import L3AModelConfig
         from l3.cell.peers.l3a.session import Session
 
-        cfg = L3AModelConfig(provider="ollama", model="qwen2.5")
+        cfg = L3AModelConfig(provider="ollama", model="llama3.1")
         s = Session.create(title="cfg-test", model_config=cfg)
         info = s.info()
         assert info["model"]["provider"] == "ollama"
