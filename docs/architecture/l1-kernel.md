@@ -26,6 +26,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `ipc.py` / `net.py` / `net_transport.py` | IPC channel, cross-cell mesh, TLS transport |
 | `process.py` audit, `reputation.py` trust, `swapper.py` ring swapping, `interrupt.py` IRQ table |
 | `skill.py` | SkillManager (load/create/evolve/usage, write-gated) |
+| `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
 | `prompts.py` | Prompt registry (L3A system/parse templates, verification culture) |
 | `params/*` | 1,067 compile-time constants (kernel/allocator/sync/gatechain/agent/tool/api/system/…) |
 
@@ -84,6 +85,15 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
 cleanly.
+
+### Identity-binding persistence
+
+`IdentityBindingManager` captures an immutable binding snapshot and local
+revision while holding its registry lock. A state-path lock then serializes a
+read/merge/write transaction across manager instances: only the committed
+bind, unbind, or clear delta is applied to the current durable JSON state.
+Each replacement uses a uniquely named sibling temporary file, so concurrent
+writers never share a `.tmp` path and unrelated bindings remain intact.
 
 ## Key constants (params)
 

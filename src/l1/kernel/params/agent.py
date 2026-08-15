@@ -229,6 +229,12 @@ IDENTITY_BINDING_MAX_CHARS: Final[int] = 1200
 IDENTITY_BINDING_MAX_PER_CELL: Final[int] = 32
 IDENTITY_BINDING_WRITE_MIN_RING: Final[int] = 3
 IDENTITY_BINDING_WRITE_ROLES: Final[list[str]] = ["l3", "deployer", "default"]
+IDENTITY_BINDING_STATE_LOCK_SUFFIX: Final[str] = ".lock"
+IDENTITY_BINDING_STATE_TEMP_PREFIX: Final[str] = ".identity-binding-"
+IDENTITY_BINDING_STATE_TEMP_SUFFIX: Final[str] = ".tmp"
+IDENTITY_BINDING_PERSIST_UPSERT: Final[str] = "upsert"
+IDENTITY_BINDING_PERSIST_UNBIND: Final[str] = "unbind"
+IDENTITY_BINDING_PERSIST_CLEAR: Final[str] = "clear"
 
 
 # ── Department division (Phase 3: cell-count-triggered specialization) ──

@@ -8,6 +8,9 @@ Covers the gap-fill for the identity registration system:
 
 from __future__ import annotations
 
+import json
+import threading
+
 import pytest
 
 from l1.kernel.identity_binding import (
@@ -52,6 +55,74 @@ def test_persist_after_unbind(tmp_path):
 
     m2 = IdentityBindingManager(state_path=state)
     assert m2.get_binding("cell-1", "writer") is None
+
+
+def test_concurrent_bind_unbind_restores_parseable_final_state(tmp_path):
+    """Concurrent mutations leave a parseable state matching the final bindings."""
+    state = str(tmp_path / "identity_bindings.json")
+    manager = IdentityBindingManager(state_path=state)
+    worker_count = 12
+    start = threading.Barrier(worker_count)
+    errors: list[str] = []
+
+    def mutate(index: int) -> None:
+        """Bind one unique role, then remove alternating roles."""
+        try:
+            start.wait()
+            role = f"role-{index}"
+            assert manager.bind("cell-1", role, f"fragment-{index}", internal=True)["success"]
+            if index % 2:
+                assert manager.unbind("cell-1", role, internal=True)["success"]
+        except Exception as error:
+            errors.append(str(error))
+
+    threads = [threading.Thread(target=mutate, args=(index,)) for index in range(worker_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors
+    data = json.loads((tmp_path / "identity_bindings.json").read_text(encoding="utf-8"))
+    restored = IdentityBindingManager(state_path=state)
+    expected_roles = {f"role-{index}" for index in range(worker_count) if not index % 2}
+    assert set(data["cell-1"]) == expected_roles
+    assert set(restored.bindings_for_cell("cell-1")) == expected_roles
+
+
+def test_two_managers_merge_concurrent_persistence_without_losing_bindings(tmp_path):
+    """Managers sharing a state path retain both independently committed bindings."""
+    state = str(tmp_path / "identity_bindings.json")
+    first = IdentityBindingManager(state_path=state)
+    second = IdentityBindingManager(state_path=state)
+    start = threading.Barrier(2)
+    errors: list[str] = []
+
+    def bind_with(manager: IdentityBindingManager, role: str) -> None:
+        """Publish a binding after both managers have loaded the same state."""
+        try:
+            start.wait()
+            assert manager.bind("cell-1", role, f"fragment-{role}", internal=True)["success"]
+        except Exception as error:
+            errors.append(str(error))
+
+    threads = [
+        threading.Thread(target=bind_with, args=(first, "first-role")),
+        threading.Thread(target=bind_with, args=(second, "second-role")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors
+    restored = IdentityBindingManager(state_path=state)
+    first_binding = restored.get_binding("cell-1", "first-role")
+    second_binding = restored.get_binding("cell-1", "second-role")
+    assert first_binding is not None
+    assert first_binding.prompt_fragment == "fragment-first-role"
+    assert second_binding is not None
+    assert second_binding.prompt_fragment == "fragment-second-role"
 
 
 def test_restore_missing_file_is_empty():
