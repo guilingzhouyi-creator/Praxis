@@ -51,6 +51,25 @@ def test_run_timeout_returns_timed_out(port: SubprocessProcessPort) -> None:
     assert r.ok is False
 
 
+def test_run_args_nonexistent_binary_returns_failed_result(port: SubprocessProcessPort) -> None:
+    # Non-timeout failure must translate into a failed ProcessResult, never
+    # leak FileNotFoundError across the port boundary.
+    r = port.run_args(["praxis-no-such-binary-xyz"])
+    assert isinstance(r, ProcessResult)
+    assert r.returncode == -2
+    assert r.ok is False
+    assert r.timed_out is False
+    assert "no such" in r.stderr.lower() or "not found" in r.stderr.lower() or r.stderr != ""
+
+
+def test_run_broken_shell_returns_failed_result(port: SubprocessProcessPort) -> None:
+    # A shell path that cannot start raises OSError — translate, don't leak.
+    r = port.run("echo hi", executable="/nonexistent/shell")
+    assert isinstance(r, ProcessResult)
+    assert r.returncode == -2
+    assert r.ok is False
+
+
 def test_result_ok_property() -> None:
     assert ProcessResult(returncode=0).ok is True
     assert ProcessResult(returncode=1).ok is False

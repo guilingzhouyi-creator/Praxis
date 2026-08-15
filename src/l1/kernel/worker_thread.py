@@ -155,11 +155,15 @@ class ThreadPoolWorker(WorkerPort):
 
         The completion contract missing from ``submit()``: the returned handle's
         ``.result(timeout)`` blocks for the value (or re-raises the task error).
-        If the task is dropped by backpressure the handle never completes, so
-        always pass a timeout when awaiting.
+        Deterministic rejection paths (pool shut down / eviction failure)
+        complete the handle with an exception so the caller never blocks
+        forever; only a task evicted by backpressure from the QUEUE races the
+        handle, so pass a timeout when awaiting a task that may be dropped.
         """
         handle = TaskHandle()
-        self._enqueue(fn, args, kwargs, handle=handle)
+        res = self._enqueue(fn, args, kwargs, handle=handle)
+        if not res.success:
+            handle.set_exception(RuntimeError(res.error))
         return handle
 
     def _enqueue(self, fn: Callable, args: tuple, kwargs: dict, handle: TaskHandle | None) -> Result:
@@ -176,9 +180,14 @@ class ThreadPoolWorker(WorkerPort):
         except queue.Full:
             # Backpressure: drop oldest pending task
             try:
-                self._queue.get_nowait()
+                evicted = self._queue.get_nowait()
                 self._queue.put_nowait(item)
                 self._rejected += 1  # the dropped one
+                # The evicted task will never run — complete its handle (if it
+                # carried one) so its owner gets a deterministic error instead
+                # of a silent hang.
+                if evicted is not None and len(evicted) >= 5 and evicted[4] is not None:
+                    evicted[4].set_exception(RuntimeError("task evicted by backpressure"))
             except queue.Empty:
                 self._rejected += 1
                 return Result.fail("queue full and eviction failed")

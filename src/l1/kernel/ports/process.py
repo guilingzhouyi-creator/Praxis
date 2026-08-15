@@ -82,6 +82,11 @@ class SubprocessProcessPort(ProcessPort):
             cp = run_shell(cmd, timeout=timeout, **kwargs)
         except _subprocess.TimeoutExpired as e:
             return ProcessResult(returncode=-1, stdout=_to_text(e.stdout), stderr=_to_text(e.stderr), timed_out=True)
+        except OSError as e:
+            # e.g. FileNotFoundError for a broken shell — translate into a
+            # failed ProcessResult so the "no exception leak across the port
+            # boundary" contract holds for every failure, not just timeouts.
+            return ProcessResult(returncode=-2, stderr=str(e), timed_out=False)
         return ProcessResult(returncode=cp.returncode, stdout=_to_text(cp.stdout), stderr=_to_text(cp.stderr))
 
     def run_args(self, args: list[str], timeout: float = TOOL_TERMINAL_TIMEOUT, **kwargs: Any) -> ProcessResult:
@@ -91,6 +96,10 @@ class SubprocessProcessPort(ProcessPort):
             cp = _run_args(args, timeout=timeout, **kwargs)
         except _subprocess.TimeoutExpired as e:
             return ProcessResult(returncode=-1, stdout=_to_text(e.stdout), stderr=_to_text(e.stderr), timed_out=True)
+        except OSError as e:
+            # e.g. FileNotFoundError for a nonexistent binary — same contract
+            # as run(): return a failed ProcessResult, never leak the exception.
+            return ProcessResult(returncode=-2, stderr=str(e), timed_out=False)
         return ProcessResult(returncode=cp.returncode, stdout=_to_text(cp.stdout), stderr=_to_text(cp.stderr))
 
     def spawn_interactive(self, cwd: str = "") -> Any:
