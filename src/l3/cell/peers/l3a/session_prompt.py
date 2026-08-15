@@ -69,17 +69,10 @@ class SessionPromptMixin:
         """Ingest reasoning into memory (provided by Session)."""
         raise NotImplementedError
 
-    def prompt(self, text: str, mode: str = "steer") -> dict:
-        """Run one turn: admit the prompt, build context, execute the tool loop."""
+    def _admit_prompt(self, text: str, mode: str):
+        """Admit the prompt, sync the epoch, promote, and append the user message."""
         from .session_history import Message as _Message
 
-        limits = self._resolve_limits()
-        if limits["max_turns"] > 0 and self.turn_count >= limits["max_turns"]:
-            return {"success": False, "error": f"max turns reached ({limits['max_turns']})"}
-        # ASK awaiting: the chat input is treated as answers to the pending
-        # clarification questions (chat-window semantics), then the loop resumes.
-        if self._ask and self._ask.status == _p.ASK_STATUS_AWAITING:
-            return self._continue_after_ask(text)
         self.inbox.admit(text, mode=mode)
         self.last_active_at = time.time()
         self._ensure_epoch()
@@ -95,7 +88,7 @@ class SessionPromptMixin:
             )
         admitted = self.inbox.promote()
         if not admitted:
-            return {"success": False, "error": "no pending prompt"}
+            return None
         self.history.append(
             _Message(
                 id=admitted.id,
@@ -103,18 +96,16 @@ class SessionPromptMixin:
                 content=admitted.text,
             )
         )
+        return admitted
 
-        try:
-            self._report_stats()
-        except Exception:
-            capture("l3a session: stats report failed", error_code="E_L3A_STATS", component="l3a")
-            logger.warning("l3a session: stats report failed")
+    def _build_context_trail(self, user_text: str) -> list:
+        """Build the context trail with task-aware memory injection prepended."""
         ctx_trail = self.history.to_context_trail()
         # Task-aware injection: prompt keywords pick the dimension (execute→summary, decide→Mer, resume→layered)
         try:
             from l3.memory.memory_inject import build_context as _inject
 
-            inject_block = _inject(_p.AGENT_ID, prompt=admitted.text, max_tokens=1024)
+            inject_block = _inject(_p.AGENT_ID, prompt=user_text, max_tokens=1024)
             if inject_block:
                 ctx_trail.insert(
                     0,
@@ -125,20 +116,10 @@ class SessionPromptMixin:
                 )
         except Exception:
             logger.debug("l3a session: task-aware injection failed")
-        self._ensure_loop()
-        self._loop._context_trail = ctx_trail
-        self._loop.task = admitted.text
-        model_cfg = self._resolve_model_config()
-        # Capture pre-call projected tokens for savings tracking
-        pre_tokens = self.context_stats()["projected_tokens"]
-        result = self._loop.run(
-            max_steps=limits["max_steps"],
-            timeout=limits["timeout"],
-            model_config=model_cfg,
-        )
-        self.turn_count += 1
-        answer = result.get("answer", "")
-        tool_calls = result.get("tool_calls", [])
+        return ctx_trail
+
+    def _extract_reasoning(self) -> str:
+        """Extract the latest assistant reasoning content from the loop trail."""
         reasoning = ""
         try:
             trail = getattr(self._loop, "_context_trail", None) or []
@@ -148,110 +129,96 @@ class SessionPromptMixin:
                     break
         except Exception:
             logger.debug("l3a.session: reasoning extraction failed, proceeding without it", exc_info=True)
-        answer_msg = _Message(
-            id=f"asst-{uuid.uuid4().hex[:HASH_TRUNC_SHORTEST]}",
-            role="assistant",
-            content=answer,
-            tool_calls=tool_calls,
-            reasoning_content=reasoning,
-        )
-        self.history.append(answer_msg)
-        self._persist_state()
-        self._ingest_tool_results(result, admitted.text)
-        self._ingest_reasoning(result, admitted.text)
-        rtok = int(result.get("reasoning_tokens", 0) or 0)
-        if rtok > 0:
-            try:
-                from l3.services.stats_center import MetricPoint as _Mp
-                from l3.services.stats_center import get_center
+        return reasoning
 
-                ts = time.time()
-                get_center().ingest(
+    def _record_reasoning_tokens(self, rtok: int) -> None:
+        """Record reasoning-token usage to StatsCenter + monitor bus."""
+        try:
+            from l3.services.stats_center import MetricPoint as _Mp
+            from l3.services.stats_center import get_center
+
+            ts = time.time()
+            get_center().ingest(
+                _Mp(
+                    name="l3a.tokens.reasoning",
+                    value=float(rtok),
+                    tags={"session": self.id, "agent": _p.AGENT_ID},
+                    timestamp=ts,
+                    metric_type="counter",
+                )
+            )
+        except Exception:
+            logger.debug("l3a session: reasoning token stats failed")
+        try:
+            from l3.bus.monitor_bus import MonitorEvent as MonitorEventCls
+            from l3.bus.monitor_bus import get_bus as _MB4
+
+            _MB4().emit(
+                MonitorEventCls(
+                    type="stats.l3a.reasoning",
+                    source="l3a",
+                    severity="info",
+                    message=f"{self.id} turn {self.turn_count}: {rtok} thinking tokens",
+                    agent_id=_p.AGENT_ID,
+                    cell_id=self._cell_id,
+                    data={"session": self.id, "turn": self.turn_count, "reasoning_tokens": rtok},
+                )
+            )
+        except Exception:
+            logger.debug("l3a session: reasoning monitor emit failed")
+
+    def _record_tool_metrics(self, tool_calls: list) -> None:
+        """Record per-tool execution/latency/token metrics to StatsCenter."""
+        t0 = time.time()
+        try:
+            from l3.services.stats_center import MetricPoint as _Mp
+            from l3.services.stats_center import get_center
+
+            sc = get_center()
+            ts = time.time()
+            for tc in tool_calls:
+                fn_name = tc.get("function", {}).get("name", "unknown")
+                err = tc.get("error", "")
+                success = err == ""
+                latency = (time.time() - t0) / max(len(tool_calls), 1)
+                sc.ingest(
                     _Mp(
-                        name="l3a.tokens.reasoning",
-                        value=float(rtok),
-                        tags={"session": self.id, "agent": _p.AGENT_ID},
+                        name="l3a.tools.executed",
+                        value=1.0,
+                        tags={
+                            "tool": fn_name,
+                            "success": str(success).lower(),
+                            "session": self.id,
+                            "agent": _p.AGENT_ID,
+                        },
                         timestamp=ts,
                         metric_type="counter",
                     )
                 )
-            except Exception:
-                logger.debug("l3a session: reasoning token stats failed")
-        if rtok > 0:
-            try:
-                from l3.bus.monitor_bus import MonitorEvent as MonitorEventCls
-                from l3.bus.monitor_bus import get_bus as _MB4
-
-                _MB4().emit(
-                    MonitorEventCls(
-                        type="stats.l3a.reasoning",
-                        source="l3a",
-                        severity="info",
-                        message=f"{self.id} turn {self.turn_count}: {rtok} thinking tokens",
-                        agent_id=_p.AGENT_ID,
-                        cell_id=self._cell_id,
-                        data={"session": self.id, "turn": self.turn_count, "reasoning_tokens": rtok},
+                sc.ingest(
+                    _Mp(
+                        name="l3a.tools.latency",
+                        value=round(latency, 3),
+                        tags={"tool": fn_name, "session": self.id},
+                        timestamp=ts,
+                        metric_type="gauge",
                     )
                 )
-            except Exception:
-                logger.debug("l3a session: reasoning monitor emit failed")
-        result["session_id"] = self.id
-        result["turn"] = self.turn_count
-        if self._ask and self._ask.status == _p.ASK_STATUS_AWAITING:
-            result["ask"] = self._ask.to_dict()
-
-        # Record tool call metrics to StatsCenter
-        if tool_calls:
-            t0 = time.time()
-            try:
-                from l3.services.stats_center import MetricPoint as _Mp
-                from l3.services.stats_center import get_center
-
-                sc = get_center()
-                ts = time.time()
-                for tc in tool_calls:
-                    fn_name = tc.get("function", {}).get("name", "unknown")
-                    err = tc.get("error", "")
-                    success = err == ""
-                    latency = (time.time() - t0) / max(len(tool_calls), 1)
-                    sc.ingest(
-                        _Mp(
-                            name="l3a.tools.executed",
-                            value=1.0,
-                            tags={
-                                "tool": fn_name,
-                                "success": str(success).lower(),
-                                "session": self.id,
-                                "agent": _p.AGENT_ID,
-                            },
-                            timestamp=ts,
-                            metric_type="counter",
-                        )
+                sc.ingest(
+                    _Mp(
+                        name="l3a.tokens.consumed",
+                        value=float(tc.get("tokens", 0)),
+                        tags={"tool": fn_name, "session": self.id},
+                        timestamp=ts,
+                        metric_type="counter",
                     )
-                    sc.ingest(
-                        _Mp(
-                            name="l3a.tools.latency",
-                            value=round(latency, 3),
-                            tags={"tool": fn_name, "session": self.id},
-                            timestamp=ts,
-                            metric_type="gauge",
-                        )
-                    )
-                    sc.ingest(
-                        _Mp(
-                            name="l3a.tokens.consumed",
-                            value=float(tc.get("tokens", 0)),
-                            tags={"tool": fn_name, "session": self.id},
-                            timestamp=ts,
-                            metric_type="counter",
-                        )
-                    )
-            except Exception:
-                capture("l3a session: stats_center tool recording failed", error_code="E_L3A_SESSION", component="l3a")
-                logger.debug("l3a session: stats_center tool recording failed")
+                )
+        except Exception:
+            capture("l3a session: stats_center tool recording failed", error_code="E_L3A_SESSION", component="l3a")
+            logger.debug("l3a session: stats_center tool recording failed")
 
-        # Token savings tracking: compare projected vs actual
-        post_tokens = self.context_stats()["projected_tokens"]
+    def _record_token_savings(self, pre_tokens: float, post_tokens: float) -> None:
+        """Record projected/actual/saved token gauges to StatsCenter."""
         token_saved = pre_tokens - post_tokens
         try:
             from l3.services.stats_center import MetricPoint as _Mp
@@ -290,6 +257,69 @@ class SessionPromptMixin:
         except Exception:
             capture("l3a session: token savings recording failed", error_code="E_L3A_SESSION", component="l3a")
             logger.debug("l3a session: token savings recording failed")
+
+    def prompt(self, text: str, mode: str = "steer") -> dict:
+        """Run one turn: admit the prompt, build context, execute the tool loop."""
+        from .session_history import Message as _Message
+
+        limits = self._resolve_limits()
+        if limits["max_turns"] > 0 and self.turn_count >= limits["max_turns"]:
+            return {"success": False, "error": f"max turns reached ({limits['max_turns']})"}
+        # ASK awaiting: the chat input is treated as answers to the pending
+        # clarification questions (chat-window semantics), then the loop resumes.
+        if self._ask and self._ask.status == _p.ASK_STATUS_AWAITING:
+            return self._continue_after_ask(text)
+        admitted = self._admit_prompt(text, mode)
+        if not admitted:
+            return {"success": False, "error": "no pending prompt"}
+
+        try:
+            self._report_stats()
+        except Exception:
+            capture("l3a session: stats report failed", error_code="E_L3A_STATS", component="l3a")
+            logger.warning("l3a session: stats report failed")
+        ctx_trail = self._build_context_trail(admitted.text)
+        self._ensure_loop()
+        self._loop._context_trail = ctx_trail
+        self._loop.task = admitted.text
+        model_cfg = self._resolve_model_config()
+        # Capture pre-call projected tokens for savings tracking
+        pre_tokens = self.context_stats()["projected_tokens"]
+        result = self._loop.run(
+            max_steps=limits["max_steps"],
+            timeout=limits["timeout"],
+            model_config=model_cfg,
+        )
+        self.turn_count += 1
+        answer = result.get("answer", "")
+        tool_calls = result.get("tool_calls", [])
+        reasoning = self._extract_reasoning()
+        answer_msg = _Message(
+            id=f"asst-{uuid.uuid4().hex[:HASH_TRUNC_SHORTEST]}",
+            role="assistant",
+            content=answer,
+            tool_calls=tool_calls,
+            reasoning_content=reasoning,
+        )
+        self.history.append(answer_msg)
+        self._persist_state()
+        self._ingest_tool_results(result, admitted.text)
+        self._ingest_reasoning(result, admitted.text)
+        rtok = int(result.get("reasoning_tokens", 0) or 0)
+        if rtok > 0:
+            self._record_reasoning_tokens(rtok)
+        result["session_id"] = self.id
+        result["turn"] = self.turn_count
+        if self._ask and self._ask.status == _p.ASK_STATUS_AWAITING:
+            result["ask"] = self._ask.to_dict()
+
+        # Record tool call metrics to StatsCenter
+        if tool_calls:
+            self._record_tool_metrics(tool_calls)
+
+        # Token savings tracking: compare projected vs actual
+        post_tokens = self.context_stats()["projected_tokens"]
+        self._record_token_savings(pre_tokens, post_tokens)
         return result
 
     def context_stats(self) -> dict:
