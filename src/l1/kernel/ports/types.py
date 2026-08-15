@@ -3,7 +3,53 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, TypedDict
+
+CandidateState = Literal["observed", "validated", "canary", "active", "retired"]
+
+
+class CandidateBinding(TypedDict):
+    """Adapter-neutral target binding for an R4 candidate."""
+
+    cell_ids: list[str]
+    roles: list[str]
+    agent_ids: list[str]
+    card_natures: list[str]
+    postures: list[str]
+
+
+class CandidateSnapshot(TypedDict, total=False):
+    """Serialized candidate record crossing the kernel port boundary."""
+
+    id: str
+    fingerprint: str
+    state: CandidateState
+    binding: CandidateBinding
+    evidence: list[dict[str, Any]]
+    validation: dict[str, Any]
+    skill_name: str
+    created_at: float
+    updated_at: float
+
+
+class CandidateStatus(TypedDict):
+    """Serialized candidate collection status."""
+
+    enabled: bool
+    counts: dict[CandidateState, int]
+
+
+class CandidateResult(TypedDict, total=False):
+    """Serialized result shared by candidate ledger adapters."""
+
+    success: bool
+    error: str
+    reason: str
+    candidate: CandidateSnapshot
+    candidates: list[CandidateSnapshot]
+    submitted: int
+    validation: dict[str, Any]
+    skill: dict[str, Any]
 
 
 @dataclass

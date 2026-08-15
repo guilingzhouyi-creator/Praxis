@@ -53,6 +53,11 @@ from l1.kernel.ports.storage import (
     set_storage,
 )
 from l1.kernel.ports.types import (
+    CandidateBinding,
+    CandidateResult,
+    CandidateSnapshot,
+    CandidateState,
+    CandidateStatus,
     Endpoint,
     Event,
     Message,
@@ -61,8 +66,13 @@ from l1.kernel.ports.types import (
 
 __all__ = [
     "AuthPort",
+    "CandidateBinding",
+    "CandidateResult",
     "CandidateLedgerPort",
     "CardRegistryPort",
+    "CandidateSnapshot",
+    "CandidateState",
+    "CandidateStatus",
     "ChannelPort",
     "Endpoint",
     "Event",

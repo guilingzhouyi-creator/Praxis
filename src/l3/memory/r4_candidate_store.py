@@ -9,14 +9,19 @@ import os
 import threading
 import time
 import uuid
+from contextlib import suppress
 from typing import Any
 
 from l1.kernel.params.agent import (
+    R4_CANDIDATE_ARCHIVE_SUFFIX,
     R4_CANDIDATE_ENABLED_DEFAULT,
     R4_CANDIDATE_EVIDENCE_SUMMARY_MAX,
     R4_CANDIDATE_FINGERPRINT_LENGTH,
     R4_CANDIDATE_ID_PREFIX,
+    R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES,
+    R4_CANDIDATE_JOURNAL_SUFFIX,
     R4_CANDIDATE_MAX_EVIDENCE,
+    R4_CANDIDATE_MAX_RECORDS,
     R4_CANDIDATE_MIN_EVIDENCE,
     R4_CANDIDATE_SCHEMA_VERSION,
     R4_CANDIDATE_STATE_FILE,
@@ -24,7 +29,13 @@ from l1.kernel.params.agent import (
 from l1.kernel.params.system import SKILL_POSTURE_DEFAULT, SKILL_POSTURE_VALID
 from l1.kernel.paths import get_paths
 from l1.kernel.platform import ensure_dir
-from l1.kernel.ports import CandidateLedgerPort
+from l1.kernel.ports import (
+    CandidateLedgerPort,
+    CandidateResult,
+    CandidateSnapshot,
+    CandidateState,
+    CandidateStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +92,12 @@ class CandidateStore:
         # across the potentially slow R4Agent evolution call.
         self._publish_lock = threading.Lock()
         self._state_path = state_path or os.path.join(get_paths().data_dir, R4_CANDIDATE_STATE_FILE)
+        self._journal_path = f"{self._state_path}{R4_CANDIDATE_JOURNAL_SUFFIX}"
+        self._archive_path = f"{self._state_path}{R4_CANDIDATE_ARCHIVE_SUFFIX}"
         self._enabled = R4_CANDIDATE_ENABLED_DEFAULT
         self._candidates: dict[str, dict[str, Any]] = {}
+        self._fingerprint_index: dict[str, str] = {}
+        self._journal_entries = 0
         self._restore()
 
     def status(self) -> dict[str, Any]:
@@ -98,40 +113,140 @@ class CandidateStore:
     def set_enabled(self, enabled: bool) -> dict[str, Any]:
         """Enable or disable candidate collection without clearing evidence."""
         with self._lock:
-            self._enabled = bool(enabled)
+            normalized = bool(enabled)
+            if self._enabled != normalized:
+                self._enabled = normalized
+                self._persist({"op": "set_enabled", "enabled": normalized})
             return self.status()
 
     def _restore(self) -> None:
-        if not os.path.exists(self._state_path):
+        if os.path.exists(self._state_path):
+            try:
+                with open(self._state_path, encoding="utf-8") as state_file:
+                    data = json.load(state_file)
+                if data.get("schema_version") != R4_CANDIDATE_SCHEMA_VERSION:
+                    logger.warning("r4 candidate ledger schema mismatch: %s", self._state_path)
+                else:
+                    self._enabled = bool(data.get("enabled", self._enabled))
+                    for candidate in data.get("candidates") or []:
+                        self._upsert(candidate)
+            except Exception as exc:
+                logger.warning("r4 candidate ledger restore failed: %s", exc)
+        self._restore_journal()
+
+    def _upsert(self, candidate: Any) -> None:
+        """Install a candidate and update its O(1) fingerprint lookup index."""
+        if not isinstance(candidate, dict) or not isinstance(candidate.get("id"), str):
+            return
+        previous = self._candidates.get(candidate["id"])
+        if previous:
+            old_fingerprint = previous.get("fingerprint")
+            if isinstance(old_fingerprint, str) and self._fingerprint_index.get(old_fingerprint) == candidate["id"]:
+                self._fingerprint_index.pop(old_fingerprint, None)
+        self._candidates[candidate["id"]] = candidate
+        fingerprint = candidate.get("fingerprint")
+        if isinstance(fingerprint, str) and fingerprint:
+            self._fingerprint_index[fingerprint] = candidate["id"]
+
+    def _restore_journal(self) -> None:
+        """Replay the append-only mutation journal after loading its snapshot."""
+        if not os.path.exists(self._journal_path):
             return
         try:
-            with open(self._state_path, encoding="utf-8") as state_file:
-                data = json.load(state_file)
-            if data.get("schema_version") != R4_CANDIDATE_SCHEMA_VERSION:
-                logger.warning("r4 candidate ledger schema mismatch: %s", self._state_path)
-                return
-            candidates = data.get("candidates") or []
-            self._candidates = {
-                candidate["id"]: candidate
-                for candidate in candidates
-                if isinstance(candidate, dict) and isinstance(candidate.get("id"), str)
-            }
+            with open(self._journal_path, encoding="utf-8") as journal_file:
+                for line in journal_file:
+                    try:
+                        operation = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if operation.get("op") == "set_enabled":
+                        self._enabled = bool(operation.get("enabled", self._enabled))
+                    elif operation.get("op") == "upsert":
+                        for candidate in operation.get("candidates") or []:
+                            self._upsert(candidate)
+                    elif operation.get("op") == "remove":
+                        candidate_id = operation.get("id")
+                        if not isinstance(candidate_id, str):
+                            continue
+                        candidate = self._candidates.pop(candidate_id, None)
+                        if candidate:
+                            fingerprint = candidate.get("fingerprint")
+                            if (
+                                isinstance(fingerprint, str)
+                                and self._fingerprint_index.get(fingerprint) == candidate_id
+                            ):
+                                self._fingerprint_index.pop(fingerprint, None)
+                    self._journal_entries += 1
         except Exception as exc:
-            logger.warning("r4 candidate ledger restore failed: %s", exc)
+            logger.warning("r4 candidate ledger journal restore failed: %s", exc)
 
-    def _persist(self) -> None:
+    def _persist(self, operation: dict[str, Any] | None = None) -> None:
+        """Append a mutation and periodically compact it into the JSON snapshot."""
         try:
             ensure_dir(os.path.dirname(self._state_path) or ".")
-            payload = {
-                "schema_version": R4_CANDIDATE_SCHEMA_VERSION,
-                "candidates": list(self._candidates.values()),
-            }
-            temporary_path = f"{self._state_path}.tmp"
-            with open(temporary_path, "w", encoding="utf-8") as state_file:
-                json.dump(payload, state_file, ensure_ascii=True, indent=2, sort_keys=True)
-            os.replace(temporary_path, self._state_path)
+            if operation:
+                with open(self._journal_path, "a", encoding="utf-8") as journal_file:
+                    journal_file.write(json.dumps(operation, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
+                    journal_file.write("\n")
+                self._journal_entries += 1
+            if (
+                operation
+                and self._journal_entries < R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES
+                and os.path.exists(self._state_path)
+            ):
+                return
+            self._compact()
         except Exception as exc:
             logger.warning("r4 candidate ledger persist failed: %s", exc)
+
+    def _compact(self) -> None:
+        """Write a complete snapshot and clear the replay journal."""
+        payload = {
+            "schema_version": R4_CANDIDATE_SCHEMA_VERSION,
+            "enabled": self._enabled,
+            "candidates": list(self._candidates.values()),
+        }
+        temporary_path = f"{self._state_path}.tmp"
+        with open(temporary_path, "w", encoding="utf-8") as state_file:
+            json.dump(payload, state_file, ensure_ascii=True, indent=2, sort_keys=True)
+        os.replace(temporary_path, self._state_path)
+        with suppress(FileNotFoundError):
+            os.remove(self._journal_path)
+        self._journal_entries = 0
+
+    def _archive(self, candidate: dict[str, Any]) -> bool:
+        """Append an evicted candidate to the lossless archive."""
+        try:
+            ensure_dir(os.path.dirname(self._archive_path) or ".")
+            archived = dict(candidate)
+            archived["archived_at"] = time.time()
+            with open(self._archive_path, "a", encoding="utf-8") as archive_file:
+                archive_file.write(json.dumps(archived, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
+                archive_file.write("\n")
+            return True
+        except Exception as exc:
+            logger.warning("r4 candidate archive failed: %s", exc)
+            return False
+
+    def _enforce_capacity(self) -> None:
+        """Archive the oldest low-value candidates before growing the live ledger."""
+        if len(self._candidates) < R4_CANDIDATE_MAX_RECORDS:
+            return
+        eligible = sorted(
+            (candidate for candidate in self._candidates.values() if candidate.get("state") in {"retired", "observed"}),
+            key=lambda candidate: candidate.get("updated_at", 0.0),
+        )
+        if not eligible:
+            return
+        candidate = eligible[0]
+        if not self._archive(candidate):
+            return
+        candidate_id = str(candidate["id"])
+        self._candidates.pop(candidate_id, None)
+        fingerprint = candidate.get("fingerprint")
+        if isinstance(fingerprint, str) and self._fingerprint_index.get(fingerprint) == candidate_id:
+            self._fingerprint_index.pop(fingerprint, None)
+        self._persist({"op": "remove", "id": candidate_id})
 
     @staticmethod
     def _fingerprint(record: dict[str, Any], source: str, binding: dict[str, list[str]]) -> str:
@@ -170,16 +285,17 @@ class CandidateStore:
         with self._lock:
             if not self._enabled:
                 return {"success": True, "candidates": [], "submitted": 0, "reason": "candidate collection disabled"}
+            changed: dict[str, dict[str, Any]] = {}
             for record in records:
                 if not isinstance(record, dict):
                     continue
                 normalized_binding = normalize_binding(binding or record.get("binding"), record)
                 fingerprint = self._fingerprint(record, source, normalized_binding)
-                candidate = next(
-                    (item for item in self._candidates.values() if item.get("fingerprint") == fingerprint), None
-                )
+                candidate_id = self._fingerprint_index.get(fingerprint)
+                candidate = self._candidates.get(candidate_id) if candidate_id else None
                 now = time.time()
                 if candidate is None:
+                    self._enforce_capacity()
                     candidate_id = f"{R4_CANDIDATE_ID_PREFIX}{uuid.uuid4().hex}"
                     candidate = {
                         "id": candidate_id,
@@ -192,15 +308,16 @@ class CandidateStore:
                         "created_at": now,
                         "updated_at": now,
                     }
-                    self._candidates[candidate_id] = candidate
+                    self._upsert(candidate)
                 evidence = self._evidence(record, source)
                 if evidence["id"] not in {item.get("id") for item in candidate["evidence"]}:
                     candidate["evidence"].append(evidence)
                     candidate["evidence"] = candidate["evidence"][-R4_CANDIDATE_MAX_EVIDENCE:]
                     candidate["updated_at"] = now
+                    changed[candidate["id"]] = candidate
                 submitted.append(self._copy(candidate))
-            if submitted:
-                self._persist()
+            if changed:
+                self._persist({"op": "upsert", "candidates": list(changed.values())})
         return {"success": True, "candidates": submitted, "submitted": len(submitted)}
 
     def validate(self, candidate_id: str) -> dict[str, Any]:
@@ -221,7 +338,7 @@ class CandidateStore:
             if valid and candidate["state"] == "observed":
                 candidate["state"] = "validated"
             candidate["updated_at"] = time.time()
-            self._persist()
+            self._persist({"op": "upsert", "candidates": [candidate]})
             return {"success": valid, "candidate": self._copy(candidate), "reasons": reasons}
 
     def transition(self, candidate_id: str, state: str, skill_name: str = "") -> dict[str, Any]:
@@ -248,7 +365,7 @@ class CandidateStore:
             if skill_name:
                 candidate["skill_name"] = skill_name
             candidate["updated_at"] = time.time()
-            self._persist()
+            self._persist({"op": "upsert", "candidates": [candidate]})
             return {"success": True, "candidate": self._copy(candidate)}
 
     def get(self, candidate_id: str) -> dict[str, Any] | None:
@@ -282,19 +399,19 @@ class R4CandidateAdapter(CandidateLedgerPort):
     def _candidate_store(self) -> CandidateStore:
         return self._store or get_candidate_store()
 
-    def list_candidates(self, state: str = "") -> list[dict]:
+    def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]:
         """List candidate snapshots filtered by lifecycle state."""
         return self._candidate_store().list(state=state)
 
-    def get_candidate(self, candidate_id: str) -> dict | None:
+    def get_candidate(self, candidate_id: str) -> CandidateSnapshot | None:
         """Return one candidate snapshot by identifier."""
         return self._candidate_store().get(candidate_id)
 
-    def status(self) -> dict:
+    def status(self) -> CandidateStatus:
         """Return collection policy and lifecycle counts."""
         return self._candidate_store().status()
 
-    def set_enabled(self, enabled: bool) -> dict:
+    def set_enabled(self, enabled: bool) -> CandidateStatus:
         """Set candidate collection without removing existing evidence."""
         result = self._candidate_store().set_enabled(enabled)
         try:
@@ -305,19 +422,19 @@ class R4CandidateAdapter(CandidateLedgerPort):
             logger.debug("r4 candidate adapter settings mirror skipped: %s", exc)
         return result
 
-    def validate(self, candidate_id: str) -> dict:
+    def validate(self, candidate_id: str) -> CandidateResult:
         """Validate a candidate's accumulated evidence."""
         return self._candidate_store().validate(candidate_id)
 
-    def publish(self, candidate_id: str, intent: str, scope: str = "") -> dict:
+    def publish(self, candidate_id: str, intent: str, scope: str = "") -> CandidateResult:
         """Publish a validated candidate as a scoped canary skill."""
         return publish_candidate(candidate_id, intent, scope=scope)
 
-    def activate(self, candidate_id: str) -> dict:
+    def activate(self, candidate_id: str) -> CandidateResult:
         """Promote a canary candidate and its bound skill."""
         return activate_candidate(candidate_id)
 
-    def retire(self, candidate_id: str) -> dict:
+    def retire(self, candidate_id: str) -> CandidateResult:
         """Retire a candidate and remove its skill from injection."""
         return retire_candidate(candidate_id)
 

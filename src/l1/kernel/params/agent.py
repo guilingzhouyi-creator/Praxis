@@ -601,6 +601,14 @@ R4_CANDIDATE_MIN_EVIDENCE: Final[int] = 2
 R4_CANDIDATE_MAX_EVIDENCE: Final[int] = 64
 R4_CANDIDATE_FINGERPRINT_LENGTH: Final[int] = 16
 R4_CANDIDATE_EVIDENCE_SUMMARY_MAX: Final[int] = 500
+# Append-only journal suffix used for low-contention candidate persistence.
+R4_CANDIDATE_JOURNAL_SUFFIX: Final[str] = ".journal"
+# Compact the candidate journal into the snapshot after this many mutations.
+R4_CANDIDATE_JOURNAL_COMPACT_ENTRIES: Final[int] = 128
+# Bound the live candidate set; evicted records are retained in an archive.
+R4_CANDIDATE_MAX_RECORDS: Final[int] = 4096
+# Archive suffix for candidates evicted after the live-set bound is reached.
+R4_CANDIDATE_ARCHIVE_SUFFIX: Final[str] = ".archive"
 
 # ── Generalization verify gate (P1-④) ──
 # Generalized skills start as candidates; card-outcome signals accumulate
