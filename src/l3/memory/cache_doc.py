@@ -38,6 +38,7 @@ class CacheDocument:
 
     @property
     def expired(self) -> bool:
+        """Whether the cache document has outlived its TTL."""
         return time.time() > self.expires_at
 
 

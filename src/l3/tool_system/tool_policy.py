@@ -42,6 +42,7 @@ class PolicyScope(StrEnum):
 
     @property
     def priority(self) -> int:
+        """Numeric priority for this scope (session highest, global lowest)."""
         return {
             "session": 5,
             "agent": 4,

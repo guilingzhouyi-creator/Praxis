@@ -112,6 +112,7 @@ class MemoryGraph(SemanticExtractionMixin):
 
     @property
     def enabled(self) -> bool:
+        """Whether the R5 memory graph is enabled."""
         return self._enabled
 
     def set_enabled(self, flag: bool) -> None:
@@ -126,6 +127,7 @@ class MemoryGraph(SemanticExtractionMixin):
 
     @property
     def edge_mode(self) -> str:
+        """The current semantic-extraction edge mode."""
         return self._edge_mode
 
     def set_edge_mode(self, mode: str) -> dict:

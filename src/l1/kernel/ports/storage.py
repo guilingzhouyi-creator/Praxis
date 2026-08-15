@@ -41,20 +41,24 @@ class FsStoragePort(StoragePort):
     name: str = "fs.storage"
 
     def read_text(self, path: str) -> str:
+        """Read a UTF-8 text file ("" on missing file)."""
         try:
             return Path(path).read_text(encoding="utf-8")
         except OSError:
             return ""
 
     def write_text(self, path: str, text: str) -> None:
+        """Write UTF-8 text (creates parent dirs)."""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
 
     def exists(self, path: str) -> bool:
+        """Whether the path exists."""
         return Path(path).exists()
 
     def list_json(self, glob: str) -> list[str]:
+        """List JSON file paths under a glob pattern (sorted)."""
         p = Path(glob)
         base = p.parent
         try:

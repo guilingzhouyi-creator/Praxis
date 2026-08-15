@@ -72,6 +72,7 @@ class CellPmuComponent(Component):
 
     @property
     def pmu(self):
+        """The wrapped performance-monitor unit."""
         return self._pmu
 
 
@@ -142,6 +143,7 @@ class CellWatchdogComponent(Component):
 
     @property
     def watchdog(self):
+        """The wrapped cell watchdog."""
         return self._watchdog
 
 
@@ -186,6 +188,7 @@ class CellICacheComponent(Component):
 
     @property
     def icache(self):
+        """The wrapped instruction cache."""
         return self._icache
 
 
@@ -237,10 +240,12 @@ class CellMmuComponent(Component):
 
     @property
     def mmu(self):
+        """The wrapped memory-management unit."""
         return self._mmu
 
     @property
     def tlb(self):
+        """The MMU's translation lookaside buffer."""
         return self._tlb
 
 
@@ -294,6 +299,7 @@ class CellInterruptComponent(Component):
 
     @property
     def interrupt(self):
+        """The wrapped interrupt controller."""
         return self._interrupt
 
 
@@ -345,6 +351,7 @@ class CellCacheComponent(Component):
 
     @property
     def cache(self):
+        """The wrapped cell cache."""
         return self._cache
 
 

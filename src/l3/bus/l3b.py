@@ -65,6 +65,7 @@ class L3BComposite:
 
     @property
     def active(self) -> bool:
+        """Whether this composite is booted and accepting cards."""
         return self._active
 
     def boot(self) -> dict:
@@ -246,11 +247,13 @@ class L3B:
 
     @property
     def tier(self) -> str:
+        """L3B tier label derived from the registered Cell count."""
         n = len(self._cells)
         return "L3B1" if n < 4 else "L3B2" if n < 8 else "L3B4"
 
     @property
     def composites(self) -> list[L3BComposite]:
+        """All registered L3B composite routers."""
         return list(self._composites.values())
 
     def register(self, cell_id: str, territory: list[str] | None = None) -> None:

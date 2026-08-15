@@ -280,6 +280,7 @@ class CellCoreMixin:
         logger.info("cell %s: memory policy %s → %s", self.cell_id, old, policy)
 
     def get_memory_policy(self) -> str:
+        """Return the Cell's active memory policy."""
         return self._memory_policy
 
     def convention_memory(self) -> Any | None:

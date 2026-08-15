@@ -43,9 +43,11 @@ class ThreadLockPort(LockPort):
         self._lock = threading.RLock()
 
     def acquire(self) -> None:
+        """Acquire the reentrant thread lock (blocking)."""
         self._lock.acquire()
 
     def release(self) -> None:
+        """Release the reentrant thread lock."""
         self._lock.release()
 
 
