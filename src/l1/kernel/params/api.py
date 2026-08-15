@@ -84,9 +84,9 @@ DEFAULT_MODEL_DEEPSEEK_V4: Final[str] = "deepseek-v4"
 # Default DeepSeek chat model name
 DEFAULT_MODEL_DEEPSEEK_CHAT: Final[str] = "deepseek-chat"
 # Default Ollama general model name
-DEFAULT_MODEL_OLLAMA: Final[str] = "qwen2.5"
+DEFAULT_MODEL_OLLAMA: Final[str] = "llama3.1"
 # Default Ollama coding model name
-DEFAULT_MODEL_OLLAMA_CODER: Final[str] = "qwen2.5-coder:7b"
+DEFAULT_MODEL_OLLAMA_CODER: Final[str] = "codellama:7b"
 # Default ollama coding model (documented deployment default).
 # Mock provider model name (no real LLM call)
 DEFAULT_MODEL_MOCK: Final[str] = "mock"

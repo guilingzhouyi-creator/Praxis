@@ -246,6 +246,6 @@ class TestAgentTerminal:
         finally:
             # Clear the L3 overrides so they don't leak into other tests
             # (config_loader's test_llm_handler reads llm.provider).
-            # reset() restores the defaults (ollama / qwen2.5-coder:7b).
+            # reset() restores the defaults (ollama / codellama:7b).
             s.reset("llm.provider")
             s.reset("llm.model")

@@ -4,7 +4,8 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 
 > **This file is an index.** It carries the load-bearing rules every agent must
 > obey and points to the detailed docs in `docs/` for everything else. Read the
-> linked doc before touching the subsystem it describes.
+> linked doc before touching the subsystem it describes. `CLAUDE.md` is a thin
+> Claude-Code-facing pointer to this file — keep the rules here, not there.
 
 ## Quick start
 
@@ -456,7 +457,7 @@ Ruff (line-length 120, double quotes) and mypy configs live in `pyproject.toml`;
 
 ## LLM config
 
-Default: `ollama` / `qwen2.5-coder:7b` at `localhost:11434`. Configure via `config/praxis.yaml` or env vars (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OLLAMA_URL`, etc.).
+Default: `ollama` / `codellama:7b` at `localhost:11434`. Configure via `config/praxis.yaml` or env vars (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OLLAMA_URL`, etc.).
 
 ## Project structure
 
