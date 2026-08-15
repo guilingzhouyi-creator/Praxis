@@ -72,6 +72,11 @@ def _attacks_env():
     from l3.tool_system.harness import get_harness_mode, set_harness_mode
 
     reset_capability_store()
+    # Capability records are durable; start each matrix case from an empty
+    # authority set so a previous deny cannot affect the minimal-mode case.
+    capability_store = get_capability_store()
+    capability_store._records.clear()
+    capability_store.save()
     reset_notify()
     reset_table()
     _cleanup()
