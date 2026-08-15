@@ -16,18 +16,20 @@ def _successful_executor(*_a, **_k):
     return {"success": True}
 
 
-def _allow_all_pipeline():
+def _allow_all_pipeline(monkeypatch):
     """Pipeline with permissive gates so a tool call succeeds."""
     p = get_pipeline()
     p.constitution = type("C", (), {"is_allowed": lambda self, *a, **k: {"allowed": True}})()
-    tp.agent_can_access = lambda *a, **k: True
-    tp._get_gatechain = lambda: type(
-        "G", (), {"check": lambda self, *a, **k: {"allowed": True, "decision": "PASS", "steps": []}}
-    )()
+    monkeypatch.setattr(tp, "agent_can_access", lambda *a, **k: True)
+    monkeypatch.setattr(
+        tp,
+        "_get_gatechain",
+        lambda: type("G", (), {"check": lambda self, *a, **k: {"allowed": True, "decision": "PASS", "steps": []}})(),
+    )
     return p
 
 
-def test_successful_tool_bumps_matching_skill():
+def test_successful_tool_bumps_matching_skill(monkeypatch):
     reset_skill_manager()
     reset_pipeline()
     try:
@@ -35,7 +37,7 @@ def test_successful_tool_bumps_matching_skill():
         sm.create(name="read_file", prompt="Read", description="Use when reading files", internal=True)
         before = sm.get("read_file").get("useful_count", 0)
 
-        p = _allow_all_pipeline()
+        p = _allow_all_pipeline(monkeypatch)
         r = p.execute("read_file", "tester", {"path": "x"}, _registry={}, _executor=_successful_executor)
         assert r.get("success") is True
 
@@ -46,7 +48,7 @@ def test_successful_tool_bumps_matching_skill():
         reset_pipeline()
 
 
-def test_failed_tool_does_not_bump_skill():
+def test_failed_tool_does_not_bump_skill(monkeypatch):
     reset_skill_manager()
     reset_pipeline()
     try:
@@ -54,7 +56,7 @@ def test_failed_tool_does_not_bump_skill():
         sm.create(name="read_file", prompt="Read", description="Use when reading files", internal=True)
         before = sm.get("read_file").get("useful_count", 0)
 
-        p = _allow_all_pipeline()
+        p = _allow_all_pipeline(monkeypatch)
         r = p.execute("read_file", "tester", {"path": "x"}, _registry={}, _executor=lambda *a, **k: {"success": False})
         assert r.get("success") is False
 

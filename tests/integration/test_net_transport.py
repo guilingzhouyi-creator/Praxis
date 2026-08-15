@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -115,3 +116,16 @@ class TestTcpAdapterStartStop:
         r = t.stop()
         assert r.success
         assert r.data.get("stopped") is True
+
+    def test_immediate_stop_does_not_raise_listener_thread_errors(self, monkeypatch):
+        """Immediate shutdown must not leak socket errors from listener threads."""
+        errors = []
+        monkeypatch.setattr(threading, "excepthook", lambda args: errors.append(args.exc_value))
+        config = TransportConfig(host="127.0.0.1", port=0, discovery_port=0, broadcast_interval=0.001)
+
+        for _ in range(25):
+            adapter = TcpAdapter()
+            assert adapter.start("race-test", config).success
+            assert adapter.stop().success
+
+        assert errors == []

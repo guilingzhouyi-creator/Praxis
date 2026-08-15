@@ -123,7 +123,7 @@ class PersistableMixin(ABC):
             with path_state.write_lock:
                 with path_state.epoch_lock:
                     if epoch < path_state.committed_epoch:
-                        return {"success": False, "skipped": True, "reason": "superseded"}
+                        return {"success": True, "skipped": True, "reason": "superseded"}
                 parent_dir = os.path.dirname(os.path.abspath(self._persist_path))
                 os.makedirs(parent_dir, exist_ok=True)
                 descriptor, tmp_path = tempfile.mkstemp(
