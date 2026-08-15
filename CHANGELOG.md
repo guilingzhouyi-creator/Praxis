@@ -7,6 +7,7 @@
 
 ### 修复
 
+- **Fix (memory)**: snapshot persistence path during writes
 - **Fix (kernel)**: harden transport shutdown and persistence status
 - **Fix (l3)**: harden approval persistence paths
 - **Fix (memory)**: serialize candidate skill lifecycle
