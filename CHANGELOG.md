@@ -8,6 +8,7 @@
 ### 新增
 
 - **Feat (tool)**: add marker-gated engineering debug mode
+- **Feat (infra)**: per-layer performance baseline scanner
 - **Feat (infra)**: per-layer quality baseline scanner
 - **Feat (kernel)**: adopt ProcessPort execution boundary
 - **Feat (skill)**: gate evolution through candidates
