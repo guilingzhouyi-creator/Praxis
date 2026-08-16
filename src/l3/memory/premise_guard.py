@@ -20,6 +20,7 @@ import threading
 from typing import Any
 
 from l1.kernel.params.system import (
+    LOG_TRUNC_120,
     PREMISE_GUARD_ENABLED_DEFAULT,
     PREMISE_GUARD_MAX_ANCHORS,
     PREMISE_GUARD_MIN_ANCHOR_CHARS,
@@ -132,15 +133,10 @@ def check_summary(anchors: list[dict], summary: str, limit: int = PREMISE_GUARD_
             continue
         seen.add(fp)
         if text not in summary:
-            missing.append({"text": text[:LOG_TRUNC_ANCHOR], "role": a.get("role", "")})
+            missing.append({"text": text[:LOG_TRUNC_120], "role": a.get("role", "")})
             if len(missing) >= limit:
                 break
     return missing
-
-
-# Local truncation bound for reported anchor text (kept short to avoid
-# flooding the reminder with long originals).
-LOG_TRUNC_ANCHOR = 120
 
 
 def guard_reminder(missing: list[dict]) -> str:
@@ -155,6 +151,6 @@ def guard_reminder(missing: list[dict]) -> str:
     lines = ["[premise-guard] The following earlier premises are not in this summary:"]
     for m in missing[:PREMISE_GUARD_REMINDER_LIMIT]:
         role = f" ({m.get('role', '')})" if m.get("role") else ""
-        lines.append(f"- {m.get('text', '')[:120]}{role}")
+        lines.append(f"- {m.get('text', '')[:LOG_TRUNC_120]}{role}")
     lines.append("Re-check the R4 snapshot for full context if needed.")
     return "\n".join(lines)

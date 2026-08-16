@@ -25,6 +25,7 @@ import threading
 from typing import Any
 
 from l1.kernel.params.system import (
+    LOG_TRUNC_4000,
     MEMORY_COMPACTION_MAX_LINE_CHARS,
     MEMORY_COMPACTION_MAX_OUTPUT_CHARS,
     MEMORY_COMPACTION_MODE_DEFAULT,
@@ -150,7 +151,7 @@ def extract_llm_assisted(text: str, budget: int = MEMORY_COMPACTION_MAX_OUTPUT_C
             "Extract the operationally important facts from this text: file paths, commands, "
             "error codes, version pins, decisions and constraints. Return ONLY a compact bullet "
             "list in the original language, at most 8 lines. Drop conversational filler.\n\n"
-            f"{text[:4000]}"
+            f"{text[:LOG_TRUNC_4000]}"
         )
         out = engine.generate(prompt, system="You are a lossy-but-precise summarizer.", max_tokens=512)
         content = out.get("content", "") if isinstance(out, dict) else ""
