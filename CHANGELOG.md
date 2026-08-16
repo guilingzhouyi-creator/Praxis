@@ -5,43 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
-### 性能
-
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
-
 ### 新增
 
+- **Feat (infra)**: per-layer performance baseline scanner
 - **Feat (kernel)**: adopt ProcessPort execution boundary
 - **Feat (skill)**: gate evolution through candidates
 - **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
@@ -81,6 +47,7 @@
 
 ### 变更
 
+- **Chore**: ignore atomcode runtime config
 - **Test (infra)**: isolate durable capability fixtures
 - **Test (memory)**: document candidate rewrite seam and boundaries
 - **Test (infra)**: register ports.storage singleton reset
@@ -116,6 +83,7 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (docs)**: refresh candidate architecture indexes
 - **Docs (memory)**: detail candidate storage seam
 - **Docs (docs)**: refresh generated indexes
@@ -165,6 +133,41 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
+### 性能
+
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ## [0.4.1] - 2026-08-07
 
