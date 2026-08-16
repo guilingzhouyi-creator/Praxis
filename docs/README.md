@@ -19,6 +19,7 @@ this tree carries the detail.
 | [notes/](notes/) | Personal notes (cognitive formula; `随笔/` not tracked) | zh |
 | [issues/](issues/TEMPLATE.md) | Issue specification template | EN |
 | [judge-stats.md](judge-stats.md) | CompletionJudge effectiveness dashboard — **auto-updated**, never hand-edit | EN |
+| [completion-judge.md](architecture/completion-judge.md) | CompletionJudge spec: verdict contract (COMPLETE/PARTIAL/INCOMPLETE), 11 checks, shared log, statistics conventions | EN |
 
 ## Reading paths
 

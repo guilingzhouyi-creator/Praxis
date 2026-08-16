@@ -90,6 +90,7 @@ flowchart TB
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
 | — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
 | — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (perf_quality.py), drift floor |
+| — | [completion-judge.md](completion-judge.md) | CompletionJudge: 11-dimension "done" gate, COMPLETE/PARTIAL/INCOMPLETE verdicts, shared JSONL log, mode-split dashboard |
 | — | [skill-system.md](skill-system.md) | Skill manager (L1), R4Agent evolution, per-Cell bindings, staged/guided skills |
 | — | [runtime-subsystems.md](runtime-subsystems.md) | error bus (trace_id), AgentLoop entities, boot, search, LLM workers, resource buffer, ConfigDiscovery |
 | — | [sandbox-diff.md](sandbox-diff.md) | Structured diff system: per-hunk attribution model, diff views, three-tier topology, tiered compression |
