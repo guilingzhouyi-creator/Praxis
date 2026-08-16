@@ -102,7 +102,7 @@ class AgentControlBlock:
     # ── Basic CRUD ──
 
     def get(self, name: str, default: Any = None) -> Any:
-        """Read a slot value."""
+        """Read a slot value, falling back to the given default when absent."""
         with self._lock:
             entry = self._slots.get(name)
             if entry is None:
@@ -287,7 +287,7 @@ class ACBService(BaseService):
             return {"success": True, "agent_id": agent_id, "slot": slot, "value": value}
 
     def list(self) -> dict:
-        """List all agents."""
+        """List all registered agents with their slot counts and creation time."""
         with self._lock:
             agents = [
                 {"agent_id": aid, "slots": len(acb._slots), "created_at": acb.created_at}
@@ -304,13 +304,13 @@ class ACBService(BaseService):
             return {"success": True, "snapshot": acb.snapshot()}
 
     def export_all(self) -> dict:
-        """Export all ACBs."""
+        """Export every agent control block as a serializable dict mapping."""
         with self._lock:
             data = {aid: acb.to_dict() for aid, acb in self._agents.items()}
             return {"success": True, "agents": data, "count": len(data)}
 
     def import_all(self, data: dict) -> dict:
-        """Import ACBs."""
+        """Import agent control blocks from an exported dict mapping."""
         count = 0
         for agent_id, acb_data in data.get("agents", {}).items():
             acb = AgentControlBlock.from_dict(acb_data)

@@ -217,7 +217,7 @@ class LogService(BaseService):
             logger.warning("log flush failed: %s", e)
 
     def rotate(self) -> dict:
-        """Force log rotation."""
+        """Force a log rotation by flushing the in-memory buffer to disk."""
         self._flush_to_disk()
         return {"success": True}
 

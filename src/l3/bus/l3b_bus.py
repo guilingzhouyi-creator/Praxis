@@ -337,7 +337,7 @@ class L3BBus:
         return None
 
     def stats(self) -> dict:
-        """Bus statistics."""
+        """Bus statistics: counters plus registered composite mailboxes and queue depths."""
         with self._lock:
             return {
                 **self._stats,

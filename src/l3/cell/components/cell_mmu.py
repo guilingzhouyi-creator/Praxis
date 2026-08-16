@@ -251,7 +251,7 @@ class CellMmu:
         return self._tlb.flush_agent(agent_id)
 
     def flush_all(self) -> int:
-        """Flush entire TLB."""
+        """Flush every TLB translation entry; returns the number invalidated."""
         return self._tlb.flush_all()
 
     # ── Stats ─────────────────────────────────────────────────────

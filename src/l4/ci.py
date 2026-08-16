@@ -200,7 +200,7 @@ class CIService(BaseService):
         }
 
     def list_runs(self, status: str | None = None, limit: int = CI_DEFAULT_LIST_LIMIT) -> dict:
-        """List pipeline runs."""
+        """List pipeline runs, optionally filtered by status and capped by limit."""
         with self._lock:
             runs = list(self._runs.values())
         if status:

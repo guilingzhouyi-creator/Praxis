@@ -116,7 +116,7 @@ def system_boot(body: dict | None = None) -> dict:
 
 
 def system_shutdown(body: dict | None = None) -> dict:
-    """Shut the OS down."""
+    """Shut the OS down through the kernel lifecycle manager."""
     try:
         from l1.kernel.os import get_os
 
@@ -127,7 +127,7 @@ def system_shutdown(body: dict | None = None) -> dict:
 
 
 def system_reboot(body: dict | None = None) -> dict:
-    """Restart the OS."""
+    """Restart the OS through the kernel lifecycle manager."""
     try:
         from l1.kernel.os import get_os
 
