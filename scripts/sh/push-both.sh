@@ -75,9 +75,11 @@ else
   # Record a judge run for every mainline push attempt (JSONL audit trail
   # consumed by judge-stats.sh). Fast mode: skip the slow test/coverage
   # sweeps — the merge gate itself already ran the delta check; tests were
-  # gated by the worktree before merge.
+  # gated by the worktree before merge. The verdict is PARTIAL in fast mode
+  # (never COMPLETE) — the record's `mode` field keeps the dashboard honest.
   if bash scripts/sh/verify-completion.sh --skip=tests,coverage >/tmp/pushboth_judge.log 2>&1; then
-    echo "[push-both] ✅ completion judge: COMPLETE"
+    JV="$(grep -oE 'verdict: [A-Z]+' /tmp/pushboth_judge.log | head -1 | awk '{print $2}')"
+    echo "[push-both] ✅ completion judge: ${JV:-PARTIAL} (fast mode — tests/coverage skipped; full-gate verdict comes from the worktree run)"
   else
     echo "[push-both] ⚠️  completion judge: INCOMPLETE (see /tmp/pushboth_judge.log)" >&2
   fi

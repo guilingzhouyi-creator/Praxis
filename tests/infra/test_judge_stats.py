@@ -114,6 +114,47 @@ def write_log(tmp_path: Path) -> Path:
     return log
 
 
+# A fast-mode run: tests/coverage skipped → PARTIAL verdict, mode=fast.
+PARTIAL_RUN = {
+    "ts": "2026-08-14T13:00:00Z",
+    "verdict": "PARTIAL",
+    "mode": "fast",
+    "branch": "main",
+    "duration_s": 5,
+    "checks": {
+        "tests": 0,
+        "coverage": 0,
+        "delta": 1,
+        "docs": 1,
+        "lint": 1,
+        "audit": 1,
+        "complex": 1,
+        "cycle": 1,
+        "singleton": 1,
+        "changelog": 1,
+        "index": 1,
+    },
+    "metrics": {
+        "tests_passed": None,
+        "tests_failed": None,
+        "coverage_pct": None,
+        "net_delta": 1000,
+        "ruff_errors": 0,
+        "mega_funcs": 3,
+        "audit_vulns": 0,
+    },
+}
+
+
+def write_partial_log(tmp_path: Path) -> Path:
+    """Synthetic log mixing full runs (RUNS) with one fast PARTIAL run."""
+    log = tmp_path / "judge-partial.jsonl"
+    with open(log, "w", encoding="utf-8") as f:
+        for r in RUNS + [PARTIAL_RUN]:
+            f.write(json.dumps(r) + "\n")
+    return log
+
+
 def run_stats(log: Path, *extra: str) -> dict:
     """Run judge-stats.sh --json against the given log, returning parsed JSON."""
     result = subprocess.run(
@@ -195,9 +236,72 @@ def test_md_output(tmp_path):
     assert result.returncode == 0
     md = result.stdout
     assert "**Runs**: 3" in md
-    assert "**Duration**: avg 22s / P95 30s" in md
+    assert "**Duration** (full runs): avg 22s / P95 30s" in md
     assert "**Longest INCOMPLETE streak**: 2 consecutive" in md
     assert "**Completion rate by branch**" in md
     assert "**Check pass rate**" in md
     assert "**Numeric metrics**" in md
     assert "`coverage_pct`" in md
+
+
+def test_partial_verdict_bucket(tmp_path):
+    """Fast-mode PARTIAL runs are counted separately, never as COMPLETE."""
+    data = run_stats(write_partial_log(tmp_path))
+    assert data["total"] == 4
+    assert data["complete"] == 1
+    assert data["partial"] == 1
+    assert data["incomplete"] == 2
+    assert data["completion_rate"] == round(1 / 4, 3)
+
+
+def test_mode_split(tmp_path):
+    """Full and fast runs are aggregated separately (never mixed)."""
+    data = run_stats(write_partial_log(tmp_path))
+    assert data["mode_runs"] == {"full": 3, "fast": 1}
+    # full durations [15, 20, 30] → avg 21.7, P95 30; fast only [5]
+    assert data["duration_s"]["avg"] == round((15 + 20 + 30) / 3, 1)
+    assert data["duration_s"]["p95"] == 30
+    assert data["duration_fast"]["avg"] == 5.0
+    assert data["duration_fast"]["p95"] == 5
+    # failure distribution must not absorb the PARTIAL run
+    assert data["failures_by_check"]["lint"] == 2
+    # null metrics from the PARTIAL run are excluded from the series
+    assert data["metrics"]["coverage_pct"]["avg"] == round((62 + 63 + 64) / 3, 2)
+
+
+def test_legacy_mode_derivation(tmp_path):
+    """Records without a mode field derive fast from skipped check flags."""
+    log = tmp_path / "judge-legacy.jsonl"
+    legacy = dict(PARTIAL_RUN)
+    legacy.pop("mode")
+    with open(log, "w", encoding="utf-8") as f:
+        for r in RUNS + [legacy]:
+            f.write(json.dumps(r) + "\n")
+    data = run_stats(log)
+    assert data["mode_runs"] == {"full": 3, "fast": 1}
+    assert data["partial"] == 1
+
+
+def test_dedupe(tmp_path):
+    """Duplicate records (concurrent runs) never inflate counts."""
+    log = tmp_path / "judge-dup.jsonl"
+    with open(log, "w", encoding="utf-8") as f:
+        for r in RUNS + RUNS:
+            f.write(json.dumps(r) + "\n")
+    data = run_stats(log)
+    assert data["total"] == 3
+    assert data["complete"] == 1
+    assert data["incomplete"] == 2
+
+
+def test_latest_metric_by_ts(tmp_path):
+    """'latest' follows wall-clock order, not log position."""
+    log = tmp_path / "judge-order.jsonl"
+    r_late = dict(RUNS[0])
+    r_late["ts"] = "2026-08-15T00:00:00Z"
+    r_late["metrics"] = dict(RUNS[0]["metrics"], coverage_pct=80)
+    with open(log, "w", encoding="utf-8") as f:
+        for r in [RUNS[1], r_late, RUNS[0]]:
+            f.write(json.dumps(r) + "\n")
+    data = run_stats(log)
+    assert data["metrics"]["coverage_pct"]["latest"] == 80.0

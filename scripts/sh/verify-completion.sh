@@ -3,25 +3,43 @@
 #
 # Ratchet-style completion gate (see docs/architecture/completion-judge.md):
 # an agent may declare a task complete ONLY after every check below passes.
-# The machine returns COMPLETE or INCOMPLETE with the evidence gap; a PASS
-# never reopens once green (ratchet property: forward only).
+# The machine returns COMPLETE, PARTIAL or INCOMPLETE with the evidence gap;
+# a PASS never reopens once green (ratchet property: forward only).
 #
-# Checks (all must pass):
-#   1. Tests  — full suite green (pytest tests/, no -x early exit)
-#   2. Coverage — report fail-under threshold (default 60, from pyproject)
-#   3. Net delta — code delta meets the mainline gate (>= 1000 net, or
-#      deletion-dominated / docs-only exemptions)
-#   4. Docs sync — doc-stats drift gate clean (check_doc_stats.py)
-#   5. Lint/type — ruff check + mypy clean
+# Checks (all must pass — full mode):
+#   1. Tests        — full suite green (pytest tests/, no -x early exit)
+#   2. Coverage     — report fail-under threshold (default 60, from pyproject)
+#   3. Net delta    — code delta meets the mainline gate (>= 1000 net, or
+#                     deletion-dominated / docs-only exemptions)
+#   4. Docs sync    — doc-stats drift gate clean (check_doc_stats.py)
+#   5. Lint/type    — ruff check + mypy clean
+#   6. Audit        — pip-audit dependency CVE scan clean
+#   7. Complexity   — no functions longer than 200 lines
+#   8. Import cycle — import_cycle_check.py clean
+#   9. Singleton    — scan-singletons.py vs conftest _RESETS in sync
+#  10. Changelog    — CHANGELOG [Unreleased] present and fresh
+#  11. Doc index    — check_doc_index.py clean
 #
-# Every run appends a machine-readable record to `.praxis/judge-runs.jsonl`
-# (gitignored runtime data) so the gate's real effectiveness can be
-# quantified: see scripts/sh/judge-stats.sh for the aggregate view.
+# Verdicts:
+#   COMPLETE    — all 11 checks executed and passed (authorizes "done")
+#   PARTIAL     — all EXECUTED checks passed but >= 1 skipped (fast mode:
+#                 informative only, never authorizes "done")
+#   INCOMPLETE  — at least one executed check failed (evidence gap printed)
+# Mode: "full" (no check skipped) or "fast" (>= 1 check skipped via
+# --skip=... or COMPLETION_*=0). The record's `mode` field lets
+# judge-stats.sh aggregate full and fast runs separately — never mix them.
+#
+# Every run appends a machine-readable record to the SHARED judge log
+# `<main-tree>/.praxis/judge-runs.jsonl` (gitignored runtime data). The log
+# lives in the main worktree (resolved via `git rev-parse --git-common-dir`)
+# so runs from ANY linked worktree land in the one file the dashboard
+# aggregates: scripts/sh/judge-stats.sh.
 #
 # Usage:
 #   bash scripts/sh/verify-completion.sh [--skip <check,...>]
 #   COMPLETION_TESTS=0 bash scripts/sh/verify-completion.sh   # skip a check
-# Exit: 0 = COMPLETE; 1 = INCOMPLETE (prints missing evidence); 2 = usage error
+# Exit: 0 = COMPLETE or PARTIAL (see verdict); 1 = INCOMPLETE (prints missing
+# evidence); 2 = usage error
 #
 # Each check is a separate function so the ratchet can be extended per-domain
 # (swap the verifier, get a different tool).
@@ -31,7 +49,11 @@ set -u
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[judge] not in a git repo" >&2; exit 2; }
 cd "$ROOT"
 
-LOG_FILE="$ROOT/.praxis/judge-runs.jsonl"
+# Shared judge log: `--git-common-dir` resolves to the MAIN tree's .git from
+# any linked worktree, so every run (any tree) appends to the single JSONL
+# the dashboard aggregates — worktree-local logs would go unmeasured.
+COMMON_DIR="$(cd "$(git rev-parse --git-common-dir 2>/dev/null || echo "$ROOT/.git")" && pwd)" || COMMON_DIR="$ROOT/.git"
+LOG_FILE="${COMMON_DIR%/}/../.praxis/judge-runs.jsonl"
 mkdir -p "$(dirname "$LOG_FILE")"
 T0="$(date +%s)"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -60,6 +82,16 @@ done
 IFS=',' read -r -a SKIP_LIST <<< "$SKIP_ARG"
 skip() { local k; for k in "${SKIP_LIST[@]}"; do [ "$k" = "$1" ] && return 0; done; return 1; }
 [ -n "$SKIP_ARG" ] && { skip tests && RUN_TESTS=0; skip coverage && RUN_COVERAGE=0; skip delta && RUN_DELTA=0; skip docs && RUN_DOCS=0; skip lint && RUN_LINT=0; skip audit && RUN_AUDIT=0; skip complex && RUN_COMPLEX=0; skip cycle && RUN_CYCLE=0; skip singleton && RUN_SINGLETON=0; skip changelog && RUN_CHANGELOG=0; skip index && RUN_INDEX=0; }
+
+# ── fast-mode detection: any skipped check downgrades COMPLETE -> PARTIAL ──
+SKIPPED_ANY=0
+for v in "$RUN_TESTS" "$RUN_COVERAGE" "$RUN_DELTA" "$RUN_DOCS" "$RUN_LINT" \
+         "$RUN_AUDIT" "$RUN_COMPLEX" "$RUN_CYCLE" "$RUN_SINGLETON" \
+         "$RUN_CHANGELOG" "$RUN_INDEX"; do
+  [ "$v" = "0" ] && SKIPPED_ANY=1
+done
+MODE="full"
+[ "$SKIPPED_ANY" = "1" ] && MODE="fast"
 
 FAILED=0
 GAPS=""
@@ -231,19 +263,30 @@ fi
 
 # ── Verdict + quantitative log ───────────────────────────────────────────
 VERDICT="INCOMPLETE"
-[ "$FAILED" = "0" ] && VERDICT="COMPLETE"
+if [ "$FAILED" = "0" ]; then
+  if [ "$SKIPPED_ANY" = "1" ]; then
+    VERDICT="PARTIAL"
+  else
+    VERDICT="COMPLETE"
+  fi
+fi
 DURATION=$(( $(date +%s) - T0 ))
 
 # JSONL record: one line per run, gitignored — the raw material for
 # judge-stats.sh (completion rate, failure distribution, trend, metrics).
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
 printf '%s\n' "$RECORD" >> "$LOG_FILE"
 
+echo "[judge] verdict: ${VERDICT}"
 if [ "$VERDICT" = "COMPLETE" ]; then
-  echo "[judge] ✅ COMPLETE — all checks green (ratchet holds)."
+  echo "[judge] ✅ COMPLETE — all 11 checks executed and green (ratchet holds)."
   echo "[judge] logged: $LOG_FILE"
+  exit 0
+elif [ "$VERDICT" = "PARTIAL" ]; then
+  echo "[judge] ⚠️  PARTIAL — fast mode (${MODE}); executed checks green but some skipped; NOT a 'done' verdict." >&2
+  echo "[judge] logged: $LOG_FILE" >&2
   exit 0
 else
   echo "[judge] ❌ INCOMPLETE — machine says 'not yet'. Evidence gap:" >&2

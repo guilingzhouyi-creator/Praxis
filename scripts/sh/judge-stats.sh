@@ -3,14 +3,19 @@
 #
 # Aggregates `.praxis/judge-runs.jsonl` (written by verify-completion.sh)
 # into evidence the gate actually works:
-#   - runs / completion rate
+#   - runs / completion rate (full-mode runs only count as COMPLETE)
+#   - PARTIAL runs (fast mode — checks skipped) reported separately
 #   - INCOMPLETE distribution: which check failed most often
 #   - trend: completion rate by day (is slacking being caught more?)
 #   - per-branch completion rate (which agent/domain is the weak link)
-#   - duration stats (avg / P95) — gate efficiency over time
+#   - duration stats (avg / P95) split by full vs fast mode
 #   - longest consecutive INCOMPLETE streak — how hard the gate pushes
 #   - per-check pass rate over executed runs (ratchet evidence)
 #   - failure-pair analysis (checks that fail together)
+#
+# Statistics conventions: full and fast runs are NEVER mixed in one rate or
+# duration figure; records are deduplicated (ts+verdict+branch+duration) and
+# ordered by timestamp; gate-exemption count is per commit, not per line.
 #
 # Usage:
 #   bash scripts/sh/judge-stats.sh [--days N] [--json] [--md] [--write=F] [--log=F]
@@ -71,6 +76,27 @@ if not rows:
     print("[judge-stats] log is empty — no runs recorded yet.")
     sys.exit(0)
 
+# Dedupe (concurrent runs / migrated legacy records may repeat) and order
+# records by timestamp so "latest" metrics follow wall-clock order.
+seen = set()
+uniq = []
+for r in rows:
+    key = (r.get("ts", ""), r.get("verdict", ""), r.get("branch", ""), r.get("duration_s", 0))
+    if key in seen:
+        continue
+    seen.add(key)
+    uniq.append(r)
+rows = sorted(uniq, key=lambda r: r.get("ts", ""))
+
+# Mode: explicit `mode` field wins; legacy records derive it from the check
+# flags (any flag 0 = skipped = fast). Never mix full and fast runs in one
+# completion/duration statistic — they measure different things.
+def run_mode(r):
+    m = r.get("mode")
+    if m:
+        return m
+    return "fast" if any(fl == 0 for fl in (r.get("checks") or {}).values()) else "full"
+
 # window filter
 if days:
     cutoff = date.today() - timedelta(days=int(days))
@@ -78,6 +104,7 @@ if days:
 
 total = len(rows)
 complete = sum(1 for r in rows if r["verdict"] == "COMPLETE")
+partial = sum(1 for r in rows if r["verdict"] == "PARTIAL")
 rate = complete / total if total else 0.0
 incomplete = [r for r in rows if r["verdict"] == "INCOMPLETE"]
 
@@ -104,10 +131,20 @@ for r in rows:
     if r["verdict"] == "COMPLETE":
         branch_stats[b]["complete"] += 1
 
-# ── A: duration avg / P95 (gate efficiency) ────────────────────────────
-durations = sorted(r.get("duration_s", 0) for r in rows)
-dur_avg = sum(durations) / len(durations) if durations else 0
-dur_p95 = durations[min(int(len(durations) * 0.95), len(durations) - 1)] if durations else 0
+# ── A: duration avg / P95 (gate efficiency) — split by mode ─────────────
+def dur_stats(vals):
+    if not vals:
+        return {"avg": None, "p95": None, "n": 0}
+    return {
+        "avg": round(sum(vals) / len(vals), 1),
+        "p95": vals[min(int(len(vals) * 0.95), len(vals) - 1)],
+        "n": len(vals),
+    }
+
+dur_full = dur_stats(sorted(r.get("duration_s", 0) for r in rows if run_mode(r) == "full"))
+dur_fast = dur_stats(sorted(r.get("duration_s", 0) for r in rows if run_mode(r) == "fast"))
+full_runs = [r for r in rows if run_mode(r) == "full"]
+fast_runs = [r for r in rows if run_mode(r) == "fast"]
 
 # ── A: longest consecutive INCOMPLETE streak (chronological) ───────────
 streak = 0
@@ -158,15 +195,16 @@ for k, vals in metric_series.items():
 
 # ── C: gate-exemption count from git history ──────────────────────────
 # MERGE_GATE_SKIP=1 waivers leave an audit trail in merge messages
-# (push-both requires MERGE_GATE_REASON). Count them from git log so
-# dashboard readers can spot waiver abuse.
+# (push-both requires MERGE_GATE_REASON). Count them per COMMIT (one line
+# per commit, hash \x00 message) — a message spanning subject+body must
+# not be double-counted.
 exemptions = 0
 try:
     out = subprocess.run(
-        ["git", "log", "--all", "--format=%s%n%b", "--grep=MERGE_GATE_SKIP"],
+        ["git", "log", "--all", "--format=%H%x00%s%n%b", "--grep=MERGE_GATE_SKIP"],
         capture_output=True, text=True, timeout=15,
     ).stdout
-    exemptions = sum(1 for ln in out.splitlines() if "MERGE_GATE_SKIP" in ln or "gate exemption" in ln.lower())
+    exemptions = sum(1 for ln in out.splitlines() if "\x00" in ln and ("MERGE_GATE_SKIP" in ln or "gate exemption" in ln.lower()))
 except Exception:
     exemptions = 0
 
@@ -174,9 +212,12 @@ if as_json:
     print(json.dumps({
         "total": total,
         "complete": complete,
-        "incomplete": total - complete,
+        "partial": partial,
+        "incomplete": total - complete - partial,
         "completion_rate": round(rate, 3),
-        "duration_s": {"avg": round(dur_avg, 1), "p95": dur_p95},
+        "duration_s": dur_full,
+        "duration_fast": dur_fast,
+        "mode_runs": {"full": len(full_runs), "fast": len(fast_runs)},
         "max_incomplete_streak": max_streak,
         "gate_exemptions": exemptions,
         "failures_by_check": dict(fail_counter),
@@ -195,10 +236,18 @@ if as_md:
     lines = []
     lines.append("## CompletionJudge effectiveness (auto-updated)")
     lines.append("")
-    lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({pct(complete, total)}) | **INCOMPLETE**: {total - complete} ({pct(total - complete, total)}, premature stops caught)")
-    lines.append(f"**Duration**: avg {dur_avg:.0f}s / P95 {dur_p95}s | **Longest INCOMPLETE streak**: {max_streak} consecutive")
+    lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({pct(complete, total)}) | **PARTIAL**: {partial} ({pct(partial, total)}, fast mode — checks skipped) | **INCOMPLETE**: {total - complete - partial} ({pct(total - complete - partial, total)}, machine 'not done')")
+    lines.append(f"**Mode split**: full {len(full_runs)} / fast {len(fast_runs)} (fast = at least one check skipped)")
+    if dur_full["n"]:
+        dur_line = f"**Duration** (full runs): avg {dur_full['avg']:.0f}s / P95 {dur_full['p95']}s ({dur_full['n']} runs)"
+        if dur_fast["n"]:
+            dur_line += f" — fast runs: avg {dur_fast['avg']:.0f}s / P95 {dur_fast['p95']}s ({dur_fast['n']} runs)"
+    else:
+        dur_line = f"**Duration** (fast runs only): avg {dur_fast['avg']:.0f}s / P95 {dur_fast['p95']}s ({dur_fast['n']} runs)"
+    lines.append(dur_line)
+    lines.append(f"**Longest INCOMPLETE streak**: {max_streak} consecutive")
     if exemptions:
-        lines.append(f"**Gate exemptions** (MERGE_GATE_SKIP in history): {exemptions}")
+        lines.append(f"**Gate exemptions** (MERGE_GATE_SKIP commits in history): {exemptions}")
     lines.append("")
     lines.append("| Date | Runs | Complete | Rate |")
     lines.append("|---|---|---|---|")
@@ -206,7 +255,7 @@ if as_md:
         lines.append(f"| {d} | {t} | {c} | {pct(c, t)} |")
     if fail_counter:
         lines.append("")
-        lines.append("**Failures by check** (which gate caught premature stops):")
+        lines.append("**Failures by check** (most frequent evidence gaps):")
         for chk, n in fail_counter.most_common():
             lines.append(f"- `{chk}`: {n} ({pct(n, len(incomplete))} of incomplete)")
     if len(branch_stats) > 1:
@@ -245,10 +294,15 @@ print("CompletionJudge effectiveness (machine-measured)")
 print("=" * 52)
 print(f"  runs:            {total}")
 print(f"  COMPLETE:        {complete} ({pct(complete, total)})")
-print(f"  INCOMPLETE:      {total - complete} ({pct(total - complete, total)})  ← premature stops caught")
-print(f"  duration:        avg {dur_avg:.0f}s / P95 {dur_p95}s")
+print(f"  PARTIAL:         {partial} ({pct(partial, total)})  ← fast mode, checks skipped")
+print(f"  INCOMPLETE:      {total - complete - partial} ({pct(total - complete - partial, total)})")
+print(f"  mode split:      full {len(full_runs)} / fast {len(fast_runs)}")
+if dur_full["n"]:
+    print(f"  duration (full): avg {dur_full['avg']:.0f}s / P95 {dur_full['p95']}s ({dur_full['n']} runs)")
+if dur_fast["n"]:
+    print(f"  duration (fast): avg {dur_fast['avg']:.0f}s / P95 {dur_fast['p95']}s ({dur_fast['n']} runs)")
 print(f"  longest streak:  {max_streak} consecutive INCOMPLETE")
-print(f"  gate exemptions: {exemptions} (MERGE_GATE_SKIP in history)")
+print(f"  gate exemptions: {exemptions} (MERGE_GATE_SKIP commits in history)")
 print("-" * 52)
 if fail_counter:
     print("  failure distribution (INCOMPLETE runs):")
