@@ -475,6 +475,19 @@ identity_binding:
 harness:
   mode: governed
 
+# ── Engineering debug mode (3.5) ──
+# ``auto`` is production unless .praxis/debug_mode.flag exists. API/L2
+# ``on`` still requires that marker; ``off`` is an explicit fail-closed lock.
+engineering_debug:
+  mode: auto
+  marker_file: .praxis/debug_mode.flag
+  marker_required: true
+  verbose_logging: true
+  prompt_monitor: true
+  input:
+    enabled: false
+    capture_content: false
+
 # ── Network mesh ──
 network:
   discovery_port: 42069         # UDP broadcast port

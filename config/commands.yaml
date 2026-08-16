@@ -54,6 +54,27 @@ harness:
     - "/harness minimal --confirm  — minimal mode, risk user-assumed"
     - "/harness reset              — back to config value"
 
+debug-mode:
+  category: debug
+  help: "Show/switch marker-gated engineering debug mode"
+  args:
+    - {name: mode, optional: true, description: "status|auto|on|off|reset"}
+    - {name: identity, optional: true, description: "--role developer or --ring 3"}
+  examples:
+    - "/debug-mode status"
+    - "/debug-mode on --role developer"
+    - "/debug-mode off --role developer"
+
+debug-input:
+  category: debug
+  help: "Show/switch aggregate keyboard/pointer activity monitoring"
+  args:
+    - {name: mode, optional: true, description: "status|on|off"}
+    - {name: identity, optional: true, description: "--role developer or --ring 3"}
+  examples:
+    - "/debug-input status"
+    - "/debug-input on --role developer"
+
 test_auto:
   category: system
   help: "Show/switch AutoTestGate (off|async post-card background test regression)"

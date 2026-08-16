@@ -161,6 +161,14 @@ _L1_DEFAULTS: dict[str, Any] = {
     "skill.distill_sub.clustering": True,
     "skill.distill_sub.sampling": True,
     "skill.candidate_enabled": True,
+    # Engineering debug mode (3.5) — effective enablement is marker-gated.
+    "engineering_debug.mode": "auto",
+    "engineering_debug.marker_file": ".praxis/debug_mode.flag",
+    "engineering_debug.marker_required": True,
+    "engineering_debug.verbose_logging": True,
+    "engineering_debug.prompt_monitor": True,
+    "engineering_debug.input.enabled": False,
+    "engineering_debug.input.capture_content": False,
     # ── System security posture (productive | security-test) ──
     "security.mode": "productive",
     # Security-team domain bindings (attack posture): domain → skill white-list.

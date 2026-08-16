@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, TypedDict
 
 CandidateState = Literal["observed", "validated", "canary", "active", "retired"]
+InputActivityState = Literal["active", "idle", "unknown"]
 
 
 class CandidateBinding(TypedDict):
@@ -105,6 +106,19 @@ class CandidateResult(TypedDict, total=False):
     reasons: list[str]
     validation: CandidateResult
     skill: CandidateSkillResult
+
+
+@dataclass
+class InputActivitySnapshot:
+    """Privacy-preserving aggregate of keyboard/pointer activity."""
+
+    state: InputActivityState = "unknown"
+    keyboard_active: bool = False
+    pointer_active: bool = False
+    last_activity_at: float = 0.0
+    idle_seconds: float = 0.0
+    source: str = "noop"
+    permission: str = "unavailable"
 
 
 @dataclass

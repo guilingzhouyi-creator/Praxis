@@ -508,14 +508,55 @@ def load_prompt_overrides(cfg: dict) -> None:
     logger.info("prompt overrides loaded: %d keys", len(flat))
 
 
+def set_prompt_override(key: str, text: str) -> dict:
+    """Apply one runtime prompt override and record a version snapshot.
+
+    Authorization belongs to the L3 engineering-debug manager; this L1
+    function only owns the registry mutation and version bookkeeping.
+    """
+    prompt_key = str(key or "").strip()
+    if not prompt_key:
+        return {"success": False, "error": "prompt key required"}
+    value = str(text or "")
+    _overrides[prompt_key] = value
+    _record_version(prompt_key, value)
+    return {"success": True, "key": prompt_key, "version": _versions.get(prompt_key, 0)}
+
+
+def get_prompt_override(key: str) -> str | None:
+    """Return the runtime override for *key*, or ``None`` when absent."""
+    return _overrides.get(str(key or "").strip())
+
+
+def restore_prompt_override(key: str, text: str | None) -> dict:
+    """Restore a previous runtime override, clearing it when ``text`` is ``None``."""
+    prompt_key = str(key or "").strip()
+    if not prompt_key:
+        return {"success": False, "error": "prompt key required"}
+    if text is None:
+        return clear_prompt_override(prompt_key)
+    return set_prompt_override(prompt_key, text)
+
+
+def clear_prompt_override(key: str) -> dict:
+    """Remove one runtime prompt override and expose the built-in fallback."""
+    prompt_key = str(key or "").strip()
+    if not prompt_key:
+        return {"success": False, "error": "prompt key required"}
+    existed = prompt_key in _overrides
+    _overrides.pop(prompt_key, None)
+    if existed:
+        _record_version(prompt_key, _DEFAULTS.get(prompt_key, ""))
+    return {"success": True, "key": prompt_key, "removed": existed}
+
+
 def get_prompt(key: str, default: str = "") -> str:
     """Get a prompt template by dot-separated key.
 
     Priority: runtime override > built-in default > passed default.
     """
-    val = _overrides.get(key)
-    if val:
-        return val
+    if key in _overrides:
+        return _overrides[key]
     val = _DEFAULTS.get(key)
     if val:
         return val
