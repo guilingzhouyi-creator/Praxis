@@ -1,0 +1,15 @@
+# Per-layer performance baseline (generated — do not hand-edit).
+# Regenerate: python scripts/py/perf_quality.py --baseline
+layers:
+  L1:
+    channel.put_get: 892703.032
+    event_bus.emit: 1057459.471
+    mutex.acquire_release: 1219376.279
+    thread.create_join: 5224.841
+    worker_pool.submit: 11907.066
+  L3:
+    durable_ops_per_sec: 6572.182
+    submit_ops_per_sec: 6576.969
+  L5:
+    card.steps_per_sec: 74.600
+
