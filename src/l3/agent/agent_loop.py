@@ -377,6 +377,10 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         pipeline = get_pipeline()
         fn = getattr(spec, "handler", None) or spec
         tool_name = getattr(spec, "name", "") or (fn.__name__ if hasattr(fn, "__name__") else "unknown")
+        # Mark the spec as pipeline-wrapped so direct-execution paths
+        # (llm_tools._execute_one_tool) reject any unwrapped spec handler.
+        if hasattr(spec, "gated"):
+            spec.gated = True
         local_registry = {t.name: t for t in self._tools} if self._tools else None
 
         def wrapped(args, agent):

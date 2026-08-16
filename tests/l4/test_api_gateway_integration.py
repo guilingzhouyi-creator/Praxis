@@ -94,7 +94,9 @@ class TestHttpParamLink:
         # port=0 → OS-assigned ephemeral port: no fixed-port collision race
         # between parallel workers. Readiness is polled instead of a blind
         # sleep, so a loaded CI runner cannot hit a not-yet-bound server.
-        gw = ApiGateway(port=0, auth_token="")
+        # W2.1: API auth is closed by default — use a static token here so
+        # this test exercises param-confusion, not the auth gate.
+        gw = ApiGateway(port=0, auth_token="test-token")
         gw._routes.clear()
         gw.register_route(
             "GET",
@@ -108,7 +110,7 @@ class TestHttpParamLink:
             while True:
                 try:
                     conn = http.client.HTTPConnection("127.0.0.1", gw.port, timeout=1)
-                    conn.request("GET", "/api/v2/card/abc?_id=evil")
+                    conn.request("GET", "/api/v2/card/abc?_id=evil", headers={"X-API-Token": "test-token"})
                     resp = conn.getresponse()
                     data = json.loads(resp.read().decode())
                     conn.close()

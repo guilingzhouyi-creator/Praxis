@@ -49,6 +49,14 @@ G1 whitelist → G2 identity (process table) → G3 territory+risk → G4 escala
 BLOCK stops tool execution; WARN passes with audit. Ledger records every check.
 ```
 
+**Fail-closed G1 (W2.3):** an empty whitelist now BLOCKs instead of WARN
+(`GATECHAIN_REQUIRE_WHITELIST`, default True); boot populates it from the tool
+registry (`boot_steps/tools.py::_register_g1_whitelist`).
+
+**Interactive principals (W1.2):** boundary-authenticated callers (local L2
+shell, API/MCP behind closed-by-default auth) pass G2 without a kernel PCB via
+`interactive=True`; G1/G3/G4/G5 still apply.
+
 ### Port abstraction
 
 ```python
@@ -73,6 +81,11 @@ is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 the completion half missing from fire-and-forget `submit()`.
 
 ### Rust-sink readiness (per `docs/roadmaps/frontend-kernel-roadmap.md`)
+
+> **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` fixes which L1
+> surfaces a Rust sink may replace (mechanism only) and which must be sealed
+> first in Python — single execution authority (invoke-capability gate), a
+> populated G1 whitelist, closed-by-default auth, and the B1/B2/B3 bypass paths.
 
 The roadmap sinks hot modules to Rust **one at a time, interface unchanged,
 via the port**. What is swappable vs. what a Rust sink replaces wholesale:

@@ -26,7 +26,7 @@ from l3.error_bus.core import trace_scope
 from l3.services.approval_policy import get_policy as _get_approval_policy
 
 from .tool_spec import ToolSpec as _ToolSpec
-from .tool_spec import execute_tool_spec as _execute_tool_spec
+from .tool_spec import _execute_tool_spec
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +97,7 @@ class PipelineStepsMixin:
         _skip: set[str],
         _start: float,
         call_id: str,
+        _interactive: bool = False,
     ) -> dict | None:
         """Run the gating chain: validate, clearance, approval, rate, constitution, gatechain, sandbox.
 
@@ -115,8 +116,9 @@ class PipelineStepsMixin:
             result=result,
         )
         if head_error is not None:
+            self._record_gate_audit(tool_name, agent_id, head_error)
             return head_error
-        return self._run_preflight_tail(
+        tail_result = self._run_preflight_tail(
             agent_id=agent_id,
             tool_ring_str=tool_ring_str,
             token_budget=token_budget,
@@ -129,7 +131,26 @@ class PipelineStepsMixin:
             domain=domain,
             call_id=call_id,
             _start=_start,
+            _interactive=_interactive,
         )
+        if tail_result is not None:
+            self._record_gate_audit(tool_name, agent_id, tail_result)
+        return tail_result
+
+    def _record_gate_audit(self, tool_name: str, agent_id: str, result: dict) -> None:
+        """Best-effort kernel audit for every rejected tool call (W4.2)."""
+        try:
+            from l1.kernel import record_audit
+
+            record_audit(
+                "tool.invoke",
+                agent_id=agent_id,
+                success=False,
+                error=str(result.get("error", "gate blocked")),
+                detail=tool_name,
+            )
+        except Exception:
+            logger.warning("tool_pipeline: audit record failed")
 
     def _run_preflight_head(
         self,
@@ -168,6 +189,7 @@ class PipelineStepsMixin:
         domain: str,
         call_id: str,
         _start: float,
+        _interactive: bool = False,
     ) -> dict | None:
         """Run the post-approval gates (rate, constitution, gatechain, sandbox)."""
         rate_error = self._check_rate_limit(agent_id, tool_ring_str, token_budget, result, _skip)
@@ -179,7 +201,7 @@ class PipelineStepsMixin:
         if constitution_error is not None:
             return constitution_error
         gatechain_error = self._check_gatechain(
-            tool_name, agent_id, args, result, fpath, territory_str, pre_approved, domain, call_id
+            tool_name, agent_id, args, result, fpath, territory_str, pre_approved, domain, call_id, _interactive
         )
         if gatechain_error is not None:
             return gatechain_error
@@ -268,6 +290,7 @@ class PipelineStepsMixin:
         pre_approved: bool,
         domain: str,
         call_id: str,
+        interactive: bool = False,
     ) -> dict | None:
         """Run the GateChain G1-G5 checks (with ApprovalPolicy danger override)."""
         try:
@@ -288,6 +311,7 @@ class PipelineStepsMixin:
                     territory=[territory_str] if territory_str else None,
                     danger=_danger,
                     pre_approved=pre_approved,
+                    interactive=interactive,
                 )
             )
             gc_allowed = gcr.get("allowed", True)
@@ -454,6 +478,19 @@ class PipelineStepsMixin:
                 self._pmu.increment(f"tools.executed.{ring_label}")
                 if not result["success"]:
                     self._pmu.increment("tools.rejected")
+            # Kernel audit: every executed tool call is recorded (W4.2).
+            try:
+                from l1.kernel import record_audit
+
+                record_audit(
+                    "tool.invoke",
+                    agent_id=agent_id,
+                    success=result.get("success", True),
+                    error=str((exec_r or {}).get("error", "")),
+                    detail=tool_name,
+                )
+            except Exception:
+                logger.warning("tool_pipeline: audit record failed")
 
         # 9b. R4Agent failure tracking → lean-case learning loop
         if not result.get("success", False):

@@ -81,6 +81,10 @@ GET  /api/v2/shell/commands         → _shell_commands    → {"success": True,
 
 ## 4. Rust 重写底层 L1 的既定路线
 
+> **边界审计基线**：`docs/roadmaps/kernel-boundary-audit.md` 已对当前 L1 完成系统内核边界审查
+> （评分 42/100）。Rust 下沉前必须先收敛执行权威（唯一 invoke-capability 门）、修复 B1/B2/B3
+> 绕过路径与 fail-open 鉴权，避免把错误边界复制进 `l1_kernel_rs`——审计 §5/§10/§11 为前置封口清单。
+
 ### 4.1 演进脉络（早期判断 → 既定方向）
 
 早期 ADR `docs/decisions/praxis-tech-stack-decision.md`（2026-07-21，`status: discussing`）
@@ -160,7 +164,7 @@ M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Pytho
 |---|---|
 | Shell 变体收敛到范式级 | 约 3 个（`terminal` / `chat` / `workspace`），不随前端数量增长 |
 | 前端差异化落在渲染/绑定层 | 引擎唯一，`dispatch` 契约不变 |
-| Rust 下沉内核是既定方向 | 早期 ADR 判断已被 load-adaptive 设计覆盖；缩放曲线只决定顺序/时机 |
+| Rust 下沉内核是既定方向 | 早期 ADR 判断已被 load-adaptive 设计覆盖；缩放曲线只决定顺序/时机；**前置边界封口见 `kernel-boundary-audit.md` §11.2（Phase 0/1 先于任何迁移）** |
 | Rust 迁移无侵入 | 经 port 适配器替换，`l1_kernel_rs` 复用同一套常量，Python 灰度共存，接口不变 |
 | 契约 stub 必须接通 | 否则前端无法作为纯 HTTP 客户端走通，契约框架形同虚设 |
 | 会话状态迁移 | `state.py` deprecated shim 须移除，避免进程级全局态成为语言无关契约的漏洞 |

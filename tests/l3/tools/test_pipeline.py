@@ -90,6 +90,10 @@ class TestToolPipelineExecute:
         for aid, ring_val in (("l3", 3), ("scout", 1), ("rate-hog", 3)):
             with suppress(Exception):
                 register_process(aid, role="test", ring=ring_val)
+        # W2.3: G1 is fail-closed — populate the whitelist used by these tests.
+        from l1.kernel.gatechain import get_gatechain
+
+        get_gatechain().register_tools(["read_file", "write_file", "exec_tool", "no_handler"])
         reset_pipeline()
         yield
         reset_pipeline()

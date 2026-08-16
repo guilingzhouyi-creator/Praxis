@@ -1,4 +1,4 @@
-"""ToolSpec tests — spec validation, to_api_format, execute_tool_spec."""
+"""ToolSpec tests — spec validation, to_api_format, _execute_tool_spec."""
 
 from __future__ import annotations
 
@@ -136,21 +136,21 @@ class TestToolRing:
 
 
 class TestExecuteToolSpec:
-    """execute_tool_spec basic error paths."""
+    """_execute_tool_spec basic error paths."""
 
     def test_unknown_tool_returns_error(self):
-        from l3.tool_system.tool_spec import execute_tool_spec
+        from l3.tool_system.tool_spec import _execute_tool_spec
 
-        r = execute_tool_spec("__nonexistent__", {}, "test-agent")
+        r = _execute_tool_spec("__nonexistent__", {}, "test-agent")
         assert not r.get("success", True)
         assert "unknown tool" in r.get("error", "")
 
     def test_no_handler_returns_error(self):
         from l3.tool_system.tool_registry import register, reset_registry
-        from l3.tool_system.tool_spec import ToolSpec, execute_tool_spec
+        from l3.tool_system.tool_spec import ToolSpec, _execute_tool_spec
 
         reset_registry()
         spec = ToolSpec(name="test_no_handler", description="x", category="gen", ring=RING_1, danger=0)
         register(spec)
-        r = execute_tool_spec("test_no_handler", {}, "test-agent")
+        r = _execute_tool_spec("test_no_handler", {}, "test-agent")
         assert not r.get("success", True)

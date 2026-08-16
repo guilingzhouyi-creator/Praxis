@@ -93,7 +93,9 @@ flowchart TB
 | L3 | [l3-scheduler.md](l3-scheduler.md) | 5D scheduler (route/pool/time/rate/scope) + safety layers |
 | L3 | [l3-routing.md](l3-routing.md) | HTN intent decomposition + L3B cross-cell routing |
 | L3 | [l3-convention.md](l3-convention.md) | cross-cell deliberation (orchestrator/answers/aggregate/report) |
-| L2 | [l2-shell.md](l2-shell.md) | Shell family over shared engine, i18n, completer, agent selector |
+| L2 | [l2-shell.md](l2-shell.md) | Shell family over shared engine, i18n, completer, agent selector (current implementation) |
+| L2 | [l2-shell-engine.md](l2-shell-engine.md) | Target Shell Engine: unified session data layer (protocol v1), frontend adapters, single execution bridge, TS rewrite mapping |
+| L2 | [l2-multifrontend-session-layer.md](../roadmaps/l2-multifrontend-session-layer.md) | L2 boundary audit baseline (36/100) + multi-frontend session-layer roadmap (P0–P4) |
 | L1 | [l1-kernel.md](l1-kernel.md) | Process table, sync, event bus, constitution, GateChain, ports, params |
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
 | — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
@@ -108,13 +110,13 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 37 files / 4,783 lines |
+| L2 Shell | 37 files / 4,789 lines |
 | L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 108 files / 22,411 lines |
-| L1 Kernel | 66 files / 19,282 lines |
-| L2 Shell | 37 files / 4,783 lines |
-| L3 Cell | 339 files / 74,312 lines |
-| L4 Bridge | 108 files / 22,411 lines |
+| L4 Bridge | 108 files / 22,440 lines |
+| L1 Kernel | 66 files / 19,318 lines |
+| L2 Shell | 37 files / 4,789 lines |
+| L3 Cell | 340 files / 74,437 lines |
+| L4 Bridge | 108 files / 22,440 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
 | L3 Memory | 46 files / 10,435 lines |
@@ -122,16 +124,16 @@ flowchart TB
 | L3 Services | 43 files / 11,188 lines |
 | L3 Bus | 17 files / 4,395 lines |
 | L3 Agent | 36 files / 7,483 lines |
-| L4 Handlers | 34 files / 6,234 lines |
+| L4 Handlers | 34 files / 6,235 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
 | Params modules / constants | 8 / 1,263 |
 | Health | 0.757 (grade B) |
-| L3 Agent | 36 files / 7,598 lines |
-| L4 Handlers | 34 files / 6,234 lines |
+| L3 Agent | 36 files / 7,602 lines |
+| L4 Handlers | 34 files / 6,235 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,276 |
+| Params modules / constants | 8 / 1,279 |
 | Health | 0.737 (grade B) |
 
 ## Reading path
@@ -237,6 +239,14 @@ G1 whitelist → G2 identity (process table) → G3 territory+risk → G4 escala
 BLOCK stops tool execution; WARN passes with audit. Ledger records every check.
 ```
 
+**Fail-closed G1 (W2.3):** an empty whitelist now BLOCKs instead of WARN
+(`GATECHAIN_REQUIRE_WHITELIST`, default True); boot populates it from the tool
+registry (`boot_steps/tools.py::_register_g1_whitelist`).
+
+**Interactive principals (W1.2):** boundary-authenticated callers (local L2
+shell, API/MCP behind closed-by-default auth) pass G2 without a kernel PCB via
+`interactive=True`; G1/G3/G4/G5 still apply.
+
 ### Port abstraction
 
 ```python
@@ -261,6 +271,11 @@ is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 the completion half missing from fire-and-forget `submit()`.
 
 ### Rust-sink readiness (per `docs/roadmaps/frontend-kernel-roadmap.md`)
+
+> **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` fixes which L1
+> surfaces a Rust sink may replace (mechanism only) and which must be sealed
+> first in Python — single execution authority (invoke-capability gate), a
+> populated G1 whitelist, closed-by-default auth, and the B1/B2/B3 bypass paths.
 
 The roadmap sinks hot modules to Rust **one at a time, interface unchanged,
 via the port**. What is swappable vs. what a Rust sink replaces wholesale:
@@ -1190,6 +1205,14 @@ ring gate → rate limit → constitution → gatechain G1-G5 → approval polic
 → sandbox (profile-gated) → execute handler → result record → reference channel
 ```
 
+**Single execution gate (W1.2):** `tool_spec._execute_tool_spec` is PRIVATE —
+the registry-level executor runs only inside the pipeline. Every other caller
+(L2 shell, MCP, API handlers) enters through
+`l3.tool_system.invoke.invoke_gated` so no path reaches a handler without
+clearance/approval/gatechain/sandbox/audit;
+`tests/infra/test_single_execution_gate.py` statically forbids direct executor
+calls, and LLM engines reject unwrapped specs (`ToolSpec.gated`).
+
 **GateChain posture linkage:** when the system posture is full-power attack
 (`security.mode=security-test` + detection-bypass confirmed), G4 skips the
 L3 review WARN for high-danger tools (`danger >= GATECHAIN_ESCALATION_DANGER`)
@@ -1663,6 +1686,10 @@ sequenceDiagram
     A->>G: security checks use port "auth" (no stub)
     F->>A: POST /auth/refresh | /auth/logout (revoke)
 ```
+
+**Fail-closed auth (W2.1):** with no static token configured and no AuthPort
+reachable, requests are DENIED (`AUTH_DENY_WHEN_UNCONFIGURED`, default True).
+Explicit opt-out for open deployments: `PRAXIS_AUTH_OPEN=1`.
 
 ## Auth contract
 

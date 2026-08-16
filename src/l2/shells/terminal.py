@@ -153,11 +153,12 @@ class TerminalShell(Shell):
     def _direct_intent_result(self, intent: str, agent_id: str) -> dict:
         """Parse an intent via the intent_parse tool and return the card details."""
         try:
-            from l3.tool_system.tool_spec import execute_tool_spec
+            from l3.tool_system.invoke import invoke_gated
 
-            r = execute_tool_spec("intent_parse", {"text": intent}, agent_id)
+            r = invoke_gated("intent_parse", {"text": intent}, agent_id=agent_id, interactive=True)
             if r.get("success"):
-                card = r.get("data", {})
+                handler_r = r.get("result", {})
+                card = handler_r.get("data", {}) if isinstance(handler_r, dict) else {}
                 return {
                     "success": True,
                     "type": "intent",
@@ -245,13 +246,18 @@ class TerminalShell(Shell):
             else:
                 args[f"arg{i}"] = parts[i]
         try:
-            from l3.tool_system.tool_spec import execute_tool_spec, get_tool
+            from l3.tool_system.invoke import invoke_gated
+            from l3.tool_system.tool_spec import get_tool
 
             spec = get_tool(tool_name)
             if not spec:
                 return {"success": False, "type": "tool", "tool": tool_name, "error": "unknown tool"}
-            r = execute_tool_spec(tool_name, args, session.agent_id)
-            data = r.get("data", r.get("result", r))
+            r = invoke_gated(tool_name, args, agent_id=session.agent_id, interactive=True)
+            handler_r = r.get("result", r) if isinstance(r, dict) else r
+            if isinstance(handler_r, dict):
+                data = handler_r.get("data", handler_r.get("result", handler_r))
+            else:
+                data = handler_r
             return {"success": bool(r.get("success")), "type": "tool", "tool": tool_name, "args": args, "data": data}
         except Exception as e:
             return {"success": False, "type": "tool", "tool": tool_name, "error": str(e)}

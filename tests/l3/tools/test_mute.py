@@ -53,7 +53,7 @@ class TestToolMute:
         assert not is_muted("test_danger_tool")
 
     def test_execute_muted_returns_error(self):
-        from l3.tool_system.tool_spec import ToolSpec, clear_mutes, execute_tool_spec, mute_tool, register
+        from l3.tool_system.tool_spec import ToolSpec, clear_mutes, _execute_tool_spec, mute_tool, register
 
         clear_mutes()
 
@@ -64,10 +64,10 @@ class TestToolMute:
             name="test_mutable", description="test", category="generic", ring="ring_1", danger=0, handler=handler
         )
         register(spec)
-        r = execute_tool_spec("test_mutable", {}, "agent")
+        r = _execute_tool_spec("test_mutable", {}, "agent")
         assert r.get("success")
         mute_tool("test_mutable")
-        r = execute_tool_spec("test_mutable", {}, "agent")
+        r = _execute_tool_spec("test_mutable", {}, "agent")
         assert not r.get("success")
         assert r.get("muted")
 

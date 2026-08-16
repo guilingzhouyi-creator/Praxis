@@ -48,6 +48,10 @@ def _register(name: str, danger: int, ring: ToolRing) -> None:
             parameters=[ParamSpec(name="path", type="string", description="Target path", required=False)],
         )
     )
+    # W2.3: G1 is fail-closed — mirror production boot and whitelist the tool.
+    from l1.kernel.gatechain import get_gatechain
+
+    get_gatechain().register_tools([name])
     if danger >= 4:
         get_policy().set_agent_danger("", "default", name, danger)
 

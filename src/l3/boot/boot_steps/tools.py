@@ -18,10 +18,32 @@ def _load_tools() -> dict:
         from l3.tool_system.tool_config import ToolConfig
 
         n = ToolConfig.load()
+        _register_g1_whitelist()
         return {"success": True, "tools": n}
     except Exception as e:
         logger.warning("tool_config load failed: %s", e)
         return {"success": False, "error": str(e)}
+
+
+def _register_g1_whitelist() -> None:
+    """Populate the GateChain G1 whitelist from the loaded tool registry.
+
+    W2.3: without this, G1 sees an empty whitelist and (now fail-closed)
+    BLOCKs every tool call. Registration must happen once per boot, after
+    the registry is populated.
+    """
+    try:
+        from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.tool_registry import TOOL_REGISTRY
+
+        names = list(TOOL_REGISTRY.keys())
+        if not names:
+            logger.warning("boot: G1 whitelist empty — tool registry has no tools")
+            return
+        get_gatechain().register_tools(names)
+        logger.info("boot: G1 whitelist populated with %d tools", len(names))
+    except Exception as e:
+        logger.warning("boot: G1 whitelist registration failed: %s", e)
 
 
 def _load_dynamic_tools() -> dict:

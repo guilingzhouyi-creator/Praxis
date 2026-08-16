@@ -191,6 +191,12 @@ ENV_DISCOVERY_PORT: Final[str] = "PRAXIS_DISCOVERY_PORT"
 ENV_PRAXIS_PORT: Final[str] = "PRAXIS_PORT"
 # Env var carrying the API bearer token
 ENV_API_TOKEN: Final[str] = "PRAXIS_API_TOKEN"
+# Fail-closed API auth: with no static token configured and no AuthPort
+# reachable, requests are denied instead of passing (W2.1). Set to False
+# only for explicitly open deployments.
+AUTH_DENY_WHEN_UNCONFIGURED: Final[bool] = True
+# Env var explicitly opting OUT of the fail-closed default ("1" = open)
+ENV_AUTH_OPEN: Final[str] = "PRAXIS_AUTH_OPEN"
 
 
 # ── Transport TLS ──

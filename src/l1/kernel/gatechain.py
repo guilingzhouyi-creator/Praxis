@@ -45,6 +45,7 @@ from .params.kernel import (
     GATECHAIN_REP_HIGH_THRESHOLD,
     GATECHAIN_REP_LOW_THRESHOLD,
     GATECHAIN_REPEAT_THRESHOLD,
+    GATECHAIN_REQUIRE_WHITELIST,
     GATECHAIN_RISK_WARN_THRESHOLD,
     GATECHAIN_SENDER,
     GATECHAIN_TOOLS_KEY,
@@ -266,6 +267,7 @@ class GateChain:
         reputation: float = -1.0,
         danger: int | None = None,
         pre_approved: bool = False,
+        interactive: bool = False,
     ) -> dict:
         """Run G1-G5 gate checks.
 
@@ -276,6 +278,10 @@ class GateChain:
             pre_approved: True when an approval chain (human approval gate
                     request) already cleared this call — G4 treats it like
                     an explicit authorization and releases the escalation.
+            interactive: True for boundary principals (local shell, API/MCP
+                    behind closed-by-default auth) whose identity is
+                    established outside the kernel process table — G2 skips
+                    the PCB lookup for them; G1/G3/G4/G5 still apply.
         """
         steps: list[dict] = []
         overall = GateResult.PASS
@@ -289,6 +295,7 @@ class GateChain:
             "steps": steps,
             "danger_override": danger,
             "pre_approved": pre_approved,
+            "interactive": interactive,
         }
         for name, fn in self._gates:
             if overall == GateResult.BLOCK:
@@ -327,6 +334,16 @@ def _gate_g1(ctx: dict, gc: GateChain) -> tuple[list[dict], GateResult]:
     overall: GateResult = ctx.get("_overall", GateResult.PASS)
     known = gc._known_tools if gc._known_tools else (ctx.get("territory_map") or {}).get(GATECHAIN_TOOLS_KEY, set())
     if not known:
+        from l1.kernel.discovery import get_config
+
+        require = get_config("gatechain_require_whitelist")
+        if require is None:
+            require = GATECHAIN_REQUIRE_WHITELIST
+        if require:
+            # Fail-closed: without a whitelist the gate cannot vouch for
+            # anything — boot must register the tool registry into G1.
+            steps.append({"gate": "G1", "result": "BLOCK", "reason": "no whitelist configured (fail-closed)"})
+            return steps, GateResult.BLOCK
         steps.append({"gate": "G1", "result": "WARN", "reason": "no whitelist configured"})
         return steps, GateResult.WARN
     if ctx["tool"] not in known:
@@ -339,6 +356,16 @@ def _gate_g1(ctx: dict, gc: GateChain) -> tuple[list[dict], GateResult]:
 def _gate_g2(ctx: dict, gc: GateChain) -> tuple[list[dict], GateResult]:
     steps: list[dict] = ctx["steps"]
     overall: GateResult = ctx.get("_overall", GateResult.PASS)
+    if ctx.get("interactive"):
+        # Interactive boundary principal (local shell / authenticated API or
+        # MCP): identity is established at the boundary, not in the kernel
+        # process table, so G2 accepts it without a PCB. Ring comes from the
+        # clearance table; G1/G3/G4/G5 still enforce the rest of the chain.
+        from l1.kernel.params.agent import AGENT_CLEARANCE
+
+        ring = AGENT_CLEARANCE.get(ctx["agent_id"], 1)
+        steps.append({"gate": "G2", "result": "PASS", "pid": None, "ring": ring, "interactive": True})
+        return steps, overall
     from .process import get_table
 
     pcb = get_table().get_by_name(ctx["agent_id"]) if ctx["agent_id"] else None

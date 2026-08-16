@@ -98,14 +98,20 @@ def card_gate_history(body: dict) -> dict:
 
 
 def sideload_dispatch(body: dict) -> dict:
-    """Sideload-dispatch an intent directly on a cell outside the card pipeline."""
+    """Dispatch an intent through the card pipeline (queue, approval, execution).
+
+    W1.5: previously executed directly on a cell outside the card pipeline;
+    now the intent enters CardRegistry.submit so approval/rate/lifecycle
+    gates apply like any other card.
+    """
     try:
         intent = body.get("intent", "")
         domain = body.get("domain", ".")
-        from l3.cell import get_cell
+        from l3.card.card_registry import get_registry
 
-        cell = get_cell(DEFAULT_CELL_ID, [domain])
-        result = cell.execute_card(intent, domain=domain)
-        return {"success": True, "result": result}
+        cid = get_registry().submit(intent, domain=domain)
+        if not cid:
+            return {"success": False, "error": "card queue full"}
+        return {"success": True, "card_id": cid, "status": "submitted"}
     except Exception as e:
         return {"success": False, "error": str(e)}

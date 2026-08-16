@@ -161,7 +161,7 @@ class TestExecute:
     """Tool execution"""
 
     def test_execute_success(self):
-        from l3.tool_system.tool_spec import execute_tool_spec
+        from l3.tool_system.tool_spec import _execute_tool_spec
 
         _clear_tools()
         recorded = []
@@ -183,23 +183,23 @@ class TestExecute:
                 handler=handler,
             )
         )
-        r = execute_tool_spec("exec_tool", {"x": "hello"}, "agent-a")
+        r = _execute_tool_spec("exec_tool", {"x": "hello"}, "agent-a")
         assert r["success"]
         assert r["data"] == "done"
 
     def test_execute_unknown_tool(self):
-        from l3.tool_system.tool_spec import execute_tool_spec
+        from l3.tool_system.tool_spec import _execute_tool_spec
 
         _clear_tools()
-        r = execute_tool_spec("no_such_tool", {}, "agent-a")
+        r = _execute_tool_spec("no_such_tool", {}, "agent-a")
         assert not r["success"]
 
     def test_execute_no_handler(self):
-        from l3.tool_system.tool_spec import ToolSpec, execute_tool_spec, register
+        from l3.tool_system.tool_spec import ToolSpec, _execute_tool_spec, register
 
         _clear_tools()
         register(ToolSpec(name="no_handler", description="t", category="gen", ring="RING_1", danger=0))
-        r = execute_tool_spec("no_handler", {}, "agent-a")
+        r = _execute_tool_spec("no_handler", {}, "agent-a")
         assert not r["success"]
 
 
