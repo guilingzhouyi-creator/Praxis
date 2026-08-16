@@ -20,6 +20,7 @@ config/
                              so boot discovery ignores it with a warning)
     danger_levels.yaml     — Tool danger levels, gate mappings, ring maps
     error_codes.yaml       — Error code definitions and i18n translations
+    engineering_debug.yaml — Marker-gated engineering/debug defaults
     providers.yaml         — LLM provider URLs, model names, env vars, IPC sockets
 ```
 
@@ -58,7 +59,8 @@ noted):
 
 `build_detectors`, `test_detectors`, `provider_urls`, `ring_gates`,
 `gatechain_danger_levels`, `constitution`, `tool_rates`, `services`,
-`skill_dirs`, `shell_aliases`, `tool`, `persistence`, `service_limits`
+`skill_dirs`, `shell_aliases`, `tool`, `persistence`, `service_limits`,
+`engineering_debug`
 
 YAML files only carry the sections that override the code defaults:
 
@@ -67,6 +69,7 @@ YAML files only carry the sections that override the code defaults:
 | `agent_configs.yaml` | `skill_dirs`, `shell_aliases` |
 | `build_detectors.yaml` | `build_detectors`, `test_detectors` |
 | `danger_levels.yaml` | `gatechain_danger_levels`, `ring_gates` |
+| `engineering_debug.yaml` | `engineering_debug` |
 | `providers.yaml` | `provider_urls` |
 | `service_limits.yaml` | `service_limits` |
 
@@ -215,6 +218,78 @@ injection via `agent_loop_context._inject_extra_context`.
   `list_prompts()` to enumerate available keys and their source.
 - Prompt strings are data (registry-managed), not params constants:
   they stay in `prompts.py`/praxis.yaml rather than `params/`.
+
+## Engineering Debug Mode (`engineering_debug`, 3.5)
+
+Engineering diagnostics are configured declaratively but require two
+independent gates at runtime: an explicit developer identity (or ring >= 3)
+for mutating controls, and a regular marker file for the effective mode. The
+default deployment configuration is fail-closed:
+
+```yaml
+engineering_debug:
+  mode: auto                         # auto | on | off
+  marker_file: .praxis/debug_mode.flag
+  marker_required: true
+  verbose_logging: true
+  prompt_monitor: true
+  input:
+    enabled: false
+    capture_content: false            # must remain false; raw input is never stored
+```
+
+`config/discovery/engineering_debug.yaml` supplies the same structural
+defaults. `config/praxis.yaml` overrides them at deployment scope, and
+`.praxis_settings.json` stores API/L2 runtime changes. Relative marker paths
+are resolved from the deployment root; only a non-symlink regular file
+satisfies the marker check.
+
+| Requested setting | Marker | Effective mode | Behavior |
+|-------------------|--------|----------------|----------|
+| `auto` | absent | production | ordinary logging and prompt sources |
+| `auto` | present | engineering | verbose logging, prompt monitor, and configured debug controls |
+| `on` | absent | production | request rejected; marker cannot be bypassed |
+| `on` | present | engineering | same linked controls as `auto` with a marker |
+| `off` | either | production | explicit fail-closed lock |
+
+The manager caches marker checks using
+`ENGINEERING_DEBUG_MARKER_RECHECK_INTERVAL` and applies logging, prompt
+monitor, and input-provider effects only on transitions. This keeps the
+production path bounded and prevents repeated setup work on status reads.
+
+### Developer prompt overlays
+
+Engineering-only prompt overlays are distinct from the deployment `prompts:`
+section. They are persisted under
+`engineering_debug.prompt_overrides.<key>`, versioned by the L1 prompt
+registry, bounded by `ENGINEERING_DEBUG_PROMPT_MAX_CHARS`, and rollbackable.
+Production mode ignores these overlays and restores the built-in/deployment
+prompt source when engineering mode ends. Overlay writes and rollback require
+the same developer/ring-3 gate as mode changes.
+
+### Input activity monitoring
+
+`engineering_debug.input.enabled` is an additional opt-in. The L3 controller
+uses the L1 `InputActivityPort` and reports only aggregate keyboard/pointer
+state, idle duration, provider source, and permission. It does not collect key
+values, pointer coordinates, or raw events. The default no-op adapter keeps
+unsupported hosts inert; a platform adapter may be supplied without changing
+the configuration or API contract.
+
+### API and L2 controls
+
+| Surface | Endpoints / commands |
+|---------|----------------------|
+| API | `GET/PUT /api/v2/engineering-debug` |
+| API | `GET/PUT /api/v2/engineering-debug/prompts`; `POST .../prompts/rollback` |
+| API | `GET/PUT /api/v2/engineering-debug/input` |
+| L2 | `/debug-mode status\|auto\|on\|off\|reset` |
+| L2 | `/debug-input status\|on\|off` |
+
+Mode transitions emit an `engineering_debug_mode_changed` event to EventBus,
+ReferenceChannel, and StatsCenter. Observability and input paths are
+side-channels: failures degrade to no-ops and do not alter the main card or
+agent flow.
 
 ## ConfigDiscovery Architecture
 

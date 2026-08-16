@@ -104,22 +104,22 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 19,129 lines |
-| L2 Shell | 35 files / 4,665 lines |
-| L3 Cell | 335 files / 72,868 lines |
-| L4 Bridge | 107 files / 22,115 lines |
+| L1 Kernel | 66 files / 19,226 lines |
+| L2 Shell | 37 files / 4,750 lines |
+| L3 Cell | 337 files / 73,588 lines |
+| L4 Bridge | 108 files / 22,264 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,928 lines |
 | L3 Memory | 44 files / 9,912 lines |
 | L3 Card | 27 files / 6,451 lines |
 | L3 Services | 43 files / 11,188 lines |
 | L3 Bus | 17 files / 4,386 lines |
-| L3 Agent | 36 files / 7,463 lines |
-| L4 Handlers | 33 files / 6,055 lines |
-| API routes | 349 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=31, skill=27, security=18, provider=17, l3a=14) |
-| Params modules / constants | 8 / 1,253 |
-| Health | 0.758 (grade B) |
+| L3 Agent | 36 files / 7,483 lines |
+| L4 Handlers | 34 files / 6,181 lines |
+| API routes | 356 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=31, skill=27, system=18, security=18, provider=17) |
+| Params modules / constants | 8 / 1,263 |
+| Health | 0.757 (grade B) |
 
 ## Reading path
 
@@ -189,7 +189,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
 | `gatechain.py` | G1–G5 tool authorization chain (whitelist/identity/territory/escalation/composite) + stagnation callback |
-| `ports/` | 16 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
+| `ports/` | `*Port(ABC)` abstractions (package), including `InputActivityPort`, plus `register_port`/`get_port` registry |
 | `allocator.py` | Token allocation + GC |
 | `vfs.py` / `registry.py` / `registry_base` | Virtual FS, system registry |
 | `os.py` | Lifecycle: boot/shutdown/restart/watchdog |
@@ -197,7 +197,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `process.py` audit, `reputation.py` trust, `swapper.py` ring swapping, `interrupt.py` IRQ table |
 | `skill.py` | SkillManager (load/create/evolve/usage, write-gated) |
 | `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
-| `prompts.py` | Prompt registry (L3A system/parse templates, verification culture) |
+| `prompts.py` | Prompt registry (L3A system/parse templates, verification culture, versioned overrides/rollback) |
 | `params/*` | 1,067 compile-time constants (kernel/allocator/sync/gatechain/agent/tool/api/system/…) |
 
 ## Core mechanisms
@@ -228,6 +228,7 @@ class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
 class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
+class InputActivityPort(ABC): start / stop / aggregate snapshot
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
 ```
@@ -252,6 +253,7 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
 | R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
+| Input activity | `InputActivityPort` | aggregate `start`/`stop`/`snapshot` seam; a hardware provider can move to Rust while privacy policy stays in L3 |
 | Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
 
@@ -270,6 +272,26 @@ The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
 cleanly.
 
+### Engineering-debug boundary
+
+The marker-gated engineering mode is an L3 policy owned by
+`l3.tool_system.engineering_debug`; L1 does not inspect marker files or decide
+whether a caller is a developer. L1 supplies two language-neutral primitives
+used by that policy:
+
+- `prompts.py` owns the built-in/config prompt registry, runtime overlay
+  mutation, bounded version snapshots, and rollback. Authorization and the
+  production-versus-engineering decision remain above L1.
+- `InputActivityPort` and `InputActivitySnapshot` define an aggregate-only
+  provider contract. Implementations expose `start`, `stop`, and `snapshot`
+  but never need to transfer key contents, pointer coordinates, or interpreter
+  objects across the boundary. The default L3 provider is no-op when the host
+  has no permission or hardware adapter.
+
+Engineering transitions are recorded by L3 through the event bus and
+reference channel; this keeps audit and observability side effects out of the
+kernel's execution gates.
+
 ### Identity-binding persistence
 
 `IdentityBindingManager` captures an immutable binding snapshot and local
@@ -287,12 +309,13 @@ writers never share a `.tmp` path and unrelated bindings remain intact.
 - `AUTH_SIGN_KEY_BYTES`, `AUTH_TOKEN_TTL_SECONDS`, `API_PAGE_MAX_LIMIT`,
   `API_WS_PORT`, `RPC_SERVER_PORT`
 - `LOG_TRUNC_*`, `HASH_TRUNC_*` (truncation discipline — never inline)
+- `ENGINEERING_DEBUG_*` marker, logging, input, recheck, and prompt-size defaults
 
 ## Config surface
 
 - `config/praxis.yaml`: kernel/gatechain/constitution sections
 - SettingsCenter keys: `prompt.inject.*`, `user_profile.enabled`,
-  `memory.graph.enabled`, `memory.mer.enabled`
+  `memory.graph.enabled`, `memory.mer.enabled`, `engineering_debug.*`
 
 
 ---
@@ -1271,7 +1294,10 @@ Callers inside the loop use the module surface instead: `begin_chain`,
 
 A Cell is an agent's "system on a chip": 26 components in
 `src/l3/cell/components/` map classic OS hardware onto the agent domain.
-Boot brings the machine up; lifecycle takes it down cleanly.
+Boot brings the machine up; lifecycle takes it down cleanly. The Cell also
+hosts the marker-gated engineering-debug control plane, which links
+observability and developer prompt controls without changing production card
+execution.
 
 ## Cell components (the SoC)
 
@@ -1313,6 +1339,60 @@ boot: install? → constitution → kernel services → Cell+3 agents
       → scheduler/IPC/ACB/identity registration → heartbeat → L3 coordinator
 shutdown: stop intake → persist → archive → stop daemons → reset → (wipe?)
 ```
+
+## Engineering debug control plane (3.5)
+
+`l3.tool_system.engineering_debug` resolves the requested `auto|on|off` mode
+against a regular marker file (default `.praxis/debug_mode.flag`). The marker
+is rooted at the deployment directory and is a hard gate: `on` is rejected
+without it, while `off` always returns to production. A missing marker or a
+marker removal therefore fails closed. The manager rechecks the marker on a
+bounded interval and emits `engineering_debug_mode_changed` on each effective
+transition through EventBus, ReferenceChannel, and StatsCenter.
+
+The transition coordinator links three observability paths:
+
+```
+marker + requested mode
+          │
+          ▼
+EngineeringDebugManager
+    ├── configured logging level (engineering only)
+    ├── prompt monitor + versioned prompt overlay (engineering only)
+    └── InputActivityController (engineering + explicit input opt-in)
+          │
+          └── aggregate transition event → EventBus / ReferenceChannel / StatsCenter
+```
+
+Prompt overlays live in the runtime settings namespace
+`engineering_debug.prompt_overrides.*`. They are versioned and rollbackable
+through the L1 prompt registry, require a developer identity or ring-3
+clearance, and are removed from the effective prompt source when engineering
+mode ends. Overlay text is bounded by `ENGINEERING_DEBUG_PROMPT_MAX_CHARS`.
+The side channel never mutates the normal card or agent flow on monitor,
+logging, or persistence failure.
+
+Input activity is deliberately privacy-preserving. `InputActivityController`
+uses the L1 `InputActivityPort` and returns only keyboard/pointer aggregate
+state, idle duration, provider source, and permission status. It never stores
+key values, pointer coordinates, or raw event payloads. Praxis ships a no-op
+provider for unsupported platforms and a deterministic fake provider for
+tests; a hardware provider can be added behind the same port.
+
+The controls are available over `GET/PUT /api/v2/engineering-debug`, the
+prompt and rollback subroutes, and the `/input` subroutes. L2 exposes the
+equivalent `/debug-mode` and `/debug-input` commands. Mutating calls require
+an explicit developer role or ring >= 3, independently of the marker gate.
+
+### Lifecycle and performance
+
+Engineering-debug and input controllers are reset with the L3 lifecycle, so
+shutdown cannot leave verbose logging, monitor hooks, or a provider running.
+Marker checks are cached, and side effects are applied only on state/config
+transitions; this keeps the production hot path at a status read plus a
+bounded cache check. Input snapshots and prompt versions use fixed, primitive
+data contracts, leaving a clean seam for a Rust adapter without moving L3
+policy or API handling into the native layer.
 
 ## Scheduler (5D) — see `l3-scheduler.md`
 

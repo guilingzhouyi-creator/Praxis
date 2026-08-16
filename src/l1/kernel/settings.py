@@ -71,6 +71,15 @@ DEFAULTS: dict[str, Any] = {
     # frontend bindings are declared in config/discovery/shells.yaml.
     "shells.enabled": True,
     "shells.default": "terminal",
+    # Engineering debug mode (3.5) — marker-gated; ``auto`` is production
+    # unless the configured marker file exists.
+    "engineering_debug.mode": "auto",
+    "engineering_debug.marker_file": ".praxis/debug_mode.flag",
+    "engineering_debug.marker_required": True,
+    "engineering_debug.verbose_logging": True,
+    "engineering_debug.prompt_monitor": True,
+    "engineering_debug.input.enabled": False,
+    "engineering_debug.input.capture_content": False,
 }
 
 

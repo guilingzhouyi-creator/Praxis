@@ -2,7 +2,10 @@
 
 A Cell is an agent's "system on a chip": 26 components in
 `src/l3/cell/components/` map classic OS hardware onto the agent domain.
-Boot brings the machine up; lifecycle takes it down cleanly.
+Boot brings the machine up; lifecycle takes it down cleanly. The Cell also
+hosts the marker-gated engineering-debug control plane, which links
+observability and developer prompt controls without changing production card
+execution.
 
 ## Cell components (the SoC)
 
@@ -44,6 +47,60 @@ boot: install? → constitution → kernel services → Cell+3 agents
       → scheduler/IPC/ACB/identity registration → heartbeat → L3 coordinator
 shutdown: stop intake → persist → archive → stop daemons → reset → (wipe?)
 ```
+
+## Engineering debug control plane (3.5)
+
+`l3.tool_system.engineering_debug` resolves the requested `auto|on|off` mode
+against a regular marker file (default `.praxis/debug_mode.flag`). The marker
+is rooted at the deployment directory and is a hard gate: `on` is rejected
+without it, while `off` always returns to production. A missing marker or a
+marker removal therefore fails closed. The manager rechecks the marker on a
+bounded interval and emits `engineering_debug_mode_changed` on each effective
+transition through EventBus, ReferenceChannel, and StatsCenter.
+
+The transition coordinator links three observability paths:
+
+```
+marker + requested mode
+          │
+          ▼
+EngineeringDebugManager
+    ├── configured logging level (engineering only)
+    ├── prompt monitor + versioned prompt overlay (engineering only)
+    └── InputActivityController (engineering + explicit input opt-in)
+          │
+          └── aggregate transition event → EventBus / ReferenceChannel / StatsCenter
+```
+
+Prompt overlays live in the runtime settings namespace
+`engineering_debug.prompt_overrides.*`. They are versioned and rollbackable
+through the L1 prompt registry, require a developer identity or ring-3
+clearance, and are removed from the effective prompt source when engineering
+mode ends. Overlay text is bounded by `ENGINEERING_DEBUG_PROMPT_MAX_CHARS`.
+The side channel never mutates the normal card or agent flow on monitor,
+logging, or persistence failure.
+
+Input activity is deliberately privacy-preserving. `InputActivityController`
+uses the L1 `InputActivityPort` and returns only keyboard/pointer aggregate
+state, idle duration, provider source, and permission status. It never stores
+key values, pointer coordinates, or raw event payloads. Praxis ships a no-op
+provider for unsupported platforms and a deterministic fake provider for
+tests; a hardware provider can be added behind the same port.
+
+The controls are available over `GET/PUT /api/v2/engineering-debug`, the
+prompt and rollback subroutes, and the `/input` subroutes. L2 exposes the
+equivalent `/debug-mode` and `/debug-input` commands. Mutating calls require
+an explicit developer role or ring >= 3, independently of the marker gate.
+
+### Lifecycle and performance
+
+Engineering-debug and input controllers are reset with the L3 lifecycle, so
+shutdown cannot leave verbose logging, monitor hooks, or a provider running.
+Marker checks are cached, and side effects are applied only on state/config
+transitions; this keeps the production hot path at a status read plus a
+bounded cache check. Input snapshots and prompt versions use fixed, primitive
+data contracts, leaving a clean seam for a Rust adapter without moving L3
+policy or API handling into the native layer.
 
 ## Scheduler (5D) — see `l3-scheduler.md`
 

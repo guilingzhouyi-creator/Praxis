@@ -111,6 +111,7 @@ _DOMAIN_BY_PREFIX: dict[str, str] = {
     "/api/ws": "system",
     "/api/profile": "profile",
     "/api/harness": "system",
+    "/api/engineering-debug": "system",
     "/api/locales": "shell",
 }
 

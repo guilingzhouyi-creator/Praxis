@@ -321,6 +321,8 @@ _RESET_L3: list[tuple[str, str]] = [
     ("l3.discussion.convention", "reset_convention"),
     ("l3.tool_system.tool_registry", "reset_registry"),
     ("l3.tool_system.tool_pipeline", "reset_pipeline"),
+    ("l3.tool_system.engineering_debug", "reset_engineering_debug"),
+    ("l3.tool_system.input_activity", "reset_input_activity"),
     ("l3.tools._archive", "reset_archive"),
     ("l3.error_bus", "reset_bus"),
     ("l3.resource_buffer.manager", "reset_manager"),

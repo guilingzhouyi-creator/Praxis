@@ -504,7 +504,7 @@ def memory_prompt_monitor_set(body: dict) -> dict:
     from l3.agent.prompt_monitor import set_prompt_monitor
 
     enabled = body.get("enabled")
-    return set_prompt_monitor(enabled=None if enabled is None else bool(enabled))
+    return set_prompt_monitor(enabled=None if enabled is None else bool(enabled), source="api")
 
 
 def memory_prompt_monitor_emit(body: dict | None = None) -> dict:

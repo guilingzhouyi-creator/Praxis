@@ -19,7 +19,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
 | `gatechain.py` | G1–G5 tool authorization chain (whitelist/identity/territory/escalation/composite) + stagnation callback |
-| `ports/` | 16 `*Port(ABC)` abstractions (package) + `register_port`/`get_port` registry |
+| `ports/` | `*Port(ABC)` abstractions (package), including `InputActivityPort`, plus `register_port`/`get_port` registry |
 | `allocator.py` | Token allocation + GC |
 | `vfs.py` / `registry.py` / `registry_base` | Virtual FS, system registry |
 | `os.py` | Lifecycle: boot/shutdown/restart/watchdog |
@@ -27,7 +27,7 @@ The bare-metal kernel: what every upper layer builds on. 58 files /
 | `process.py` audit, `reputation.py` trust, `swapper.py` ring swapping, `interrupt.py` IRQ table |
 | `skill.py` | SkillManager (load/create/evolve/usage, write-gated) |
 | `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
-| `prompts.py` | Prompt registry (L3A system/parse templates, verification culture) |
+| `prompts.py` | Prompt registry (L3A system/parse templates, verification culture, versioned overrides/rollback) |
 | `params/*` | 1,067 compile-time constants (kernel/allocator/sync/gatechain/agent/tool/api/system/…) |
 
 ## Core mechanisms
@@ -58,6 +58,7 @@ class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
 class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
+class InputActivityPort(ABC): start / stop / aggregate snapshot
 + TransportPort, ChannelPort, EventBusPort, WorkerPort, I18nPort,
   CardRegistryPort, MonitorBusPort, LLMPort, StoragePort, LockPort
 ```
@@ -82,6 +83,7 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
 | R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
+| Input activity | `InputActivityPort` | aggregate `start`/`stop`/`snapshot` seam; a hardware provider can move to Rust while privacy policy stays in L3 |
 | Value types | `ProcessResult` / `ProcessOptions` / `Result` / `Event` | frozen dataclasses — no interpreter object crosses the boundary; `error_kind` distinguishes adapter errors from child exit codes |
 | `sync.py` primitives, core `EventBus` | **intentionally concrete** | the bottom layer a Rust kernel *replaces wholesale*, not wraps — `LockPort` exists for adapter-swappable higher-level uses; routing every kernel `Lock` through it adds indirection with no current benefit (M3: serial P≈0) |
 
@@ -100,6 +102,26 @@ The event bus tracks its own in-flight counter (no CPython
 `ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
 cleanly.
 
+### Engineering-debug boundary
+
+The marker-gated engineering mode is an L3 policy owned by
+`l3.tool_system.engineering_debug`; L1 does not inspect marker files or decide
+whether a caller is a developer. L1 supplies two language-neutral primitives
+used by that policy:
+
+- `prompts.py` owns the built-in/config prompt registry, runtime overlay
+  mutation, bounded version snapshots, and rollback. Authorization and the
+  production-versus-engineering decision remain above L1.
+- `InputActivityPort` and `InputActivitySnapshot` define an aggregate-only
+  provider contract. Implementations expose `start`, `stop`, and `snapshot`
+  but never need to transfer key contents, pointer coordinates, or interpreter
+  objects across the boundary. The default L3 provider is no-op when the host
+  has no permission or hardware adapter.
+
+Engineering transitions are recorded by L3 through the event bus and
+reference channel; this keeps audit and observability side effects out of the
+kernel's execution gates.
+
 ### Identity-binding persistence
 
 `IdentityBindingManager` captures an immutable binding snapshot and local
@@ -117,9 +139,10 @@ writers never share a `.tmp` path and unrelated bindings remain intact.
 - `AUTH_SIGN_KEY_BYTES`, `AUTH_TOKEN_TTL_SECONDS`, `API_PAGE_MAX_LIMIT`,
   `API_WS_PORT`, `RPC_SERVER_PORT`
 - `LOG_TRUNC_*`, `HASH_TRUNC_*` (truncation discipline — never inline)
+- `ENGINEERING_DEBUG_*` marker, logging, input, recheck, and prompt-size defaults
 
 ## Config surface
 
 - `config/praxis.yaml`: kernel/gatechain/constitution sections
 - SettingsCenter keys: `prompt.inject.*`, `user_profile.enabled`,
-  `memory.graph.enabled`, `memory.mer.enabled`
+  `memory.graph.enabled`, `memory.mer.enabled`, `engineering_debug.*`

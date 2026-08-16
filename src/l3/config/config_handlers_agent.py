@@ -197,6 +197,32 @@ def cfg_harness(cfg: dict, s: Any, results: dict) -> None:
     results["harness"] = True
 
 
+def cfg_engineering_debug(cfg: dict, s: Any, results: dict) -> None:
+    """Load marker-gated engineering debug mode settings from praxis.yaml."""
+    from l3.config.settings_center import get_center
+
+    center = get_center()
+    if not isinstance(cfg, dict):
+        results["engineering_debug"] = False
+        return
+    scalar_keys = (
+        "mode",
+        "marker_file",
+        "marker_required",
+        "verbose_logging",
+        "prompt_monitor",
+    )
+    for key in scalar_keys:
+        if key in cfg:
+            center.set_l2(f"engineering_debug.{key}", cfg[key])
+    input_cfg = cfg.get("input")
+    if isinstance(input_cfg, dict):
+        for key in ("enabled", "capture_content"):
+            if key in input_cfg:
+                center.set_l2(f"engineering_debug.input.{key}", input_cfg[key])
+    results["engineering_debug"] = True
+
+
 def cfg_l3a(cfg: dict, s: Any, results: dict) -> None:
     """Load L3A session limits from praxis.yaml l3a: section."""
     from l3.config.settings_center import get_center

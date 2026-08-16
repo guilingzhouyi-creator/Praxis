@@ -221,6 +221,20 @@ def _register_consumer_sections() -> None:
         "posture",
         {"api_enabled": True, "domains": {k: dict(v) for k, v in _ps.POSTURE_MATRIX_DEFAULT.items()}},
     )
+    register(
+        "engineering_debug",
+        {
+            "mode": _ps.ENGINEERING_DEBUG_MODE_DEFAULT,
+            "marker_file": _ps.ENGINEERING_DEBUG_MARKER_FILE_DEFAULT,
+            "marker_required": _ps.ENGINEERING_DEBUG_MARKER_REQUIRED_DEFAULT,
+            "verbose_logging": _ps.ENGINEERING_DEBUG_VERBOSE_LOGGING_DEFAULT,
+            "prompt_monitor": _ps.ENGINEERING_DEBUG_PROMPT_MONITOR_DEFAULT,
+            "input": {
+                "enabled": _ps.ENGINEERING_DEBUG_INPUT_ENABLED_DEFAULT,
+                "capture_content": _ps.ENGINEERING_DEBUG_INPUT_CONTENT_DEFAULT,
+            },
+        },
+    )
 
 
 def _register_discovery_sources(dd: Path) -> None:

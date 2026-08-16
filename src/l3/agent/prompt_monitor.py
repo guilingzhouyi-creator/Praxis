@@ -35,16 +35,36 @@ def prompt_monitor_status() -> dict:
         return {"enabled": bool(_state["enabled"]), "tracked_keys": len(_metrics)}
 
 
-def set_prompt_monitor(enabled: bool | None = None) -> dict:
+def set_prompt_monitor(
+    enabled: bool | None = None,
+    *,
+    source: str = "operator",
+    internal: bool = False,
+) -> dict:
     """Set the prompt-monitor operator switch.
 
     Args:
         enabled: master switch (None = keep current). Default OFF =
             production; ON = engineering/debug mode.
+        source: caller identity for the audit trail.
+        internal: trusted system transition from EngineeringDebugManager.
 
     Returns:
         dict with success flag and the effective switch.
     """
+    if enabled and not internal and source in ("api", "shell"):
+        try:
+            from l3.tool_system.engineering_debug import get_engineering_debug
+
+            get_engineering_debug().refresh(force=True)
+            if not get_engineering_debug().is_enabled():
+                return {
+                    "success": False,
+                    "error": "prompt monitor requires engineering debug mode",
+                    "source": source,
+                }
+        except Exception:
+            return {"success": False, "error": "engineering debug state unavailable", "source": source}
     with _lock:
         if enabled is not None:
             _state["enabled"] = bool(enabled)
@@ -52,7 +72,7 @@ def set_prompt_monitor(enabled: bool | None = None) -> dict:
                 # Enabling installs the usage hook so get_prompt_monitored
                 # counts hits in production paths (engineering/debug mode).
                 install_prompt_hook()
-        return {"success": True, **prompt_monitor_status()}
+        return {"success": True, "source": source, **prompt_monitor_status()}
 
 
 def reset_prompt_monitor() -> None:

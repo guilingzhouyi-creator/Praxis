@@ -88,6 +88,7 @@ memories/
 # only runtime state (memory, local settings) is ignored here.
 .atomcode/memory.md
 .atomcode/settings.json
+.atomcode/config.toml
 .mcp.json
 
 # ── Node (opencode skills + node_modules) ──
