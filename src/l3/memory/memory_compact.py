@@ -71,9 +71,29 @@ class MemoryCompactMixin:
                 target_ring = 2
             else:
                 target_ring = 1
-            summary_content = "; ".join(f"[{e.entry_type}] {e.content[:LOG_TRUNC_120]}" for e in group_entries)[
-                :LOG_TRUNC_500
-            ]
+            # Hybrid extractor: keeps high-signal lines (paths/commands/errors)
+            # when the operator mode is deterministic or llm-assisted; the
+            # legacy concatenation remains the off-mode behavior.
+            try:
+                from .memory_extract import extract
+
+                raw = "; ".join(f"[{e.entry_type}] {e.content[:LOG_TRUNC_120]}" for e in group_entries)
+                summary_content = extract(raw)[:LOG_TRUNC_500]
+            except Exception:
+                summary_content = "; ".join(f"[{e.entry_type}] {e.content[:LOG_TRUNC_120]}" for e in group_entries)[
+                    :LOG_TRUNC_500
+                ]
+            # Premise guard: anchors missing from the compacted summary
+            # append a one-shot reminder (deterministic, never raises).
+            try:
+                from .premise_guard import check_summary, extract_anchors, guard_reminder
+
+                anchors = extract_anchors(group_entries)
+                reminder = guard_reminder(check_summary(anchors, summary_content))
+                if reminder:
+                    summary_content = f"{summary_content}\n\n{reminder}"
+            except Exception:
+                logger.debug("memory_compact: premise guard skipped")
             self.remember(
                 agent_id=group_entries[0].agent_id,
                 entry_type="summary",

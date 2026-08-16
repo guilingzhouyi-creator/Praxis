@@ -313,6 +313,42 @@ MEMORY_RING_SCORE_GOOD_THRESHOLD: Final[int] = 40
 # Quality score marking an average note
 MEMORY_RING_SCORE_AVERAGE_THRESHOLD: Final[int] = 15
 
+# ── Deterministic compaction extractor (compaction) ─────────────────────
+# Hybrid memory-compaction front end: a deterministic heuristic extractor
+# keeps code/paths/commands/error codes (high-signal lines) while dropping
+# conversational filler, with an optional LLM-assisted bypass that degrades
+# back to deterministic on failure. Operator switch (API + L2 Shell):
+#   mode — deterministic (default) | llm-assisted | off
+MEMORY_COMPACTION_MODE_DEFAULT: Final[str] = "deterministic"
+# Max characters a single extractor output may consume
+MEMORY_COMPACTION_MAX_OUTPUT_CHARS: Final[int] = 800
+# Max characters of a source line worth keeping whole (longer lines are
+# elided to head+tail by the extractor)
+MEMORY_COMPACTION_MAX_LINE_CHARS: Final[int] = 200
+# Timeout (s) for the LLM-assisted bypass extraction (degrade on expiry)
+MEMORY_COMPACTION_LLM_TIMEOUT: Final[int] = 30
+
+# ── Premise guard (premise-guard) ───────────────────────────────────────
+# Post-compaction anchor audit: before a compression pass, high-value
+# anchors (user intents, constraints, convention references) are fingerprinted;
+# after folding, anchors missing from the summary inject a one-shot reminder
+# so the decision layer never loses a premise silently. Operator switch
+# (API + L2 Shell), default ON.
+PREMISE_GUARD_ENABLED_DEFAULT: Final[bool] = True
+# Max anchors tracked per compression pass
+PREMISE_GUARD_MAX_ANCHORS: Final[int] = 8
+# Max reminder lines injected into the summary when anchors are missing
+PREMISE_GUARD_REMINDER_LIMIT: Final[int] = 4
+# Min chars an anchor must carry to be tracked (skip tiny fragments)
+PREMISE_GUARD_MIN_ANCHOR_CHARS: Final[int] = 24
+
+# ── Memory injection dedup (inject-dedup) ───────────────────────────────
+# Content-fingerprint dedup on the memory-injection path: repeated entries
+# inside the assembled context (Working / Recent History / Knowledge) are
+# injected once, so the agent never pays tokens for the same content twice
+# in one prompt. Operator switch (API + L2 Shell), default ON.
+MEMORY_INJECT_DEDUP_ENABLED_DEFAULT: Final[bool] = True
+
 # ── Statecharts region thresholds (statecharts.py) ──
 STATECHART_HEALTH_FAIL_THRESHOLD: Final[int] = 3  # ft: consecutive failures → DEGRADED
 STATECHART_HEALTH_SUCCESS_THRESHOLD: Final[int] = 5  # st: consecutive successes → HEALTHY

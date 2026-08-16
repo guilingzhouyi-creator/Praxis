@@ -181,6 +181,21 @@ class SessionCompressMixin:
         if not lines:
             lines.append("(prior conversation summarized)")
         summary_text = summary or "\n".join(lines)
+        # Deterministic compaction extractor (decision-layer fidelity): when
+        # the operator mode is not 'off', the assembled summary passes
+        # through the hybrid extractor which keeps high-signal lines
+        # (paths/commands/errors/decisions) while dropping filler — the
+        # decision layer's folded context stays fact-dense. Degrades to the
+        # assembled text unchanged on any failure.
+        try:
+            from l3.memory.memory_extract import compaction_status, extract
+
+            if compaction_status().get("mode", "off") != "off":
+                extracted = extract(summary_text)
+                if extracted:
+                    summary_text = extracted
+        except Exception:
+            logger.debug("l3a session: compaction extractor skipped")
         return summary_text, high, medium, low, bool(headline)
 
     def _persist_compression_memory(self, summary_text: str, old: list, high: list, snapshot_ref: str) -> None:
@@ -296,7 +311,28 @@ class SessionCompressMixin:
         # snapshot above still keeps every original message. The dropped
         # count is reported for the operator baseline.
         deduped, deduplicated = self._deduplicate_span(old)
+        # Premise guard (decision-layer fidelity): anchors are collected
+        # BEFORE the fold; after the summary is built, anchors missing from
+        # it inject a one-shot reminder so a lost premise is surfaced, never
+        # silently dropped. Degrades to a no-op when the module is unavailable.
+        premise_anchors: list = []
+        try:
+            from l3.memory.premise_guard import check_summary, extract_anchors
+
+            premise_anchors = extract_anchors(deduped)
+        except Exception:
+            logger.debug("l3a session: premise anchor extraction skipped")
         summary_text, high, medium, low, headline = self._build_summary(deduped, summary)
+        if premise_anchors:
+            try:
+                from l3.memory.premise_guard import check_summary, guard_reminder
+
+                missing = check_summary(premise_anchors, summary_text)
+                reminder = guard_reminder(missing)
+                if reminder:
+                    summary_text = f"{summary_text}\n\n{reminder}"
+            except Exception:
+                logger.debug("l3a session: premise guard skipped")
 
         # Persist the summary into L3A's own memory (ring 2) before folding
         self._persist_compression_memory(summary_text, old, high, snapshot_ref)
