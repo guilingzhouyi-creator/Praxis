@@ -11,6 +11,7 @@ Architecture guide for the Praxis memory and skill subsystems (`src/l3/memory/`,
 
 - **Facade**: `memory.py`, `central_memory.py`, `memory_init.py`, `memory.py`
 - **Persistence**: `memory_persist.py`, `memory_compact.py`, `memory_mer.py`
+- **Extraction/premise**: `memory_extract.py` (three-mode hybrid extractor), `premise_guard.py` (premise hygiene filter), `memory_context.py` (inject dedup)
 - **Ingest/query**: `memory_ingest.py`, `memory_search.py`, `memory_query.py`, `memory_inject.py`, `memory_context.py`, `memory_quality.py`, `memory_ring.py`, `skill_retrieval.py`, `skill_retriever.py`
 - **R4Agent (skill evolution)**: `r4_agent.py` (orchestrator) + `r4_skill_evolution.py`, `r4_skill_generalize.py` (`evolve_skill`), `r4_skill_trace.py` (`_process_failure_traces` — lean cases), `r4_skill_lifecycle.py` (`_prune_stale_skills` TTL, `_clean_orphan_traces` 24h), `r4_skill_persist.py`, `r4_skill_retrieval.py`, `r4_skill_feedback.py`, `r4_skill_distill.py`
 - **R5 graph**: `memory_graph.py`
@@ -36,6 +37,15 @@ Architecture guide for the Praxis memory and skill subsystems (`src/l3/memory/`,
 - **Weights in params**: `MEMORY_IMPORTANCE_*` / `MEMORY_PRESSURE_*` from `src/l1/kernel/params/system.py` — never inline.
 - **Persistence**: `memories/` runtime persistence via memory_persist; compaction via memory_compact; keep serialized formats backward-compatible or versioned.
 - **Conftest**: new memory services with module-level singletons must register their reset function in `_RESETS` (`tests/conftest.py`), else tests pollute each other.
+
+## Compaction Pipeline Conventions (fidelity layer)
+
+- **Hybrid extractor** (`memory_extract.py`): three modes — `deterministic` (rule-based, main flow default), `llm-assisted` (LLM side-channel for deep extraction), `off` (no extraction). The deterministic path is primary; the LLM path is a side-channel that must never mutate the main flow — on error it degrades to deterministic, never raises.
+- **Mode switching is control-plane only**: L2 `/memory compaction` subcommand + API `GET|PUT /api/v2/memory/compaction` (GET/PUT also for `premise-guard` and `inject-dedup`); settings defaults in `kernel/settings.py` DEFAULTS; boot syncs the runtime state. Never hardcode the mode.
+- **Premise guard** (`premise_guard.py`): filters extracted premises (duplicate/vague/contradictory) before they enter memory; applied on the compaction path — never bypass it when adding new compaction sinks.
+- **Inject dedup** (`memory_context.py`): dedupes memory injections into agent context so repeated compactions don't re-inject the same content.
+- **Offload readback**: tool results larger than `TOOL_RESULT_READBACK_MAX_CHARS` are offloaded and read back via the `tool_result_read` tool (offload enabled by default); the tool pipeline must keep the readback path intact when refactoring tool execution.
+- **Wireup**: compaction extraction + premise guard + dedup are wired into `memory_compact.py` (R3) and `session_compress.py` (L3A transcript compression); both callers must stay consistent with the mode/premise/dedup settings.
 
 ## Gates
 

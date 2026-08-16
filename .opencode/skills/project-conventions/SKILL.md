@@ -63,6 +63,8 @@ config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 - **Truncation literals**: Use `LOG_TRUNC_*` constants from `params/system.py` (`LOG_TRUNC_40` through `LOG_TRUNC_10000`). Never write `[:40]`, `[:3000]` etc. directly.
 - **Hash truncation**: Use `HASH_TRUNC_SHORT` (8), `HASH_TRUNC_MEDIUM` (12), `HASH_TRUNC_LONG` (16).
 - **Memory importance weights**: Use `MEMORY_IMPORTANCE_*` and `MEMORY_PRESSURE_*` constants from `params/system.py`.
+- **LLM failover**: Use `LLM_FAILOVER_*` constants from `params/api.py` (`LLM_FAILOVER_ENABLED`, `LLM_FAILOVER_THRESHOLD`, `LLM_FAILOVER_COOLDOWN`).
+- **Tool result offload**: Use `TOOL_RESULT_READBACK_MAX_CHARS` from `params/tool.py` (offload readback ceiling).
 - **Timeout defaults**: Reference `params/tool.py` or `params/system.py` constants, not raw numbers.
 - **File path strings**: Centralize in `params/system.py` or `paths.py`. Avoid `"*.json"`, `"foo/bar.yaml"` in implementation code.
 - **Package manager timeouts**: Use `TOOL_PACKAGE_MANAGER_TIMEOUT`, `TOOL_PIP_INSTALL_TIMEOUT`, etc. from `params/tool.py`.
