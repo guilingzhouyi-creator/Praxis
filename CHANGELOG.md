@@ -5,43 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
-### 性能
-
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
-
 ### 新增
 
+- **Feat (infra)**: per-layer quality baseline scanner
 - **Feat (kernel)**: adopt ProcessPort execution boundary
 - **Feat (skill)**: gate evolution through candidates
 - **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
@@ -79,43 +45,9 @@
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
 
-### 变更
-
-- **Test (infra)**: isolate durable capability fixtures
-- **Test (memory)**: document candidate rewrite seam and boundaries
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (docs)**: refresh candidate architecture indexes
 - **Docs (memory)**: detail candidate storage seam
 - **Docs (docs)**: refresh generated indexes
@@ -165,6 +97,76 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
+### 性能
+
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
+
+### 变更
+
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
 
 ## [0.4.1] - 2026-08-07
 
