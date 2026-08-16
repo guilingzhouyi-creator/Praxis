@@ -7,10 +7,14 @@
 
 ### 文档
 
+- **Docs**: regenerate CHANGELOG [Unreleased] block
 - **Docs**: align project-structure command count to 51
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs**: regenerate llms.txt and align command counts after rebase
 - **Docs**: add engineering-debug feature review
 - **Docs**: fix doc pointers and counts; add top-level index
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (docs)**: refresh candidate architecture indexes
 - **Docs (memory)**: detail candidate storage seam
@@ -95,6 +99,8 @@
 ### 新增
 
 - **Feat (tool)**: add marker-gated engineering debug mode
+- **Feat (infra)**: per-layer performance baseline scanner
+- **Feat (infra)**: per-layer quality baseline scanner
 - **Feat (kernel)**: adopt ProcessPort execution boundary
 - **Feat (skill)**: gate evolution through candidates
 - **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
