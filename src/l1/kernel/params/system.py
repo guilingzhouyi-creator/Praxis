@@ -325,8 +325,6 @@ MEMORY_COMPACTION_MAX_OUTPUT_CHARS: Final[int] = 800
 # Max characters of a source line worth keeping whole (longer lines are
 # elided to head+tail by the extractor)
 MEMORY_COMPACTION_MAX_LINE_CHARS: Final[int] = 200
-# Timeout (s) for the LLM-assisted bypass extraction (degrade on expiry)
-MEMORY_COMPACTION_LLM_TIMEOUT: Final[int] = 30
 
 # ── Premise guard (premise-guard) ───────────────────────────────────────
 # Post-compaction anchor audit: before a compression pass, high-value
