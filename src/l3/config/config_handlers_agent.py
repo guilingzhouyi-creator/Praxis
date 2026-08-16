@@ -194,6 +194,9 @@ def cfg_harness(cfg: dict, s: Any, results: dict) -> None:
         mode = str(cfg["mode"]).lower()
         _set_cfg("tool", "harness_mode", mode)
         s.set_l2("harness.mode", mode)
+        from l3.tool_system.harness import invalidate_harness_static
+
+        invalidate_harness_static()
     results["harness"] = True
 
 

@@ -32,7 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from l1.kernel.params.agent import SUBAGENT_SESSION_TTL
 from l1.kernel.params.api import SUBAGENT_POOL_EXECUTE_WORKERS, SUBAGENT_POOL_EXPLORE_WORKERS, SUBAGENT_RUN_TIMEOUT
-from l1.kernel.params.system import LOG_TRUNC_100, POLL_INTERVAL_DEFAULT
+from l1.kernel.params.system import LOG_TRUNC_100
 
 from .subagent_spec import BUILTIN_SUBAGENTS, SubAgentSpec, load_specs
 from .subagent_task import SubAgentTask
@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_EXPLORE_WORKERS = SUBAGENT_POOL_EXPLORE_WORKERS
 _DEFAULT_EXECUTE_WORKERS = SUBAGENT_POOL_EXECUTE_WORKERS
+
+_TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
 class SubAgentPool:
@@ -143,6 +145,13 @@ class SubAgentPool:
                     context.setdefault("prev_result", prev_result)
                     context.setdefault("prev_session_id", session_id)
 
+        # Atomically allocate the next task id: read and bump the counter
+        # under the lock so concurrent commissions can never collide on one id.
+        with self._lock:
+            task_id = f"sub-{parent_agent_id}-{self._total_commissioned}"
+            self._total_commissioned += 1
+            total = self._total_commissioned
+
         task = SubAgentTask(
             task_id=task_id,
             spec=spec,
@@ -155,36 +164,37 @@ class SubAgentPool:
         )
         with self._lock:
             self._tasks[task_id] = task
-            self._total_commissioned += 1
 
         self._executor_for(card_type).submit(task.start)
-        logger.debug(
-            "subagent_pool: %s -> %s (buf=%s, total=%d)", parent_agent_id, task_id, card_type, self._total_commissioned
-        )
+        logger.debug("subagent_pool: %s -> %s (buf=%s, total=%d)", parent_agent_id, task_id, card_type, total)
         return {"success": True, "task_id": task_id, "buffer": card_type}
 
     def collect(self, task_id: str, timeout: float = SUBAGENT_RUN_TIMEOUT) -> dict:
-        """Wait for and collect a task result, or time out."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            task = self._tasks.get(task_id)
-            if task is None:
-                return {"success": False, "error": f"task not found: {task_id}"}
-            if task.status in ("completed", "failed", "cancelled"):
-                r = task.get_result()
-                self._tasks.pop(task_id, None)
-                # Retain in session history for context reuse
-                if task.ttl > 0 and task.status in ("completed",):
-                    with self._lock:
-                        self._session_history[task.session_id] = task
-                return r
-            time.sleep(POLL_INTERVAL_DEFAULT)
-        return {
-            "success": False,
-            "task_id": task_id,
-            "error": "timeout",
-            "status": (t.status if (t := self._tasks.get(task_id)) else "unknown"),
-        }
+        """Wait for and collect a task result, or time out.
+
+        Blocking wait is event-driven: the task sets a done event on
+        completion, so this returns immediately when the task finishes
+        instead of polling on a fixed interval.
+        """
+        task = self._tasks.get(task_id)
+        if task is None:
+            return {"success": False, "error": f"task not found: {task_id}"}
+        if task.status not in _TERMINAL_STATUSES:
+            task.wait(timeout)
+        if task.status not in _TERMINAL_STATUSES:
+            return {
+                "success": False,
+                "task_id": task_id,
+                "error": "timeout",
+                "status": task.status,
+            }
+        r = task.get_result()
+        self._tasks.pop(task_id, None)
+        # Retain in session history for context reuse
+        if task.ttl > 0 and task.status in ("completed",):
+            with self._lock:
+                self._session_history[task.session_id] = task
+        return r
 
     def collect_all(self, task_ids: list[str], timeout: float = SUBAGENT_RUN_TIMEOUT) -> dict:
         """Collect results for many tasks, waiting until all finish or timeout."""
@@ -199,13 +209,17 @@ class SubAgentPool:
                     results.append({"task_id": tid, "error": "not found"})
                     done.add(tid)
                     continue
-                if task.status in ("completed", "failed", "cancelled"):
+                if task.status in _TERMINAL_STATUSES:
                     results.append(task.get_result())
                     self._tasks.pop(tid, None)
                     done.add(tid)
             remaining -= done
             if remaining:
-                time.sleep(POLL_INTERVAL_DEFAULT)
+                # Event-driven wait on the first unfinished task: wakes the
+                # instant that task completes, then the loop re-scans the rest.
+                first = self._tasks.get(next(iter(remaining)))
+                if first is not None and first.status not in _TERMINAL_STATUSES:
+                    first.wait(max(deadline - time.time(), 0.0))
         for tid in remaining:
             results.append({"task_id": tid, "error": "timeout"})
         return {

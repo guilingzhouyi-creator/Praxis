@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
 - **Docs**: regenerate CHANGELOG [Unreleased] block
 - **Docs**: align project-structure command count to 51
 - **Docs (stats)**: refresh judge dashboard

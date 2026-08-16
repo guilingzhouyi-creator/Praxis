@@ -26,19 +26,35 @@ from l1.kernel.params.tool import (
 logger = logging.getLogger(__name__)
 
 _state: dict[str, Any] = {"mode": None}
+_static_mode: str | None = None
 _lock = threading.RLock()
 
 BOTTOM_LINE = "constitution + gatechain + sandbox + reference-channel recording"
 
 
-def get_harness_mode() -> str:
-    """Return the effective harness mode (override → config → default)."""
-    with _lock:
-        override = _state["mode"]
-    if override in HARNESS_MODES:
-        return override
+def _resolve_static() -> str:
+    """Resolve the static config value without touching the cache."""
     static = str(get_tool_config("harness_mode", HARNESS_MODE_DEFAULT)).lower()
     return static if static in HARNESS_MODES else HARNESS_MODE_DEFAULT
+
+
+def get_harness_mode() -> str:
+    """Return the effective harness mode (override → config → default)."""
+    global _static_mode
+    with _lock:
+        override = _state["mode"]
+        if override in HARNESS_MODES:
+            return override
+        if _static_mode is None:
+            _static_mode = _resolve_static()
+        return _static_mode
+
+
+def invalidate_harness_static() -> None:
+    """Drop the cached static resolution after a praxis.yaml harness reload."""
+    global _static_mode
+    with _lock:
+        _static_mode = None
 
 
 def set_harness_mode(mode: str, confirmed: bool = False, source: str = "api") -> dict:
@@ -115,10 +131,13 @@ def set_harness_mode(mode: str, confirmed: bool = False, source: str = "api") ->
 
 def reset_harness_mode() -> dict:
     """Clear the runtime override; effective mode returns to static config."""
+    global _static_mode
     with _lock:
         _state["mode"] = None
         _state["source"] = "config"
-    return {"success": True, "mode": get_harness_mode(), "source": "config"}
+        static = _static_mode
+        _static_mode = None
+    return {"success": True, "mode": static if static is not None else _resolve_static(), "source": "config"}
 
 
 def harness_status() -> dict:

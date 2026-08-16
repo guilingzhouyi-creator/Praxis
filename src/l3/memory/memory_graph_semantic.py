@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from l1.kernel.params.system import LOG_TRUNC_300
@@ -18,6 +19,7 @@ from .memory_graph_constants import (
     _EDGE_MODE_PAUSED,
     _LLM_EXTRACT_MAX_PAIRS,
     _LLM_EXTRACT_MAX_TOKENS,
+    _LLM_EXTRACT_MAX_WORKERS,
     _SEMANTIC_RELATIONS,
 )
 
@@ -60,8 +62,18 @@ class SemanticExtractionMixin:
             relations: list[dict] = []
             added = 0
             engine_failures = 0
-            for a, b in pairs:
-                rel = self._ask_relation(engine, a, b)
+            # Serial LLM calls per pair are the extraction hot path: fire the
+            # pair questions concurrently (bounded by _LLM_EXTRACT_MAX_WORKERS)
+            # while preserving deterministic pair order via executor.map.
+            if len(pairs) > 1:
+                with ThreadPoolExecutor(
+                    max_workers=min(_LLM_EXTRACT_MAX_WORKERS, len(pairs)),
+                    thread_name_prefix="mem-sem",
+                ) as pool:
+                    rels = list(pool.map(lambda p: self._ask_relation(engine, p[0], p[1]), pairs))
+            else:
+                rels = [self._ask_relation(engine, a, b) for a, b in pairs]
+            for rel, (a, b) in zip(rels, pairs, strict=True):
                 if rel is None:
                     engine_failures += 1
                     continue
