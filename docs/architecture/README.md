@@ -98,7 +98,7 @@ flowchart TB
 |--------|-------|
 | L1 Kernel | 66 files / 19,130 lines |
 | L2 Shell | 35 files / 4,665 lines |
-| L3 Cell | 335 files / 73,007 lines |
+| L3 Cell | 335 files / 73,013 lines |
 | L4 Bridge | 107 files / 22,115 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,928 lines |
