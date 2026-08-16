@@ -22,8 +22,7 @@ source of truth for the Conventional-Commits contract.
 | Trailer | `Co-Authored-By:` line last, preceded by a blank line |
 
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
-  merge is gated on diff scope — see `docs/workflow/deps.md` (AGENTS.md
-  `## Dependency management`).
+  merge is gated on diff scope — see `AGENTS.md` `## Dependency management`.
 - **Commit-scan policy — single source of truth**: the Conventional-Commits
   contract (type whitelist, registered scopes, placeholder guard, branch-type
   policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
