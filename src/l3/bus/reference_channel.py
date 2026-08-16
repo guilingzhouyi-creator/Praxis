@@ -71,6 +71,11 @@ class ReferenceChannel:
         self._total = 0
         self._running = False
         self._thread: threading.Thread | None = None
+        # Wake-up signal: stop() sets it so a sleeping flusher exits its
+        # Event.wait() immediately instead of waiting out the full interval
+        # (time.sleep was not interruptible → every stop() paid the join
+        # timeout; 48s of the memory suite was this fixed 2s-per-test tax).
+        self._stop_event = threading.Event()
         self._ensure_path()
         self._start_flusher()
 
@@ -95,7 +100,10 @@ class ReferenceChannel:
     def _flush_loop(self) -> None:
         """Background loop: drain ring buffer to disk every flush_interval."""
         while self._running:
-            time.sleep(self._flush_interval)
+            # Event.wait is interruptible — stop() calls event.set() and the
+            # loop wakes immediately (time.sleep could only be stopped by
+            # waiting the full interval).
+            self._stop_event.wait(self._flush_interval)
             try:
                 self._flush()
             except Exception as e:
@@ -328,6 +336,7 @@ class ReferenceChannel:
     def stop(self) -> None:
         """Stop the flusher thread and flush remaining events."""
         self._running = False
+        self._stop_event.set()  # wake the sleeping flusher immediately
         if self._thread:
             self._thread.join(timeout=THREAD_JOIN_TIMEOUT_QUICK)
         self._flush()
