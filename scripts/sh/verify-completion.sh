@@ -113,7 +113,12 @@ echo "[judge] checks: tests=${RUN_TESTS} coverage=${RUN_COVERAGE} delta=${RUN_DE
 # ── 1. Tests ─────────────────────────────────────────────────────────────
 if [ "$RUN_TESTS" = "1" ]; then
   echo "[judge] ── 1. Full test suite ──"
-  if python -m pytest tests/ -q --tb=short > /tmp/judge_tests.log 2>&1; then
+  # Bound the xdist worker count: `-n auto` spawns one worker per CPU core,
+  # which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
+  # thrashes memory and hangs the suite. Default 4 workers; operators may
+  # override with JUDGE_PYTEST_N (0 = single process, safest).
+  JUDGE_N="${JUDGE_PYTEST_N:-4}"
+  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" > /tmp/judge_tests.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1))"
   else
     S_TESTS=2; tail -5 /tmp/judge_tests.log >&2
@@ -128,7 +133,8 @@ if [ "$RUN_COVERAGE" = "1" ]; then
   echo "[judge] ── 2. Coverage (fail-under) ──"
   THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
   THRESH="${THRESH:-60}"
-  if python -m pytest tests/ -q --tb=short --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
+  JUDGE_N="${JUDGE_PYTEST_N:-4}"
+  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_COVERAGE=1; pass "coverage >= $THRESH%"
   else
     S_COVERAGE=2; grep -E "TOTAL|fail_under" /tmp/judge_cov.log | tail -2 >&2

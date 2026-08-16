@@ -152,8 +152,13 @@ def create_interactive_shell(cwd: str = "") -> _subprocess.Popen:
     Interactive ``Popen`` lifecycle and pipe management intentionally remain
     outside ``ProcessPort``. That port is a value-result contract for bounded,
     non-interactive execution only.
+
+    On POSIX, ``--noprofile --norc`` skips rc-file loading: the interactive
+    bash starts deterministically fast, which removes the startup race where
+    a slow rc load left ``stdin.write``/``wait`` hanging in tests (and makes
+    interactive sessions snappier). Interactive semantics are unchanged.
     """
-    cmd = [SHELL_PATH] if IS_WINDOWS else [SHELL_PATH, "-i"]
+    cmd = [SHELL_PATH] if IS_WINDOWS else [SHELL_PATH, "-i", "--noprofile", "--norc"]
     kwargs: dict = {}
     if cwd:
         kwargs["cwd"] = cwd
