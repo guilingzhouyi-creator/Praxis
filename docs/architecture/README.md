@@ -88,6 +88,7 @@ flowchart TB
 | L2 | [l2-shell.md](l2-shell.md) | Shell family over shared engine, i18n, completer, agent selector |
 | L1 | [l1-kernel.md](l1-kernel.md) | Process table, sync, event bus, constitution, GateChain, ports, params |
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
+| — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
 | — | [skill-system.md](skill-system.md) | Skill manager (L1), R4Agent evolution, per-Cell bindings, staged/guided skills |
 | — | [runtime-subsystems.md](runtime-subsystems.md) | error bus (trace_id), AgentLoop entities, boot, search, LLM workers, resource buffer, ConfigDiscovery |
 | — | [sandbox-diff.md](sandbox-diff.md) | Structured diff system: per-hunk attribution model, diff views, three-tier topology, tiered compression |

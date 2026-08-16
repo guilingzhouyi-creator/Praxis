@@ -72,3 +72,12 @@ changelog:
 
 changelog-check:
 	python scripts/py/check_changelog.py
+
+layer-quality:
+	python scripts/py/layer_quality.py
+
+layer-quality-report:
+	python scripts/py/layer_quality.py --report
+
+layer-quality-baseline:
+	python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml

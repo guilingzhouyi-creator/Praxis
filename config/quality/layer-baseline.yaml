@@ -1,0 +1,44 @@
+# Per-layer quality baseline (generated — do not hand-edit).
+# Regenerate: python scripts/py/layer_quality.py --baseline
+layers:
+  L1:
+    comment_ratio: 0.0396
+    mega_funcs: 0
+    large_funcs: 0
+    missing_doc: 9
+    short_doc: 1
+    hardcoded_args: 1
+    cjk_comment: 0
+  L2:
+    comment_ratio: 0.0146
+    mega_funcs: 0
+    large_funcs: 0
+    missing_doc: 0
+    short_doc: 0
+    hardcoded_args: 3
+    cjk_comment: 0
+  L3:
+    comment_ratio: 0.0320
+    mega_funcs: 0
+    large_funcs: 6
+    missing_doc: 1
+    short_doc: 16
+    hardcoded_args: 18
+    cjk_comment: 0
+  L4:
+    comment_ratio: 0.0266
+    mega_funcs: 0
+    large_funcs: 1
+    missing_doc: 0
+    short_doc: 5
+    hardcoded_args: 1
+    cjk_comment: 0
+  L5:
+    comment_ratio: 0.0184
+    mega_funcs: 0
+    large_funcs: 0
+    missing_doc: 0
+    short_doc: 0
+    hardcoded_args: 0
+    cjk_comment: 0
+
