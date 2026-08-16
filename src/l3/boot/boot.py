@@ -448,7 +448,7 @@ def _register_default_boot_steps(agent_config: list | None) -> None:
 
 
 def boot_status() -> dict:
-    """Return boot status."""
+    """Return the recorded boot result, or a not-booted error before the first boot."""
     if _BOOT_RESULT:
         return _BOOT_RESULT
     return {"success": False, "error": "not booted", "steps": _BOOT_STEPS}

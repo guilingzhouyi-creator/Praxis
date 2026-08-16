@@ -215,7 +215,7 @@ class SessionExportManager:
         return snapshot.save()
 
     def list_snapshots(self) -> dict:
-        """List all snapshots."""
+        """List all saved session snapshots, newest first, with metadata."""
         if not _SNAPSHOT_DIR.exists():
             return {"success": True, "snapshots": [], "count": 0}
 
@@ -252,7 +252,7 @@ class SessionExportManager:
         }
 
     def delete_snapshot(self, snapshot_id: str) -> dict:
-        """Delete snapshot."""
+        """Delete a saved snapshot file by id; errors when it does not exist."""
         path = _SNAPSHOT_DIR / SNAPSHOT_PATH_TEMPLATE.format(snapshot_id=snapshot_id)
         if not path.exists():
             return {"success": False, "error": "snapshot not found"}

@@ -22,7 +22,7 @@ def cell_liveness(body: dict | None = None) -> dict:
 
 
 def list_peers(body: dict | None = None) -> dict:
-    """List network peers."""
+    """List the network peers currently visible to the kernel net manager."""
     try:
         from l1.kernel.net import get_net
 

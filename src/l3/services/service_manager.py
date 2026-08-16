@@ -142,7 +142,7 @@ class ServiceManager(BaseService):
             return {"success": False, "error": str(e)}
 
     def restart(self, name: str) -> dict:
-        """Restart a service."""
+        """Stop a service and start it again after a brief pause."""
         self.stop(name)
         time.sleep(POLL_INTERVAL_PAUSED)
         return self.start(name)

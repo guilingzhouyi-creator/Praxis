@@ -104,7 +104,7 @@ def security_alerts(body: dict | None = None) -> dict:
 
 
 def tool_mode_get(body: dict | None = None) -> dict:
-    """Current tool mode."""
+    """Return the current tool operating mode from the tool mode manager."""
     from l3.tool_system.tool_mode import get_mode
 
     return {"mode": get_mode()}

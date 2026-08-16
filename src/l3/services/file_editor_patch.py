@@ -54,7 +54,7 @@ class PatchManager:
         return {"success": True, "patch": patch.to_dict()}
 
     def apply(self, patch_id: str) -> dict:
-        """Apply a patch."""
+        """Apply a stored patch to the target file if it has not already been applied."""
         with self._lock:
             patch = self._patches.get(patch_id)
         if not patch:
