@@ -32,6 +32,12 @@ _lock = threading.RLock()
 BOTTOM_LINE = "constitution + gatechain + sandbox + reference-channel recording"
 
 
+def _resolve_static() -> str:
+    """Resolve the static config value without touching the cache."""
+    static = str(get_tool_config("harness_mode", HARNESS_MODE_DEFAULT)).lower()
+    return static if static in HARNESS_MODES else HARNESS_MODE_DEFAULT
+
+
 def get_harness_mode() -> str:
     """Return the effective harness mode (override → config → default)."""
     global _static_mode
@@ -40,8 +46,7 @@ def get_harness_mode() -> str:
         if override in HARNESS_MODES:
             return override
         if _static_mode is None:
-            static = str(get_tool_config("harness_mode", HARNESS_MODE_DEFAULT)).lower()
-            _static_mode = static if static in HARNESS_MODES else HARNESS_MODE_DEFAULT
+            _static_mode = _resolve_static()
         return _static_mode
 
 
@@ -130,8 +135,9 @@ def reset_harness_mode() -> dict:
     with _lock:
         _state["mode"] = None
         _state["source"] = "config"
+        static = _static_mode
         _static_mode = None
-    return {"success": True, "mode": get_harness_mode(), "source": "config"}
+    return {"success": True, "mode": static if static is not None else _resolve_static(), "source": "config"}
 
 
 def harness_status() -> dict:
