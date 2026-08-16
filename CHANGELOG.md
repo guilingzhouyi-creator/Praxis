@@ -5,6 +5,60 @@
 
 ## [Unreleased]
 
+### 文档
+
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: define two gate waivers and sync hints
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: add branch accumulation quality gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: mandate main-tree venv for worktree test runs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
 ### 修复
 
 - **Fix (memory)**: snapshot persistence path during writes
@@ -113,58 +167,6 @@
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
 - **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 文档
-
-- **Docs (docs)**: refresh candidate architecture indexes
-- **Docs (memory)**: detail candidate storage seam
-- **Docs (docs)**: refresh generated indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats + changelog after cleanup
-- **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: define two gate waivers and sync hints
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: add branch accumulation quality gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: mandate main-tree venv for worktree test runs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: document direct local push to github mirror
 
 ## [0.4.1] - 2026-08-07
 
