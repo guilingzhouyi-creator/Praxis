@@ -1,3 +1,5 @@
+> **Auto-generated** by `scripts/sh/judge-stats.sh` from `.praxis/judge-runs.jsonl` — never hand-edit.
+
 ## CompletionJudge effectiveness (auto-updated)
 
 **Runs**: 31 | **COMPLETE**: 2 (6%) | **INCOMPLETE**: 29 (94%, premature stops caught)

@@ -17,8 +17,8 @@ suffix (``file_suffix``), and execution (``execute``). The framework calls
 ``get_language_backend(language)`` and never hardcodes a language. Python is
 the first shipped backend; TypeScript / Rust backends are slots to be added
 per the multi-language roadmap
-(``docs/design/praxis-frontend-kernel-roadmap.md``) — see
-``docs/design/praxis-multilang-migration.md`` for the conversion path.
+(``docs/roadmaps/frontend-kernel-roadmap.md``) — see
+``docs/roadmaps/multilang-migration.md`` for the conversion path.
 """
 
 from __future__ import annotations

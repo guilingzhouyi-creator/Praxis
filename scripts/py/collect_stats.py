@@ -158,24 +158,27 @@ def third_party_imports() -> list[str]:
 def yaml_command_count() -> int:
     """Count top-level command keys in ``config/commands.yaml``."""
     text = (ROOT / "config" / "commands.yaml").read_text(encoding="utf-8")
-    return len(re.findall(r"^[a-z_][a-z0-9_]*:", text, re.MULTILINE))
+    return len(re.findall(r"^[a-z_][a-z0-9_-]*:", text, re.MULTILINE))
 
 
 def code_registered_command_count() -> int:
     """Count ``_cmd_*`` handlers NOT defined in commands.yaml.
 
-    These are pure code-registered commands (e.g. ``/agents-md``,
-    ``/model-spec``) — YAML commands have their own definitions, so the
-    handler set minus the YAML command set is the code-only surface.
+    These are pure code-registered commands (e.g. ``/model-spec``,
+    ``/session-history``) — YAML commands have their own definitions, so the
+    handler set minus the YAML command set is the code-only surface. Handler
+    names are snake_case while command keys are kebab-case (``_cmd_agents_md``
+    backs the ``agents-md`` YAML command), so handlers are normalized to
+    kebab-case before subtraction.
     """
     text = (ROOT / "config" / "commands.yaml").read_text(encoding="utf-8")
-    yaml_cmds = set(re.findall(r"^([a-z_][a-z0-9_]*):", text, re.MULTILINE))
+    yaml_cmds = set(re.findall(r"^([a-z_][a-z0-9_-]*):", text, re.MULTILINE))
     names: set[str] = set()
     for py in sorted((SRC / "l2" / "l2_shell" / "commands").rglob("*.py")):
         if "__pycache__" in py.parts:
             continue
         names.update(re.findall(r"def (_cmd_\w+)", py.read_text(encoding="utf-8")))
-    return len({h[5:] for h in names} - yaml_cmds)
+    return len({h[5:].replace("_", "-") for h in names} - yaml_cmds)
 
 
 def health_scores(stats: dict) -> dict:
