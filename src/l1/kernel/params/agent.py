@@ -659,6 +659,7 @@ R4_RETRIEVAL_BACKEND_DEFAULT: Final[str] = (
 )
 R4_RETRIEVAL_TOP_K: Final[int] = 3  # top-K skills injected by similarity (fallback: loaded_at order)
 R4_RETRIEVAL_MIN_SCORE: Final[float] = 0.05  # similarity floor below which fallback order is used
+R4_RETRIEVAL_CACHE_MAX: Final[int] = 256  # max candidate token-vector entries cached in TfIdfSkillRetriever
 R4_CARD_TAG_PREFIX: Final[str] = "card:"  # skill tag prefix for card-nature/domain linkage
 R4_CARD_TAG_MAX: Final[int] = 8  # max card-derived tags appended to a retrieval query
 

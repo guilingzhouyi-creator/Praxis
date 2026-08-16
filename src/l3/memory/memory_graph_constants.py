@@ -39,6 +39,7 @@ _EDGE_MODE_TRANSITIONS: dict[str, set[str]] = {
 }
 _LLM_EXTRACT_MAX_PAIRS = 5  # max comparison pairs per extraction round
 _LLM_EXTRACT_MAX_TOKENS = 256
+_LLM_EXTRACT_MAX_WORKERS = 4  # concurrent LLM calls for pair relations during extraction
 
 _DEFAULT_DB_NAME = "memory_graph.db"
 _DEFAULT_ENABLED = False

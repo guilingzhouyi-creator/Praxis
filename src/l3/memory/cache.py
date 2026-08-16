@@ -17,6 +17,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Collection
 from typing import Any
 
 from l1.kernel.params.system import CACHE_DEFAULT_TTL, FILE_CACHE_MAX_ENTRIES, FILE_CACHE_TTL
@@ -66,6 +67,7 @@ class IsolatedCache:
         self.cell_id = cell_id
         self.max_entries = max_entries
         self._entries: OrderedDict[str, CacheEntry] = OrderedDict()
+        self._tag_index: dict[str, set[str]] = {}
         self._lock = threading.RLock()
         self._hits = 0
         self._misses = 0
@@ -101,7 +103,7 @@ class IsolatedCache:
                     self._misses_by_agent[agent_id] = self._misses_by_agent.get(agent_id, 0) + 1
                 return None
             if now > entry.expires_at:
-                del self._entries[key]
+                self._remove_key(key)
                 self._misses += 1
                 if agent_id:
                     self._misses_by_agent[agent_id] = self._misses_by_agent.get(agent_id, 0) + 1
@@ -135,8 +137,12 @@ class IsolatedCache:
         all_tags.add(f"scope:{scope}")
 
         with self._lock:
+            old = self._entries.get(key)
+            if old is not None:
+                self._unindex_key(key, old.tags)
             self._entries[key] = CacheEntry(key, value, all_tags, ttl)
             self._entries.move_to_end(key)
+            self._index_key(key, all_tags)
             self._evict()
 
     def invalidate(self, raw_key: str, scope: str = "", agent_id: str = "") -> int:
@@ -147,13 +153,15 @@ class IsolatedCache:
         """
         with self._lock:
             tag = f"raw:{raw_key}"
-            keys = [k for k, e in self._entries.items() if tag in (e.tags or set())]
+            # Inverted index: only keys carrying this tag are considered,
+            # instead of scanning the whole entry table.
+            keys = list(self._tag_index.get(tag, ()))
             if scope:
                 keys = [k for k in keys if f"scope:{scope}" in (self._entries[k].tags or set())]
             if agent_id:
                 keys = [k for k in keys if f"agent:{agent_id}" in (self._entries[k].tags or set())]
             for k in keys:
-                del self._entries[k]
+                self._remove_key(k)
             return len(keys)
 
     def invalidate_by_tag(self, tag: str) -> int:
@@ -162,15 +170,16 @@ class IsolatedCache:
         Tags: agent:<id>, ring:<n>, territory:<path>, raw:<path>, scope:<level>
         """
         with self._lock:
-            keys = [k for k, e in self._entries.items() if tag in (e.tags or set())]
+            keys = list(self._tag_index.get(tag, ()))
             for k in keys:
-                del self._entries[k]
+                self._remove_key(k)
             return len(keys)
 
     def clear(self) -> None:
         """Clear all cache entries and reset hit/miss counters."""
         with self._lock:
             self._entries.clear()
+            self._tag_index.clear()
             self._hits = 0
             self._misses = 0
 
@@ -204,12 +213,33 @@ class IsolatedCache:
                 "hit_rate": round(h / max(h + m, 1) * 100, 1),
             }
 
+    def _index_key(self, key: str, tags: Collection[str]) -> None:
+        """Register a key in the tag inverted index (caller holds the lock)."""
+        for tag in tags:
+            self._tag_index.setdefault(tag, set()).add(key)
+
+    def _unindex_key(self, key: str, tags: Collection[str]) -> None:
+        """Drop a key from the tag inverted index (caller holds the lock)."""
+        for tag in tags:
+            bucket = self._tag_index.get(tag)
+            if bucket is not None:
+                bucket.discard(key)
+                if not bucket:
+                    self._tag_index.pop(tag, None)
+
+    def _remove_key(self, key: str) -> None:
+        """Delete an entry and its index references (caller holds the lock)."""
+        entry = self._entries.pop(key, None)
+        if entry is not None:
+            self._unindex_key(key, entry.tags)
+
     def _evict(self) -> None:
         """LRU eviction: pop the least-recently-used entry."""
         while len(self._entries) > self.max_entries:
             if not self._entries:
                 break
-            self._entries.popitem(last=False)
+            key, _entry = self._entries.popitem(last=False)
+            self._unindex_key(key, _entry.tags)
 
 
 # ── Context register (unchanged, stays shared) ──

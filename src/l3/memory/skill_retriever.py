@@ -14,11 +14,13 @@ bind to a concrete backend.
 from __future__ import annotations
 
 import math
+import threading
 from abc import ABC, abstractmethod
 from collections import Counter
 
 from l1.kernel.params.agent import (
     R4_RETRIEVAL_BACKEND_DEFAULT,
+    R4_RETRIEVAL_CACHE_MAX,
     R4_RETRIEVAL_MIN_SCORE,
 )
 
@@ -43,7 +45,18 @@ class TfIdfSkillRetriever(SkillRetriever):
 
     Tokenizes the query and each candidate's description+prompt, scores by
     cosine similarity of token-frequency vectors, and returns the top-K.
+
+    Candidate token vectors are cached by their full text (description +
+    prompt) with an LRU-style cap, so repeated retrievals over the same
+    skill corpus skip re-tokenization entirely. The cache key is the text
+    itself: a skill revision that changes description/prompt produces a new
+    key, so stale vectors can never be served (content-addressed, no manual
+    invalidation).
     """
+
+    def __init__(self) -> None:
+        self._vector_cache: dict[str, Counter] = {}
+        self._cache_lock = threading.Lock()
 
     def rank(
         self, query: str, candidates: list[dict], limit: int, min_score: float = R4_RETRIEVAL_MIN_SCORE
@@ -55,7 +68,7 @@ class TfIdfSkillRetriever(SkillRetriever):
         scored: list[tuple[float, dict]] = []
         for cand in candidates:
             text = f"{cand.get('description', '')} {cand.get('prompt', '')}"
-            s_tok = self._tokens(text)
+            s_tok = self._cached_tokens(text)
             if not s_tok:
                 continue
             common = sum((q_tok & s_tok).values())
@@ -70,6 +83,28 @@ class TfIdfSkillRetriever(SkillRetriever):
         if not scored or scored[0][0] < min_score:
             return []
         return [cand for _, cand in scored[:limit]]
+
+    def _cached_tokens(self, text: str) -> Counter:
+        """Return the token vector for *text*, computing and caching on miss.
+
+        Content-addressed: the text is the cache key, so any change to the
+        candidate (description/prompt) yields a miss and a fresh vector —
+        no explicit invalidation is needed. Bounded by
+        ``R4_RETRIEVAL_CACHE_MAX`` with oldest-first eviction.
+        """
+        if not text:
+            return Counter()
+        with self._cache_lock:
+            cached = self._vector_cache.get(text)
+            if cached is not None:
+                return cached
+        vec = self._tokens(text)
+        with self._cache_lock:
+            if text not in self._vector_cache:
+                if len(self._vector_cache) >= R4_RETRIEVAL_CACHE_MAX:
+                    self._vector_cache.pop(next(iter(self._vector_cache)))
+                self._vector_cache[text] = vec
+        return vec
 
     @staticmethod
     def _tokens(text: str) -> Counter:
