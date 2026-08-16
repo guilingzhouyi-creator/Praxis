@@ -28,6 +28,24 @@ User (will) ──intent──> L3A central ──card──> Cell/agents (execu
 | `pipeline.py` | document control | ManagedToolOutput (oversized result spill) |
 | `model.py` | budget rules | L3AModelConfig inheritance chain |
 
+## Decision-layer compression fidelity (compaction + premise guard)
+
+The L3A session fold (`session_compress.py::compress`, five-level
+rate-distortion pipeline) is the decision layer's memory of the will — a
+lost premise there is a lost intent. Two mechanisms protect it:
+
+- **Hybrid compaction extractor** (`l3.memory.memory_extract`): the
+  assembled summary passes through the deterministic extractor (keeps
+  paths/commands/error codes/decision anchors, drops filler) unless the
+  operator mode is `off`; `llm-assisted` upgrades it with an LLM bypass
+  that degrades to deterministic on failure. Switch: `/api/v2/memory/
+  compaction` + L2 `/memory compaction` (see `l3-memory.md`).
+- **Premise guard** (`l3.memory.premise_guard`): before the fold, anchors
+  (intents/constraints/convention refs) are fingerprinted; after folding,
+  anchors missing from the summary append a one-shot reminder so a lost
+  premise is surfaced, never silently dropped. Switch: `/api/v2/memory/
+  premise-guard` + L2 `/memory premise-guard`.
+
 ## Session contract (language-agnostic)
 
 Exposed over `/api/v2/l3a/*` so any frontend (TUI/desktop/TS) drives the

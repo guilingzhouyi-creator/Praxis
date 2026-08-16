@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING
 
 from l1.kernel.params.api import (
     LLM_EMPTY_RESPONSE_WAITS,
+    LLM_FAILOVER_COOLDOWN,
+    LLM_FAILOVER_ENABLED,
+    LLM_FAILOVER_THRESHOLD,
     LLM_HTTP_TIMEOUT,
     LLM_MAX_EMPTY_RETRIES,
     LLM_MAX_OVERFLOW_RETRIES,
@@ -32,6 +35,20 @@ if TYPE_CHECKING:
     from .llm_base import LLMConfig, LLMProvider
 
 logger = logging.getLogger(__name__)
+
+# ── Failover state (module-level, shared across engine instances) ──
+# Consecutive-failure counter + last-switch timestamp drive the provider
+# failover gate: after LLM_FAILOVER_THRESHOLD consecutive failures on the
+# primary provider, the next call rebuilds the provider from
+# ModelRegistry.get_fallback (same model-spec semantics) and replays the
+# request once. Success resets the counter; the cooldown window prevents
+# thrashing between two failing providers.
+_failover_state: dict = {"failures": 0, "last_switch": 0.0, "active_provider": ""}
+
+
+def reset_failover_state() -> None:
+    """Reset the failover counters (tests / lifecycle)."""
+    _failover_state.update({"failures": 0, "last_switch": 0.0, "active_provider": ""})
 
 
 class LLMRetryMixin:
@@ -72,10 +89,66 @@ class LLMRetryMixin:
         try:
             code, raw, resp_headers = http_post(url, body, headers, LLM_HTTP_TIMEOUT)
         except (OSError, TimeoutError, http.client.HTTPException) as e:
-            return self._transient_retry(body, retry_count, str(e), _time)
+            out = self._transient_retry(body, retry_count, str(e), _time)
+            return self._failover_if_needed(body, out, _time)
         if code >= 400:
-            return self._http_error_retry(body, retry_count, code, raw, resp_headers, _time)
+            out = self._http_error_retry(body, retry_count, code, raw, resp_headers, _time)
+            return self._failover_if_needed(body, out, _time)
         return self._success_response(body, retry_count, raw, provider_name, _time)
+
+    def _failover_if_needed(self, body: bytes, out: dict, _time) -> dict:
+        """Switch provider after repeated failures; replay the request once.
+
+        Fired only when: failover enabled, the attempt errored (no content),
+        consecutive failures reached LLM_FAILOVER_THRESHOLD, and the cooldown
+        window since the last switch has elapsed. On switch, the provider is
+        rebuilt from ModelRegistry.get_fallback (same model-spec semantics —
+        the spec keeps its role, only the provider/endpoint changes) and the
+        request is replayed once. Success after a switch resets the counter.
+        """
+        if not LLM_FAILOVER_ENABLED or out.get("content") or not out.get("error"):
+            return out
+        _failover_state["failures"] += 1
+        if _failover_state["failures"] < LLM_FAILOVER_THRESHOLD:
+            return out
+        now = _time.time()
+        if now - _failover_state.get("last_switch", 0.0) < LLM_FAILOVER_COOLDOWN:
+            return out
+        try:
+            from l1.kernel.model_registry import get_registry
+
+            registry = get_registry()
+            alt = registry.get_fallback(self.config.provider, self.config.model)
+            builder = getattr(self, "_build_provider", None)
+            if not alt or not builder:
+                return out
+            prev = self.config.provider
+            self.config = self._with_fallback_config(alt)
+            self._provider = builder()
+            _failover_state.update({"failures": 0, "last_switch": now, "active_provider": alt.get("provider", "")})
+            logger.warning(
+                "llm failover: provider '%s' -> '%s' (model '%s') after %d consecutive failures",
+                prev,
+                alt.get("provider", "?"),
+                alt.get("model", "?"),
+                LLM_FAILOVER_THRESHOLD,
+            )
+            return self._call_api(body, 0)
+        except Exception as e:
+            logger.warning("llm failover skipped: %s", e)
+            return out
+
+    def _with_fallback_config(self, alt: dict) -> LLMConfig:
+        """Build a new LLMConfig for the fallback provider (same model spec)."""
+        from .llm_base import LLMConfig
+
+        return LLMConfig(
+            provider=alt.get("provider", self.config.provider),
+            model=alt.get("model", self.config.model),
+            api_url=alt.get("api_url", self.config.api_url),
+            api_key=alt.get("api_key", self.config.api_key),
+            cache_breakpoints=self.config.cache_breakpoints,
+        )
 
     def _mock_response(self, body: bytes) -> dict:
         """Build the mock provider response from the request body."""

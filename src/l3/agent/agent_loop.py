@@ -417,7 +417,7 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                 # and the payload exceeds the budget, the full structured
                 # result is offloaded to the per-Cell cache (recoverable by
                 # call_id) and the trail keeps a reference line. Disabled
-                # (default) keeps the legacy head+tail folding.
+                # keeps the legacy head+tail folding.
                 try:
                     from l3.agent.tool_result_cache import maybe_offload
 
@@ -431,6 +431,13 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                     logger.debug("agent_loop: tool-result offload skipped", exc_info=True)
                 if isinstance(result, dict) and not result.get("offloaded"):
                     result = self._fold_result(result)
+                elif isinstance(result, dict) and result.get("offloaded"):
+                    # Reference line carries the recovery hint: the model can
+                    # fetch the full payload with tool_result_read (call_id).
+                    result["_readback_note"] = (
+                        "Result offloaded (full payload cached). "
+                        "Use tool_result_read with this call_id to fetch the complete output."
+                    )
             return result
 
         wrapped.__name__ = tool_name

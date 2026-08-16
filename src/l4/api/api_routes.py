@@ -464,6 +464,27 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
     ("PUT", "/api/v2/memory/digest", ".memory_digest_set", "Enable/disable conversation digest cache (B1)"),
     ("GET", "/api/v2/memory/tool-result", ".memory_tool_result_get", "Tool-result offload switch state (B2)"),
     ("PUT", "/api/v2/memory/tool-result", ".memory_tool_result_set", "Enable/disable tool-result offload cache (B2)"),
+    ("GET", "/api/v2/memory/compaction", ".memory_compaction_get", "Hybrid compaction extractor mode (compaction)"),
+    ("PUT", "/api/v2/memory/compaction", ".memory_compaction_set", "Set hybrid compaction extractor mode (compaction)"),
+    ("GET", "/api/v2/memory/premise-guard", ".memory_premise_guard_get", "Premise-guard switch state (premise-guard)"),
+    (
+        "PUT",
+        "/api/v2/memory/premise-guard",
+        ".memory_premise_guard_set",
+        "Enable/disable post-compaction premise guard (premise-guard)",
+    ),
+    (
+        "GET",
+        "/api/v2/memory/inject-dedup",
+        ".memory_inject_dedup_get",
+        "Memory-injection dedup switch state (inject-dedup)",
+    ),
+    (
+        "PUT",
+        "/api/v2/memory/inject-dedup",
+        ".memory_inject_dedup_set",
+        "Enable/disable injection content dedup (inject-dedup)",
+    ),
     ("GET", "/api/v2/memory/sensitive", ".memory_sensitive_get", "Sensitive-info bypass detection switch (B6)"),
     ("PUT", "/api/v2/memory/sensitive", ".memory_sensitive_set", "Enable/disable sensitive-info bypass detection (B6)"),
     (

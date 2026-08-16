@@ -60,6 +60,16 @@ LLM_MAX_TRANSIENT_RETRIES: Final[int] = 2
 # Max retries on empty LLM responses
 LLM_MAX_EMPTY_RETRIES: Final[int] = 3
 
+# ── LLM provider failover (model-failover) ──
+# Consecutive failures on the primary provider before switching to the
+# fallback provider (ModelRegistry.get_fallback, same model spec semantics).
+LLM_FAILOVER_THRESHOLD: Final[int] = 3
+# Cooldown (s) after a failover switch: further failures within the window
+# do NOT re-trigger a provider switch (prevents thrashing between providers).
+LLM_FAILOVER_COOLDOWN: Final[int] = 300
+# Failover switch is disabled when the registry exposes no fallback.
+LLM_FAILOVER_ENABLED: Final[bool] = True
+
 # ─── LLM provider default URLs ──
 LLM_PROVIDER_URLS: Final[dict[str, str]] = {
     "openai": "https://api.openai.com/v1/chat/completions",

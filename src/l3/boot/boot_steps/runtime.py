@@ -66,6 +66,22 @@ def _init_memory_and_archive() -> dict:
         mem.set_persist_dir("memories")
         mr = mem.restore()
         results["memory_restore"] = f"{mr.get('restored', 0)} entries"
+        # Sync operator switches from settings (praxis.yaml → module state):
+        # compaction mode, premise guard, inject dedup. Every setter degrades
+        # to the module default when the setting is absent.
+        try:
+            from l1.kernel.settings import get_settings
+            from l3.memory.memory_context import set_inject_dedup
+            from l3.memory.memory_extract import set_compaction_mode
+            from l3.memory.premise_guard import set_premise_guard
+
+            s = get_settings()
+            set_compaction_mode(str(s.get("memory.compaction_mode", "deterministic")))
+            set_premise_guard(enabled=bool(s.get("memory.premise_guard", True)))
+            set_inject_dedup(enabled=bool(s.get("memory.inject_dedup", True)))
+            results["memory_switches"] = "synced"
+        except Exception as e:
+            results["memory_switches"] = f"skip: {e}"
         # Wire swapper to memory service
         try:
             from l1.kernel.swapper import get_swapper

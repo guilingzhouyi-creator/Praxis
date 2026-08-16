@@ -123,7 +123,10 @@ cases. See `cross-cutting.md` for the full injection table.
   `/api/v2/memory/digest` (conversation digest cache),
   `/api/v2/memory/tool-result` (tool-result offload cache),
   `/api/v2/memory/sensitive` (sensitive-info bypass detection),
-  `/api/v2/memory/compression-guard` (recursion threshold + breaker)
+  `/api/v2/memory/compression-guard` (recursion threshold + breaker),
+  `/api/v2/memory/compaction` (hybrid extractor mode),
+  `/api/v2/memory/premise-guard` (post-compaction anchor audit),
+  `/api/v2/memory/inject-dedup` (injection content dedup)
 - `/api/v2/skills/candidates*` (R4 evidence candidate list, validation,
   canary publication, activation, retirement, collection policy)
 - Ports: none dedicated (memory accessed in-process); profile exposes
@@ -276,14 +279,17 @@ inside the AgentLoop run path, keyed by card index:
   `/memory digest [on|off] [max_chars=N]` (`DIGEST_ENABLED_DEFAULT` off,
   `DIGEST_MAX_CHARS_DEFAULT` 400).
 - **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
-  (default off), an oversized structured tool result is offloaded to an
+  (default on), an oversized structured tool result is offloaded to an
   in-memory register (O(1) fast path) mirroring the per-Cell tiered-cache
   L1 buffer (key `cell:{cell_id}::tool:{call_id}`) via
   `_fold_result`/`maybe_offload`; the trail keeps a reference line with
   digest and `fetch_result` recovers the full payload (register first,
-  buffer fallback). Switches: `/api/v2/memory/tool-result` + L2
-  `/memory tool-result [on|off] [max_chars=N]`
-  (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` off, `MAX_CHARS` 4000).
+  buffer fallback). The model recovers offloaded payloads on demand with
+  the `tool_result_read` dynamic tool (Ring 1, call_id argument, read-back
+  bounded by `TOOL_RESULT_READBACK_MAX_CHARS`); offloaded reference lines
+  carry a `_readback_note` hint. Switches: `/api/v2/memory/tool-result` +
+  L2 `/memory tool-result [on|off] [max_chars=N]`
+  (`TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT` on, `MAX_CHARS` 4000).
 - **Reclaim (lifecycle)**: expired entries are dropped lazily by the
   tiered-cache `get` path (physical delete, L1 60s / L2 300s TTL) and by
   capacity eviction; additionally, `reclaim(cell_id)` performs an explicit
@@ -308,6 +314,50 @@ breaker; see `docs/architecture/l3a-central.md` (History compression).
   recursive-compression threshold (default off, 0) bounds consecutive
   passes per session; the circuit breaker (default on) trips on the
   threshold, pauses compression, and records evidence.
+
+## Hybrid compaction extractor (compaction)
+
+`memory_extract.py` — the compaction front end for both layers. Instead of
+plain concatenation, a deterministic heuristic extractor keeps high-signal
+lines (paths, commands, error codes, version pins, decision anchors) and
+drops conversational filler, raising the compression ratio while preserving
+the facts the agent acts on. Three operator modes:
+
+| Mode | Behavior |
+|------|----------|
+| `deterministic` (default) | heuristic line classifier only — no LLM, never raises |
+| `llm-assisted` | optional LLM-structured extraction (bypass); degrades to deterministic on failure/expiry, never blocks the main flow |
+| `off` | legacy concatenation/truncation unchanged |
+
+Wired into `memory_compact.py::compact()` (execution layer) and
+`session_compress.py::_build_summary` (L3A decision layer — folded context
+stays fact-dense). Params `MEMORY_COMPACTION_*`; switches:
+`/api/v2/memory/compaction` (GET mode / PUT
+`{mode: deterministic|llm-assisted|off}`) + L2 `/memory compaction
+[deterministic|llm-assisted|off]`; settings `memory.compaction_mode`.
+
+## Premise guard (premise-guard)
+
+`premise_guard.py` — post-compaction anchor audit for the decision layer.
+Before a fold, high-value anchors (user intents, constraints, convention
+references — `_ANCHOR_RE` signals) are collected and fingerprinted; after
+folding, anchors missing from the summary produce a one-shot reminder
+appended to the folded context, so a lost premise is surfaced instead of
+silently dropped. Deterministic, side-channel safe, never raises. Wired
+into both compression paths. Params `PREMISE_GUARD_*`; switches:
+`/api/v2/memory/premise-guard` + L2 `/memory premise-guard [on|off]`;
+settings `memory.premise_guard` (default on).
+
+## Memory-injection dedup (inject-dedup)
+
+`memory_context.py` — content-fingerprint dedup on the injection path:
+repeated lines inside the assembled context blocks (Working Memory /
+Recent History / Knowledge) are injected once per prompt, so the agent
+never pays tokens twice for the same content. Watermark lines are never
+treated as duplicates. The L3A decision layer inherits the dedup through
+`memory_inject.build_context`. Params `MEMORY_INJECT_DEDUP_*`; switches:
+`/api/v2/memory/inject-dedup` + L2 `/memory inject-dedup [on|off]`;
+settings `memory.inject_dedup` (default on).
 
 ## Per-Cell Agents handbook (Cell-{n}-Agents.md)
 

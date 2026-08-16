@@ -74,6 +74,36 @@ def _memory_tool_result(rest: list[str]) -> dict:
     return tool_result_status()
 
 
+def _memory_compaction(rest: list[str]) -> dict:
+    """/memory compaction [deterministic|llm-assisted|off] — hybrid extractor mode (global op)."""
+    from l3.memory.memory_extract import compaction_status, set_compaction_mode
+
+    sub = rest[1].lower() if len(rest) >= 2 else ""
+    if sub in ("deterministic", "llm-assisted", "off"):
+        return set_compaction_mode(sub)
+    return compaction_status()
+
+
+def _memory_premise_guard(rest: list[str]) -> dict:
+    """/memory premise-guard [on|off] — post-compaction anchor audit (global op)."""
+    from l3.memory.premise_guard import premise_guard_status, set_premise_guard
+
+    sub = rest[1].lower() if len(rest) >= 2 else ""
+    if sub in ("on", "off"):
+        return set_premise_guard(enabled=sub == "on")
+    return premise_guard_status()
+
+
+def _memory_inject_dedup(rest: list[str]) -> dict:
+    """/memory inject-dedup [on|off] — injection content dedup (global op)."""
+    from l3.memory.memory_context import inject_dedup_status, set_inject_dedup
+
+    sub = rest[1].lower() if len(rest) >= 2 else ""
+    if sub in ("on", "off"):
+        return set_inject_dedup(enabled=sub == "on")
+    return inject_dedup_status()
+
+
 def _memory_context_audit(rest: list[str]) -> dict:
     """/memory context-audit [cell_id] — per-agent context pressure (global op)."""
     from l3.agent.agent_loop import audit_cell_context
@@ -176,6 +206,9 @@ _MEMORY_GLOBAL_OPS: dict[str, Callable[[list[str]], dict]] = {
     "prompt-library": _memory_prompt_library,
     "sensitive": _memory_sensitive,
     "compression-guard": _memory_compression_guard,
+    "compaction": _memory_compaction,
+    "premise-guard": _memory_premise_guard,
+    "inject-dedup": _memory_inject_dedup,
 }
 
 

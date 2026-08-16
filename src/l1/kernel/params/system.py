@@ -237,8 +237,11 @@ DIGEST_MAX_CHARS_DEFAULT: Final[int] = 400
 # keeps a reference line. Operator switches (API + L2 Shell):
 #   enabled   — master switch (off = legacy truncation behavior)
 #   max_chars — payload size above which offload applies (min 512)
-TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT: Final[bool] = False
+TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT: Final[bool] = True
 TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT: Final[int] = 4_000
+# Tool-result read-back budget: per call, the maximum characters fetched back
+# from the offload cache (guard against a single read flooding the context).
+TOOL_RESULT_READBACK_MAX_CHARS: Final[int] = 12_000
 # ── Sensitive-info bypass detection (Phase 3.1, B6) ───────────────────
 # Bypass scan of folded/compressed content for sensitive patterns (API
 # keys, bearer tokens, private keys, IP literals). Operator switch
@@ -309,6 +312,40 @@ MEMORY_REFINERY_SUPPLY_SKILLS_DEFAULT: Final[bool] = False
 MEMORY_RING_SCORE_GOOD_THRESHOLD: Final[int] = 40
 # Quality score marking an average note
 MEMORY_RING_SCORE_AVERAGE_THRESHOLD: Final[int] = 15
+
+# ── Deterministic compaction extractor (compaction) ─────────────────────
+# Hybrid memory-compaction front end: a deterministic heuristic extractor
+# keeps code/paths/commands/error codes (high-signal lines) while dropping
+# conversational filler, with an optional LLM-assisted bypass that degrades
+# back to deterministic on failure. Operator switch (API + L2 Shell):
+#   mode — deterministic (default) | llm-assisted | off
+MEMORY_COMPACTION_MODE_DEFAULT: Final[str] = "deterministic"
+# Max characters a single extractor output may consume
+MEMORY_COMPACTION_MAX_OUTPUT_CHARS: Final[int] = 800
+# Max characters of a source line worth keeping whole (longer lines are
+# elided to head+tail by the extractor)
+MEMORY_COMPACTION_MAX_LINE_CHARS: Final[int] = 200
+
+# ── Premise guard (premise-guard) ───────────────────────────────────────
+# Post-compaction anchor audit: before a compression pass, high-value
+# anchors (user intents, constraints, convention references) are fingerprinted;
+# after folding, anchors missing from the summary inject a one-shot reminder
+# so the decision layer never loses a premise silently. Operator switch
+# (API + L2 Shell), default ON.
+PREMISE_GUARD_ENABLED_DEFAULT: Final[bool] = True
+# Max anchors tracked per compression pass
+PREMISE_GUARD_MAX_ANCHORS: Final[int] = 8
+# Max reminder lines injected into the summary when anchors are missing
+PREMISE_GUARD_REMINDER_LIMIT: Final[int] = 4
+# Min chars an anchor must carry to be tracked (skip tiny fragments)
+PREMISE_GUARD_MIN_ANCHOR_CHARS: Final[int] = 24
+
+# ── Memory injection dedup (inject-dedup) ───────────────────────────────
+# Content-fingerprint dedup on the memory-injection path: repeated entries
+# inside the assembled context (Working / Recent History / Knowledge) are
+# injected once, so the agent never pays tokens for the same content twice
+# in one prompt. Operator switch (API + L2 Shell), default ON.
+MEMORY_INJECT_DEDUP_ENABLED_DEFAULT: Final[bool] = True
 
 # ── Statecharts region thresholds (statecharts.py) ──
 STATECHART_HEALTH_FAIL_THRESHOLD: Final[int] = 3  # ft: consecutive failures → DEGRADED
