@@ -470,7 +470,7 @@ keep every new file in the layer it belongs to:
 | Path | Description |
 |------|-------------|
 | `src/` | Source tree, L1 kernel → L5 user layer (`src/l1/` … `src/l5/`); the OS implementation |
-| `config/` | Runtime config — **this is what builds Praxis itself**: `praxis.yaml` (kernel, cell, LLM, constitution, gatechain, API), `commands.yaml` (49 L2 commands), `tools.yaml` (72 tools), `skills/` (builtin skills), `discovery/` (structural overrides) |
+| `config/` | Runtime config — **this is what builds Praxis itself**: `praxis.yaml` (kernel, cell, LLM, constitution, gatechain, API), `commands.yaml` (51 L2 commands), `tools.yaml` (72 tools), `skills/` (builtin skills), `discovery/` (structural overrides) |
 | `locales/` | i18n: en, zh-CN, ja, ko |
 | `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
 | `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
