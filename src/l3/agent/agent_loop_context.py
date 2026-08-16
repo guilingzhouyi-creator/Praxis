@@ -298,6 +298,7 @@ class AgentLoopContextMixin:
         model_kwargs = self._resolve_model_kwargs(model_config)
 
         self._register_todowrite()
+        self._register_tool_result_read()
         system = self._resolve_base_system(max_steps)
         system = self._inject_system_extras(system)
 
@@ -553,5 +554,70 @@ class AgentLoopContextMixin:
                     ],
                     handler=_todowrite_handler,
                     parallel_safe=False,
+                )
+            )
+
+    def _register_tool_result_read(self) -> None:
+        """Register the tool_result_read tool for offload-cache read-back.
+
+        When the tool-result offload cache is enabled and a large result was
+        offloaded, the trail keeps only a reference line (call_id + digest).
+        This tool lets the model fetch the full structured payload on demand,
+        bounded by TOOL_RESULT_READBACK_MAX_CHARS so one read cannot flood
+        the context window. Absent entries degrade to an empty result.
+        """
+
+        def _tool_result_read_handler(args: dict, agent_id: str = "") -> dict:
+            """Handle a tool_result_read call — fetch an offloaded payload."""
+            call_id = str(args.get("call_id", "") or "")
+            if not call_id:
+                return {"success": False, "error": "call_id is required"}
+            try:
+                from l1.kernel.params.system import TOOL_RESULT_READBACK_MAX_CHARS
+                from l3.agent.tool_result_cache import fetch_result
+
+                entry = fetch_result(self._cell_id, call_id)
+                if not entry:
+                    return {
+                        "success": False,
+                        "error": f"no offloaded result for call_id '{call_id}' (expired or disabled)",
+                    }
+                payload = entry.get("result", {})
+                text = str(payload)
+                if len(text) > TOOL_RESULT_READBACK_MAX_CHARS:
+                    payload = {
+                        "truncated": True,
+                        "note": f"result exceeds read-back budget ({TOOL_RESULT_READBACK_MAX_CHARS} chars); "
+                        "use targeted tools (read/grep) for specific portions",
+                        "head": text[: TOOL_RESULT_READBACK_MAX_CHARS // 2],
+                        "tail": text[-(TOOL_RESULT_READBACK_MAX_CHARS // 2) :],
+                    }
+                return {"success": True, "tool": entry.get("tool", ""), "call_id": call_id, "result": payload}
+            except Exception as e:
+                logger.debug("tool_result_read failed: %s", e)
+                return {"success": False, "error": "read-back unavailable"}
+
+        if not any(t.name == "tool_result_read" for t in self._tools):
+            self._tools.append(
+                ToolSpec(
+                    name="tool_result_read",
+                    description=(
+                        "Fetch the full payload of an offloaded tool result by call_id. "
+                        "When a tool result was offloaded (reference line with call_id), "
+                        "use this to retrieve the complete structured output on demand."
+                    ),
+                    category="generic",
+                    ring=RING_1,
+                    danger=0,
+                    parameters=[
+                        ParamSpec(
+                            "call_id",
+                            "string",
+                            required=True,
+                            description="The offload reference call_id from the tool result",
+                        ),
+                    ],
+                    handler=_tool_result_read_handler,
+                    parallel_safe=True,
                 )
             )

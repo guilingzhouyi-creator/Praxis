@@ -237,8 +237,11 @@ DIGEST_MAX_CHARS_DEFAULT: Final[int] = 400
 # keeps a reference line. Operator switches (API + L2 Shell):
 #   enabled   — master switch (off = legacy truncation behavior)
 #   max_chars — payload size above which offload applies (min 512)
-TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT: Final[bool] = False
+TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT: Final[bool] = True
 TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT: Final[int] = 4_000
+# Tool-result read-back budget: per call, the maximum characters fetched back
+# from the offload cache (guard against a single read flooding the context).
+TOOL_RESULT_READBACK_MAX_CHARS: Final[int] = 12_000
 # ── Sensitive-info bypass detection (Phase 3.1, B6) ───────────────────
 # Bypass scan of folded/compressed content for sensitive patterns (API
 # keys, bearer tokens, private keys, IP literals). Operator switch
