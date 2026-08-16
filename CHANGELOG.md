@@ -5,6 +5,93 @@
 
 ## [Unreleased]
 
+### 文档
+
+- **Docs**: align project-structure command count to 51
+- **Docs**: regenerate llms.txt and align command counts after rebase
+- **Docs**: add engineering-debug feature review
+- **Docs**: fix doc pointers and counts; add top-level index
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: define two gate waivers and sync hints
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: add branch accumulation quality gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: mandate main-tree venv for worktree test runs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
 ### 新增
 
 - **Feat (tool)**: add marker-gated engineering debug mode
@@ -80,87 +167,6 @@
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
 - **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 文档
-
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (docs)**: refresh candidate architecture indexes
-- **Docs (memory)**: detail candidate storage seam
-- **Docs (docs)**: refresh generated indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats + changelog after cleanup
-- **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: define two gate waivers and sync hints
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: add branch accumulation quality gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: mandate main-tree venv for worktree test runs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: document direct local push to github mirror
-
-### 修复
-
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
 
 ### 性能
 
