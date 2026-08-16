@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### 性能
+
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
+
 ### 变更
 
 - **Test (infra)**: split runner into per-layer slices
@@ -186,15 +196,6 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
-
-### 性能
-
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ## [0.4.1] - 2026-08-07
 
