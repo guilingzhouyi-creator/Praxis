@@ -57,6 +57,28 @@ registry (`boot_steps/tools.py::_register_g1_whitelist`).
 shell, API/MCP behind closed-by-default auth) pass G2 without a kernel PCB via
 `interactive=True`; G1/G3/G4/G5 still apply.
 
+**Verified identity for high rings (W2.4):** a non-interactive agent whose ring
+is >= `GATECHAIN_REQUIRE_IDENTITY_RING` (default 2) MUST have a verified
+identity (Ed25519 keypair) or G2 BLOCKs (was WARN); ring-1 keeps the legacy
+WARN. The identity service (`l3/services/identity.py::mark_identity_verified`)
+verifies agents at boot.
+
+### invoke-capability syscall (W6.1)
+
+```
+boundary caller (L2 shell / API / MCP)
+  → l1.kernel.invoke_capability(agent_id, name, args, interactive)
+      → [unwired executor? fail-closed BLOCK + audit]
+      → wired executor (boot adapter → L3 ToolPipeline)
+      → kernel audit record (capability.invoke)
+```
+
+`src/l1/kernel/capability.py` owns the single execution authority: boot is the
+ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
+connects it to `invoke_gated`), the kernel never imports L3, and an unwired
+executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
+boot adapter, no caller changes.
+
 ### Port abstraction
 
 ```python

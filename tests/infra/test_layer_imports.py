@@ -90,7 +90,6 @@ ALLOWLIST = {
     ("l2/selector.py", "l3.error_bus"),
     ("l2/shells/terminal.py", "l3.agent.scout"),
     ("l2/shells/terminal.py", "l3.cell"),
-    ("l2/shells/terminal.py", "l3.tool_system.invoke"),  # W1.2 single execution gate
     ("l2/shells/terminal.py", "l3.tool_system.tool_spec"),
     ("l2/shell_completer.py", "l3.tool_system.tool_config"),
     ("l3/agent/_term_lifecycle.py", "l4.llm.llm"),

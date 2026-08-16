@@ -417,9 +417,9 @@ def _dispatch_tool(name: str, arguments: dict) -> dict:
             return _L3A_TOOLS[name]["handler"](arguments or {})
         if _export_mode not in (MCP_MODE_NORMAL, MCP_MODE_FULL):
             return {"success": False, "error": f"unknown tool: {name}"}
-        from l3.tool_system.invoke import invoke_gated
+        from l1.kernel.capability import invoke_capability
 
-        pr = invoke_gated(name, arguments or {}, interactive=True)
+        pr = invoke_capability("", name, arguments or {}, interactive=True)
         # Preserve the legacy handler-dict shape for MCP clients.
         if isinstance(pr, dict) and pr.get("success") and isinstance(pr.get("result"), dict):
             return pr["result"]

@@ -14,6 +14,9 @@ LEDGER_COUNT_WINDOW: Final[float] = 60.0
 # Fail-closed: an empty G1 whitelist BLOCKs instead of WARN (boot must
 # populate the whitelist from the tool registry before any call is allowed)
 GATECHAIN_REQUIRE_WHITELIST: Final[bool] = True
+# W2.4: agents with ring >= this MUST have a verified identity (Ed25519
+# keypair) or G2 BLOCKs; lower rings keep the legacy WARN
+GATECHAIN_REQUIRE_IDENTITY_RING: Final[int] = 2
 # Default danger level used when a tool has no registered level
 GATECHAIN_DEFAULT_DANGER: Final[int] = 1
 # Tool-name → danger level map used for G3/G5 risk scoring

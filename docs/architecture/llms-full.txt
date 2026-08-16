@@ -113,9 +113,9 @@ flowchart TB
 | L2 Shell | 37 files / 4,789 lines |
 | L3 Cell | 337 files / 73,588 lines |
 | L4 Bridge | 108 files / 22,440 lines |
-| L1 Kernel | 66 files / 19,318 lines |
+| L1 Kernel | 67 files / 19,418 lines |
 | L2 Shell | 37 files / 4,789 lines |
-| L3 Cell | 340 files / 74,437 lines |
+| L3 Cell | 340 files / 74,468 lines |
 | L4 Bridge | 108 files / 22,440 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
@@ -133,7 +133,7 @@ flowchart TB
 | L4 Handlers | 34 files / 6,235 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,279 |
+| Params modules / constants | 8 / 1,280 |
 | Health | 0.737 (grade B) |
 
 ## Reading path
@@ -246,6 +246,28 @@ registry (`boot_steps/tools.py::_register_g1_whitelist`).
 **Interactive principals (W1.2):** boundary-authenticated callers (local L2
 shell, API/MCP behind closed-by-default auth) pass G2 without a kernel PCB via
 `interactive=True`; G1/G3/G4/G5 still apply.
+
+**Verified identity for high rings (W2.4):** a non-interactive agent whose ring
+is >= `GATECHAIN_REQUIRE_IDENTITY_RING` (default 2) MUST have a verified
+identity (Ed25519 keypair) or G2 BLOCKs (was WARN); ring-1 keeps the legacy
+WARN. The identity service (`l3/services/identity.py::mark_identity_verified`)
+verifies agents at boot.
+
+### invoke-capability syscall (W6.1)
+
+```
+boundary caller (L2 shell / API / MCP)
+  → l1.kernel.invoke_capability(agent_id, name, args, interactive)
+      → [unwired executor? fail-closed BLOCK + audit]
+      → wired executor (boot adapter → L3 ToolPipeline)
+      → kernel audit record (capability.invoke)
+```
+
+`src/l1/kernel/capability.py` owns the single execution authority: boot is the
+ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
+connects it to `invoke_gated`), the kernel never imports L3, and an unwired
+executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
+boot adapter, no caller changes.
 
 ### Port abstraction
 
@@ -1207,11 +1229,13 @@ ring gate → rate limit → constitution → gatechain G1-G5 → approval polic
 
 **Single execution gate (W1.2):** `tool_spec._execute_tool_spec` is PRIVATE —
 the registry-level executor runs only inside the pipeline. Every other caller
-(L2 shell, MCP, API handlers) enters through
-`l3.tool_system.invoke.invoke_gated` so no path reaches a handler without
+(L2 shell, MCP, API handlers) enters through the kernel capability seam
+(`l1.kernel.invoke_capability`, W6.1) so no path reaches a handler without
 clearance/approval/gatechain/sandbox/audit;
 `tests/infra/test_single_execution_gate.py` statically forbids direct executor
-calls, and LLM engines reject unwrapped specs (`ToolSpec.gated`).
+calls, and LLM engines reject unwrapped specs (`ToolSpec.gated`). Boot is the
+only place that connects the seam to the pipeline
+(`boot_steps/tools.py::_register_capability_executor` → `invoke_gated`).
 
 **GateChain posture linkage:** when the system posture is full-power attack
 (`security.mode=security-test` + detection-bypass confirmed), G4 skips the

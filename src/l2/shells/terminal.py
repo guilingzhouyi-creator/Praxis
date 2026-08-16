@@ -153,9 +153,9 @@ class TerminalShell(Shell):
     def _direct_intent_result(self, intent: str, agent_id: str) -> dict:
         """Parse an intent via the intent_parse tool and return the card details."""
         try:
-            from l3.tool_system.invoke import invoke_gated
+            from l1.kernel.capability import invoke_capability
 
-            r = invoke_gated("intent_parse", {"text": intent}, agent_id=agent_id, interactive=True)
+            r = invoke_capability(agent_id, "intent_parse", {"text": intent}, interactive=True)
             if r.get("success"):
                 handler_r = r.get("result", {})
                 card = handler_r.get("data", {}) if isinstance(handler_r, dict) else {}
@@ -246,13 +246,13 @@ class TerminalShell(Shell):
             else:
                 args[f"arg{i}"] = parts[i]
         try:
-            from l3.tool_system.invoke import invoke_gated
+            from l1.kernel.capability import invoke_capability
             from l3.tool_system.tool_spec import get_tool
 
             spec = get_tool(tool_name)
             if not spec:
                 return {"success": False, "type": "tool", "tool": tool_name, "error": "unknown tool"}
-            r = invoke_gated(tool_name, args, agent_id=session.agent_id, interactive=True)
+            r = invoke_capability(session.agent_id, tool_name, args, interactive=True)
             handler_r = r.get("result", r) if isinstance(r, dict) else r
             if isinstance(handler_r, dict):
                 data = handler_r.get("data", handler_r.get("result", handler_r))

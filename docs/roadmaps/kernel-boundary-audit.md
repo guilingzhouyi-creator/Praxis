@@ -170,6 +170,7 @@ Kernel 强制不变量：单一执行器；G1 白名单非空（未知能力=BLO
 1. **Phase 0（Python 侧封口，先于任何 Rust 迁移）**：修复 B1/B2/B3 绕过与 E8/E9 fail-open；`register_tools()` 接线使 G1 白名单非空；把 execute_tool_spec 降为仅 pipeline 可调。
    - ✅ **已实施（feature/kernel-boundary-hardening）**：B1/B2 改走 `invoke_gated`（单一执行门，交互主体经 `interactive` 过 G2，G1/G3/G4/G5 照常）；B3 拒绝未包装 spec（`ToolSpec.gated`）；B5 sideload 改走 CardRegistry.submit；E8 API 鉴权默认关闭（`AUTH_DENY_WHEN_UNCONFIGURED`，`PRAXIS_AUTH_OPEN=1` 显式开启）；W2.3 G1 白名单 boot 填充 + 空白名单 BLOCK（fail-closed）；W4.2 每次工具调用（含被拒）写入 kernel 审计。
 2. **Phase 1（执行权威收敛）**：在 kernel 侧定义 invoke-capability 接口并让 AgentLoop/MCP/L2/LLM engine/sideload 全部改走它——Rust 重写才有单一可替换执行面。
+   - ✅ **已实施（W6.1）**：`src/l1/kernel/capability.py::invoke_capability` 成为唯一执行权威——未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点把 kernel seam 连到 ToolPipeline（`_register_capability_executor` → `invoke_gated`）；L2 shell 与 MCP 边界调用方已全部改走 kernel seam。同时落地 W2.2（harness posture 校验失败即拒绝）与 W2.4（RING≥2 未验证身份 G2 BLOCK）。
 3. **Phase 2（按缩放曲线选热路径，frontend-kernel-roadmap §4.2）**：优先 sync/event/allocator/process 记账等纯机制模块；只迁移机制，策略留在 Python/config。
 4. **Phase 3（下沉验收）**：每个下沉模块必须满足——无 bypass、fail-closed、审计强制、白名单非空、port 接口不变（`l1_kernel_rs` 复用同一套 params/ 常量）。
 5. **重审门槛**：每迁移一个模块前重跑本审计 §4 不变量清单；任何在 Python 侧靠约定维持的不变量不得进入 Rust 侧。

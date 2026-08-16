@@ -125,9 +125,18 @@ class TestTerminalManager:
         monkeypatch.setattr(
             "l3.tool_system.tool_registry.TOOL_REGISTRY", {"read_file": object(), "write_file": object()}
         )
+        from l1.kernel.capability import register_capability_executor
         from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.invoke import invoke_gated
 
         get_gatechain().register_tools(["read_file", "write_file"])
+
+        # W6.1: the shell goes through the kernel capability seam; wire the
+        # boot-style adapter so the patched pipeline executor is reached.
+        def _cap_exec(name, args, agent_id="", domain="", nature="", interactive=False):
+            return invoke_gated(name, args, agent_id=agent_id, domain=domain, nature=nature, interactive=interactive)
+
+        register_capability_executor(_cap_exec)
 
         shell = TerminalShell()
         r = shell.run("read_file a.txt b.txt")
@@ -158,9 +167,18 @@ class TestTerminalManager:
         monkeypatch.setattr(
             "l3.tool_system.tool_registry.TOOL_REGISTRY", {"read_file": object(), "write_file": object()}
         )
+        from l1.kernel.capability import register_capability_executor
         from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.invoke import invoke_gated
 
         get_gatechain().register_tools(["read_file", "write_file"])
+
+        # W6.1: the shell goes through the kernel capability seam; wire the
+        # boot-style adapter so the patched pipeline executor is reached.
+        def _cap_exec(name, args, agent_id="", domain="", nature="", interactive=False):
+            return invoke_gated(name, args, agent_id=agent_id, domain=domain, nature=nature, interactive=interactive)
+
+        register_capability_executor(_cap_exec)
 
         shell = TerminalShell()
         r = shell.run("write_file out.txt mode=w")

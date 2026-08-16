@@ -19,6 +19,12 @@ from typing import Any
 
 from . import discovery
 from .allocator import get_allocator
+from .capability import (
+    has_capability_executor,
+    invoke_capability,
+    register_capability_executor,
+    reset_capability_executor,
+)
 from .constitution import get_constitution
 from .device import DeviceHealth, DeviceType, get_device_manager
 from .diff_frame import (
@@ -426,6 +432,8 @@ __all__ = [
     "get_event_bus",
     "get_gatechain",
     "get_identity_binding_manager",
+    "has_capability_executor",
+    "invoke_capability",
     "NotifyPort",
     "get_notify",
     "reset_notify",
@@ -443,7 +451,9 @@ __all__ = [
     "get_vfs",
     "health",
     "push_event",
+    "register_capability_executor",
     "register_process",
+    "reset_capability_executor",
     "EVENT_TASK_ASSIGN",
     "EVENT_REVIEW_REQUESTED",
     "EVENT_TOKEN_USAGE",

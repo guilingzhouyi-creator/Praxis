@@ -45,6 +45,7 @@ from .params.kernel import (
     GATECHAIN_REP_HIGH_THRESHOLD,
     GATECHAIN_REP_LOW_THRESHOLD,
     GATECHAIN_REPEAT_THRESHOLD,
+    GATECHAIN_REQUIRE_IDENTITY_RING,
     GATECHAIN_REQUIRE_WHITELIST,
     GATECHAIN_RISK_WARN_THRESHOLD,
     GATECHAIN_SENDER,
@@ -378,6 +379,17 @@ def _gate_g2(ctx: dict, gc: GateChain) -> tuple[list[dict], GateResult]:
         steps.append({"gate": "G2", "result": "BLOCK", "reason": f"agent state is {pcb.state.name}, not READY/RUNNING"})
         return steps, GateResult.BLOCK
     if not pcb.identity_verified:
+        # W2.4: verified identity is mandatory at/above the identity ring;
+        # below it the legacy WARN still applies (read-only ring-1 tools).
+        if pcb.ring >= GATECHAIN_REQUIRE_IDENTITY_RING:
+            steps.append(
+                {
+                    "gate": "G2",
+                    "result": "BLOCK",
+                    "reason": f"agent '{ctx['agent_id']}' ring {pcb.ring} requires verified identity (fail-closed)",
+                }
+            )
+            return steps, GateResult.BLOCK
         steps.append(
             {
                 "gate": "G2",

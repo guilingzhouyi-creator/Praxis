@@ -53,11 +53,13 @@ ring gate → rate limit → constitution → gatechain G1-G5 → approval polic
 
 **Single execution gate (W1.2):** `tool_spec._execute_tool_spec` is PRIVATE —
 the registry-level executor runs only inside the pipeline. Every other caller
-(L2 shell, MCP, API handlers) enters through
-`l3.tool_system.invoke.invoke_gated` so no path reaches a handler without
+(L2 shell, MCP, API handlers) enters through the kernel capability seam
+(`l1.kernel.invoke_capability`, W6.1) so no path reaches a handler without
 clearance/approval/gatechain/sandbox/audit;
 `tests/infra/test_single_execution_gate.py` statically forbids direct executor
-calls, and LLM engines reject unwrapped specs (`ToolSpec.gated`).
+calls, and LLM engines reject unwrapped specs (`ToolSpec.gated`). Boot is the
+only place that connects the seam to the pipeline
+(`boot_steps/tools.py::_register_capability_executor` → `invoke_gated`).
 
 **GateChain posture linkage:** when the system posture is full-power attack
 (`security.mode=security-test` + detection-bypass confirmed), G4 skips the

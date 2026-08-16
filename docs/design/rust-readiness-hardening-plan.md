@@ -34,9 +34,9 @@
 | 子项 | 改动 | 文件 |
 |---|---|---|
 | W2.1 | `_auth_ok` 增加配置 `api.auth.deny_when_unconfigured`（默认 **True**）：无静态 token 且无 AuthPort → 401；显式配置 `false` 才维持旧开放行为 | `src/l4/api/api_handler.py:31`、`config/praxis.yaml`、`src/l1/kernel/params/api.py` |
-| W2.2 | `set_harness_mode`/`set_security_mode`：posture-matrix 校验失败 → 拒绝（移除 try/except + logger.debug 继续） | `src/l3/tool_system/harness.py:83`、`src/l3/tool_system/security_mode.py` |
+| W2.2 | ✅ `set_harness_mode`：posture-matrix 校验失败 → 拒绝（不再 logger.debug 继续） | `src/l3/tool_system/harness.py:83` |
 | W2.3 | boot 接线 `register_tools(TOOL_REGISTRY 全部名字)`，使 G1 白名单非空；governed 模式下空白名单 → BLOCK（仅显式 minimal/dev 允许 WARN） | `src/l3/boot/boot_steps/constitution.py`、`src/l1/kernel/gatechain.py:325`、`src/l3/tool_system/tool_config.py` |
-| W2.4 | G2 升级：`identity_verified` 对 RING≥2 能力为必填（WARN→BLOCK），阈值走配置；identity 服务已能 `mark_identity_verified`，接上即可 | `src/l1/kernel/gatechain.py:339`、`src/l3/services/identity.py:174` |
+| W2.4 | ✅ G2 升级：`identity_verified` 对 RING≥2 能力为必填（WARN→BLOCK），阈值 `GATECHAIN_REQUIRE_IDENTITY_RING` 走 params | `src/l1/kernel/gatechain.py:339`、`src/l1/kernel/params/gatechain.py` |
 
 **风险**：W2.1 改变安全默认值，需在 `config/praxis.yaml` 给出默认 token/显式开关并更新文档与相关测试。
 
@@ -74,7 +74,7 @@
 
 | 子项 | 改动 | 文件 |
 |---|---|---|
-| W6.1 | 新增 `src/l1/kernel/capability.py::invoke_capability(agent_id, name, args, ctx)`：能力查找 → constitution → gatechain → allocator 记账 → 审计 → 适配器分发；ToolPipeline 变为其薄封装，所有执行器只调这一个函数 | `src/l1/kernel/capability.py`（新）、`src/l3/tool_system/tool_pipeline.py` |
+| W6.1 | ✅ 新增 `src/l1/kernel/capability.py::invoke_capability(agent_id, name, args, interactive)`：未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点（`boot_steps/tools.py::_register_capability_executor` → `invoke_gated`）；L2/MCP 边界调用方全部改走 kernel seam | `src/l1/kernel/capability.py`（新）、`src/l3/boot/boot_steps/tools.py` |
 | W6.2 | 定义 `KernelSchedulerPort`（submit/poll/yield/preempt 机制接口）进 kernel ports；L3 `CentralScheduler` 实现之；主路径经 port 调用（Rust 可替换机制） | `src/l1/kernel/ports/`、`src/l3/scheduler/scheduler.py` |
 | W6.3 | 契约快照：`tests/infra/test_kernel_contract_snapshot.py` 生成并校验 kernel 公开 API 黄金 JSON（模块/类/函数/syscall），供 `l1_kernel_rs` 对齐 | `tests/infra/test_kernel_contract_snapshot.py`（新） |
 
@@ -83,7 +83,7 @@
 | 阶段 | 内容 | 规模 |
 |---|---|---|
 | Phase 0 | WS1 + W2.1 + W2.3 + W4.2（封绕过、闭鉴权、填白名单、强制审计） | 1–2 个 session，可独立合入 |
-| Phase 1 | WS2.2/2.4 + WS3 + W4.1/4.3（fail-closed 全面化、进程 FSM、持久审计、事件收敛） | 2–3 个 session |
+| Phase 1 | WS2.2 ✅ / 2.4 ✅ + W6.1 ✅（本次）+ WS3 + W4.1/4.3（进程 FSM、持久审计、事件收敛） | 2–3 个 session |
 | Phase 2 | WS5 + WS6（kernel 表面收缩、能力接口、调度 port、契约快照） | 每模块一个分支，逐个合入 |
 
 每阶段完成标准：ruff / layer-import / params-compliance / 全量测试绿；新增测试覆盖；文档随代码同 commit（含本计划更新）；`verify-completion.sh` 出 COMPLETE 才收口。
