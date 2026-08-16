@@ -578,6 +578,59 @@ def memory_tool_result_set(body: dict) -> dict:
     return set_tool_result_switches(enabled=enabled, max_chars=max_chars)
 
 
+def memory_compaction_get(body: dict | None = None) -> dict:
+    """Hybrid compaction extractor mode (compaction)."""
+    from l3.memory.memory_extract import compaction_status
+
+    return compaction_status()
+
+
+def memory_compaction_set(body: dict) -> dict:
+    """Set the hybrid compaction extractor mode (deterministic|llm-assisted|off)."""
+    from l3.memory.memory_extract import set_compaction_mode
+
+    mode = body.get("mode", "")
+    if not isinstance(mode, str) or mode not in ("deterministic", "llm-assisted", "off"):
+        return {"success": False, "error": "mode must be deterministic|llm-assisted|off"}
+    return set_compaction_mode(mode)
+
+
+def memory_premise_guard_get(body: dict | None = None) -> dict:
+    """Premise-guard switch state (premise-guard)."""
+    from l3.memory.premise_guard import premise_guard_status
+
+    return premise_guard_status()
+
+
+def memory_premise_guard_set(body: dict) -> dict:
+    """Enable/disable the post-compaction premise guard."""
+    from l3.memory.premise_guard import set_premise_guard
+
+    try:
+        enabled = _strict_bool(body.get("enabled"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_premise_guard(enabled=enabled)
+
+
+def memory_inject_dedup_get(body: dict | None = None) -> dict:
+    """Memory-injection dedup switch state (inject-dedup)."""
+    from l3.memory.memory_context import inject_dedup_status
+
+    return inject_dedup_status()
+
+
+def memory_inject_dedup_set(body: dict) -> dict:
+    """Enable/disable content dedup on the memory-injection path."""
+    from l3.memory.memory_context import set_inject_dedup
+
+    try:
+        enabled = _strict_bool(body.get("enabled"))
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    return set_inject_dedup(enabled=enabled)
+
+
 def memory_sensitive_get(body: dict | None = None) -> dict:
     """Sensitive-info bypass detection switch state (B6)."""
     from l3.agent.sensitive_detect import sensitive_status

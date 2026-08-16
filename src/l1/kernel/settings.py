@@ -36,6 +36,9 @@ DEFAULTS: dict[str, Any] = {
     "persistence.interval": 30.0,
     "memory.graph.enabled": False,
     "memory.mer.enabled": False,
+    "memory.compaction_mode": "deterministic",
+    "memory.premise_guard": True,
+    "memory.inject_dedup": True,
     "user_profile.enabled": False,
     # System-prompt injection switches (user-configurable via SettingsCenter API).
     # Each domain gates a block appended to agent system prompts; default True
