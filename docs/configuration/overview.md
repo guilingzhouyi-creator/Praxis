@@ -10,7 +10,6 @@ config/
   commands.yaml            — L2 Shell command definitions and SubAgent specs
   tools.yaml               — Tool definitions by ring layer (RING_1 / RING_2_5 / RING_3)
   .praxis-rules.md         — Constitution rules (parsed by constitution.py)
-  .mcp.json                — MCP server definitions
   discovery/               — Auto-discovered structural config (overlays params defaults)
     agent_configs.yaml     — Agent roles, clearance, priorities, event types, injection patterns
     build_detectors.yaml   — Build/test framework auto-detection commands

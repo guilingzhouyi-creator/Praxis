@@ -1,6 +1,6 @@
 ---
 name: net-delta-gate
-description: Apply the mainline net-delta gate (verify-main-merge-gate.sh, three locks) and follow the mandatory post-rejection behavior. Use before merging to main, when a merge is rejected, or when deciding whether work can land.
+description: Use when merging to main, when a merge is rejected, or when deciding whether work can land — apply the mainline net-delta gate (verify-main-merge-gate.sh, three locks) and the mandatory post-rejection behavior (verify-main-merge-gate.sh, three locks) and follow the mandatory post-rejection behavior. Use before merging to main, when a merge is rejected, or when deciding whether work can land.
 disable-model-invocation: true
 ---
 

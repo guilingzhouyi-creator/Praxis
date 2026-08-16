@@ -28,7 +28,7 @@ Never imported by the runtime; never migrated into `config/` or `src/`.
 | `.atomcode/` | AtomCode agent skills/commands (project scope) |
 | `.opencode/` | OpenCode agent skills/commands (legacy) |
 | `Makefile`, `pyproject.toml`, `Dockerfile`, `docker-compose.yml` | Build config, packaging metadata, container images (kernel/api/sandbox/llm/supervisor) |
-| `.pre-commit-config.yaml`, `codecov.yml`, `.gitleaks.toml`, `.mcp.json` | Lint / coverage / secret-scan / MCP config |
+| `.pre-commit-config.yaml`, `codecov.yml`, `.gitleaks.toml` | Lint / coverage / secret-scan config |
 
 ## 发布 (release) — packaging output
 
