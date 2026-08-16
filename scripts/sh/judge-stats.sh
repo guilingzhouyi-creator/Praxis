@@ -103,8 +103,11 @@ if days:
     rows = [r for r in rows if datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).date() >= cutoff]
 
 total = len(rows)
-complete = sum(1 for r in rows if r["verdict"] == "COMPLETE")
-partial = sum(1 for r in rows if r["verdict"] == "PARTIAL")
+# COMPLETE strictly means "all 11 checks executed and passed" (full mode).
+# Legacy fast-mode records written as COMPLETE (checks skipped) are
+# downgraded to the PARTIAL bucket — the audit-corrected reading.
+complete = sum(1 for r in rows if r["verdict"] == "COMPLETE" and run_mode(r) == "full")
+partial = sum(1 for r in rows if r["verdict"] == "PARTIAL" or (r["verdict"] == "COMPLETE" and run_mode(r) == "fast"))
 rate = complete / total if total else 0.0
 incomplete = [r for r in rows if r["verdict"] == "INCOMPLETE"]
 
@@ -115,12 +118,12 @@ for r in incomplete:
         if flag == 2:
             fail_counter[chk] += 1
 
-# trend: completion rate per day (ISO date)
+# trend: completion rate per day (ISO date) — full-mode COMPLETE only
 trend = defaultdict(lambda: [0, 0])
 for r in rows:
     d = datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).date().isoformat()
     trend[d][1] += 1
-    if r["verdict"] == "COMPLETE":
+    if r["verdict"] == "COMPLETE" and run_mode(r) == "full":
         trend[d][0] += 1
 
 # ── A: per-branch completion rate ──────────────────────────────────────
@@ -128,7 +131,7 @@ branch_stats = defaultdict(lambda: {"runs": 0, "complete": 0})
 for r in rows:
     b = r.get("branch") or "unknown"
     branch_stats[b]["runs"] += 1
-    if r["verdict"] == "COMPLETE":
+    if r["verdict"] == "COMPLETE" and run_mode(r) == "full":
         branch_stats[b]["complete"] += 1
 
 # ── A: duration avg / P95 (gate efficiency) — split by mode ─────────────
