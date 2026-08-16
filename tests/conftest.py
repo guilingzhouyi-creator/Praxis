@@ -42,6 +42,8 @@ _RESETS = {
     "l3.tool_system.tool_presentation": ("reset_presentation_mode", None),
     "l3.tool_system.run_code_cache": ("reset_run_code_cache", None),
     "l3.tool_system.security_mode": ("reset_security_mode", None),
+    "l3.tool_system.engineering_debug": ("reset_engineering_debug", None),
+    "l3.tool_system.input_activity": ("reset_input_activity", None),
     "l3.tool_system.security_evidence": ("reset_evidence", None),
     "l3.tool_system.tool_pipeline": ("reset_pipeline", None),
     "l3.services.capability_store": ("reset_capability_store", None),

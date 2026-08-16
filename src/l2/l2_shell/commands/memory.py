@@ -109,7 +109,7 @@ def _memory_prompt_monitor(rest: list[str]) -> dict:
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
-        return set_prompt_monitor(enabled=sub == "on")
+        return set_prompt_monitor(enabled=sub == "on", source="shell")
     if sub == "stats":
         return {"status": prompt_monitor_status(), **prompt_monitor_stats()}
     if sub == "emit":

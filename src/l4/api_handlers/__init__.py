@@ -56,6 +56,15 @@ from ..api_handlers.api_handlers_cluster import (
 from ..api_handlers.api_handlers_credentials import credential_delete, credential_set, credential_status
 from ..api_handlers.api_handlers_cron import cron_add, cron_list, cron_remove
 from ..api_handlers.api_handlers_endpoints import endpoints_only, list_endpoints, list_locales, list_tools_v1
+from ..api_handlers.api_handlers_engineering_debug import (
+    engineering_debug_get,
+    engineering_debug_input_get,
+    engineering_debug_input_set,
+    engineering_debug_prompt_get,
+    engineering_debug_prompt_rollback,
+    engineering_debug_prompt_set,
+    engineering_debug_set,
+)
 from ..api_handlers.api_handlers_gates import (
     approval_respond,
     card_approval_trail,
@@ -229,6 +238,27 @@ class ApiHandlers:
 
     def _set_settings(self, body: dict) -> dict:
         return settings_set_many(body)
+
+    def _engineering_debug_get(self, body: dict | None = None) -> dict:
+        return engineering_debug_get(body)
+
+    def _engineering_debug_set(self, body: dict) -> dict:
+        return engineering_debug_set(body)
+
+    def _engineering_debug_prompt_get(self, body: dict | None = None) -> dict:
+        return engineering_debug_prompt_get(body)
+
+    def _engineering_debug_prompt_set(self, body: dict) -> dict:
+        return engineering_debug_prompt_set(body)
+
+    def _engineering_debug_prompt_rollback(self, body: dict) -> dict:
+        return engineering_debug_prompt_rollback(body)
+
+    def _engineering_debug_input_get(self, body: dict | None = None) -> dict:
+        return engineering_debug_input_get(body)
+
+    def _engineering_debug_input_set(self, body: dict) -> dict:
+        return engineering_debug_input_set(body)
 
     def _syscalls(self, body: dict | None = None) -> dict:
         return list_syscalls(body)

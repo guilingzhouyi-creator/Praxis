@@ -277,6 +277,18 @@ PROMPT_VERSIONING_ENABLED_DEFAULT: Final[bool] = True
 # with the reference channel for optimization. Default OFF (production);
 # ON = engineering/debug mode. Operator switch (API + L2 Shell).
 PROMPT_MONITOR_ENABLED_DEFAULT: Final[bool] = False
+# Engineering debug mode (3.5). ``auto`` is production unless the marker
+# file is present; runtime ``on`` still requires the marker as a hard gate.
+ENGINEERING_DEBUG_MODE_DEFAULT: Final[str] = "auto"
+ENGINEERING_DEBUG_MODES: Final[tuple[str, ...]] = ("auto", "on", "off")
+ENGINEERING_DEBUG_MARKER_FILE_DEFAULT: Final[str] = ".praxis/debug_mode.flag"
+ENGINEERING_DEBUG_MARKER_REQUIRED_DEFAULT: Final[bool] = True
+ENGINEERING_DEBUG_VERBOSE_LOGGING_DEFAULT: Final[bool] = True
+ENGINEERING_DEBUG_PROMPT_MONITOR_DEFAULT: Final[bool] = True
+ENGINEERING_DEBUG_INPUT_ENABLED_DEFAULT: Final[bool] = False
+ENGINEERING_DEBUG_INPUT_CONTENT_DEFAULT: Final[bool] = False
+ENGINEERING_DEBUG_MARKER_RECHECK_INTERVAL: Final[float] = 2.0
+ENGINEERING_DEBUG_PROMPT_MAX_CHARS: Final[int] = 12000
 # ── Memory re-refine (Phase 3, M2 "burn-back"/re-refine) ─────────────────
 # Edge-quality entries dropped by clean() are burned back into the pipeline
 # (re-refined) instead of lost: a small boost is applied on re-score so

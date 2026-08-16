@@ -21,8 +21,10 @@ _registry = get_registry()
 from . import (  # noqa: E402
     ci,  # noqa: F401
     connect,  # noqa: F401
+    engineering_debug,  # noqa: F401
     extra,  # noqa: F401
     harness,  # noqa: F401
+    input_activity,  # noqa: F401
     l3a,  # noqa: F401
     memory,  # noqa: F401
     model,  # noqa: F401
@@ -51,6 +53,7 @@ from .connect import (  # noqa: E402
 from .departments import (  # noqa: E402
     _cmd_departments,
 )
+from .engineering_debug import _cmd_debug_mode  # noqa: E402
 from .extra import (  # noqa: E402
     _cmd_buffer,
     _cmd_cells,
@@ -63,6 +66,7 @@ from .extra import (  # noqa: E402
 from .identity_binding import (  # noqa: E402
     _cmd_identity_binding,
 )
+from .input_activity import _cmd_debug_input  # noqa: E402
 from .l3a import (  # noqa: E402
     _cmd_l3a,
     _cmd_session_history,
@@ -135,6 +139,8 @@ for _module_name in (
     "memory",
     "model",
     "extra",
+    "engineering_debug",
+    "input_activity",
     "harness",
     "l3a",
     "session",
@@ -199,6 +205,8 @@ __all__ = [
     "_cmd_connect",
     "_cmd_disconnect",
     "_cmd_mode",
+    "_cmd_debug_mode",
+    "_cmd_debug_input",
     "_cmd_buffer",
     "_cmd_cells",
     "_cmd_cluster",

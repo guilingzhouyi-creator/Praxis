@@ -361,6 +361,28 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
     # Settings
     ("GET", "/api/v2/settings", ".settings", "Get settings"),
     ("POST", "/api/v2/settings", ".set_settings", "Set settings"),
+    ("GET", "/api/v2/engineering-debug", ".engineering_debug_get", "Engineering debug mode status"),
+    ("PUT", "/api/v2/engineering-debug", ".engineering_debug_set", "Set engineering debug mode"),
+    (
+        "GET",
+        "/api/v2/engineering-debug/prompts",
+        ".engineering_debug_prompt_get",
+        "List engineering prompt layers and versions",
+    ),
+    (
+        "PUT",
+        "/api/v2/engineering-debug/prompts",
+        ".engineering_debug_prompt_set",
+        "Set an engineering prompt overlay",
+    ),
+    (
+        "POST",
+        "/api/v2/engineering-debug/prompts/rollback",
+        ".engineering_debug_prompt_rollback",
+        "Rollback an engineering prompt overlay",
+    ),
+    ("GET", "/api/v2/engineering-debug/input", ".engineering_debug_input_get", "Input activity status"),
+    ("PUT", "/api/v2/engineering-debug/input", ".engineering_debug_input_set", "Set input activity monitoring"),
     # Security
     ("POST", "/api/v2/security/check", ".security_check", "Check action against all gates"),
     ("GET", "/api/v2/security/stats", ".security_stats", "Security check statistics"),

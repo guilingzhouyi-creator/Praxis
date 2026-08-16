@@ -22,6 +22,7 @@ from l1.kernel.ports.types import (
     CandidateSnapshot,
     CandidateState,
     CandidateStatus,
+    InputActivitySnapshot,
 )
 
 # ── I18nPort ──
@@ -96,6 +97,22 @@ class MonitorBusPort(ABC):
         self, type_prefix: str = "", severity: str = "", source: str = "", since: float = 0.0, limit: int = 100
     ) -> list[dict]:
         """Query recent monitoring events matching the filters."""
+
+
+class InputActivityPort(ABC):
+    """Platform-neutral aggregate input activity provider."""
+
+    @abstractmethod
+    def start(self) -> bool:
+        """Start activity observation without collecting input contents."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop activity observation and release platform resources."""
+
+    @abstractmethod
+    def snapshot(self) -> InputActivitySnapshot:
+        """Return the latest privacy-preserving activity aggregate."""
 
 
 # ── R4 Candidate Ledger Port ──
