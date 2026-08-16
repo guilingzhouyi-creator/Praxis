@@ -1,15 +1,15 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 49 | **COMPLETE**: 4 (8%) | **PARTIAL**: 4 (8%, fast mode — checks skipped) | **INCOMPLETE**: 41 (84%, machine 'not done')
-**Mode split**: full 11 / fast 38 (fast = at least one check skipped)
-**Duration** (full runs): avg 383s / P95 636s (11 runs) — fast runs: avg 10s / P95 20s (38 runs)
+**Runs**: 51 | **COMPLETE**: 4 (8%) | **PARTIAL**: 6 (12%, fast mode — checks skipped) | **INCOMPLETE**: 41 (80%, machine 'not done')
+**Mode split**: full 11 / fast 40 (fast = at least one check skipped)
+**Duration** (full runs): avg 383s / P95 636s (11 runs) — fast runs: avg 10s / P95 20s (40 runs)
 **Longest INCOMPLETE streak**: 29 consecutive
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
 | 2026-08-14 | 21 | 0 | 0% |
 | 2026-08-15 | 10 | 0 | 0% |
-| 2026-08-16 | 18 | 4 | 22% |
+| 2026-08-16 | 20 | 4 | 20% |
 
 **Failures by check** (most frequent evidence gaps):
 - `changelog`: 39 (95% of incomplete)
@@ -25,21 +25,21 @@
 - `coverage`: 1 (2% of incomplete)
 
 **Completion rate by branch** (weak-link detection):
-- `main`: 2/41 (5%)
+- `main`: 2/43 (5%)
 - `feature/perf-hotpath`: 1/4 (25%)
 - `feature/judge-verdict-mode`: 1/4 (25%)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 47/48 (98%)
-- `changelog`: 9/48 (19%)
-- `complex`: 44/48 (92%)
+- `audit`: 49/50 (98%)
+- `changelog`: 11/50 (22%)
+- `complex`: 46/50 (92%)
 - `coverage`: 10/11 (91%)
-- `cycle`: 44/48 (92%)
-- `delta`: 23/49 (47%)
-- `docs`: 43/49 (88%)
-- `index`: 44/48 (92%)
-- `lint`: 40/49 (82%)
-- `singleton`: 40/48 (83%)
+- `cycle`: 46/50 (92%)
+- `delta`: 25/51 (49%)
+- `docs`: 45/51 (88%)
+- `index`: 46/50 (92%)
+- `lint`: 42/51 (82%)
+- `singleton`: 42/50 (84%)
 - `tests`: 9/11 (82%)
 
 **Failure pairs** (checks failing together):
@@ -52,7 +52,7 @@
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
 - `coverage_pct`: 66.0 / 66.0 / 66.0 / 66.0
-- `mega_funcs`: 1.0 / 14.97 / 0.0 / 205.0
-- `net_delta`: 0.0 / 393.68 / -2.0 / 3828.0
+- `mega_funcs`: 1.0 / 14.22 / 0.0 / 205.0
+- `net_delta`: 0.0 / 360.88 / -2.0 / 3828.0
 - `tests_failed`: 1.0 / 1.0 / 1.0 / 1.0
 - `tests_passed`: 4600.0 / 4594.1 / 4583.0 / 4600.0
