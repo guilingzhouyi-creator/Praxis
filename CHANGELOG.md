@@ -5,6 +5,38 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
 ### 文档
 
 - **Docs (stats)**: add completion-judge spec and register it in doc indexes
@@ -112,37 +144,6 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
-
-### 修复
-
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
 
 ### 性能
 
