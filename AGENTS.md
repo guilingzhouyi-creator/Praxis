@@ -7,6 +7,19 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 > linked doc before touching the subsystem it describes. `CLAUDE.md` is a thin
 > Claude-Code-facing pointer to this file — keep the rules here, not there.
 
+## Doc index
+
+| Area | Entry points |
+|---|---|
+| Architecture (layers, module maps, contracts) | `docs/architecture/README.md` + per-layer docs (linked in `## Architecture`) |
+| Workflow — commits, gates, push | `docs/workflow/commits.md` |
+| Workflow — branching, accumulation gate | `docs/workflow/branching.md` |
+| Workflow — parallel agents | `docs/workflow/collaboration.md` |
+| Build discipline — worktree, waivers, DoD | `docs/workflow/code-of-conduct.md` |
+| Repo layout & naming rules | `docs/project-structure.md` |
+| Config system | `docs/configuration/overview.md` |
+| Memory / skill / security / sandbox specs | `docs/architecture/l3-memory.md`, `skill-system.md`, `security-evidence.md`, `sandbox-diff.md` |
+
 ## Quick start
 
 ```bash
@@ -47,7 +60,7 @@ python -m pytest tests/infra/test_hardcoded_fixes_regression.py -x -q       # re
 Layer map (details: `docs/architecture/README.md` + per-layer docs).
 **Line/file/command counts below are snapshots** — refresh with
 `make doc-stats` (`scripts/py/gen_doc_stats.py`) when they drift; never
-hand-edit them (see `## Build environment code of conduct`).
+hand-edit them (see `docs/workflow/code-of-conduct.md`).
 
 ```
 src/l5/ — User layer: cli.py (414 lines), agent_runtime.py
@@ -166,127 +179,57 @@ Posture is a load-bearing security lever — never weaken it silently.
 
 ## Commit conventions (enforced by `.githooks/commit-msg`)
 
-- **Messages MUST be in English** (CJK rejected).
-- **Every commit MUST carry exactly ONE well-formed `Co-Authored-By`
-  trailer** naming the authoring agent/model:
-  `Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`.
-  The hook enforces: exactly one trailer (no multi-agent stacking), the
-  `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
-  Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
+Full spec + mainline gates: `docs/workflow/commits.md`. Load-bearing summary:
 
-| Part | Requirement |
-|---|---|
-| Subject | Conventional Commits: `type(scope): summary`; ≤ 72 chars; imperative mood |
-| Body | Blank line after subject; explain **what** and **why** (structured Markdown: `## Sections`, `**keywords**`, `` `files` ``, `-` bullets) |
-| Trailer | `Co-Authored-By:` line last, preceded by a blank line |
-
-- Merge/revert commits are exempt (git-generated messages), but a dependabot
-  merge is gated on diff scope — see `## Dependency management`.
-- **Commit-scan policy — single source of truth**: the Conventional-Commits
-  contract (type whitelist, registered scopes, placeholder guard, branch-type
-  policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
-  `scripts/py/commit_scan.py`. All gates consume it — `.githooks/commit-msg`,
-  `scripts/sh/verify-pr-merge.sh`, `scripts/py/generate_changelog.py`,
-  `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
-  script; add a type/scope to `commits.yaml` and every gate learns it.
-  `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
-  `fix*` branches allow only `fix` commits (matches the accumulation-gate
-  exemption).
-- **Hook mechanics**: `commit-msg` runs BEFORE the commit object exists, so
-  HEAD still points at the previous commit; merge gates read `.git/MERGE_HEAD`
-  (git removes it after commit), falling back to `HEAD^2` for manual post-merge
-  commits. Detection triggers on the merged-tip **author** (`dependabot[bot]`)
-  OR the message.
-- **Bypass paths (forbidden unless justified)**: `--no-verify` skips ALL hooks;
-  `PRAXIS_SKIP_AUTHOR_CHECK=1` skips message checks only. A `--no-verify`
-  dependabot merge that drags in code MUST be reviewed by a second agent
-  before push.
-- **GPG signing is optional** — the GitCode project hook for GPG
-  enforcement is NOT enabled on this repository (`Aplese/Praxis`), so
-  unsigned commits are accepted. Keep `commit.gpgsign` off by default;
-  signing is only required if a GitCode hook is later re-enabled.
-- **CompletionJudge decides "done", not the agent** (machine verdict):
-  before declaring a task complete, run
-  `bash scripts/sh/verify-completion.sh` — the machine checks 11
-  dimensions (tests / coverage / net delta / doc-stats / lint /
-  dependency CVEs / complexity / import cycles / singleton drift /
-  CHANGELOG freshness / doc-index consistency). Only a `COMPLETE`
-  verdict authorizes "done"; `INCOMPLETE` returns the evidence gap and
-  the agent MUST continue working (ratchet property: a pass never
-  reopens). Every run is logged to `.praxis/judge-runs.jsonl` and the
-  aggregate dashboard to `docs/judge-stats.md` (see `judge-stats.sh`).
-- **Remote PRs (GitHub mirror) usually carry unsigned / non-conventional
-  commits** — run `bash scripts/sh/verify-pr-merge.sh <branch>` BEFORE merging
-  (signature + English Conventional-Commits subject + conflict pre-check). If
-  it fails, **squash-merge** (`git merge --squash`) to one signed, English,
-  conventional commit, or ask the author to rewrite the branch. Never merge
-  unsigned commits and re-sign them afterwards — that rewrites history and
-  force-pushes the mirror. Local agent branches are signed by construction.
-- **Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`,
-  auto-run on `push-both.sh main`)** — main must not be inflated by repeated
-  tiny commits. The gate computes the NET code delta (added − deleted, code
-  paths only; docs are exempt) of `origin/main..main`, with three locks:
-  - **LOCK 1 — comment stripping**: added comment lines (per-extension
-    markers) are subtracted from the delta; the gate counts REAL code, so
-    padding a change with comments cannot pass.
-  - **LOCK 2 — symmetric deletion gate**: deletion-dominated changes are NOT
-    an automatic exemption. Net deletions must accumulate to the same
-    threshold (≥ 1000) as net additions; churning code (add + delete) to
-    game the gate is rejected while still small.
-  - **LOCK 3 — hygiene ceiling**: if ≥ 60% of added lines are comments the
-    change is rejected outright (comment padding is not engineering).
-  Thresholds: net < 600 → **reject**; 600 ≤ net < 1000 → **reject**;
-  net ≥ 1000 → **allow**; net ≤ 0 with deletions ≥ 1000 → **allow**
-  (symmetric removal); docs-only ≤ 5000 → **allow**. The agent must find
-  the best balance point between additions and removals — neither padding
-  with comments nor churning code passes; if neither side can reach the
-  threshold, STOP and ask the user.
-  On rejection it prints a worktree-accumulation hint and lists sibling
-  branches on the same merge-base so changes can be aligned before merging
-  (conflicts are reviewed by the merge Agent afterwards). Override the base
-  with `MAIN_BASE=<ref>` if `origin/main` is not the intended comparison.
-
-  **After a rejection — the required agent behavior (MANDATORY):**
-  1. **Re-examine, do not shortcut**: review the work and ask "is it
-     REALLY done?" — the gate rejected it for a reason; re-check against
-     the CompletionJudge verdict and Definition of done before touching
-     anything.
-  2. **Never self-waive**: do NOT bypass the gate with `MERGE_GATE_SKIP=1`
-     (or any other bypass) on your own judgment. A waiver is the human's
-     decision, not the agent's — if you believe the rejection is wrong,
-     present the case and ask the user for explicit instruction.
-  3. **Keep accumulating on YOUR worktree branch**: continue committing on
-     the same feature worktree branch you started from until the net delta
-     qualifies (≥ 1000) and the gate passes — do not start a new branch
-     from main to dodge the accumulation rule, and do not try alternate
-     merge paths.
-  4. **Ask the user when growth stalls**: if the net delta cannot grow
-     further (work is genuinely complete but below threshold), STOP and
-     report to the user with an explicit question ("should this land
-     despite being below the threshold?") — never decide for them.
-  5. **Every subsequent commit goes through the same gate** until it
-     passes; a rejection is not a free pass for the next attempt.
+- **Messages MUST be in English** (CJK rejected); subject = Conventional
+  Commits `type(scope): summary` ≤ 72 chars; body explains what/why;
+  exactly ONE `Co-Authored-By:` trailer last, preceded by a blank line
+  (`Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`).
+- **Commit-scan policy — single source of truth**: the type/scope whitelist
+  lives ONCE in `config/discovery/commits.yaml`, consumed by every gate
+  (`.githooks/commit-msg`, `verify-pr-merge.sh`, `generate_changelog.py`,
+  `pr-review.yml`). Never hardcode the list in a script. `strict` mode
+  rejects unknown scopes + CJK/placeholder subjects; `fix*` branches allow
+  only `fix` commits.
+- **GPG signing is optional** — the GitCode GPG hook is NOT enabled on this
+  repo; keep `commit.gpgsign` off.
+- **CompletionJudge decides "done"**: `bash scripts/sh/verify-completion.sh`
+  (11 dimensions) — only a `COMPLETE` verdict authorizes done (see
+  `docs/architecture/completion-judge.md`).
+- **Mainline net-delta gate** (auto-run on `push-both.sh main`): net code
+  delta ≥ 1000 required, three locks (comment stripping / symmetric deletion
+  / hygiene ceiling) — full thresholds + mandatory post-rejection behavior
+  in `docs/workflow/commits.md`.
 
 ## Remote strategy & CI
 
-- **Dual remotes**: `origin` = GitCode (`gitcode.com/Aplese/Praxis`, canonical); `github` = GitHub mirror (`guilingzhouyi-creator/Praxis`, CI carrier).
-- **Local worktree branches push github/main directly — no PR required**:
-  github/main has NO branch protection (removed), so `git push github main`
-  from the local tree (main or any worktree) lands immediately. CI
-  (`test.yml` matrix, `ci.yml`, `codeql.yml`, …) still runs on every push
-  as a notification, not a merge gate. PRs (e.g. dependabot) are still
-  handled through the normal PR flow.
-- **Every push to main MUST go to BOTH remotes**: `git push origin main; git push github main` — **push origin (GitCode) FIRST**: it is the stricter gate (GPG pre-receive), so a rejection surfaces before anything is published on the mirror, avoiding a forced update. Pushing only to GitCode silently skips CI.
-- **CI** on GitHub Actions: `test.yml` (matrix 3.11/3.12/3.13/3.14, full L1–L5 coverage), `ci.yml` (changed-file ruff gate), `deps.yml` (dependabot diff-scope gate), `codeql.yml`, `docker.yml`, `benchmark.yml`, `nightly.yml` (full-tree ruff), `secrets.yml` (gitleaks), `comment-audit.yml` (CJK residue), `stale.yml`. GitCode's AtomGit Action (`.gitcode/workflows/test.yml`) is in gray release — keep the file, it activates later.
+Full spec: `docs/workflow/commits.md` (`## Push discipline`). Summary:
+
+- **Dual remotes**: `origin` = GitCode (canonical), `github` = GitHub mirror
+  (CI carrier). Every push to main goes to BOTH — **origin FIRST** (stricter
+  gate); use `bash scripts/sh/push-both.sh main` (auto-refreshes doc-stats +
+  judge record + dashboard). Pushing only to GitCode silently skips CI.
+- **Local worktree branches push github/main directly — no PR required**
+  (github/main has no branch protection); CI runs as notification, not gate.
+- **CI**: `test.yml` (matrix 3.11–3.14), `ci.yml` (ruff), `deps.yml`
+  (dependabot scope), `codeql.yml`, `docker.yml`, `benchmark.yml`,
+  `nightly.yml`, `secrets.yml` (gitleaks), `comment-audit.yml` (CJK),
+  `stale.yml`. GitCode's `.gitcode/workflows/test.yml` is gray release —
+  keep the file.
 
 ## Dependency management
 
-- **Dependabot opens dep PRs** (weekly pip, monthly Actions) — NOT auto-merged; every branch goes through the double-green merge flow.
-- **A dep bump MUST be validated before merging**: `pip install -e ".[test]"` then the full suite locally; a green PR CI is not sufficient.
-- **Merge locally, never on GitHub**: dependabot commits are unsigned and GitCode rejects them — `git merge` locally (GPG-signed) then `bash scripts/sh/push-both.sh main`.
-- **Before merging, run** `bash scripts/sh/verify-deps-merge.sh <branch>`: diff-scope check + full-suite run when dependency files changed.
-- **CI gate**: `.github/workflows/deps.yml` enforces dependency-only diff scope + full suite.
-- **Allowed dependency files** (repo root only): `pyproject.toml`, `requirements*.txt`, `uv.lock`, `poetry.lock`. Anything else in a dependabot merge is a violation.
+- **Dependabot opens dep PRs** (weekly pip, monthly Actions) — NOT
+  auto-merged; every branch goes through the double-green merge flow.
+- **A dep bump MUST be validated before merging**: `pip install -e ".[test]"`
+  then the full suite locally; a green PR CI is not sufficient.
+- **Merge locally, never on GitHub**: dependabot commits are unsigned and
+  GitCode rejects them — `git merge` locally then `push-both.sh main`.
+- **Before merging, run** `bash scripts/sh/verify-deps-merge.sh <branch>`.
+- **CI gate**: `.github/workflows/deps.yml` enforces dependency-only diff
+  scope + full suite. Allowed files (repo root only): `pyproject.toml`,
+  `requirements*.txt`, `uv.lock`, `poetry.lock`. Anything else in a
+  dependabot merge is a violation.
 
 ## Branching workflow (see `docs/workflow/branching.md`)
 
@@ -296,34 +239,10 @@ Posture is a load-bearing security lever — never weaken it silently.
 - **Keep merged branches for traceability** — DO NOT delete them
   (recover with `git branch <name> <tip-sha>`); check `git stash list` after
   interrupted commands.
-
-## Branch accumulation quality gate (分支积累质量门禁)
-
-**Trigger — branch accumulation hits a threshold.** When a `feature/*` branch
-has accumulated **≥ 5 unmerged commits** AND a **cumulative net code delta
-≥ 4000 lines** vs `main`, further commits on that branch are BLOCKED until
-the gate clears. The branch must stop advancing and enter the quality-gate
-flow below. (`fix*` branches are fully exempt — they carry targeted
-defect repairs and may always keep committing.)
-
-**Gate flow (mandatory, in order):**
-1. **Review merged code quality.** Run `code_review` over the RECENT code
-   that has landed on `main` (the branch's earlier merges — reviewed scope
-   is the merged range since the last quality gate). The review is a
-   machine verdict, not advisory: it decides whether the merged quality
-   still holds.
-2. **Targeted fixes.** Every P1/P2 finding from the review MUST be fixed on
-   this branch before it can advance again. Fixes land as normal commits on
-   the same worktree branch (per `## Build environment code of conduct`).
-3. **Clear the branch — merge to main.** Once the review is clean (no
-   unresolved P1/P2) and the branch's own work is double-green, the branch
-   MUST be merged into `main` (`--no-ff`). The branch is then considered
-   CLEARED; only after it is cleared may the agent open the next accumulation
-   cycle (new branch / continue in the worktree).
-
-**Why:** accumulation without review lets low-quality merged code pile up
-invisibly; the gate couples branch growth to a machine-reviewed quality
-floor so a long-lived branch never outruns its own review debt.
+- **Branch accumulation quality gate** (full flow: `docs/workflow/branching.md`
+  §8): a `feature/*` branch with ≥ 5 unmerged commits AND ≥ 4000 net lines vs
+  main is BLOCKED — review merged quality (`code_review`, machine verdict),
+  fix P1/P2 findings, then clear by merging to main. `fix*` branches exempt.
 
 ## Parallel collaboration (see `docs/workflow/collaboration.md`)
 
@@ -333,88 +252,33 @@ floor so a long-lived branch never outruns its own review debt.
   `tests/conftest.py`, `test_layer_imports.py`, `config/praxis.yaml`) — one
   writer at a time.
 - **One worktree per agent — never share a tree**: `git worktree add
-  ../praxis-<area> feature/<agent>-<area>`; gates per `## Build environment
-  code of conduct`.
+  ../praxis-<area> feature/<agent>-<area>`; gates per
+  `docs/workflow/code-of-conduct.md`.
 
 ## Build environment code of conduct (构建环境守则)
 
-Non-negotiable build discipline. Full procedures live in
-`docs/workflow/branching.md` and `docs/workflow/collaboration.md`; the rules
-below are the load-bearing summary, stated here exactly once (index into
-`## Commit conventions` / `## Key conventions` / `## Contract versioning` /
-`## Project structure` for the referenced details).
+Full spec: `docs/workflow/code-of-conduct.md`. Load-bearing summary:
 
-**Worktree gate — mandatory before ANY code change.** NEVER edit `src/`,
-`tests/`, `config/`, `scripts/`, or `docs/` on the main tree. Plan first, then
-build in a dedicated worktree: `git worktree add ../praxis-<area> feature/<agent>-<area>`.
-ALWAYS run `bash scripts/sh/check-worktree.sh` (exit 0 required) before any
-`git checkout`/`git switch` on a shared tree. The main tree only receives
-merges; never leave uncommitted changes on it. A plan comes before the branch;
-the branch comes before the edit. (Per-agent multi-tree: `## Parallel collaboration`.)
-
-**Gate waivers — TWO independent exemptions (do not conflate).** The gate
-system has exactly two waivers, each granted by the user, never self-awarded:
-
-1. **Main-tree modification waiver (主树修改推进豁免)** — grants permission
-   to EDIT ON the main tree paths (`src/` `tests/` `config/` `scripts/`
-   `docs/`) instead of opening a worktree. It waives WHERE you change code,
-   NOT whether the change may ship. Default: DENIED (worktree gate above).
-   Grant signal: user approves "准许主树操作 / allowed to edit on main".
-2. **Branch pre-merge waiver (分支提前合入门禁豁免)** — grants permission to
-   MERGE a branch into `main` before it meets the net-delta gate (≥ 1000).
-   It waives WHEN a branch may merge, NOT where you edit. Default: DENIED —
-   branches MUST reach the gate to keep mainline lean; merging early is
-   exactly what the gate prevents. Grant signal: user approves
-   `MERGE_GATE_SKIP=1` (with `MERGE_GATE_REASON`).
-
-Neither waiver permits pushing to remotes by itself — pushing is governed by
-`push-both.sh` (dual remotes) and the mainline gate; a waiver only relaxes
-its own dimension (where-to-edit / when-to-merge). Never treat "allowed to
-edit on main" as "allowed to merge early", or vice versa.
-
-**Worktree venv — no isolated environment.** A worktree is a separate
-checkout and has NO `.venv/` of its own — the repo venv lives only on the
-main tree. Tests, hooks, and scripts run inside a worktree MUST target the
-main tree's venv: activate it first (`source <main-tree>/.venv/bin/activate`)
-or prefix every command with its absolute path (e.g.
-`<main-tree>/.venv/bin/python -m pytest ...`). Never call a bare `python` or
-a worktree-local `.venv/bin/python` from inside a worktree — `python: command
-not found` (pre-commit/commit-msg hooks, `verify-completion.sh`) and
-`.venv/bin/python: No such file or directory` (pytest) are the two symptoms
-of this exact mistake.
-
-**Architecture doc sync — mandatory with architecture-level changes.** Any
-architecture-level adjustment (new layer/module/service, changed contract,
-renamed subsystem, moved path, new parameter domain) MUST update the
-corresponding `docs/architecture/` doc IN THE SAME COMMIT as the code change
-— a code change never ships without its doc. Reuse the normalized layout of
-`docs/architecture/README.md` (`# Title` + one-line summary + optional
-`mermaid` + inventory/contract tables); never invent a parallel layout.
-
-**Generated numbers — never hand-edit.** Refresh counts with `make doc-stats`
-(`scripts/py/gen_doc_stats.py`); `scripts/py/check_doc_stats.py` drift-gates
-them in CI. Register every new subsystem doc here AND in the
-`docs/architecture/README.md` layer list. Doc prose in English (per
-`## Comment conventions`); first-line summary + tables for structured data.
-
-**Naming discipline — no ad-hoc names.** New identifiers (modules, params,
-config keys, API segments, directory names) MUST follow the conventions
-registered in `## Key conventions`, `## Contract versioning`, and
-`## Project structure` (目录命名规则). Register a genuinely new name class in
-the docs (and `params/` where applicable) FIRST — never introduce one silently.
-
-**Definition of done (before merge).** A change is merge-ready only when ALL hold:
-- **Machine verdict first**: `bash scripts/sh/verify-completion.sh` reports
-  `COMPLETE` (11-dimension gate; `INCOMPLETE` → keep working, do NOT declare
-  done). This is the machine's answer to "is it really finished?".
-- **Worktree clean**: branch committed, no in-flight edits on main
-  (`scripts/sh/check-worktree.sh` exit 0 before any switch).
-- **Docs synced**: architecture-level changes ship with their
-  `docs/architecture/` update in the same commit.
-- **Gates green**: layer-import + params-compliance + domain tests +
-  full baseline + ruff, all passing.
-- **Push plan set**: after merge, `bash scripts/sh/push-both.sh main`
-  (dual remotes — never push to GitCode only).
+- **Worktree gate — mandatory before ANY code change**: never edit
+  `src/ tests/ config/ scripts/ docs/` on the main tree; plan first, build in
+  a dedicated worktree, run `scripts/sh/check-worktree.sh` (exit 0) before
+  any switch; main tree only receives merges.
+- **Gate waivers — TWO independent exemptions (never conflate)**, each
+  granted by the user, never self-awarded: (1) **Main-tree modification
+  waiver** — edit on main tree paths instead of a worktree (WHERE);
+  (2) **Branch pre-merge waiver** — merge before the net-delta gate via
+  `MERGE_GATE_SKIP=1` + `MERGE_GATE_REASON` (WHEN). Neither permits pushing
+  by itself.
+- **Worktree venv — no isolated environment**: a worktree has NO `.venv/`;
+  always target the main tree's venv (`source <main-tree>/.venv/bin/activate`
+  or absolute path). Bare `python` fails in hooks.
+- **Architecture doc sync**: architecture-level changes MUST update the
+  `docs/architecture/` doc in the SAME commit (normalized layout per
+  `docs/architecture/README.md`).
+- **Generated numbers**: refresh with `make doc-stats`, never hand-edit.
+- **Definition of done (before merge)**: CompletionJudge `COMPLETE` +
+  worktree clean + docs synced + gates green (layer-import, params-compliance,
+  full suite, ruff) + push plan set.
 
 ## Contract versioning
 
@@ -461,67 +325,20 @@ Default: `ollama` / `codellama:7b` at `localhost:11434`. Configure via `config/p
 
 ## Project structure
 
-Praxis is an Agent application (an OS-like runtime) that is itself built by
-Agents + humans. The repo is therefore strictly partitioned into four layers —
-keep every new file in the layer it belongs to:
+Full layout + naming rules: `docs/project-structure.md`. Summary:
 
-### Praxis 本体 (runtime) — the Agent application itself
-
-| Path | Description |
-|------|-------------|
-| `src/` | Source tree, L1 kernel → L5 user layer (`src/l1/` … `src/l5/`); the OS implementation |
-| `config/` | Runtime config — **this is what builds Praxis itself**: `praxis.yaml` (kernel, cell, LLM, constitution, gatechain, API), `commands.yaml` (51 L2 commands), `tools.yaml` (72 tools), `skills/` (builtin skills), `discovery/` (structural overrides) |
-| `locales/` | i18n: en, zh-CN, ja, ko |
-| `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
-| `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
-
-### 构建环境 (build environment) — external tooling that guides the build
-
-Never imported by the runtime; never migrated into `config/` or `src/`.
-
-| Path | Description |
-|------|-------------|
-| `scripts/` | Build/dev scripts: `py/` (python tooling) + `sh/` (shell tooling) |
-| `tests/` | Test suite (L1–L5, `infra/`, `integration/`); **`benchmarks/` is a subfolder of `tests/`** (`tests/benchmarks/`) |
-| `.githooks/` | Self-built git hooks (`commit-msg`, `pre-commit`, `post-checkout`) |
-| `.github/` | GitHub Actions CI workflows + `agents/` definition (companion, not a build input) |
-| `.gitcode/` | GitCode CI workflow (gray release) |
-| `.atomcode/` | AtomCode agent skills/commands (project scope) |
-| `.opencode/` | OpenCode agent skills/commands (legacy) |
-| `Makefile`, `pyproject.toml`, `Dockerfile`, `docker-compose.yml` | Build config, packaging metadata, container images (kernel/api/sandbox/llm/supervisor) |
-| `.pre-commit-config.yaml`, `codecov.yml`, `.gitleaks.toml`, `.mcp.json` | Lint / coverage / secret-scan / MCP config |
-
-### 发布 (release) — packaging output
-
-| Path | Description |
-|------|-------------|
-| `release/` | Release/packaging output placeholder (empty; populated by release tooling, see `scripts/py/bump_version.py`) |
-
-### 运行时数据 (runtime state) — generated, gitignored, never committed
-
-| Path | Description |
-|------|-------------|
-| `.praxis/` | Runtime state (db/jsonl/sandbox/skills/memories/sockets) — the live `memories/` data lives in `.praxis/memories/` |
-| `memories/` | Reserved runtime memory persistence placeholder (kept empty; actual data in `.praxis/memories/`) |
-| `.config/` | Runtime keys/secrets (`.config/praxis/keys/`) — **not** the runtime config in `config/` |
-| `skills/evolved/` | Project-scope evolved skills (runtime artifact; gitignored; global-scope evolved skills land in `.praxis/skills/evolved/`) |
-| `.workspace-timing-data/` | Timing/profiling data |
-
-### 目录命名规则 (directory naming rules)
-
-- **All directories lowercase kebab-case** (module *files* keep snake_case).
-- **`.` prefix = hidden runtime/tool config** (`.praxis/`, `.config/`, `.atomcode/`);
-  no prefix = runtime or build-environment content. So `config/` builds Praxis
-  itself, while `.config/` belongs to Praxis's runtime.
-- **Runtime vs build isolation is physical**: external build tooling
-  (`scripts/`, `.githooks/`, `.github/`, CI, Makefile) never migrates into
-  `config/` or `src/`.
-- **Co-located pairs** (kept separate on purpose):
-  | `config/` (runtime config) | vs | `.config/` (runtime keys) |
-  |---|---|---|
-  | `memories/` (placeholder) | vs | `.praxis/memories/` (live data) |
-  | `skills/evolved/` (project scope) | vs | `.praxis/skills/` (global scope) |
-  | `tests/benchmarks/` (benchmarks) | vs | `release/` (packaging output) |
+- **Four layers, strictly partitioned**: `### Praxis 本体 (runtime)` — `src/`,
+  `config/` (this is what builds Praxis itself), `locales/`,
+  `.praxis-rules.md`, `docs/`; `### 构建环境 (build environment)` —
+  `scripts/`, `tests/`, `.githooks/`, `.github/`, `.gitcode/`, `.atomcode/`,
+  `.opencode/`, build config files (never imported by the runtime); `### 发布
+  (release)` — `release/`; `### 运行时数据 (runtime state)` — `.praxis/`,
+  `.config/`, `skills/evolved/` (gitignored, never committed).
+- **目录命名规则**: directories lowercase kebab-case (module files keep
+  snake_case); `.`-prefix = hidden runtime/tool config; runtime vs build
+  isolation is physical; co-located pairs kept separate on purpose
+  (`config/` vs `.config/`, `memories/` vs `.praxis/memories/`,
+  `skills/evolved/` vs `.praxis/skills/`, `tests/benchmarks/` vs `release/`).
 
 ## Key files
 

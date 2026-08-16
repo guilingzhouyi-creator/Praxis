@@ -98,3 +98,31 @@ Merge with `--no-ff` to preserve the proposal record.
 - Branch hygiene is convention-based; the double-green rule is enforced by
   the verifier in the loop (agent collaborators read this document via
   AGENTS.md).
+
+## 8. Branch accumulation quality gate (分支积累质量门禁)
+
+**Trigger — branch accumulation hits a threshold.** When a `feature/*` branch
+has accumulated **≥ 5 unmerged commits** AND a **cumulative net code delta
+≥ 4000 lines** vs `main`, further commits on that branch are BLOCKED until
+the gate clears. The branch must stop advancing and enter the quality-gate
+flow below. (`fix*` branches are fully exempt — they carry targeted
+defect repairs and may always keep committing.)
+
+**Gate flow (mandatory, in order):**
+1. **Review merged code quality.** Run `code_review` over the RECENT code
+   that has landed on `main` (the branch's earlier merges — reviewed scope
+   is the merged range since the last quality gate). The review is a
+   machine verdict, not advisory: it decides whether the merged quality
+   still holds.
+2. **Targeted fixes.** Every P1/P2 finding from the review MUST be fixed on
+   this branch before it can advance again. Fixes land as normal commits on
+   the same worktree branch (per `docs/workflow/code-of-conduct.md`).
+3. **Clear the branch — merge to main.** Once the review is clean (no
+   unresolved P1/P2) and the branch's own work is double-green, the branch
+   MUST be merged into `main` (`--no-ff`). The branch is then considered
+   CLEARED; only after it is cleared may the agent open the next accumulation
+   cycle (new branch / continue in the worktree).
+
+**Why:** accumulation without review lets low-quality merged code pile up
+invisibly; the gate couples branch growth to a machine-reviewed quality
+floor so a long-lived branch never outruns its own review debt.

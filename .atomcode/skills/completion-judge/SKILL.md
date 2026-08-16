@@ -1,6 +1,6 @@
 ---
 name: completion-judge
-description: Verify a task is genuinely finished via the CompletionJudge machine verdict (verify-completion.sh, 11 dimensions) — the machine decides "done", not the agent. Use when declaring a task complete, before merge/push, or when asked "is it really done?".
+description: Use when declaring a task complete or asked "is it really done?" — verify via the CompletionJudge machine verdict (verify-completion.sh, 11 dimensions); the machine decides "done", not the agent via the CompletionJudge machine verdict (verify-completion.sh, 11 dimensions) — the machine decides "done", not the agent. Use when declaring a task complete, before merge/push, or when asked "is it really done?".
 disable-model-invocation: true
 ---
 
