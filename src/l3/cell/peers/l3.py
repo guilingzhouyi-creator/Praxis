@@ -260,8 +260,11 @@ class CentralController:
     def _rule_parse(self, text: str) -> TaskCard:
         card_type = CardType.EXECUTION
         domain = ""
+        # Hoist the single lowercase pass: ``text.lower()`` ran per keyword
+        # (O(routes × len(text))) inside the loop below.
+        text_lower = text.lower()
         for kw, _cell in self._routes.items():
-            if kw.lower() in text.lower():
+            if kw.lower() in text_lower:
                 domain = kw
                 break
         if "?" in text:

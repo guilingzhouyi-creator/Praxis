@@ -125,7 +125,14 @@ class LLMTurnMixin:
 
         # ── Post-tool stub compression guard ──
         try:
-            tb = sum(len(str(tc)) for tc in tool_results)
+            # Running total with early exit: the byte budget only needs to
+            # know whether tb exceeds the limit, so stop stringifying once
+            # the threshold is crossed (O(limit) instead of O(total)).
+            tb = 0
+            for tc in tool_results:
+                tb += len(str(tc))
+                if tb > AGENT_LOOP_CONTEXT_TB_LIMIT:
+                    break
             if tb > AGENT_LOOP_CONTEXT_TB_LIMIT and ctx_window > 0:
                 from l3.memory.memory import get_memory
 

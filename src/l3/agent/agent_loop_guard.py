@@ -252,6 +252,7 @@ class AgentLoopGuardMixin:
             res_body = step_result.get("result", {}) if isinstance(step_result, dict) else {}
             if isinstance(res_body, dict) and res_body.get("awaiting_input"):
                 step_result["_awaiting_input"] = True
+                step_result["_preview"] = str(step_result)[:LOG_TRUNC_200]
                 processed_results.append(step_result)
                 all_passed = True
                 result["finish_reason"] = "awaiting_input"
@@ -259,12 +260,14 @@ class AgentLoopGuardMixin:
 
             if self._loop_detector.check(tool_name, step_result.get("args", {}), step_result) == "stop":
                 step_result["_loop_stopped"] = True
+                step_result["_preview"] = str(step_result)[:LOG_TRUNC_200]
                 processed_results.append(step_result)
                 all_passed = False
                 break
 
             if self._repeat_detector.check(tool_name) == "stop":
                 step_result["_loop_stopped"] = True
+                step_result["_preview"] = str(step_result)[:LOG_TRUNC_200]
                 processed_results.append(step_result)
                 all_passed = False
                 break
@@ -417,5 +420,6 @@ class AgentLoopGuardMixin:
                     finally:
                         side_times["continuation"] += time.time() - _t_fix
 
+            step_result["_preview"] = str(step_result)[:LOG_TRUNC_200]
             processed_results.append(step_result)
         return processed_results, all_passed, corrections, verifier_used

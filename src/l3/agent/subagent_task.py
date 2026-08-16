@@ -59,6 +59,7 @@ class SubAgentTask:
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._cancelled = False
+        self._done_event = threading.Event()
 
     def start(self) -> dict:
         """Start the task in a background thread; returns an ack dict."""
@@ -70,6 +71,14 @@ class SubAgentTask:
             self._thread = threading.Thread(target=propagate_context(self._run), daemon=True)
             self._thread.start()
         return {"success": True, "task_id": self.id, "spec": self.spec.name}
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Block until the task reaches a terminal state or *timeout* elapses.
+
+        Returns True if the task finished (completed/failed/cancelled), False
+        on timeout. Wakes immediately on completion — no polling involved.
+        """
+        return self._done_event.wait(timeout)
 
     def _run(self) -> None:
         try:
@@ -89,6 +98,8 @@ class SubAgentTask:
                 self.status = "failed"
                 self.completed_at = time.time()
                 self.result = {"error": str(e)}
+        finally:
+            self._done_event.set()
 
     _POST_ACTION_TYPES = frozenset({"scout"})
 
@@ -256,8 +267,10 @@ class SubAgentTask:
             self._cancelled = True
             if self.status != "running":
                 self.status = "cancelled"
+                self._done_event.set()
                 return {"success": True, "task_id": self.id, "status": "cancelled"}
             self.status = "cancelled"
+        self._done_event.set()
         # Emit TASK_CANCEL so the owning agent can release resources promptly.
         try:
             from l1.kernel import emit_signal

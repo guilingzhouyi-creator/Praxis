@@ -159,7 +159,7 @@ class AgentLoopRunMixin(LLMTurnMixin, StepsExhaustedMixin, FinishFunnelMixin):
                 "success": all_passed,
                 "answer": result.get("content", ""),
                 "steps": [
-                    {"step": i, "action": tc.get("name", "?"), "result": str(tc)[:LOG_TRUNC_200]}
+                    {"step": i, "action": tc.get("name", "?"), "result": tc.get("_preview") or str(tc)[:LOG_TRUNC_200]}
                     for i, tc in enumerate(processed_results)
                 ],
                 "reasoning_trail": result.get("reasoning_trail", []) or [],
