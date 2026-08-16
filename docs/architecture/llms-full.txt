@@ -159,9 +159,14 @@ DIFF:   sandbox write → structured hunks (per-hunk attribution) → tier-2 rev
 
 ## Archived
 
-The pre-rewrite architecture documents (overview / reference / SOC /
-deep-dive, 15 files) are archived at `memories/archives/architecture-v1/`
-(out of git; history remains via `git log -- docs/architecture/`).
+Pre-rewrite architecture documents (v1: overview / reference / deep-dive /
+SOC) were superseded by this reference in the 8-file split (`38c5dd9`) and
+the later layer rewrite. Their content survives only in git history
+(`git log --all --diff-filter=D -- docs/architecture/`, then
+`git show <commit>:<path>` to recover). Current archive policy: review and
+design documents that close out land in `docs/design/archive/`, which is
+intentionally **untracked** (`.gitignore`) — those files live on the main
+tree disk only, not in any worktree or clone.
 
 
 ---
