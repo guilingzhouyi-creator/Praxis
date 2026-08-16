@@ -111,6 +111,11 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
         self._running = False
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        # Wake-up signal: stop() sets it so a sleeping loop exits its
+        # Event.wait() immediately instead of waiting out the full interval
+        # (time.sleep was not interruptible → every stop() paid the join
+        # timeout; 15s of the memory suite was this fixed 5s-per-test tax).
+        self._stop_event = threading.Event()
         self._last_check: float = 0.0
         self._last_archive: float = 0.0
         self._total_archived = 0
@@ -166,6 +171,7 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
     def stop(self) -> dict:
         """Stop the R4Agent background loop."""
         self._running = False
+        self._stop_event.set()  # wake the sleeping loop immediately
         if self._thread:
             self._thread.join(timeout=THREAD_JOIN_TIMEOUT)
         logger.info("R4Agent stopped: %d archived, %d alerts", self._total_archived, self._total_alerts)
@@ -293,7 +299,10 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
 
     def _loop(self) -> None:
         while self._running:
-            time.sleep(self.interval)
+            # Event.wait is interruptible — stop() calls event.set() and the
+            # loop wakes immediately (time.sleep could only be stopped by
+            # waiting the full interval).
+            self._stop_event.wait(self.interval)
             if not self._running:
                 break
             try:
