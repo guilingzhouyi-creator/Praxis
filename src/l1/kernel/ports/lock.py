@@ -24,7 +24,7 @@ class LockPort(ABC):
 
     @abstractmethod
     def release(self) -> None:
-        """Release the lock."""
+        """Release the lock, allowing a blocked acquirer to proceed."""
 
     def __enter__(self) -> LockPort:
         self.acquire()

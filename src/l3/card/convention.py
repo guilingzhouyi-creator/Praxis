@@ -163,7 +163,7 @@ class ConventionProtocol:
         return {"success": True}
 
     def rebut(self, agent_id: str, statement: str) -> dict:
-        """Agent rebuttal."""
+        """Record an agent's rebuttal statement in the deliberation transcript."""
         self._add_transcript(agent_id, "", "rebut", statement)
         return {"success": True}
 

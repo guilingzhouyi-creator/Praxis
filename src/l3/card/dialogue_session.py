@@ -100,7 +100,7 @@ class DialogueSession:
     # ── Lifecycle ──
 
     def start(self) -> dict:
-        """Begin the session."""
+        """Begin the session, transitioning from IDLE/COMPLETED to ACTIVE."""
         with self._lock:
             if self.state not in (SessionState.IDLE, SessionState.COMPLETED):
                 return {"success": False, "error": f"session in state {self.state.name}"}

@@ -245,7 +245,7 @@ class TransactionArea(BaseService, PersistableMixin):
         return {"success": True, "card_id": card_id, "status": "approved"}
 
     def postpone(self, card_id: str, delay: float = 60.0) -> dict:
-        """Postpone a card."""
+        """Mark a queued card as POSTPONED until the given delay elapses."""
         with self._lock:
             card = self._queue.get(card_id)
             if not card:
@@ -255,7 +255,7 @@ class TransactionArea(BaseService, PersistableMixin):
         return {"success": True, "card_id": card_id, "status": "postponed", "delay": delay}
 
     def cancel(self, card_id: str) -> dict:
-        """Cancel a card."""
+        """Cancel a queued card, moving it from the queue to the history."""
         with self._lock:
             card = self._queue.pop(card_id, None)
             if not card:

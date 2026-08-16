@@ -8,6 +8,8 @@
 ### 新增
 
 - **Feat (tool)**: add marker-gated engineering debug mode
+- **Feat (infra)**: per-layer performance baseline scanner
+- **Feat (infra)**: per-layer quality baseline scanner
 - **Feat (kernel)**: adopt ProcessPort execution boundary
 - **Feat (skill)**: gate evolution through candidates
 - **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
@@ -83,6 +85,7 @@
 
 ### 文档
 
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (docs)**: refresh candidate architecture indexes
 - **Docs (memory)**: detail candidate storage seam
