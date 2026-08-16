@@ -5,6 +5,95 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **Chore**: ignore atomcode runtime config
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
+
+### 文档
+
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: define two gate waivers and sync hints
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: add branch accumulation quality gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: mandate main-tree venv for worktree test runs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
 ### 修复
 
 - **Fix (memory)**: snapshot persistence path during writes
@@ -78,93 +167,6 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
-
-### 变更
-
-- **Test (infra)**: isolate durable capability fixtures
-- **Test (memory)**: document candidate rewrite seam and boundaries
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 文档
-
-- **Docs (docs)**: refresh candidate architecture indexes
-- **Docs (memory)**: detail candidate storage seam
-- **Docs (docs)**: refresh generated indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats + changelog after cleanup
-- **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: define two gate waivers and sync hints
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: add branch accumulation quality gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: mandate main-tree venv for worktree test runs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: document direct local push to github mirror
 
 ## [0.4.1] - 2026-08-07
 
