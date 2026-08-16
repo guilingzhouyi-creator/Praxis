@@ -84,6 +84,7 @@
 
 ### 文档
 
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (docs)**: refresh candidate architecture indexes
 - **Docs (memory)**: detail candidate storage seam

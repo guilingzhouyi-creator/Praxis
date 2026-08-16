@@ -81,3 +81,15 @@ layer-quality-report:
 
 layer-quality-baseline:
 	python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml
+
+perf-quality:
+	python scripts/py/perf_quality.py
+
+perf-quality-report:
+	python scripts/py/perf_quality.py --report
+
+perf-quality-baseline:
+	python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
+
+quality-all:
+	python scripts/py/layer_quality.py && python scripts/py/perf_quality.py
