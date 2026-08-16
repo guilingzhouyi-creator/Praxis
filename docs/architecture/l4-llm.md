@@ -13,6 +13,20 @@ name is hardcoded in agent code.
 | Engine | `llm/llm.py` | `LLMEngine`: strategy application, effort normalization, capability probes, `generate`/`tool_use`/`context_window` |
 | Port | `"llm"` | AgentLoop resolves the engine via `get_port("llm")` (duck-typed) |
 
+## Provider failover (model-failover)
+
+`llm/llm_retry.py` — after `LLM_FAILOVER_THRESHOLD` (3) consecutive
+failures on the primary provider, the next call rebuilds the provider from
+`ModelRegistry.get_fallback` (same model-spec semantics — the spec keeps
+its role/executor, only the provider/endpoint/credential swap) and replays
+the request once. Success resets the counter; the `LLM_FAILOVER_COOLDOWN`
+(300s) window since the last switch prevents thrashing between two failing
+providers. The switch is recorded via `logger.warning`; the registry
+fallback requires another discovered provider with a valid key
+(`get_fallback` skips the current provider). Params `LLM_FAILOVER_*`
+(api.py), master switch `LLM_FAILOVER_ENABLED` (default on); no fallback
+available keeps the primary and returns the error payload.
+
 ## Effort tiers (provider-normalized)
 
 Requested `reasoning_effort` is clamped per provider by
