@@ -58,8 +58,9 @@ project index stays lean; behavior is unchanged.
   `decode_hunks` — hunk type/semantic dictionary-coded to byte codes,
   original_start rows delta-encoded, payload zlib-compressed. The 8-byte
   plaintext header (frame_type | bitmask | threshold_score | hunk_count)
-  lives in L1 `l1/kernel/diff_frame.py` so the L3 bypass monitor and the
-  L4 codec share one wire format (exported via kernel `__all__`).
+  lives in L4 `l4/sandbox/diff_frame.py` (WS5.3 moved it out of the kernel;
+  the kernel keeps a compat import path) so the L3 bypass monitor and the
+  L4 codec share one wire format.
   `review_pipeline.dispose(frame=...)` reads the header hunk_count without
   decompressing — the bypass fast path.
 - **Tiered compression**: L2 review frames use the shared Zstd dictionary
