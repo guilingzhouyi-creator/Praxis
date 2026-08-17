@@ -101,7 +101,9 @@ def handle_identity_definition_put(body: dict | None = None) -> dict:
     b = body or {}
     cell_id = b.get("cell_id", "")
     role = b.get("role", "")
-    definition = b.get("definition", "")
+    # Coerce to str like the sibling binding handler — a non-string body
+    # value (int/list) would otherwise crash bind()'s slicing with a 500.
+    definition = str(b.get("definition", "") or "")
     if not cell_id or not role:
         return {"success": False, "error": "cell_id and role required"}
     if not definition:
