@@ -96,3 +96,30 @@ class TestTestMatrixPrebuild:
         out = m._inject_test_matrix("base")
         # Prebuild switch off by default -> injection skipped (base unchanged).
         assert out == "base"
+
+    def test_tester_injection_bounded_by_budget(self, monkeypatch):
+        # Leak-review fix: even when prebuild is enabled and the cache is
+        # primed, the injected block is capped by LOOP_CONTEXT_BUDGET_SKILL
+        # (defense-in-depth beyond per-field truncation + row cap).
+        from l1.kernel.params.agent import LOOP_CONTEXT_BUDGET_SKILL
+        from l3.agent.agent_loop_context import AgentLoopContextMixin
+        from l3.cell import test_matrix_prebuild
+
+        monkeypatch.setattr(test_matrix_prebuild, "prebuild_enabled", lambda: True)
+
+        def _big_matrix(*_args, **_kwargs):
+            return [{"entry": i, "case": "positive", "expect": "x" * 5000} for i in range(20)]
+
+        monkeypatch.setattr(test_matrix_prebuild, "get_matrix", _big_matrix)
+
+        m = AgentLoopContextMixin.__new__(AgentLoopContextMixin)
+        m._role = "tester"
+        m._cell_id = "cell-1"
+        m._last_card_id = "card-1"
+        m._card_domain = "test"
+        m.task = "run tests"
+        out = m._inject_test_matrix("base")
+        assert "Test Matrix" in out
+        # The appended block (minus the base) stays within the budget.
+        injected = out.replace("base", "", 1)
+        assert len(injected) <= LOOP_CONTEXT_BUDGET_SKILL + len("base")

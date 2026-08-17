@@ -228,6 +228,11 @@ class AgentLoopContextMixin:
                 f"  {r.get('entry', i)}. [{r.get('case', '?')}] {r.get('expect', '')}" for i, r in enumerate(matrix)
             )
             block = f"\n\n--- Test Matrix ---\n{lines}\n---"
+            # Explicit budget: keep the injection bounded even if the matrix
+            # grows (per-field truncation + row cap already bound it, this is
+            # the same defense-in-depth style as LOOP_CONTEXT_BUDGET_SKILL).
+            if len(block) > LOOP_CONTEXT_BUDGET_SKILL:
+                block = block[:LOOP_CONTEXT_BUDGET_SKILL]
             system = (system + "\n\n" + block) if system else block
         except Exception as e:
             logger.debug("agent_loop: test-matrix injection failed: %s", e)
