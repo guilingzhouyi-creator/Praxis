@@ -1,4 +1,5 @@
 """WS5.5: fs_adapter routes file ops through the VFS mount table."""
+
 from __future__ import annotations
 
 import pytest
