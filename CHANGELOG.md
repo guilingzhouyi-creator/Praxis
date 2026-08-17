@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (stats)**: fix README snapshot and changelog drift
 - **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
