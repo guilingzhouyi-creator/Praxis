@@ -5,20 +5,9 @@
 
 ## [Unreleased]
 
-### 性能
-
-- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
-- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
-- **Perf (memory)**: interruptible thread shutdown via Event.wait
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
-
 ### 文档
 
+- **Docs (stats)**: refresh doc-stats and changelog after dual-branch merge
 - **Docs (stats)**: refresh doc-stats and changelog for prebuild lifecycle fix
 - **Docs (stats)**: fix README snapshot and changelog drift
 - **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
@@ -103,6 +92,18 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 性能
+
+- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
+- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ### 修复
 
