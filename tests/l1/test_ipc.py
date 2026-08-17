@@ -87,7 +87,7 @@ def test_request_gets_response() -> None:
     # send + respond via handler (which calls respond internally)
     ch.send(msg)
     # Now manually set up a request for a known msg_id
-    resp = ch.request(_msg(op=LockOp.STATUS, name="req-test"), timeout=2.0)
+    resp = ch.request(_msg(op=LockOp.STATUS, name="req-test"), timeout=0.2)
     # Should return a dict (empty if timeout)
     assert isinstance(resp, dict)
 
