@@ -23,7 +23,8 @@ OS concepts onto LLM agents. Two overloaded terms:
 
 Layers (`src/`): **L5** user CLI → **L4** bridge (API `/api/v2/`, LLM, sandbox,
 MCP) → **L3** cell (agents, 4-ring memory, cards, tool pipeline) → **L2** shell
-(YAML commands + i18n) → **L1** kernel (constitution, gatechain, VFS, `params/`,
+(commands via `config/commands.yaml` + `_cmd_*` modules, protocol v1 wire
+contract, i18n) → **L1** kernel (constitution, gatechain, VFS, `params/`,
 `ports/`). Import direction is enforced (L5→…→L1, never upward) by
 `tests/infra/test_layer_imports.py`.
 
