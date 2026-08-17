@@ -226,7 +226,7 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
 def _l3a_intent(text: str) -> dict:
     """Send a natural-language intent to the L3 coordinator for processing."""
     try:
-        from .cell.peers.l3 import get_coordinator
+        from l3.cell.peers.l3 import get_coordinator
 
         coord = get_coordinator()
         return coord.process_intent(text)
