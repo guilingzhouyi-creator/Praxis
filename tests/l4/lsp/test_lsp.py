@@ -36,18 +36,22 @@ class TestLSP:
         ft = lsp.file_type("Makefile")
         assert ft == "unknown"
 
-    def test_symbol_search_returns_list(self):
-        from l4.lsp.lsp import get_lsp
+    def test_symbol_search_returns_list(self, tmp_path):
+        from l4.lsp.lsp import LocalAnalyzer
 
-        lsp = get_lsp()
-        results = lsp.symbol_search("os")
+        src = tmp_path / "sample.py"
+        src.write_text("def alpha():\n    pass\nimport os\n", encoding="utf-8")
+        analyzer = LocalAnalyzer(str(tmp_path))
+        results = analyzer.symbol_search("os")
         assert isinstance(results, list)
 
-    def test_workspace_symbols_returns_list(self):
-        from l4.lsp.lsp import get_lsp
+    def test_workspace_symbols_returns_list(self, tmp_path):
+        from l4.lsp.lsp import LocalAnalyzer
 
-        lsp = get_lsp()
-        results = lsp.workspace_symbols()
+        src = tmp_path / "sample.py"
+        src.write_text("def alpha():\n    pass\n", encoding="utf-8")
+        analyzer = LocalAnalyzer(str(tmp_path))
+        results = analyzer.workspace_symbols()
         assert isinstance(results, list)
 
     def test_symbol_search_respects_limit(self, tmp_path):
