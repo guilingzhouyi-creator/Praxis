@@ -40,7 +40,10 @@ def test_run_code_rejects_unregistered_language():
     assert "python" in result["error"]  # available backends are listed
 
 
-def test_run_code_times_out_on_hot_loop():
+def test_run_code_times_out_on_hot_loop(monkeypatch):
+    # Shorten the run timeout so the hot loop trips quickly instead of
+    # waiting out the default 60s CODE_RUN_TIMEOUT on every run.
+    monkeypatch.setattr("l3.tools._run_code.get_tool_config", lambda key, default: 0.5)
     result = run_code({"program": "while True: pass", "cell_id": "cell-t"}, agent_id="tester")
     assert result["success"] is False
     assert "timed out" in result["error"]

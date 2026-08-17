@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+### 性能
+
+- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
+
 ### 新增
 
 - **Feat (atomcode)**: mirror remaining skills, fix descriptions, fix mcp docs
@@ -167,16 +178,6 @@
 - **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
 - **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
 - **Fix (test)**: align githooks COAUTH fixture
-
-### 性能
-
-- **Perf (memory)**: interruptible thread shutdown via Event.wait
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ### 变更
 

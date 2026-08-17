@@ -13,6 +13,11 @@ concurrency:
 
 jobs:
   test:
+    # Full per-directory suite runs once on the reference Python (3.11); the
+    # other matrix versions run a cross-version smoke (L1/L2/infra slices)
+    # instead of duplicating the whole 11-step walk 4x. Static gates, coverage
+    # and random-order already run on a single version (see below), so the
+    # cross-version matrix only needs to prove interpreter compatibility.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false   # one version failing must not cancel the others
@@ -36,18 +41,33 @@ jobs:
           pip install mypy==1.15.0 types-PyYAML  # mypy pinned to pre-commit version
         timeout-minutes: 5
 
-      # -n auto comes from pyproject addopts (parallel across files, serial
-      # within a file via --dist loadfile). Small/quick steps pin -n 0 to
-      # avoid xdist spawn overhead; directory steps keep the default -n auto.
+      # Cross-version smoke (non-3.11): fast interpreter-compatibility proof
+      # via the runner slices — no need to re-run the full suite on every
+      # Python. The 3.11 job below covers behavior exhaustively.
+      - name: Cross-version smoke (L1/L2/infra slices)
+        if: matrix.python-version != '3.11'
+        run: |
+          python tests/runner.py --slice l1 --maxfail=5
+          python tests/runner.py --slice l2 --maxfail=5
+          python tests/runner.py --slice infra --maxfail=5
+        timeout-minutes: 10
+
+      # Full suite — reference Python only. -n auto comes from pyproject
+      # addopts (parallel across files, serial within a file via --dist
+      # loadfile). Small/quick steps pin -n 0 to avoid xdist spawn overhead;
+      # directory steps keep the default -n auto.
       - name: L1 Kernel
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l1/ -n 0 --maxfail=5 -q --tb=short
         timeout-minutes: 5
 
       - name: L2 Shell
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l2/ --maxfail=5 -q --tb=short
         timeout-minutes: 10
 
       - name: L3 Cell + Tools
+        if: matrix.python-version == '3.11'
         run: |
           python -m pytest tests/l3/cell/ --maxfail=5 -q --tb=short
           python -m pytest tests/l3/tools/ --maxfail=5 -q --tb=short --durations=15
@@ -57,14 +77,17 @@ jobs:
         timeout-minutes: 20
 
       - name: L3 Memory
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l3/memory/ --maxfail=5 -q --tb=short -k "not r4"
         timeout-minutes: 10
 
       - name: L3 Memory R4 (slow)
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l3/memory/ --maxfail=5 -q --tb=short -k "r4"
         timeout-minutes: 15
 
       - name: L3 Remaining (agent/card/l3a/services/scheduler/boot/...)
+        if: matrix.python-version == '3.11'
         run: |
           python -m pytest tests/l3/agent/ --maxfail=5 -q --tb=short
           python -m pytest tests/l3/agent_terminal/ --maxfail=5 -q --tb=short
@@ -79,24 +102,29 @@ jobs:
         timeout-minutes: 20
 
       - name: L3 Discussion + SubAgent
+        if: matrix.python-version == '3.11'
         run: |
           python -m pytest tests/l3/discussion/ --maxfail=5 -q --tb=short
           python -m pytest tests/l3/subagent/ --maxfail=5 -q --tb=short
         timeout-minutes: 10
 
       - name: L3 Root (approval / tool-ring / prompt-engine / ...)
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l3/test_*.py -n 0 --maxfail=5 -q --tb=short
         timeout-minutes: 5
 
       - name: L4 Bridge
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l4/ --maxfail=5 -q --tb=short
         timeout-minutes: 20
 
       - name: L5 User Layer
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/l5/ -n 0 --maxfail=5 -q --tb=short
         timeout-minutes: 3
 
       - name: Integration
+        if: matrix.python-version == '3.11'
         run: python -m pytest tests/integration/ --maxfail=5 -q --tb=short
         timeout-minutes: 5
 
