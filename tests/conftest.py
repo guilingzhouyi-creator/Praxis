@@ -87,6 +87,7 @@ _RESETS = {
     "l4.sandbox.diff_persist": ("reset_diff_persist", None),
     "l4.sandbox.diff_language": ("reset_registry", None),
     "l3.cell.department": ("reset_department_manager", None),
+    "l3.cell.test_matrix_prebuild": ("reset_test_matrix_prebuild", None),
     "l3.cell.peers.l3a.secretary": ("reset_secretary", None),
     "l3.cell.peers.l3a.daemon": ("reset_daemon", None),
     "l3.services.file_editor_engine": ("reset_engine", None),

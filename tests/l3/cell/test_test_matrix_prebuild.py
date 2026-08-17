@@ -40,6 +40,25 @@ class TestTestMatrixPrebuild:
         reset_test_matrix_prebuild()
         assert schedule_prebuild("cell-1", "card-1", "t", "test") is False
 
+    def test_reset_shuts_pool_down_and_allows_rebuild(self, monkeypatch):
+        # Lifecycle: reset closes the pool (registered in conftest _RESETS);
+        # a later schedule with prebuild on lazily creates a fresh pool.
+        from l3.cell import test_matrix_prebuild as tmb
+        from l3.cell.test_matrix_prebuild import (
+            reset_test_matrix_prebuild,
+            schedule_prebuild,
+        )
+
+        reset_test_matrix_prebuild()
+        assert tmb._pool is None
+        # Enable prebuild so the schedule path actually creates the pool.
+        monkeypatch.setattr(tmb, "prebuild_enabled", lambda: True)
+        assert schedule_prebuild("cell-1", "card-1", "t", "test") is True
+        assert tmb._pool is not None
+        # Reset closes it again (idempotent).
+        reset_test_matrix_prebuild()
+        assert tmb._pool is None
+
     def test_get_matrix_falls_back_to_sync_build(self, tmp_path, monkeypatch):
         # Cache miss / prebuild off -> synchronous rule-based matrix, never raises.
         from l3.cell.test_matrix_prebuild import get_matrix, reset_test_matrix_prebuild

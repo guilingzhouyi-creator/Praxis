@@ -170,12 +170,17 @@ def get_matrix(cell_id: str, card_id: str, intent: str = "", domain: str = "") -
 
 
 def reset_test_matrix_prebuild() -> None:
-    """Shut down the background pool (tests / lifecycle)."""
+    """Shut down the background pool (tests / lifecycle).
+
+    ``wait=True`` drains the queue and joins the workers so no prebuild
+    thread outlives the reset — matches the singleton lifecycle of
+    ``r4_agent`` / ``reference_channel`` (registered in ``_RESETS``).
+    """
     global _pool
     with _pool_lock:
         if _pool is not None:
             try:
-                _pool.shutdown(wait=False)
+                _pool.shutdown(wait=True, timeout=5.0)
             except Exception as e:
                 logger.debug("test_matrix_prebuild: pool shutdown skipped: %s", e)
             _pool = None
