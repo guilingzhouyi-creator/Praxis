@@ -29,8 +29,8 @@ from typing import Any
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import serve as ws_serve
 
-from l1.kernel.params.api import API_GATEWAY_HOST, API_WS_PORT
 from l1.kernel.ports import WebSocketPort
+from l4.params import API_GATEWAY_HOST, API_WS_PORT
 
 logger = logging.getLogger(__name__)
 

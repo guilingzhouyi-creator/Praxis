@@ -65,18 +65,14 @@ class MessageType(Enum):
     CONVENE_CLOSE = auto()  # Close assembly (Convention → All)
 
 
-from l1.kernel.params.agent import (  # noqa: E402
-    AGENT_ID_PREFIXES,
-    DEFAULT_MAX_CONCURRENT_SCOUTS,
-    SCOUT_PREFIX,
-    SUB_PREFIX,
-)
+from l1.kernel.params.agent import AGENT_ID_PREFIXES, DEFAULT_MAX_CONCURRENT_SCOUTS, SUB_PREFIX  # noqa: E402
 from l1.kernel.params.system import (  # noqa: E402
     CELL_CACHE_HOT_TTL,
     CELL_CACHE_INDEX_TTL,
     HASH_TRUNC_MEDIUM,
     MEMORY_IMPORTANCE_BASE,
 )
+from l3.params import SCOUT_PREFIX  # noqa: E402
 
 
 def is_peer(agent_id: str) -> bool:

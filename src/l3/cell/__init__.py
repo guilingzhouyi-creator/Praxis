@@ -29,8 +29,8 @@ from l1.kernel.params.agent import (
     CELL_HISTORY_RING_SIZE,
     CELL_ROLLBACK_RING_SIZE,
 )
-from l1.kernel.params.system import SCOUT_CACHE_TTL
 from l3.cell.components.cell_buffer import CircularBuffer
+from l3.params import SCOUT_CACHE_TTL
 
 from ..agent.scout import get_pool as get_scout_pool
 from ..cell.components.cell_card import CellCardMixin

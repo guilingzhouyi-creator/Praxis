@@ -233,15 +233,10 @@ TOOL_WEBHOOK_TIMEOUT: Final[int] = 15
 
 
 # ── API / network defaults ──
-API_GATEWAY_PORT: Final[int] = 8080
-API_GATEWAY_HOST: Final[str] = "127.0.0.1"
 # Max accepted HTTP request body size (bytes)
-API_MAX_BODY_BYTES: Final[int] = 1_048_576
 # Hard cap for API list/page endpoints
-API_PAGE_MAX_LIMIT: Final[int] = 100
 # Hard cap for API list/page endpoints (guards against unbounded responses).
 # WebSocket bridge port
-API_WS_PORT: Final[int] = 8081
 # WebSocket bridge port (bidirectional realtime channel, see l4/ws).
 # RPC server port
 RPC_SERVER_PORT: Final[int] = 42110
@@ -257,10 +252,7 @@ MCP_TIMEOUT: Final[int] = 5
 MCP_OAUTH_REDIRECT_PORT: Final[int] = 19876
 
 # ── CORS ──
-API_CORS_ORIGIN: Final[str] = "*"
-API_CORS_ALLOW_METHODS: Final[str] = "GET, POST, DELETE, OPTIONS"
 # CORS request headers allowed for cross-origin clients
-API_CORS_ALLOW_HEADERS: Final[str] = "Content-Type"
 
 # ── HTTP User-Agent ──
 HTTP_USER_AGENT: Final[str] = "Praxis/1.0"
@@ -325,92 +317,53 @@ LOAD_ADAPTIVE_SLOW_TASK_RATIO: Final[float] = 0.5
 
 # ── Amdahl scaling-curve benchmark (bench_scale.py) ──
 # Worker counts swept to fit speedup(N) = 1 / (1-P + P/N); P = serial fraction
-EVAL_AMDAHL_AGENTS: Final[list[int]] = [1, 2, 4, 8]
 # Serial fraction P above which a Rust kernel should prioritize scheduler/locks
-EVAL_SERIAL_P_THRESHOLD: Final[float] = 0.5
 # Saturation cutoff: throughput gain below this triggers "saturated" verdict
-EVAL_SATURATION_DELTA: Final[float] = 0.1
 # Fixed L1 work items divided across each Amdahl worker-count sample
-EVAL_AMDAHL_TOTAL_WORK_ITEMS: Final[int] = 200_000
 # Shared RingChannel capacity for the scheduler + lock hot-path workload
-EVAL_AMDAHL_RING_CAPACITY: Final[int] = 1
 # Deadline when awaiting each Amdahl worker task (s)
-EVAL_AMDAHL_TASK_TIMEOUT: Final[float] = 30.0
 # Percentiles emitted for Amdahl queue, lock, and operation latency evidence
-EVAL_AMDAHL_LATENCY_PERCENTILES: Final[tuple[float, float]] = (0.50, 0.95)
 # Median rounds per worker count
-EVAL_AMDAHL_ROUNDS: Final[int] = 3
 
 # ── Kernel hard-metric benchmarks (bench_scale.py) ──
 # Worker counts swept for the lock-contention curve
-EVAL_LOCK_CONTEND_WORKERS: Final[list[int]] = [1, 2, 4, 8]
 # Fixed acquire/release operations divided across the lock contention curve
-EVAL_LOCK_CONTEND_TOTAL_OPS: Final[int] = 160_000
 # ops for the lock-vs-lockfree comparison
-EVAL_LOCKFREE_ITERS: Final[int] = 50_000
 # RingChannel put+get round trips
-EVAL_QUEUE_ITERS: Final[int] = 50_000
 # Event-bus emit count per listener setting (async dispatch is the cost)
-EVAL_EVENT_ITERS: Final[int] = 10_000
 # Listener counts swept for event-bus throughput
-EVAL_EVENT_LISTENERS: Final[list[int]] = [0, 4, 16]
 # Tasks submitted for scheduling-latency measurement
-EVAL_SCHED_LATENCY_TASKS: Final[int] = 2_000
 # Constitution check() evaluations
-EVAL_CONSTITUTION_ITERS: Final[int] = 20_000
 # Allocator alloc+free round trips
-EVAL_MEMORY_ALLOC_ITERS: Final[int] = 20_000
 
 # ── Extended hard metrics (bench_scale.py) — beyond I/O ──
 # GateChain G1-G5 check() evaluations (analysis module hot path)
-EVAL_GATECHAIN_ITERS: Final[int] = 20_000
 # Allocator pressure()/reclaim call counts
-EVAL_RECLAIM_ITERS: Final[int] = 20_000
 # Agents registered when measuring pressure() O(N) scan at full scale
-EVAL_PRESSURE_AGENTS: Final[int] = 64
 # swap_out() call counts (ring2→ring3→disk)
-EVAL_SWAP_ITERS: Final[int] = 5_000
 # Worker counts swept for allocator shard-contention curve
-EVAL_ALLOC_SHARD_WORKERS: Final[list[int]] = [1, 2, 4, 8]
 # Semaphore/Barrier per-op iterations
-EVAL_SYNC_ITERS: Final[int] = 50_000
 # VFS read+write round trips
-EVAL_VFS_ITERS: Final[int] = 10_000
 # IPC LockChannel send round trips
-EVAL_IPC_ITERS: Final[int] = 50_000
 # Skill query() retrieval evaluations
-EVAL_SKILL_ITERS: Final[int] = 5_000
 # ProcessTable spawn+exit round trips
-EVAL_PROCESS_ITERS: Final[int] = 20_000
 # Interrupt fire() dispatch count
-EVAL_INTERRUPT_ITERS: Final[int] = 50_000
 # territory.is_within() path-match evaluations
-EVAL_TERRITORY_ITERS: Final[int] = 100_000
 # Reputation get/set round trips
-EVAL_REPUTATION_ITERS: Final[int] = 50_000
 # persist.append() SQLite inserts (batched commit)
-EVAL_PERSIST_ITERS: Final[int] = 5_000
 # ResourceLimiter check+release round trips
-EVAL_RESOURCE_ITERS: Final[int] = 50_000
 # IPC LockChannel request→respond round trips
-EVAL_IPC_RTT_ITERS: Final[int] = 20_000
 # Diff hunk encode/decode round trips (L4 data chain)
-EVAL_DIFF_HUNK_ITERS: Final[int] = 5_000
 # Diff record zlib compress+decompress round trips (L4 data chain)
-EVAL_DIFF_COMPRESS_ITERS: Final[int] = 5_000
 # Diff frame header build+parse round trips (L1 fast path)
-EVAL_DIFF_HEADER_ITERS: Final[int] = 100_000
 # Large LLM-style JSON payload parse cost (bytes)
-EVAL_JSON_PAYLOAD_BYTES: Final[int] = 64_000
 # Large JSON payload parse evaluations (L4 response chain)
-EVAL_JSON_PARSE_ITERS: Final[int] = 5_000
 
 
 # ── SSE bridge ──
 SSE_QUEUE_MAXSIZE: Final[int] = 256
 
 # ── API middleware (l4/api/api_middleware.py) ──
-API_MIDDLEWARE_TIMEOUT: Final[float] = 30.0
 
 
 # ── Service timeouts (scattered in code, centralized here) ──
@@ -437,7 +390,6 @@ TERM_HANDLER_TIMEOUT: Final[float] = 15.0
 # Timeout for long terminal handler operations (s)
 TERM_HANDLER_LONG_TIMEOUT: Final[float] = 30.0
 # Timeout for API gateway request queueing (s)
-API_GATEWAY_QUEUE_TIMEOUT: Final[float] = 30.0
 # Timeout for joining an R4Agent worker (s)
 R4_AGENT_JOIN_TIMEOUT: Final[float] = 5.0
 # Timeout for subagent task runs (s)

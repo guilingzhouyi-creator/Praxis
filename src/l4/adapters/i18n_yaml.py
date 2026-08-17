@@ -20,7 +20,7 @@ from typing import Any
 
 import l1.kernel.params.api as _api_params
 from l1.kernel.params.api import I18N_FALLBACK_TO_KEY
-from l1.kernel.ports import I18nPort
+from l4.ports import I18nPort
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import time
 
-from l1.kernel.params.system import (
+from l4.params import (
     DIFF_LINE_SCORE_ADDED_WEIGHT,
     DIFF_LINE_SCORE_MAX_PER_HUNK,
     DIFF_LINE_SCORE_REMOVED_WEIGHT,

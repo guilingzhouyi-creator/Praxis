@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from l1.kernel.params.agent import LOOP_MAX_ATTEMPTS
-from l1.kernel.params.api import API_GATEWAY_HOST, API_GATEWAY_PORT
 from l1.kernel.params.system import (
     CI_DEFAULT_TIMEOUT,
     FAULT_CHECK_INTERVAL,
@@ -24,6 +23,7 @@ from l1.kernel.params.system import (
 )
 from l1.kernel.params.tool import TOOL_SEARCH_TIMEOUT
 from l3._base import BaseService
+from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
 logger = logging.getLogger(__name__)
 

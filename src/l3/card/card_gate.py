@@ -22,23 +22,23 @@ from enum import Enum, auto
 
 from l1.kernel import EVENT_TASK_ASSIGN, emit_signal
 from l1.kernel.discovery import get_config as _get_config
-from l1.kernel.params.agent import (
-    CARD_GATE_APPROVAL_TIMEOUT,
-    CARD_GATE_ARCH_KEYWORDS,
-    CARD_GATE_CONVENTION_TIMEOUT,
-    CARD_GATE_HISTORY_LIMIT,
-    SIGNAL_TARGET_L3,
-)
+from l1.kernel.params.agent import SIGNAL_TARGET_L3
 from l1.kernel.params.kernel import WitnessStatus
 from l1.kernel.params.system import LOG_TRUNC_200
 from l1.kernel.paths import get_paths as _gp
 from l3._persistable import PersistableMixin
 from l3.card.card_unified import CardLifecycle
+from l3.params import (
+    CARD_GATE_APPROVAL_TIMEOUT,
+    CARD_GATE_ARCH_KEYWORDS,
+    CARD_GATE_CONVENTION_TIMEOUT,
+    CARD_GATE_HISTORY_LIMIT,
+)
 
 logger = logging.getLogger(__name__)
 
 # Resolve auto-save interval from config with params fallback
-from l1.kernel.params.system import CARD_GATE_AUTO_SAVE as _PARAMS_AUTO_SAVE  # noqa: E402
+from l3.params import CARD_GATE_AUTO_SAVE as _PARAMS_AUTO_SAVE  # noqa: E402
 
 _GATE_AUTO_SAVE: float = _PARAMS_AUTO_SAVE
 _cfg = _get_config("persistence")

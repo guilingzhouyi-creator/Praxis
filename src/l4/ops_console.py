@@ -34,8 +34,8 @@ from l1.kernel.params.system import (
     OPS_CONSOLE_INTERVAL,
     OPS_CONSOLE_POOL_WARN_RATIO,
     OPS_MAX_ALERTS,
-    SCOUT_POOL_MAX_TOTAL,
 )
+from l3.params import SCOUT_POOL_MAX_TOTAL
 
 logger = logging.getLogger(__name__)
 

@@ -125,6 +125,25 @@ class VFS:
                 return mp, rel, real
         return None, "", ""
 
+    def resolve_mount(self, path: str) -> dict | None:
+        """Resolve *path* against the mount table for external adapters (WS5.5).
+
+        Returns mount metadata (``mount``, ``rel``, ``real_path``, ``min_ring``,
+        ``read_only``) when the path is under a mount point, else None so
+        callers can fall back to direct access for unmounted paths.
+        """
+        mp, rel, real = self._resolve(path)
+        if mp is None:
+            return None
+        return {
+            "mount": mp.name,
+            "rel": rel,
+            "root": mp.real_path,
+            "real_path": real,
+            "min_ring": mp.min_ring,
+            "read_only": mp.read_only,
+        }
+
     def read(self, path: str, agent_ring: int = VFS_DEFAULT_MIN_RING) -> dict:
         """Read a file through VFS. Checks mount permissions."""
         # Kernel virtual filesystems — dynamic content

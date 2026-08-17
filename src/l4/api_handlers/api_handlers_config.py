@@ -72,11 +72,13 @@ _EXCLUDED = {
 
 
 def _find_param(key: str) -> Any:
-    """Look up a constant across the params package and all its sub-modules.
+    """Look up a constant across the params namespace and all its modules.
 
-    ``params/__init__.py`` intentionally does not re-export sub-module
-    constants (see its docstring), so package-level getattr alone misses
-    most keys.
+    WS5.4: business constants moved out of the kernel params package into
+    ``l3.params`` (agent/card-gate/review/scout) and ``l4.params``
+    (API/eval/diff/security-gate); the kernel ``params/__init__.py``
+    intentionally does not re-export sub-module constants, so package-level
+    getattr alone misses most keys — scan every params namespace module.
     """
     import importlib
     import pkgutil
@@ -91,11 +93,16 @@ def _find_param(key: str) -> Any:
         value = getattr(module, key, None)
         if value is not None:
             return value
+    for ns in ("l3.params", "l4.params"):
+        module = importlib.import_module(ns)
+        value = getattr(module, key, None)
+        if value is not None:
+            return value
     return None
 
 
 def _all_param_keys() -> list[str]:
-    """Collect all public uppercase constants from params and its sub-modules."""
+    """Collect all public uppercase constants from the params namespace."""
     import importlib
     import pkgutil
 
@@ -104,6 +111,9 @@ def _all_param_keys() -> list[str]:
     names: set[str] = set(dir(params))
     for mod in pkgutil.iter_modules(params.__path__):
         module = importlib.import_module(f"{params.__name__}.{mod.name}")
+        names.update(n for n in dir(module) if n.isupper())
+    for ns in ("l3.params", "l4.params"):
+        module = importlib.import_module(ns)
         names.update(n for n in dir(module) if n.isupper())
     return [name for name in names if name.isupper() and not name.startswith("_") and name not in _EXCLUDED]
 

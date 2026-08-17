@@ -16,14 +16,14 @@ import logging
 import time
 from typing import Any
 
-from l1.kernel.params.api import (
+from l4.api.api_middleware import Request
+from l4.params import (
     API_CORS_ALLOW_HEADERS,
     API_CORS_ALLOW_METHODS,
     API_CORS_ORIGIN,
     API_GATEWAY_QUEUE_TIMEOUT,
     API_MAX_BODY_BYTES,
 )
-from l4.api.api_middleware import Request
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from l1.kernel.params.api import EVAL_AMDAHL_TOTAL_WORK_ITEMS
+from l4.params import EVAL_AMDAHL_TOTAL_WORK_ITEMS
 from tests.benchmarks import bench_scale
 
 

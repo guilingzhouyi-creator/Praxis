@@ -14,7 +14,6 @@ from typing import Any
 
 from l1.kernel import Signal, SignalType, get_rwlock, get_semaphore
 from l1.kernel.discovery import get_config
-from l1.kernel.params.agent import SCOUT_AGENT_NAME, SCOUT_RING_LIMIT
 from l1.kernel.params.kernel import RING_1 as _RING_1
 from l1.kernel.params.kernel import RING_2_5
 from l1.kernel.params.system import LOG_TRUNC_200
@@ -23,6 +22,7 @@ from l2.i18n import t as _l2_t
 from l3.card.approval_gate import get_gate as _get_approval_gate
 from l3.error_bus import error_boundary
 from l3.error_bus.core import trace_scope
+from l3.params import SCOUT_AGENT_NAME, SCOUT_RING_LIMIT
 from l3.services.approval_policy import get_policy as _get_approval_policy
 
 from .tool_spec import ToolSpec as _ToolSpec

@@ -24,18 +24,18 @@ import logging
 import zlib
 from typing import Any
 
-from l1.kernel.diff_frame import (
+from l4.sandbox.diff_frame import (
     FLAG_HUNKS as _FLAG_HUNKS,
 )
-from l1.kernel.diff_frame import (
+from l4.sandbox.diff_frame import (
     FLAG_SEMANTIC as _FLAG_SEMANTIC,
 )
-from l1.kernel.diff_frame import (
+from l4.sandbox.diff_frame import (
     FRAME_REVIEW,
     build_frame_header,
     parse_frame_header,
 )
-from l1.kernel.diff_frame import (
+from l4.sandbox.diff_frame import (
     HEADER_SIZE as _HEADER_SIZE,
 )
 

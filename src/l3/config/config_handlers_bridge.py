@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 def cfg_api(cfg: dict, s: Any, results: dict) -> None:
     """Apply api section: start the API gateway and load external routes."""
-    from l1.kernel.params.api import API_GATEWAY_HOST, API_GATEWAY_PORT
     from l4.api.api_gateway import start_api
+    from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
     host = cfg.get("host", API_GATEWAY_HOST)
     port = int(cfg.get("port", API_GATEWAY_PORT))

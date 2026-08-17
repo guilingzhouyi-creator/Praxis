@@ -133,7 +133,7 @@ def list_providers() -> list[str]:
 
 # LLMConfig defined in l1.kernel.ports — single source of truth.
 # Re-exported here for L4 internal callers that still import via llm_base.
-from l1.kernel.ports import LLMConfig  # noqa: E402, F401 — re-exported mid-file
+from l4.ports import LLMConfig  # noqa: E402, F401 — re-exported mid-file
 
 
 @dataclass

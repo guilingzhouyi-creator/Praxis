@@ -24,7 +24,8 @@ import time
 from typing import Any
 
 from l1.kernel.discovery import get_service_limit
-from l1.kernel.params.api import API_MIDDLEWARE_TIMEOUT, I18N_DEFAULT_LOCALE
+from l1.kernel.params.api import I18N_DEFAULT_LOCALE
+from l4.params import API_MIDDLEWARE_TIMEOUT
 
 logger = logging.getLogger(__name__)
 

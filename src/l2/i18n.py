@@ -22,8 +22,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from l1.kernel.ports import I18nPort, get_port, register_port
+from l1.kernel.ports import get_port, register_port
 from l4.adapters.i18n_yaml import YamlI18nAdapter
+from l4.ports import I18nPort  # WS5.1: domain port moved out of kernel
 
 logger = logging.getLogger(__name__)
 

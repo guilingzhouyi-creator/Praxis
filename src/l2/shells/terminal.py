@@ -19,13 +19,13 @@ from l1.kernel.params.system import (
     LOG_TRUNC_50,
     LOG_TRUNC_100,
     LOG_TRUNC_200,
-    SCOUT_FINDINGS_DISPLAY_LIMIT,
     SHELL_AUTOCOMPLETE_DISPLAY_LIMIT,
     TERMINAL_OUTPUT_MAX_LINES,
     TOOL_RESULT_DISPLAY_LIMIT,
 )
 from l1.kernel.ports import get_process_port
 from l2.i18n import t
+from l3.params import SCOUT_FINDINGS_DISPLAY_LIMIT
 
 from ..shell_completer import TerminalCompleter, get_aliases, get_command_help, get_command_names
 from .base import Shell

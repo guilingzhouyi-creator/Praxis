@@ -20,8 +20,6 @@ import yaml
 
 from l1.kernel.params.agent import CENTRAL_DEFAULT_ROLES
 from l1.kernel.params.api import (
-    API_GATEWAY_HOST,
-    API_GATEWAY_PORT,
     DEFAULT_MODEL_ANTHROPIC_HAIKU,
     DEFAULT_MODEL_ANTHROPIC_SONNET,
     DEFAULT_MODEL_DEEPSEEK_CHAT,
@@ -32,6 +30,7 @@ from l1.kernel.params.api import (
     DEFAULT_MODEL_OPENAI_MINI,
     LLM_PROVIDER_URLS,
 )
+from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +69,9 @@ def default_config() -> dict:
         logger.debug("bootstrap: template read failed (%s), using params defaults", e)
 
     from l1.kernel.params.agent import CARD_TIMEOUT, TERMINAL_MAX_WORKERS
-    from l1.kernel.params.api import API_GATEWAY_HOST, API_GATEWAY_PORT
     from l1.kernel.params.kernel import ALLOCATOR_DEFAULTS, SWAPPER_DEFAULT_INTERVAL
-    from l1.kernel.params.system import (
-        SCOUT_CACHE_TTL,
-        SCOUT_POOL_MAX,
-        SCOUT_POOL_MAX_PER_AGENT,
-    )
+    from l3.params import SCOUT_CACHE_TTL, SCOUT_POOL_MAX, SCOUT_POOL_MAX_PER_AGENT
+    from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
     return {
         "cell": {

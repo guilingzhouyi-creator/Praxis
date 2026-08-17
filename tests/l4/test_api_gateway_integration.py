@@ -19,7 +19,7 @@ class TestAPIGatewayInit:
         assert hasattr(gw, "_routes")
 
     def test_default_host_port(self):
-        from l1.kernel.params.api import API_GATEWAY_HOST, API_GATEWAY_PORT
+        from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
         assert API_GATEWAY_HOST == "127.0.0.1"
         assert API_GATEWAY_PORT == 8080
@@ -69,8 +69,8 @@ class TestMiddlewareIntegration:
         assert chain is not None
 
     def test_cors_middleware(self):
-        from l1.kernel.params.api import API_CORS_ORIGIN
         from l4.api.api_middleware import CORSMiddleware
+        from l4.params import API_CORS_ORIGIN
 
         mw = CORSMiddleware()
         assert mw is not None

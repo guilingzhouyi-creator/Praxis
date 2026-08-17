@@ -21,8 +21,8 @@ import os
 import re
 from typing import Any
 
-from l1.kernel.ports import LLMConfig
 from l2.i18n import t as _t
+from l4.ports import LLMConfig  # WS5.1: domain port moved out of kernel
 
 logger = logging.getLogger(__name__)
 

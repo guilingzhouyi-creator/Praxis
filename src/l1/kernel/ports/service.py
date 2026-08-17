@@ -1,102 +1,18 @@
-"""Service port abstractions — LLM, auth, filesystem, WebSocket, RPC, i18n, etc."""
+"""Service port abstractions — auth, WebSocket, RPC, filesystem, input activity.
+
+Domain ports (I18n / CardRegistry / MonitorBus / CandidateLedger / LLM) moved
+to l3.ports / l4.ports (WS5.1) so the kernel namespace only carries mechanism
+ports; this module keeps the kernel-local service ports.
+"""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
-from l1.kernel.params.agent import LLM_CACHE_RETENTION_THRESHOLD
-from l1.kernel.params.api import (
-    AUTH_TOKEN_TTL_SECONDS,
-    LLM_DEFAULT_CACHE_BREAKPOINTS,
-    LLM_DEFAULT_MAX_TOKENS,
-    LLM_DEFAULT_TEMPERATURE,
-)
-from l1.kernel.ports.types import (
-    CandidateBinding,
-    CandidateCollectionResult,
-    CandidateRecord,
-    CandidateResult,
-    CandidateSnapshot,
-    CandidateState,
-    CandidateStatus,
-    InputActivitySnapshot,
-)
-
-# ── I18nPort ──
-
-
-class I18nPort(ABC):
-    """Internationalization port — key-based translation lookup."""
-
-    @abstractmethod
-    def t(self, key: str, **kwargs: Any) -> str:
-        """Translate *key* in the active locale, formatting with *kwargs*."""
-
-    def t_locale(self, locale: str, key: str, **kwargs: Any) -> str:
-        """Translate *key* in an explicit *locale* without switching the active one."""
-        current = self.get_locale()
-        result: str = key
-        try:
-            self.set_locale(locale)
-            result = self.t(key, **kwargs)
-        finally:
-            self.set_locale(current)
-        return result
-
-    @abstractmethod
-    def set_locale(self, locale: str) -> None:
-        """Switch the active locale."""
-
-    @abstractmethod
-    def get_locale(self) -> str:
-        """Return the active locale code."""
-
-    @abstractmethod
-    def get_available(self) -> list[str]:
-        """Return the list of available locale codes."""
-
-    @abstractmethod
-    def register(self, locale: str, data: dict[str, str | dict]) -> None:
-        """Register translation data for *locale*."""
-
-    @abstractmethod
-    def register_file(self, locale: str, path: str) -> bool:
-        """Load translation data for *locale* from *path*; return success."""
-
-
-# ── CardRegistryPort ──
-
-
-class CardRegistryPort(ABC):
-    """Card type registry — query and install card definitions."""
-
-    @abstractmethod
-    def list_types(self) -> list[dict]:
-        """List registered card type definitions."""
-
-    @abstractmethod
-    def install_def(self, cdef: dict, source: str = "") -> bool:
-        """Install a card type definition; return success."""
-
-
-# ── MonitorBusPort ──
-
-
-class MonitorBusPort(ABC):
-    """Monitoring event bus — structured event emission and query."""
-
-    @abstractmethod
-    def emit(self, type_: str, source: str, severity: str, message: str, data: dict | None = None) -> None:
-        """Emit a structured monitoring event."""
-
-    @abstractmethod
-    def query(
-        self, type_prefix: str = "", severity: str = "", source: str = "", since: float = 0.0, limit: int = 100
-    ) -> list[dict]:
-        """Query recent monitoring events matching the filters."""
+from l1.kernel.params.api import AUTH_TOKEN_TTL_SECONDS
+from l1.kernel.ports.types import InputActivitySnapshot
 
 
 class InputActivityPort(ABC):
@@ -115,98 +31,6 @@ class InputActivityPort(ABC):
         """Return the latest privacy-preserving activity aggregate."""
 
 
-# ── R4 Candidate Ledger Port ──
-
-
-class CandidateLedgerPort(ABC):
-    """R4 evidence-candidate lifecycle with a serialized, Rust-friendly contract."""
-
-    @abstractmethod
-    def submit_records(
-        self,
-        records: list[CandidateRecord],
-        source: str = "refined_memory",
-        binding: CandidateBinding | None = None,
-    ) -> CandidateCollectionResult: ...
-
-    @abstractmethod
-    def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]: ...
-
-    @abstractmethod
-    def get_candidate(self, candidate_id: str) -> CandidateSnapshot | None: ...
-
-    @abstractmethod
-    def status(self) -> CandidateStatus: ...
-
-    @abstractmethod
-    def set_enabled(self, enabled: bool) -> CandidateStatus: ...
-
-    @abstractmethod
-    def validate(self, candidate_id: str) -> CandidateResult: ...
-
-    @abstractmethod
-    def publish(self, candidate_id: str, intent: str, scope: str = "") -> CandidateResult: ...
-
-    @abstractmethod
-    def activate(self, candidate_id: str) -> CandidateResult: ...
-
-    @abstractmethod
-    def retire(self, candidate_id: str) -> CandidateResult: ...
-
-
-# ── LLM Port ──
-
-
-@dataclass
-class LLMConfig:
-    """LLM engine configuration — provider, model, parameters."""
-
-    provider: str = "mock"
-    model: str = ""
-    max_tokens: int = LLM_DEFAULT_MAX_TOKENS
-    temperature: float = LLM_DEFAULT_TEMPERATURE
-    api_key: str = ""
-    api_url: str = ""
-    device_name: str = "llm"
-    cache_breakpoints: int = LLM_DEFAULT_CACHE_BREAKPOINTS
-    cache_retention: float = LLM_CACHE_RETENTION_THRESHOLD
-    tool_search: bool = False
-    use_websocket: bool = False
-    reasoning_effort: str = "none"
-    thinking_budget: int = 0
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, LLMConfig):
-            return False
-        return self.provider == other.provider and self.model == other.model and self.api_url == other.api_url
-
-
-class LLMPort(ABC):
-    """Abstract port for LLM operations — generate, tool_use, context management."""
-
-    @abstractmethod
-    def tool_use(
-        self, prompt: str, tools: list, system: str = "", max_turns: int = 10, user_id: str = "", **model_kwargs: Any
-    ) -> dict:
-        """Run a multi-turn tool-use loop; return the result dict."""
-
-    @abstractmethod
-    def generate(self, prompt: str, system: str = "", user_id: str = "", **model_kwargs: Any) -> dict:
-        """Generate a completion for *prompt*; return the result dict."""
-
-    @abstractmethod
-    def context_window(self, cell_id: str = "", agent_id: str = "") -> dict:
-        """Return context-window usage statistics for a cell/agent."""
-
-    @abstractmethod
-    def optimize_prompt(self, prompt: str, system: str = "") -> tuple[str, str]:
-        """Return an optimized (prompt, system) pair."""
-
-    @abstractmethod
-    def provider_status(self) -> dict:
-        """Return LLM provider status (health, model, latency)."""
-
-
 # ── Auth Port ──
 
 
@@ -215,61 +39,61 @@ class AuthPort(ABC):
 
     @abstractmethod
     def issue_token(self, identity: str, ttl: float = AUTH_TOKEN_TTL_SECONDS) -> dict:
-        """Issue a token for *identity* with the given TTL; return the token dict."""
+        """Issue a token for *identity*; return the token record."""
 
     @abstractmethod
     def verify_token(self, token: str) -> dict:
-        """Verify *token*; return identity/validity details."""
+        """Verify *token*; return the identity or an error."""
 
     @abstractmethod
-    def revoke_token(self, token: str) -> dict:
-        """Revoke *token*; return the revocation result."""
+    def revoke_token(self, token: str) -> bool:
+        """Revoke *token*; return success."""
 
     @abstractmethod
     def refresh_token(self, token: str) -> dict:
-        """Refresh *token*; return the new token dict."""
+        """Refresh *token*; return a new token record."""
 
 
 # ── WebSocket Port ──
 
 
 class WebSocketPort(ABC):
-    """WebSocket — bidirectional client channels for realtime frontend interaction."""
+    """WebSocket — connection upgrade, messaging and broadcast."""
 
     @abstractmethod
-    def upgrade(self, request: Any) -> Any:
-        """Upgrade an HTTP request to a WebSocket connection handle."""
+    def upgrade(self, request: Any) -> dict:
+        """Upgrade an HTTP request to a WebSocket connection."""
 
     @abstractmethod
-    def recv(self, conn: Any) -> dict | None:
-        """Receive the next message dict from *conn*; None when closed."""
+    def recv(self, conn: Any) -> dict:
+        """Receive one message from *conn*."""
 
     @abstractmethod
     def send(self, conn: Any, msg: dict) -> bool:
-        """Send *msg* over *conn*; return success."""
+        """Send one message to *conn*."""
 
     @abstractmethod
     def close(self, conn: Any) -> None:
-        """Close a WebSocket connection."""
+        """Close *conn*."""
 
     @abstractmethod
     def broadcast(self, event: str, data: dict) -> None:
-        """Broadcast *event* with *data* to all connected clients."""
+        """Broadcast an event to all connections."""
 
 
 # ── RPC Server Port ──
 
 
 class RpcServerPort(ABC):
-    """RPC server — remote method invocation for distributed cells/nodes."""
+    """RPC server — method registration, calls and notifications."""
 
     @abstractmethod
     def register_handler(self, method: str, handler: Callable) -> None:
-        """Register a handler for an RPC *method*."""
+        """Register *handler* for *method*."""
 
     @abstractmethod
     def call(self, method: str, params: dict | None = None) -> dict:
-        """Invoke an RPC *method* with *params*; return the result dict."""
+        """Invoke *method* with *params*; return the result dict."""
 
     @abstractmethod
     def notify(self, method: str, params: dict | None = None) -> None:

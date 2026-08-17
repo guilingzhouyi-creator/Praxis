@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from l1.kernel.ports import MonitorBusPort
+from l3.ports import MonitorBusPort
 
 logger = logging.getLogger(__name__)
 

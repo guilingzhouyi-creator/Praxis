@@ -12,12 +12,8 @@ import logging
 import time
 from typing import Any
 
-from l1.kernel.params.system import (
-    DIFF_CHAR_LEVEL_MAX_LINES,
-    DIFF_CONTEXT_LINES,
-    DIFF_PINGPONG_WINDOW_SECONDS,
-    SANDBOX_DEFAULT_TIMEOUT,
-)
+from l1.kernel.params.system import SANDBOX_DEFAULT_TIMEOUT
+from l4.params import DIFF_CHAR_LEVEL_MAX_LINES, DIFF_CONTEXT_LINES, DIFF_PINGPONG_WINDOW_SECONDS
 
 logger = logging.getLogger(__name__)
 
