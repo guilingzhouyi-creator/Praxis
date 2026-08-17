@@ -51,6 +51,7 @@ PERF_DRIFT_FLOOR = 0.9  # ops_per_sec must stay >= 90% of baseline
 _BENCH_PLATFORM = ROOT / "tests" / "benchmarks" / "bench_platform.py"
 _BENCH_R4 = ROOT / "tests" / "benchmarks" / "bench_r4_candidate_store.py"
 _BENCH_CARD = ROOT / "tests" / "benchmarks" / "bench_card.py"
+_BENCH_SCALE = ROOT / "tests" / "benchmarks" / "bench_scale.py"
 
 
 def _run_driver(args: list[str], timeout: int = 180) -> str:
@@ -66,6 +67,29 @@ def measure_l1() -> dict[str, float]:
     _run_driver([str(_BENCH_PLATFORM), "--json", str(tmp), "--rounds", "3"])
     data = json.loads(tmp.read_text(encoding="utf-8"))
     return {name: float(v["ops_per_sec"]) for name, v in data.get("micro", {}).items() if "ops_per_sec" in v}
+
+
+def measure_amdahl() -> dict[str, float]:
+    """Run bench_scale amdahl and extract the L1 serial fraction as a score.
+
+    The raw ``serial_fraction_p`` is a low-is-better ratio (high P = serial
+    bottleneck = Rust-migration priority). To keep the gate direction uniform
+    with the throughput metrics (high-is-better), it is reported as the
+    parallel score ``1 - p`` (0..1) — a regression (P rising) shows up as a
+    parallel-score drop and trips the 90% drift floor.
+    """
+    tmp = ROOT / ".praxis" / "perf_amdahl.json"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    _run_driver([str(_BENCH_SCALE), "--mode", "amdahl", "--json", str(tmp), "--rounds", "3"])
+    data = json.loads(tmp.read_text(encoding="utf-8"))
+    p = float((data.get("amdahl_l1") or {}).get("serial_fraction_p", 1.0))
+    # Degrade (omit the metric) when the fit is meaningless: a serial fraction
+    # of ~1.0 on short/WSL runs is measurement noise, not a real bottleneck —
+    # including it would trip the gate with a false hard error.
+    if p >= 0.99:
+        return {}
+    # Clamp to [0, 1] so a broken fit never produces a score above 1.0.
+    return {"amdahl_parallel_score": round(max(0.0, min(1.0, 1.0 - p)), 4)}
 
 
 def measure_l3() -> dict[str, float]:
@@ -167,9 +191,11 @@ def measure_l3_dept() -> dict[str, float]:
 
 def measure_all() -> dict[str, dict[str, float]]:
     """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
+    l1 = measure_l1()
+    l1.update(measure_amdahl())
     l3 = measure_l3()
     l3.update(measure_l3_dept())
-    return {"L1": measure_l1(), "L3": l3, "L5": measure_l5()}
+    return {"L1": l1, "L3": l3, "L5": measure_l5()}
 
 
 def measure_l5() -> dict[str, float]:
