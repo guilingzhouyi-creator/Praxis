@@ -292,3 +292,31 @@ def restore() -> dict:
 
 
 # ── Backward-compatible accessor ──
+
+
+def reset_persist() -> None:
+    """Close all connections and reset module state (test isolation).
+
+    The event store keeps a write connection plus a read-connection pool
+    against the shared SQLite file; under parallel test workers stale
+    handles can surface spurious lock/I-O errors. Closing them between
+    tests (via conftest ``_RESETS``) gives every test a clean slate.
+    """
+    global _DB, _READ_DBS, _READ_IDX, _DB_PATH, _PENDING
+    with _DB_LOCK:
+        if _DB is not None:
+            try:
+                _DB.close()
+            except Exception:
+                pass
+            _DB = None
+        for conn in _READ_DBS:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        _READ_DBS = []
+        _READ_IDX = 0
+        _DB_PATH = ""
+        _PENDING = 0
+
