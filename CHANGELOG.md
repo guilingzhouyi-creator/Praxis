@@ -8,6 +8,12 @@
 ### 文档
 
 - **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: clarify L2 handler count in architecture docs
+- **Docs (roadmaps)**: define automation rewrite boundaries
+- **Docs (docs)**: refresh stale L2 command counts in docs
+- **Docs (agents)**: correct L2 command sources, add protocol v1
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
@@ -101,6 +107,7 @@
 
 ### 新增
 
+- **Feat (scripts)**: add declarative automation runner
 - **Feat (l2)**: add session protocol reference bridge
 - **Feat (stats)**: baseline security toolchain performance
 - **Feat (security)**: complete attack toolchain integration
@@ -158,6 +165,20 @@
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
 
+### 性能
+
+- **Perf (bench)**: add unified sampling and L2 baseline
+- **Perf (l3)**: indexed dept lookups, cached identity/violation paths
+- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
+- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
+
 ### 修复
 
 - **Fix (api)**: coerce identity definition input to str
@@ -198,19 +219,6 @@
 - **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
 - **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
 - **Fix (test)**: align githooks COAUTH fixture
-
-### 性能
-
-- **Perf (l3)**: indexed dept lookups, cached identity/violation paths
-- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
-- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
-- **Perf (memory)**: interruptible thread shutdown via Event.wait
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ### 变更
 
