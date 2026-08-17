@@ -414,6 +414,7 @@
         "last_seq",
         "query",
         "replay",
+        "reset_persist",
         "restore",
         "save"
       ],
