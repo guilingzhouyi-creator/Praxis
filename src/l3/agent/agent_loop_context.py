@@ -195,6 +195,49 @@ class AgentLoopContextMixin:
             logger.debug("agent_loop: Cell prompt-library injection failed: %s", e)
         return system
 
+    def _inject_test_matrix(self, system: str) -> str:
+        """Append the prebuilt test matrix for the driving card (tester role).
+
+        Phase 3.1: only the testing department's AgentLoop (role ``tester``)
+        consumes the prebuilt matrix. Reads the bounded matrix from the
+        tiered-cache L2 layer (``test_matrix_prebuild.get_matrix``); when
+        prebuild is off, the cache misses, or no card is bound, the injection
+        is skipped (or falls back to a synchronous build) — never raises.
+        """
+        try:
+            if (getattr(self, "_role", "") or "") != "tester":
+                return system
+            _card_id = getattr(self, "_last_card_id", "") or ""
+            if not _card_id:
+                return system
+            from l3.cell.test_matrix_prebuild import get_matrix, prebuild_enabled
+
+            if not prebuild_enabled():
+                return system
+            _cell_id = getattr(self, "_cell_id", "") or ""
+            _domain = str(getattr(self, "_card_domain", "") or "")
+            matrix = get_matrix(
+                _cell_id,
+                _card_id,
+                intent=getattr(self, "task", "") or "",
+                domain=_domain,
+            )
+            if not matrix:
+                return system
+            lines = "\n".join(
+                f"  {r.get('entry', i)}. [{r.get('case', '?')}] {r.get('expect', '')}" for i, r in enumerate(matrix)
+            )
+            block = f"\n\n--- Test Matrix ---\n{lines}\n---"
+            # Explicit budget: keep the injection bounded even if the matrix
+            # grows (per-field truncation + row cap already bound it, this is
+            # the same defense-in-depth style as LOOP_CONTEXT_BUDGET_SKILL).
+            if len(block) > LOOP_CONTEXT_BUDGET_SKILL:
+                block = block[:LOOP_CONTEXT_BUDGET_SKILL]
+            system = (system + "\n\n" + block) if system else block
+        except Exception as e:
+            logger.debug("agent_loop: test-matrix injection failed: %s", e)
+        return system
+
     def _inject_global_prompt_library(self, system: str) -> str:
         """Append the global shared prompt library (Phase 3.2, load+domain driven)."""
         try:
@@ -221,6 +264,7 @@ class AgentLoopContextMixin:
         system = self._inject_identity_card_domain(system)
         system = self._inject_cell_handbook(system)
         system = self._inject_cell_prompt_library(system)
+        system = self._inject_test_matrix(system)
         return self._inject_global_prompt_library(system)
 
     def _wrap_presentation_tools(self) -> tuple[list, list, bool]:

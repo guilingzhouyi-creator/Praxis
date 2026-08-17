@@ -175,3 +175,31 @@ rights). The management system covers:
 The decision-layer JSON files are compact and referenced by tags (session
 id + input-sequence id); successful tool calls are dropped, failed ones
 kept for R5 analysis and skill formation.
+
+## Decision-center semantics (3.4)
+
+`L3ADaemon.decide()` is the decision surface that turns L3A from a session
+bookkeeper into an **intent-interpreting entity** — it interprets a user
+intent via the generic three-identity matcher (`match_identity`), suggests
+the owning department (`suggest_department`), reports whether department
+division is active (`division_active`, switch AND `CELL_DEPARTMENT_MIN`
+threshold), and resolves the model executor for the suggested department
+(`model_role_for`). The final department choice stays config-driven and
+user-settable; `decide()` only advises.
+
+The **L3A-C secretary** (`secretary.py`) is the analysis/reporting
+assistant of the decision center: it records contributions (analysis /
+report / card production) with a capability score, and crossing
+`L3AC_CAPABILITY_THRESHOLD` upgrades it from **assist** (non-egalitarian)
+to **peer** (a real egalitarian entity) by spawning its own background
+session bound to an isolated `l3a-c-<n>` memory scope + identity fragment.
+The upgrade is operator-controllable (`set_enabled` / `set_threshold` /
+`set_mode` — never code-embedded).
+
+The **test-matrix prebuild** (`test_matrix_prebuild.py`, Phase 3.1) is the
+testing department's async precompute: when division is active and the
+`departments.test_matrix_prebuild` switch is on, matrices are built in a
+bounded background pool and cached in the tiered-cache L2 layer; the
+tester-role AgentLoop injects the prebuilt matrix into its system prompt
+(budget-capped), falling back to a synchronous build on cache miss.
+
