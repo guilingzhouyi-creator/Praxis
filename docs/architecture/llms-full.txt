@@ -41,7 +41,7 @@ flowchart TB
         BUS["buses / scheduler / services"]
     end
     subgraph L2["L2 Shell"]
-        SH["49 YAML commands + 3 code / i18n / completer"]
+        SH["51 YAML commands + 15 code / i18n / completer"]
     end
     subgraph L1["L1 Kernel"]
         EVT["EventBus"]
@@ -405,7 +405,7 @@ writers never share a `.tmp` path and unrelated bindings remain intact.
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 49 YAML commands + code-registered `_cmd_*` handlers,
+command engine — 51 YAML commands + 15 code-registered `_cmd_*` handlers,
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model

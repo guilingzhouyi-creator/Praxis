@@ -1,7 +1,7 @@
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 49 YAML commands + code-registered `_cmd_*` handlers,
+command engine — 51 YAML commands + 15 code-registered `_cmd_*` handlers,
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model
