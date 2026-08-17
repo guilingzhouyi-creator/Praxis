@@ -29,6 +29,7 @@ import logging
 import sqlite3
 import threading
 import time
+from contextlib import suppress
 
 from .params.system import (
     PERSIST_BUSY_TIMEOUT_MS,
@@ -305,16 +306,12 @@ def reset_persist() -> None:
     global _DB, _READ_DBS, _READ_IDX, _DB_PATH, _PENDING
     with _DB_LOCK:
         if _DB is not None:
-            try:
+            with suppress(Exception):
                 _DB.close()
-            except Exception:
-                pass
             _DB = None
         for conn in _READ_DBS:
-            try:
+            with suppress(Exception):
                 conn.close()
-            except Exception:
-                pass
         _READ_DBS = []
         _READ_IDX = 0
         _DB_PATH = ""
