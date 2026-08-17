@@ -14,6 +14,7 @@ an unavailable dependency returns an empty/False result.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from l1.kernel.params.agent import CELL_DEPARTMENT_MIN
@@ -50,14 +51,21 @@ def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refine
     Returns:
         Number of edges created (0 when the graph is disabled/unavailable).
     """
+    started = time.perf_counter()
     created = 0
+    candidates_count = 0
+    edge_mode = "off"
+    completed = False
     try:
         from l3.memory.memory_graph import get_graph
 
         g = get_graph()
+        edge_mode = g.edge_mode
         if not g.enabled:
+            completed = True
             return 0
         eligible_records = [rec for rec in records if rec.get("entry_id") and rec.get("content")]
+        candidates_count = len(eligible_records)
         candidates = [
             {
                 "id": str(rec.get("entry_id", "")),
@@ -92,8 +100,16 @@ def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refine
                         "cell_id": str(rec.get("cell_id", "")),
                     }
                 )
+        completed = True
     except Exception as e:
         logger.debug("memory_supply_chain: R5 supply skipped: %s", e)
+    finally:
+        from l3.services.observability import emit_count, emit_duration
+
+        tags = {"edge_mode": edge_mode, "source": created_by, "success": completed}
+        emit_duration("r5.supply.duration_ms", started, tags=tags)
+        emit_count("r5.supply.records", candidates_count, tags=tags)
+        emit_count("r5.supply.edges", created, tags=tags)
     return created
 
 

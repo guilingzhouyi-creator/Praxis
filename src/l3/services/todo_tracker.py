@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import threading
+import time
 
 from l1.kernel.params.system import LOG_TRUNC_40, LOG_TRUNC_60
 from l1.kernel.paths import get_paths as _gp
@@ -72,6 +73,8 @@ class TodoTracker:
             self._continuation_nudge = True
 
     def _persist(self) -> None:
+        started = time.perf_counter()
+        persisted = False
         try:
             data = {
                 "status": self._status,
@@ -84,6 +87,7 @@ class TodoTracker:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             os.replace(tmp, self._state_path)
+            persisted = True
             # Register-backed snapshot: keep the L1 registry section in sync
             # so other executors / the status surface can read the TODO
             # table without touching the state file (layer-safe opaque copy).
@@ -130,6 +134,17 @@ class TodoTracker:
                 logger.debug("todo register snapshot failed: %s", e)
         except Exception as e:
             logger.warning("todo persist: %s", e)
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {
+                "agent": self.executor_id,
+                "card": self.card_id,
+                "status": self._status,
+                "success": persisted,
+            }
+            emit_duration("todo.persist.duration_ms", started, tags=tags)
+            emit_count("todo.persist.tasks", len(self._items), tags={"agent": self.executor_id, "card": self.card_id})
 
     def list_for_agent(self, agent_id: str) -> list[dict]:
         """Return tasks attributable to *agent_id* (empty if no agent scoping).
@@ -509,6 +524,10 @@ class TodoRegister:
 
     def _publish(self) -> None:
         """Publish the current executor/card/skill indexes to the L1 register."""
+        started = time.perf_counter()
+        published = False
+        executor_count = 0
+        task_count = 0
         try:
             from l1.kernel.registry import get_registry
 
@@ -517,6 +536,7 @@ class TodoRegister:
             skills: dict[str, list[str]] = {}
             for key, tracker in self._trackers.items():
                 tasks = [dict(item) for item in tracker._items]
+                task_count += len(tasks)
                 executors[key] = {
                     "executor_id": tracker.executor_id or key,
                     "card_id": tracker.card_id,
@@ -543,8 +563,17 @@ class TodoRegister:
                     "tasks": [],
                 },
             )
+            executor_count = len(executors)
+            published = True
         except Exception:
             logger.debug("todo register: publish skipped", exc_info=True)
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"success": published}
+            emit_duration("todo.index.duration_ms", started, tags=tags)
+            emit_count("todo.index.executors", executor_count, tags=tags)
+            emit_count("todo.index.tasks", task_count, tags=tags)
 
 
 _register: TodoRegister | None = None

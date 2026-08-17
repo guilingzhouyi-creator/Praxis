@@ -17,8 +17,10 @@ Tools:
 
 from __future__ import annotations
 
+import functools
 import logging
 import socket
+import time
 
 from l1.kernel.params.system import (
     SECURITY_MODE_TEST,
@@ -30,6 +32,29 @@ from l1.kernel.params.tool import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _measure_attack(tool_name: str):
+    """Decorate one attack tool with duration and outcome metrics."""
+
+    def decorate(fn):
+        @functools.wraps(fn)
+        def measured(args: dict, agent_id: str) -> dict:
+            started = time.perf_counter()
+            result: dict = {}
+            try:
+                result = fn(args, agent_id)
+                return result
+            finally:
+                from l3.services.observability import emit_count, emit_duration
+
+                tags = {"tool": tool_name, "agent": agent_id, "success": result.get("success", False)}
+                emit_duration("attack_tool.duration_ms", started, tags=tags)
+                emit_count("attack_tool.count", tags=tags)
+
+        return measured
+
+    return decorate
 
 
 def _record_attack_result(tool: str, target: str, domain: str, result: dict) -> dict:
@@ -92,6 +117,7 @@ def _posture_gate(domain: str, target: str) -> dict | None:
     return None
 
 
+@_measure_attack("http_probe")
 def http_probe(args: dict, agent_id: str) -> dict:
     """Probe an HTTP(S) URL with a HEAD/GET request and short timeout."""
     import urllib.request
@@ -116,6 +142,7 @@ def http_probe(args: dict, agent_id: str) -> dict:
         )
 
 
+@_measure_attack("tcp_scan")
 def tcp_scan(args: dict, agent_id: str) -> dict:
     """TCP connect-scan a host across a bounded port list."""
     host = str(args.get("host", "") or "")
@@ -145,6 +172,7 @@ def tcp_scan(args: dict, agent_id: str) -> dict:
     )
 
 
+@_measure_attack("dns_lookup")
 def dns_lookup(args: dict, agent_id: str) -> dict:
     """Resolve a hostname to its A/AAAA records (recon)."""
     host = str(args.get("host", "") or "")
@@ -162,6 +190,7 @@ def dns_lookup(args: dict, agent_id: str) -> dict:
         )
 
 
+@_measure_attack("url_fetch")
 def url_fetch(args: dict, agent_id: str) -> dict:
     """Fetch a URL body with a hard size cap (fetch)."""
     import urllib.request

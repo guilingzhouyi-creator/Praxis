@@ -10,6 +10,7 @@ from __future__ import annotations
 import json as _j
 import logging
 import os
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -73,7 +74,17 @@ class ToolRegistry:
 
     def register(self, spec: ToolSpec, *, source: str = "code") -> bool:
         """Register a tool spec; returns True on success."""
-        return self._registry.register(spec, source=source)
+        started = time.perf_counter()
+        result = False
+        try:
+            result = self._registry.register(spec, source=source)
+            return result
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": getattr(spec, "name", ""), "source": source, "success": result}
+            emit_duration("tool_registry.register.duration_ms", started, tags=tags)
+            emit_count("tool_registry.register.count", tags=tags)
 
     def register_tool_with_deps(self, spec: ToolSpec, deps: list[str], *, source: str = "code") -> bool:
         """Register a tool spec AND its DVG dependency edges in one call.
@@ -92,33 +103,51 @@ class ToolRegistry:
         Returns:
             True when the spec and its DVG edge were registered.
         """
-        ok = self._registry.register(spec, source=source)
-        if ok:
-            try:
-                from l3.tool_system.dvg import get_dvg
+        started = time.perf_counter()
+        result = False
+        try:
+            result = self._registry.register(spec, source=source)
+            if result:
+                try:
+                    from l3.tool_system.dvg import get_dvg
 
-                if not get_dvg().register_tool_deps(spec.name, list(deps)):
+                    if not get_dvg().register_tool_deps(spec.name, list(deps)):
+                        self._registry.unregister(spec.name)
+                        result = False
+                except Exception:
+                    logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
                     self._registry.unregister(spec.name)
-                    return False
-            except Exception:
-                logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
-                self._registry.unregister(spec.name)
-                return False
-        return ok
+                    result = False
+            return result
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": spec.name, "source": source, "success": result}
+            emit_duration("tool_registry.register_with_deps.duration_ms", started, tags=tags)
+            emit_count("tool_registry.register_with_deps.count", tags=tags)
 
     def unregister(self, name: str) -> bool:
         """Remove a tool by name; returns True if it was registered."""
-        removed = self._registry.unregister(name)
-        if removed:
-            try:
-                from l1.kernel.gatechain import get_gatechain
-                from l3.tool_system.dvg import get_dvg
+        started = time.perf_counter()
+        removed = False
+        try:
+            removed = self._registry.unregister(name)
+            if removed:
+                try:
+                    from l1.kernel.gatechain import get_gatechain
+                    from l3.tool_system.dvg import get_dvg
 
-                get_dvg().unregister(name)
-                get_gatechain().unregister_tools([name])
-            except Exception:
-                logger.debug("tool_registry: whitelist/DVG cleanup skipped", exc_info=True)
-        return removed
+                    get_dvg().unregister(name)
+                    get_gatechain().unregister_tools([name])
+                except Exception:
+                    logger.debug("tool_registry: whitelist/DVG cleanup skipped", exc_info=True)
+            return removed
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": name, "success": removed}
+            emit_duration("tool_registry.unregister.duration_ms", started, tags=tags)
+            emit_count("tool_registry.unregister.count", tags=tags)
 
     def get(self, name: str) -> ToolSpec | None:
         """Fetch a tool spec by name, or None if unregistered."""
