@@ -5,6 +5,90 @@
 
 ## [Unreleased]
 
+### 文档
+
+- **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: add L2 shell engine architecture + multifrontend roadmap
+- **Docs**: rust-readiness hardening — plan status, kernel surface boundary
+- **Docs (docs)**: fix deps reference in commits.md
+- **Docs (docs)**: extract AGENTS.md long sections into indexed docs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats and CHANGELOG for fidelity branch
+- **Docs (memory)**: sync architecture docs for fidelity mechanisms
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats after memory perf fix
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh llms-full.txt with completion-judge row
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: add completion-judge spec and register it in doc indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: regenerate CHANGELOG [Unreleased] block
+- **Docs**: align project-structure command count to 51
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: regenerate llms.txt and align command counts after rebase
+- **Docs**: add engineering-debug feature review
+- **Docs**: fix doc pointers and counts; add top-level index
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: define two gate waivers and sync hints
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: add branch accumulation quality gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: mandate main-tree venv for worktree test runs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
 ### 新增
 
 - **Feat (cell)**: async parallel test-matrix prebuild
@@ -96,89 +180,6 @@
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
 - **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 文档
-
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: add L2 shell engine architecture + multifrontend roadmap
-- **Docs**: rust-readiness hardening — plan status, kernel surface boundary
-- **Docs (docs)**: fix deps reference in commits.md
-- **Docs (docs)**: extract AGENTS.md long sections into indexed docs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats and CHANGELOG for fidelity branch
-- **Docs (memory)**: sync architecture docs for fidelity mechanisms
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats after memory perf fix
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh llms-full.txt with completion-judge row
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: add completion-judge spec and register it in doc indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: regenerate CHANGELOG [Unreleased] block
-- **Docs**: align project-structure command count to 51
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: regenerate llms.txt and align command counts after rebase
-- **Docs**: add engineering-debug feature review
-- **Docs**: fix doc pointers and counts; add top-level index
-- **Docs (infra)**: expand 22 short docstrings past the detail floor
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (docs)**: refresh candidate architecture indexes
-- **Docs (memory)**: detail candidate storage seam
-- **Docs (docs)**: refresh generated indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats + changelog after cleanup
-- **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: define two gate waivers and sync hints
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: add branch accumulation quality gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: mandate main-tree venv for worktree test runs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: document direct local push to github mirror
 
 ### 性能
 
