@@ -586,6 +586,10 @@ PERSIST_EXPORT_LIMIT: Final[int] = 500
 PERSIST_COMMIT_BATCH: Final[int] = 32
 # Max interrupt records exported at once
 PERSIST_EXPORT_INTERRUPT_LIMIT: Final[int] = 50
+# SQLite busy timeout (ms) for the write connection — wait for the write lock
+# instead of failing immediately when another process (e.g. parallel test
+# workers) holds it, avoiding spurious "database is locked" errors
+PERSIST_BUSY_TIMEOUT_MS: Final[int] = 5000
 
 # ── Nonce cleanup ──
 NONCE_CLEANUP_AGE: Final[float] = 60.0

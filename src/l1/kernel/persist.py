@@ -31,6 +31,7 @@ import threading
 import time
 
 from .params.system import (
+    PERSIST_BUSY_TIMEOUT_MS,
     PERSIST_COMMIT_BATCH,
     PERSIST_EXPORT_LIMIT,
     PERSIST_QUERY_LIMIT,
@@ -64,6 +65,7 @@ def _get_write_db() -> sqlite3.Connection:
                 _DB = sqlite3.connect(path, check_same_thread=False)
                 _DB.execute("PRAGMA journal_mode=WAL")
                 _DB.execute("PRAGMA synchronous=NORMAL")
+                _DB.execute(f"PRAGMA busy_timeout={PERSIST_BUSY_TIMEOUT_MS}")
                 _DB.execute("""
                     CREATE TABLE IF NOT EXISTS events (
                         "seq"    INTEGER PRIMARY KEY AUTOINCREMENT,
