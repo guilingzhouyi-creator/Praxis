@@ -359,6 +359,14 @@ or future-stage confirmations (review-hardened). Card completion advances the
 same session-scoped stage state, and the guidance frontier then unlocks the
 next skill's first atomic unit.
 
+The TODO side of this bridge is register-backed: every AgentLoop publishes its
+executor/card/session row into the L1 `todo_table` section, while its JSON file
+remains the lossless recovery source. Multiple loops may share an agent
+identity; the register assigns collision-safe executor keys and maintains a
+card → executor and skill → executor indexes, so one Cell's execution bodies
+cannot overwrite one another's TODO state and a verified stage can be traced
+back to its card and executor.
+
 ## 8. Key invariants
 
 1. Round-trip integrity: frontmatter ↔ registry fields stay in sync.

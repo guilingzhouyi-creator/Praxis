@@ -106,6 +106,21 @@ class TestFixity:
         fix = ev.verify_chain(cid)
         assert fix["ok"] is False and fix["bad"] >= 1
 
+    def test_row_identity_tamper_detected(self, tmp_path):
+        """Changing chain identity is covered by the row fixity anchor."""
+        ev = _fresh(tmp_path)
+        cid = ev.begin_chain("attack", source="api")
+        ev.record("g4", "g4", DECISION_BLOCK, "tool-x", "sink", chain_kind="attack")
+        path = ev._path
+        with open(path, encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        rows[-1]["chain_id"] = "ch_tampered"
+        with open(path, "w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        fix = ev.verify_chain(cid)
+        assert fix["ok"] is False and fix["bad"] >= 1
+
     def test_reload_restores_window(self, tmp_path):
         ev = _fresh(tmp_path)
         cid = ev.begin_chain("attack", source="api")
@@ -113,6 +128,31 @@ class TestFixity:
         ev2 = SecurityEvidence(path=ev._path)  # fresh instance, same file
         assert len(ev2.chain_evidence(cid)) == 1
         assert ev2.query_evidence(skill="nuke")  # single stale match
+
+    def test_deleted_or_reordered_row_breaks_predecessor_chain(self, tmp_path):
+        """The predecessor hash catches deletion and reordering, not only edits."""
+        ev = _fresh(tmp_path)
+        cid = ev.begin_chain("attack", source="api")
+        ev.record("g4", "g4", DECISION_BLOCK, "first", "sink", chain_kind="attack")
+        ev.record("g4", "g4", DECISION_WARN, "second", "sink", chain_kind="attack")
+        path = ev._path
+        with open(path, encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        with open(path, "w", encoding="utf-8") as handle:
+            for row in rows[::-1][:-1]:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        assert ev.verify_chain(cid)["ok"] is False
+
+    def test_chain_lifecycle_sidecar_survives_restart(self, tmp_path):
+        """Closed/open lifecycle metadata is restored independently of JSONL tailing."""
+        ev = _fresh(tmp_path)
+        cid = ev.begin_chain("attack", source="restart")
+        ev.record("g4", "g4", DECISION_BLOCK, "target", "sink", chain_kind="attack")
+        ev.close_chain(cid, reason="test close")
+        restored = SecurityEvidence(path=ev._path)
+        row = next(item for item in restored.chains() if item["chain_id"] == cid)
+        assert row["open"] is False
+        assert row["reason"] == "test close"
 
 
 # ── verdict derivation / analysis ──

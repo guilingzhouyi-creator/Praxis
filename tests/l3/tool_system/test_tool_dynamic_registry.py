@@ -64,6 +64,62 @@ def test_register_from_dict_rejects_missing_handler():
     assert "handler not found" in r.get("error", "")
 
 
+def test_dynamic_registration_wires_dvg_and_g1_then_cleans_up():
+    """Dynamic tool lifecycle updates the DVG and G1 whitelist symmetrically."""
+    from l1.kernel.gatechain import get_gatechain
+    from l3.tool_system.dvg import get_dvg, reset_dvg
+    from l3.tool_system.tool_registry import reset_registry
+
+    reset_registry()
+    reset_dvg()
+    try:
+        base = ToolConfig.register_from_dict("dynamic-base", {"handler": "l3.tools._comm.ask_user"})
+        assert base["success"] is True
+        composite = ToolConfig.register_from_dict(
+            "dynamic-composite",
+            {"handler": "l3.tools._comm.ask_user", "depends_on": ["dynamic-base"]},
+        )
+        assert composite["success"] is True
+        assert get_dvg().execution_plan("dynamic-composite") == ["dynamic-base", "dynamic-composite"]
+        assert {"dynamic-base", "dynamic-composite"} <= set(get_gatechain()._known_tools)
+
+        assert get_registry().unregister("dynamic-composite") is True
+        assert "dynamic-composite" not in get_dvg().all_names()
+        assert "dynamic-composite" not in get_gatechain()._known_tools
+        assert get_registry().unregister("dynamic-base") is True
+        assert "dynamic-base" not in get_gatechain()._known_tools
+    finally:
+        reset_registry()
+        reset_dvg()
+
+
+def test_dynamic_registration_rejects_handler_outside_reviewed_namespace():
+    """Dynamic config cannot import arbitrary application handlers."""
+    result = ToolConfig.register_from_dict("outside-tool", {"handler": "os.system"})
+    assert result["success"] is False
+    assert "outside allowed" in result["error"]
+
+
+def test_dynamic_registration_rejects_dependency_cycle_atomically():
+    """A cyclic dynamic dependency cannot leave a registry-only tool behind."""
+    from l3.tool_system.dvg import get_dvg, reset_dvg
+
+    reset_dvg()
+    try:
+        first = ToolConfig.register_from_dict(
+            "cycle-a", {"handler": "l3.tools._comm.ask_user", "depends_on": ["cycle-b"]}
+        )
+        assert first["success"] is True
+        second = ToolConfig.register_from_dict(
+            "cycle-b", {"handler": "l3.tools._comm.ask_user", "depends_on": ["cycle-a"]}
+        )
+        assert second["success"] is False
+        assert get_registry().get("cycle-b") is None
+        assert get_dvg().cycles() == []
+    finally:
+        reset_dvg()
+
+
 def test_api_handlers_roundtrip():
     """POST /api/v2/tools/register + unregister roundtrip via the handlers."""
     from l4.api_handlers.api_handlers_tools import tool_register, tool_unregister

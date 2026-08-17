@@ -14,6 +14,7 @@ an unavailable dependency returns an empty/False result.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from l1.kernel.params.agent import CELL_DEPARTMENT_MIN
@@ -40,7 +41,7 @@ def supply_after_refine(records: list[dict[str, Any]]) -> dict:
     return {"r5_edges": r5, "skills_supplied": skills, "agent_md_active": agent_md_active()}
 
 
-def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refinery") -> int:
+def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refinery", engine: Any = None) -> int:
     """Feed refined records into the R5 graph (semantic edges, non-blocking).
 
     Args:
@@ -50,25 +51,65 @@ def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refine
     Returns:
         Number of edges created (0 when the graph is disabled/unavailable).
     """
+    started = time.perf_counter()
     created = 0
+    candidates_count = 0
+    edge_mode = "off"
+    completed = False
     try:
         from l3.memory.memory_graph import get_graph
 
         g = get_graph()
+        edge_mode = g.edge_mode
         if not g.enabled:
+            completed = True
             return 0
-        for rec in records:
-            if not rec.get("entry_id"):
-                continue
-            g.add_semantic_edge(
-                rec["entry_id"],
-                rec.get("entry_type", "note"),
-                weight=float(rec.get("refinery_score", 0.0) or 1.0),
-                created_by=created_by,
-            )
-            created += 1
+        eligible_records = [rec for rec in records if rec.get("entry_id") and rec.get("content")]
+        candidates_count = len(eligible_records)
+        candidates = [
+            {
+                "id": str(rec.get("entry_id", "")),
+                "entry_type": rec.get("entry_type", "note"),
+                "content": str(rec.get("content", "")),
+            }
+            for rec in eligible_records
+        ]
+        if g.edge_mode == "hybrid" and len(candidates) >= 2:
+            extracted = g.extract_semantic_edges(candidates, engine=engine, created_by=created_by)
+            created = int(extracted.get("added", 0) or 0)
+        elif candidates:
+            # Rule edges remain available in off/rules/paused modes. The
+            # semantic engine is optional; a failed or paused side-channel
+            # must not make the R5 topology disappear.
+            recent: list[dict] = []
+            for rec, candidate in zip(eligible_records, candidates, strict=True):
+                edge_ids = g.remember_hook(
+                    candidate["id"],
+                    str(rec.get("agent_id", "")),
+                    candidate["entry_type"],
+                    str(rec.get("cell_id", "")),
+                    recent,
+                    created_by=created_by,
+                )
+                created += len(edge_ids)
+                recent.append(
+                    {
+                        "id": candidate["id"],
+                        "entry_type": candidate["entry_type"],
+                        "agent_id": str(rec.get("agent_id", "")),
+                        "cell_id": str(rec.get("cell_id", "")),
+                    }
+                )
+        completed = True
     except Exception as e:
         logger.debug("memory_supply_chain: R5 supply skipped: %s", e)
+    finally:
+        from l3.services.observability import emit_count, emit_duration
+
+        tags = {"edge_mode": edge_mode, "source": created_by, "success": completed}
+        emit_duration("r5.supply.duration_ms", started, tags=tags)
+        emit_count("r5.supply.records", candidates_count, tags=tags)
+        emit_count("r5.supply.edges", created, tags=tags)
     return created
 
 

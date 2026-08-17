@@ -557,6 +557,7 @@ EVIDENCE_CHAIN_REPORT_FINDINGS_MAX: Final[int] = 32  # max findings in a chain r
 EVIDENCE_CHAIN_SEARCH_LIMIT: Final[int] = 50  # max hits for evidence search
 EVIDENCE_CHAIN_RELOAD_LINES: Final[int] = 2000  # tail lines re-indexed on init
 EVIDENCE_CHAIN_ID_PREFIX: Final[str] = "ch_"  # chain id prefix
+EVIDENCE_CHAIN_META_SUFFIX: Final[str] = ".chains.json"  # sidecar for chain lifecycle metadata
 EVIDENCE_ID_PREFIX: Final[str] = "ev_"  # evidence id prefix
 # Seconds in one hour (timeout baselines)
 SECONDS_PER_HOUR: Final[int] = 3600

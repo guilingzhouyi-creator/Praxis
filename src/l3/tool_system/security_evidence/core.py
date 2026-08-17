@@ -29,6 +29,7 @@ Chain semantics:
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import logging
@@ -43,6 +44,7 @@ from l1.kernel.params.system import (
     EVIDENCE_CHAIN_ID_PREFIX,
     EVIDENCE_CHAIN_MAX_CHAINS,
     EVIDENCE_CHAIN_MAX_EVIDENCE,
+    EVIDENCE_CHAIN_META_SUFFIX,
     EVIDENCE_CHAIN_RELOAD_LINES,
     EVIDENCE_CHAIN_REPORT_FINDINGS_MAX,
     EVIDENCE_CHAIN_SEARCH_LIMIT,
@@ -82,6 +84,31 @@ from .models import (  # noqa: F401 — re-export
 logger = logging.getLogger(__name__)
 
 
+def _measure_evidence(name: str):
+    """Decorate an evidence operation with a best-effort duration metric."""
+
+    def decorate(fn):
+        @functools.wraps(fn)
+        def measured(self, *args, **kwargs):
+            started = time.perf_counter()
+            result: dict = {}
+            try:
+                result = fn(self, *args, **kwargs)
+                return result
+            finally:
+                from l3.services.observability import emit_count, emit_duration
+
+                success = bool(result.get("ok", result.get("success", False)))
+                tags = {"source": "security_evidence", "success": success}
+                emit_duration(name, started, tags=tags)
+                if not success:
+                    emit_count(f"{name.rsplit('.', 1)[0]}.failures", tags=tags)
+
+        return measured
+
+    return decorate
+
+
 class SecurityEvidence:
     """Evidence-chain collector: record / query / analyze / report.
 
@@ -94,12 +121,14 @@ class SecurityEvidence:
         self._path = path or os.environ.get(
             "PRAXIS_SECURITY_EVIDENCE_PATH", os.path.join(get_paths().data_dir, SECURITY_EVIDENCE_FILE)
         )
+        self._meta_path = self._path + EVIDENCE_CHAIN_META_SUFFIX
         self._lock = threading.RLock()
         self._chains: dict[str, ChainRecord] = {}
         self._chain_order: deque[str] = deque()
         self._window: deque[EvidencePoint] = deque(maxlen=EVIDENCE_CHAIN_MAX_EVIDENCE)
         self._evidence_by_id: dict[str, EvidencePoint] = {}
         self._open_kinds: dict[str, str] = {}  # kind -> chain_id of open chains
+        self._last_hash = ""
         self._load()
 
     # ── orchestration ──
@@ -119,6 +148,7 @@ class SecurityEvidence:
             self._chains[chain_id] = ChainRecord(chain_id=chain_id, kind=kind, source=source)
             self._chain_order.append(chain_id)
             self._open_kinds[kind] = chain_id
+            self._persist_chain_metadata()
             if meta:
                 self.record(
                     phase="chain",
@@ -150,41 +180,59 @@ class SecurityEvidence:
         chain; everything else lands on the ambient chain but stays linked
         through the single append-only file.
         """
+        started = time.perf_counter()
+        chain_id = ""
+        success = False
         snapshot, raw_size = _bounded_raw(raw)
-        fields: dict[str, Any] = {
-            "ts": time.time(),
-            "phase": phase,
-            "gate": gate or phase,
-            "decision": decision,
-            "target": target,
-            "source": source,
-            "tags": dict(tags or {}),
-            "raw": snapshot,
-        }
-        full_hash, prefix = _hash_row(fields)
-        with self._lock:
-            chain_id = self._ensure_chain(chain_kind or "", source)
-            ev = EvidencePoint(
-                evidence_id=f"{EVIDENCE_ID_PREFIX}{uuid.uuid4().hex[:HASH_TRUNC_MEDIUM]}",
-                chain_id=chain_id,
-                ts=fields["ts"],
-                phase=fields["phase"],
-                gate=fields["gate"],
-                decision=fields["decision"],
-                target=fields["target"],
-                source=fields["source"],
-                tags=fields["tags"],
-                raw=snapshot,
-                raw_size=raw_size,
-                raw_hash=full_hash,
-                hash_prefix=prefix,
-            )
-            self._append(ev)
-            if ev.evidence_id not in self._evidence_by_id:
-                self._evidence_by_id[ev.evidence_id] = ev
-                self._window.append(ev)
-            self._chains[chain_id].evidence_ids.append(ev.evidence_id)
-            return chain_id
+        try:
+            with self._lock:
+                chain_id = self._ensure_chain(chain_kind or "", source)
+                evidence_id = f"{EVIDENCE_ID_PREFIX}{uuid.uuid4().hex[:HASH_TRUNC_MEDIUM]}"
+                fields: dict[str, Any] = {
+                    "evidence_id": evidence_id,
+                    "chain_id": chain_id,
+                    "ts": time.time(),
+                    "phase": phase,
+                    "gate": gate or phase,
+                    "decision": decision,
+                    "target": target,
+                    "source": source,
+                    "tags": dict(tags or {}),
+                    "raw": snapshot,
+                    "raw_size": raw_size,
+                    "prev_hash": self._last_hash,
+                }
+                full_hash, prefix = _hash_row(fields)
+                ev = EvidencePoint(
+                    evidence_id=evidence_id,
+                    chain_id=chain_id,
+                    ts=fields["ts"],
+                    phase=fields["phase"],
+                    gate=fields["gate"],
+                    decision=fields["decision"],
+                    target=target,
+                    source=source,
+                    tags=fields["tags"],
+                    raw=snapshot,
+                    raw_size=raw_size,
+                    raw_hash=full_hash,
+                    hash_prefix=prefix,
+                    prev_hash=self._last_hash,
+                )
+                self._append(ev)
+                self._last_hash = full_hash
+                if ev.evidence_id not in self._evidence_by_id:
+                    self._evidence_by_id[ev.evidence_id] = ev
+                    self._window.append(ev)
+                self._chains[chain_id].evidence_ids.append(ev.evidence_id)
+                success = True
+                return chain_id
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags_for_metric = {"source": source, "phase": phase, "success": success}
+            emit_duration("security_evidence.record.duration_ms", started, tags=tags_for_metric)
+            emit_count("security_evidence.record.count", tags=tags_for_metric)
 
     def record_from_metric(self, name: str, value: float, tags: dict | None = None) -> str:
         """Translate a security.* metric into evidence (L1 sink choke point)."""
@@ -214,37 +262,69 @@ class SecurityEvidence:
                 if self._open_kinds.get(chain.kind) == chain_id:
                     self._open_kinds.pop(chain.kind, None)
             snapshot = chain.to_dict()
+        self._persist_chain_metadata()
         # B6: evidence→R5 linkage — record the closed chain as an evidence
         # edge in the memory graph (non-blocking, never raises).
         try:
-            from l3.memory.memory_graph import MemoryGraph
+            from l3.memory.memory_graph import get_graph
 
-            _mg = MemoryGraph()
-            if _mg._enabled and chain_id:
+            _mg = get_graph()
+            target_id = snapshot.get("source") or ""
+            if _mg.enabled and chain_id and target_id and target_id != chain_id:
                 _mg.add_evidence_edge(
                     from_id=chain_id,
-                    to_id=snapshot.get("source") or chain_id,
-                    weight=float(len(snapshot.get("points", [])) or 1),
+                    to_id=target_id,
+                    weight=float(snapshot.get("evidence", 0) or 1),
                     created_by="security_evidence",
                 )
         except Exception:
             pass
         return {"success": True, **snapshot}
 
+    def _link_chain_to_r5(self, chain_id: str) -> None:
+        """Link a closed evidence chain to its source in the shared R5 graph."""
+        try:
+            from l3.memory.memory_graph import get_graph
+
+            with self._lock:
+                chain = self._chains.get(chain_id)
+                if chain is None or not chain.source or chain.source == chain_id:
+                    return
+                count = len(chain.evidence_ids) or 1
+                source = chain.source
+            graph = get_graph()
+            if graph.enabled:
+                graph.add_evidence_edge(
+                    from_id=chain_id,
+                    to_id=source,
+                    weight=float(count),
+                    created_by="security_evidence",
+                )
+        except Exception:
+            logger.debug("security_evidence: R5 linkage skipped", exc_info=True)
+
     def close_open(self, kind: str = "") -> dict:
         """Close all open chains (optionally filtered by kind) — e.g. a
         control-restoring switch (productive / governed) ends an attack chain."""
         closed: list[str] = []
         with self._lock:
+            chain_ids: list[str] = []
             for chain_id in list(self._open_kinds.values()):
                 chain = self._chains.get(chain_id)
                 if chain and (not kind or chain.kind == kind):
-                    chain.closed = time.time()
-                    closed.append(chain.chain_id)
+                    chain_ids.append(chain.chain_id)
+            for chain_id in chain_ids:
+                chain = self._chains[chain_id]
+                chain.closed = time.time()
+                chain.reason = "control restored"
+                closed.append(chain_id)
             if kind:
                 self._open_kinds.pop(kind, None)
             else:
                 self._open_kinds.clear()
+        self._persist_chain_metadata()
+        for chain_id in closed:
+            self._link_chain_to_r5(chain_id)
         return {"success": True, "closed": closed}
 
     # ── queries ──
@@ -489,14 +569,17 @@ class SecurityEvidence:
             "markdown": "\n".join(lines),
         }
 
+    @_measure_evidence("security_evidence.verify.duration_ms")
     def verify_chain(self, chain_id: str = "") -> dict:
-        """Recompute fixity hashes of the chain's on-disk rows (tamper check)."""
+        """Verify row hashes and the append-only predecessor links."""
         chain = self._find_chain(chain_id)
         if chain is None:
             return {"checked": 0, "ok": True, "bad": 0}
         ids = set(chain.evidence_ids)
         checked = 0
         bad = 0
+        persisted_ids: set[str] = set()
+        previous_hash = ""
         try:
             if not os.path.exists(self._path):
                 return {"checked": 0, "ok": True, "bad": 0}
@@ -509,11 +592,32 @@ class SecurityEvidence:
                         data = json.loads(line)
                     except Exception:
                         continue
-                    if data.get("evidence_id") not in ids:
+                    evidence_id = data.get("evidence_id", "")
+                    if not evidence_id:
                         continue
-                    checked += 1
-                    payload = json.dumps(
-                        {
+                    has_chain_link = "prev_hash" in data
+                    fields = {
+                        "evidence_id": evidence_id,
+                        "chain_id": data.get("chain_id", ""),
+                        "ts": data.get("ts"),
+                        "phase": data.get("phase"),
+                        "gate": data.get("gate"),
+                        "decision": data.get("decision"),
+                        "target": data.get("target"),
+                        "source": data.get("source"),
+                        "tags": data.get("tags") or {},
+                        "raw": data.get("raw") or {},
+                        "raw_size": data.get("raw_size", 0),
+                    }
+                    if has_chain_link:
+                        if data.get("prev_hash", "") != previous_hash:
+                            bad += 1
+                        fields["prev_hash"] = data.get("prev_hash", "")
+                        expected, prefix = _hash_row(fields)
+                        if expected != data.get("raw_hash") or prefix != data.get("hash_prefix"):
+                            bad += 1
+                    else:
+                        legacy_fields = {
                             "ts": data.get("ts"),
                             "phase": data.get("phase"),
                             "gate": data.get("gate"),
@@ -522,13 +626,19 @@ class SecurityEvidence:
                             "source": data.get("source"),
                             "tags": data.get("tags") or {},
                             "raw": data.get("raw") or {},
-                        },
-                        sort_keys=True,
-                        ensure_ascii=False,
-                        default=str,
-                    ).encode("utf-8")
-                    if hashlib.sha256(payload).hexdigest() != data.get("raw_hash"):
-                        bad += 1
+                        }
+                        payload = json.dumps(legacy_fields, sort_keys=True, ensure_ascii=False, default=str).encode(
+                            "utf-8"
+                        )
+                        expected = hashlib.sha256(payload).hexdigest()
+                        if expected != data.get("raw_hash"):
+                            bad += 1
+                    previous_hash = str(data.get("raw_hash", "") or "")
+                    if evidence_id in ids:
+                        checked += 1
+                        persisted_ids.add(evidence_id)
+            missing = ids - persisted_ids
+            bad += len(missing)
         except Exception as e:
             logger.warning("security_evidence: fixity check failed: %s", e)
             return {"checked": checked, "ok": False, "bad": bad + 1, "error": str(e)}
@@ -546,15 +656,24 @@ class SecurityEvidence:
 
     def _load(self) -> None:
         """Tail-load the persisted JSONL into the hot window (rebuild)."""
+        self._load_chain_metadata()
         if not os.path.exists(self._path):
             return
         try:
             tail: deque[str] = deque(maxlen=EVIDENCE_CHAIN_RELOAD_LINES)
+            last_hash = ""
             with open(self._path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:
                         tail.append(line)
+                        try:
+                            row = json.loads(line)
+                            if row.get("evidence_id"):
+                                last_hash = str(row.get("raw_hash", "") or "")
+                        except Exception:
+                            pass
+            self._last_hash = last_hash
             for line in tail:
                 try:
                     data = json.loads(line)
@@ -573,9 +692,77 @@ class SecurityEvidence:
                         chain = ChainRecord(chain_id=ev.chain_id, kind=DEFAULT_CHAIN_KIND)
                         self._chains[ev.chain_id] = chain
                         self._chain_order.append(ev.chain_id)
-                    chain.evidence_ids.append(ev.evidence_id)
+                    if ev.evidence_id not in chain.evidence_ids:
+                        chain.evidence_ids.append(ev.evidence_id)
+                    if chain.kind not in self._open_kinds and chain.closed == 0:
+                        self._open_kinds[chain.kind] = chain.chain_id
         except Exception as e:
             logger.warning("security_evidence: load failed: %s", e)
+
+    def _load_chain_metadata(self) -> None:
+        """Restore chain lifecycle metadata from the sidecar file."""
+        if not os.path.exists(self._meta_path):
+            return
+        try:
+            with open(self._meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+            for item in data if isinstance(data, list) else []:
+                if not isinstance(item, dict) or not item.get("chain_id"):
+                    continue
+                chain = ChainRecord(
+                    chain_id=str(item["chain_id"]),
+                    kind=str(item.get("kind", DEFAULT_CHAIN_KIND)),
+                    source=str(item.get("source", "")),
+                    opened=float(item.get("opened", 0.0) or 0.0),
+                    closed=float(item.get("closed", 0.0) or 0.0),
+                    reason=str(item.get("reason", "")),
+                    evidence_ids=list(item.get("evidence_ids") or []),
+                )
+                self._chains[chain.chain_id] = chain
+                self._chain_order.append(chain.chain_id)
+                if chain.closed == 0:
+                    self._open_kinds[chain.kind] = chain.chain_id
+        except Exception as e:
+            logger.debug("security_evidence: chain metadata load failed: %s", e)
+
+    def _persist_chain_metadata(self) -> None:
+        """Persist chain kind/source/open/close metadata atomically."""
+        started = time.perf_counter()
+        persisted = False
+        try:
+            rows = []
+            with self._lock:
+                for chain_id in self._chain_order:
+                    chain = self._chains.get(chain_id)
+                    if chain is None:
+                        continue
+                    rows.append(
+                        {
+                            "chain_id": chain.chain_id,
+                            "kind": chain.kind,
+                            "source": chain.source,
+                            "opened": chain.opened,
+                            "closed": chain.closed,
+                            "reason": chain.reason,
+                            "evidence_ids": list(chain.evidence_ids),
+                        }
+                    )
+            parent = os.path.dirname(self._meta_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            tmp = self._meta_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(rows, f, ensure_ascii=False)
+            os.replace(tmp, self._meta_path)
+            persisted = True
+        except Exception as e:
+            logger.debug("security_evidence: chain metadata persist failed: %s", e)
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"source": "security_evidence", "success": persisted}
+            emit_duration("security_evidence.metadata.duration_ms", started, tags=tags)
+            emit_count("security_evidence.metadata.chains", len(self._chains), tags=tags)
 
     def _ensure_chain(self, kind: str, source: str) -> str:
         """Return the chain_id for ``kind``.

@@ -53,6 +53,12 @@ def _init_skills_and_network() -> dict:
         results["card_tool_stats"] = wire_card_tool_stats().get("success", False)
     except Exception as e:
         results["card_tool_stats"] = f"skip: {e}"
+    try:
+        from l3.memory.skill_guidance import wire_card_guidance
+
+        results["card_skill_guidance"] = wire_card_guidance().get("registered", False)
+    except Exception as e:
+        results["card_skill_guidance"] = f"skip: {e}"
     return results
 
 

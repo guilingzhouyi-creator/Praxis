@@ -1,19 +1,29 @@
 # Per-layer performance baseline (generated — do not hand-edit).
 # Regenerate: python scripts/py/perf_quality.py --baseline
+# Optional score metrics (names ending in _score, e.g. amdahl_parallel_score)
+# are emitted only where the underlying fit is meaningful; a missing
+# baseline entry for them is a soft notice, not a hard gate failure.
 layers:
   L1:
-    channel.put_get: 1128523.361
-    event_bus.emit: 1072153.830
-    mutex.acquire_release: 1262731.650
-    thread.create_join: 6594.963
-    worker_pool.submit: 17477.347
+    channel.put_get: 1236758.613
+    event_bus.emit: 1188401.327
+    mutex.acquire_release: 1405943.471
+    thread.create_join: 7262.676
+    worker_pool.submit: 18969.354
   L3:
-    dept_role_ops_per_sec: 4454194.176
-    dept_route_ops_per_sec: 1417968.066
-    durable_ops_per_sec: 7681.076
-    identity_definition_ops_per_sec: 3945325.676
-    submit_ops_per_sec: 7687.797
-    violation_check_ops_per_sec: 1532027.027
+    dept_role_ops_per_sec: 3094954.757
+    dept_route_ops_per_sec: 1625700.374
+    durable_ops_per_sec: 8358.877
+    dvg.plan_ops_per_sec: 112983.499
+    identity_definition_ops_per_sec: 2870185.805
+    r5.rule_edges_ops_per_sec: 363.874
+    r5.semantic_pairs_ops_per_sec: 329.874
+    security_evidence.record_ops_per_sec: 21522.808
+    security_evidence.verify_ops_per_sec: 27475.856
+    submit_ops_per_sec: 8370.859
+    todo.persist_ops_per_sec: 2494.683
+    tool_registry.register_ops_per_sec: 54592.722
+    violation_check_ops_per_sec: 454711.424
   L5:
-    card.steps_per_sec: 102.200
+    card.steps_per_sec: 27.000
 

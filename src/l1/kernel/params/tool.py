@@ -225,6 +225,8 @@ FORMAT_IGNORE_DIRS: Final[frozenset[str]] = frozenset(
 TOOL_REGISTRY_MAX_DYNAMIC: Final[int] = 64
 # Rings allowed for dynamic registration (ToolRing values)
 TOOL_REGISTRY_ALLOWED_RINGS: Final[tuple[str, ...]] = ("ring_1", "ring_2_5", "ring_3")
+# Dynamic handlers must live in the reviewed tool namespace.
+TOOL_REGISTRY_HANDLER_PREFIXES: Final[tuple[str, ...]] = ("l3.tools.",)
 # Category assigned when a dynamic spec omits its domain
 TOOL_REGISTRY_DEFAULT_CATEGORY: Final[str] = "dynamic"
 

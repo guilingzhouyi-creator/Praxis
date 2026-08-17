@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import threading
+import time
 
 from l1.kernel.params.system import LOG_TRUNC_40, LOG_TRUNC_60
 from l1.kernel.paths import get_paths as _gp
@@ -45,11 +46,14 @@ class TodoTracker:
 
     _STATUS_ALIASES = {"add": "pending", "completed": "verified"}
 
-    def __init__(self, state_path: str = ""):
+    def __init__(self, state_path: str = "", executor_id: str = "", card_id: str = "", session_id: str = ""):
         self._state_path = (
             state_path or os.environ.get("PRAXIS_TODO_STATE") or os.path.join(_gp().data_dir, "todo_state.json")
         )
         self._items: list[dict] = []
+        self.executor_id = executor_id
+        self.card_id = card_id
+        self.session_id = session_id
         self._read_cfg()
         self._iteration: int = 0
         self._status: str = "open"
@@ -69,6 +73,8 @@ class TodoTracker:
             self._continuation_nudge = True
 
     def _persist(self) -> None:
+        started = time.perf_counter()
+        persisted = False
         try:
             data = {
                 "status": self._status,
@@ -81,15 +87,44 @@ class TodoTracker:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             os.replace(tmp, self._state_path)
+            persisted = True
             # Register-backed snapshot: keep the L1 registry section in sync
             # so other executors / the status surface can read the TODO
             # table without touching the state file (layer-safe opaque copy).
             try:
                 from l1.kernel.registry import get_registry
 
-                get_registry().set_section(
+                registry = get_registry()
+                current = registry.get_section("todo_table", {})
+                if not isinstance(current, dict):
+                    current = {}
+                executors = dict(current.get("executors") or {})
+                key = self.executor_id or self.session_id or self._state_path
+                executors[key] = {
+                    "executor_id": self.executor_id,
+                    "card_id": self.card_id,
+                    "session_id": self.session_id,
+                    "status": self._status,
+                    "iteration": self._iteration,
+                    "tasks": list(self._items),
+                }
+                cards: dict[str, list[str]] = {}
+                skills: dict[str, list[str]] = {}
+                for executor_key, snapshot in executors.items():
+                    card_key = str(snapshot.get("card_id", "") or "")
+                    if card_key:
+                        cards.setdefault(card_key, []).append(executor_key)
+                    for task in snapshot.get("tasks", []):
+                        skill_key = str(task.get("skill_id", "") or "") if isinstance(task, dict) else ""
+                        if skill_key:
+                            skills.setdefault(skill_key, []).append(executor_key)
+                registry.set_section(
                     "todo_table",
                     {
+                        "version": 2,
+                        "executors": executors,
+                        "cards": cards,
+                        "skills": skills,
                         "status": self._status,
                         "iteration": self._iteration,
                         "tasks": list(self._items),
@@ -99,6 +134,17 @@ class TodoTracker:
                 logger.debug("todo register snapshot failed: %s", e)
         except Exception as e:
             logger.warning("todo persist: %s", e)
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {
+                "agent": self.executor_id,
+                "card": self.card_id,
+                "status": self._status,
+                "success": persisted,
+            }
+            emit_duration("todo.persist.duration_ms", started, tags=tags)
+            emit_count("todo.persist.tasks", len(self._items), tags={"agent": self.executor_id, "card": self.card_id})
 
     def list_for_agent(self, agent_id: str) -> list[dict]:
         """Return tasks attributable to *agent_id* (empty if no agent scoping).
@@ -122,17 +168,26 @@ class TodoTracker:
             self._max_attempts = data.get("max_attempts", 3)
             self._max_iterations = data.get("max_iterations", 50)
             self._items = data.get("tasks", [])
+            for task in self._items:
+                self._normalize_task(task)
         except Exception as e:
             logger.warning("todo restore: %s", e)
+
+    def bind_context(self, *, card_id: str = "", session_id: str = "") -> None:
+        """Bind the tracker to a card/session and publish the register snapshot."""
+        self.card_id = str(card_id or "")
+        self.session_id = str(session_id or card_id or "")
+        for task in self._items:
+            task["executor_id"] = self.executor_id
+            task["card_id"] = self.card_id
+            task["session_id"] = self.session_id
+        self._persist()
 
     def load(self, items: list[dict]) -> None:
         """Replace the task list with normalized copies of the given items."""
         self._items = [dict(item) for item in items]
         for t in self._items:
-            t.setdefault("status", "pending")
-            t.setdefault("attempts", 0)
-            t.setdefault("evidence", [])
-            t.setdefault("checks", [])
+            self._normalize_task(t)
         self._persist()
 
     def update(self, content: str, status: str) -> str:
@@ -144,6 +199,7 @@ class TodoTracker:
         if task is None:
             if status != "pending" and status != "add":
                 return "error: new task must start as 'pending' or 'add'"
+            skill_id, stage_id = self._skill_link(content)
             self._items.append(
                 {
                     "content": content,
@@ -151,6 +207,11 @@ class TodoTracker:
                     "attempts": 0,
                     "evidence": [],
                     "checks": [],
+                    "executor_id": self.executor_id,
+                    "card_id": self.card_id,
+                    "session_id": self.session_id,
+                    "skill_id": skill_id,
+                    "stage_id": stage_id,
                 }
             )
             self._persist()
@@ -339,6 +400,27 @@ class TodoTracker:
                 return t
         return None
 
+    @staticmethod
+    def _skill_link(content: str) -> tuple[str, str]:
+        """Extract the canonical skill/stage foreign keys from a TODO prefix."""
+        if not content.startswith("[skill:") or "]" not in content:
+            return "", ""
+        prefix = content[7 : content.index("]")].split(":")
+        return (prefix[0], prefix[1]) if len(prefix) >= 2 else ("", "")
+
+    def _normalize_task(self, task: dict) -> None:
+        """Fill task defaults and preserve the card/session/skill foreign keys."""
+        task.setdefault("status", "pending")
+        task.setdefault("attempts", 0)
+        task.setdefault("evidence", [])
+        task.setdefault("checks", [])
+        task.setdefault("executor_id", self.executor_id)
+        task.setdefault("card_id", self.card_id)
+        task.setdefault("session_id", self.session_id)
+        skill_id, stage_id = self._skill_link(str(task.get("content", "") or ""))
+        task.setdefault("skill_id", skill_id)
+        task.setdefault("stage_id", stage_id)
+
 
 class TodoRegister:
     """In-memory register of per-executor TodoTrackers (multi-AgentLoop view).
@@ -360,8 +442,33 @@ class TodoRegister:
         with self._lock:
             if agent_id in self._trackers:
                 return False
+            tracker.executor_id = str(agent_id or tracker.executor_id)
+            for task in tracker._items:
+                task["executor_id"] = tracker.executor_id
             self._trackers[agent_id] = tracker
+            self._publish()
             return True
+
+    def register_executor(self, agent_id: str, tracker: TodoTracker) -> str:
+        """Register a tracker under a collision-safe executor key.
+
+        AgentLoop instances can share an agent identity while running separate
+        card executions. The first instance keeps the legacy key; later
+        instances receive ``<agent>#<n>`` so no TODO table overwrites another.
+        """
+        with self._lock:
+            base = str(agent_id or "executor")
+            key = base
+            suffix = 2
+            while key in self._trackers:
+                key = f"{base}#{suffix}"
+                suffix += 1
+            tracker.executor_id = key
+            for task in tracker._items:
+                task["executor_id"] = key
+            self._trackers[key] = tracker
+            self._publish()
+            return key
 
     def get(self, agent_id: str) -> TodoTracker | None:
         """Return the tracker for an executor, or None."""
@@ -371,7 +478,10 @@ class TodoRegister:
     def unregister(self, agent_id: str) -> bool:
         """Drop an executor's tracker."""
         with self._lock:
-            return self._trackers.pop(agent_id, None) is not None
+            removed = self._trackers.pop(agent_id, None) is not None
+            if removed:
+                self._publish()
+            return removed
 
     def snapshot(self, agent_id: str = "") -> dict:
         """Aggregate TODO view: executor → status/iteration/task counts.
@@ -388,13 +498,82 @@ class TodoRegister:
             for aid in ids:
                 tracker = self._trackers.get(aid)
                 if tracker is not None:
-                    out[aid] = tracker.stats()
+                    view = tracker.stats()
+                    view["executor_id"] = tracker.executor_id or aid
+                    view["card_id"] = tracker.card_id
+                    view["session_id"] = tracker.session_id
+                    view["tasks"] = [dict(item) for item in tracker._items]
+                    out[aid] = view
             return out
+
+    def snapshot_for_card(self, card_id: str) -> dict:
+        """Return only executor snapshots bound to ``card_id``."""
+        wanted = str(card_id or "")
+        return {key: value for key, value in self.snapshot().items() if value.get("card_id") == wanted}
 
     def clear(self) -> None:
         """Drop all trackers (tests / Cell teardown)."""
         with self._lock:
             self._trackers.clear()
+            try:
+                from l1.kernel.registry import get_registry
+
+                get_registry().clear_section("todo_table")
+            except Exception:
+                logger.debug("todo register: registry cleanup skipped", exc_info=True)
+
+    def _publish(self) -> None:
+        """Publish the current executor/card/skill indexes to the L1 register."""
+        started = time.perf_counter()
+        published = False
+        executor_count = 0
+        task_count = 0
+        try:
+            from l1.kernel.registry import get_registry
+
+            executors = {}
+            cards: dict[str, list[str]] = {}
+            skills: dict[str, list[str]] = {}
+            for key, tracker in self._trackers.items():
+                tasks = [dict(item) for item in tracker._items]
+                task_count += len(tasks)
+                executors[key] = {
+                    "executor_id": tracker.executor_id or key,
+                    "card_id": tracker.card_id,
+                    "session_id": tracker.session_id,
+                    "status": tracker._status,
+                    "iteration": tracker._iteration,
+                    "tasks": tasks,
+                }
+                if tracker.card_id:
+                    cards.setdefault(tracker.card_id, []).append(key)
+                for task in tasks:
+                    skill_id = str(task.get("skill_id", "") or "")
+                    if skill_id:
+                        skills.setdefault(skill_id, []).append(key)
+            get_registry().set_section(
+                "todo_table",
+                {
+                    "version": 2,
+                    "executors": executors,
+                    "cards": cards,
+                    "skills": skills,
+                    "status": "open",
+                    "iteration": 0,
+                    "tasks": [],
+                },
+            )
+            executor_count = len(executors)
+            published = True
+        except Exception:
+            logger.debug("todo register: publish skipped", exc_info=True)
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"success": published}
+            emit_duration("todo.index.duration_ms", started, tags=tags)
+            emit_count("todo.index.executors", executor_count, tags=tags)
+            emit_count("todo.index.tasks", task_count, tags=tags)
 
 
 _register: TodoRegister | None = None

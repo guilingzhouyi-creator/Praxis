@@ -10,6 +10,7 @@ from __future__ import annotations
 import json as _j
 import logging
 import os
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -50,6 +51,7 @@ class ToolRegistry:
         module-level ``TOOL_REGISTRY`` and ``get_registry()`` pointing at the
         same object — callers that captured the old reference stay consistent.
         """
+        old_names = self._registry.all_names()
         self._registry = MapRegistry(allow_overwrite=False)
         self._plugins = {}
         self._middleware = []
@@ -59,12 +61,30 @@ class ToolRegistry:
         self._muted_rings = set()
         self._mute_path_val = ""
         self._load_mutes()
+        try:
+            from l1.kernel.gatechain import get_gatechain
+            from l3.tool_system.dvg import get_dvg
+
+            get_dvg().clear()
+            get_gatechain().unregister_tools(old_names)
+        except Exception:
+            logger.debug("tool_registry: clear graph/whitelist cleanup skipped", exc_info=True)
 
     # ── Registry protocol ──
 
     def register(self, spec: ToolSpec, *, source: str = "code") -> bool:
         """Register a tool spec; returns True on success."""
-        return self._registry.register(spec, source=source)
+        started = time.perf_counter()
+        result = False
+        try:
+            result = self._registry.register(spec, source=source)
+            return result
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": getattr(spec, "name", ""), "source": source, "success": result}
+            emit_duration("tool_registry.register.duration_ms", started, tags=tags)
+            emit_count("tool_registry.register.count", tags=tags)
 
     def register_tool_with_deps(self, spec: ToolSpec, deps: list[str], *, source: str = "code") -> bool:
         """Register a tool spec AND its DVG dependency edges in one call.
@@ -72,8 +92,8 @@ class ToolRegistry:
         Convenience for the config-driven tool set: a tool that declares
         ``deps`` in ``config/discovery/dvg.yaml`` is registered here with its
         prerequisites, so the tool pipeline's ``can_run`` preflight sees the
-        dependency immediately. A DVG cycle is rejected by the graph (the
-        edge is dropped, spec registration still succeeds) — never fatal.
+        dependency immediately. A DVG cycle rejects the whole registration,
+        keeping the registry and graph atomic.
 
         Args:
             spec: tool spec to register.
@@ -81,21 +101,53 @@ class ToolRegistry:
             source: registration source tag.
 
         Returns:
-            True when the spec was registered (DVG edge success is best-effort).
+            True when the spec and its DVG edge were registered.
         """
-        ok = self._registry.register(spec, source=source)
-        if ok and deps:
-            try:
-                from l3.tool_system.dvg import get_dvg
+        started = time.perf_counter()
+        result = False
+        try:
+            result = self._registry.register(spec, source=source)
+            if result:
+                try:
+                    from l3.tool_system.dvg import get_dvg
 
-                get_dvg().register_tool_deps(spec.name, list(deps))
-            except Exception:
-                logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
-        return ok
+                    if not get_dvg().register_tool_deps(spec.name, list(deps)):
+                        self._registry.unregister(spec.name)
+                        result = False
+                except Exception:
+                    logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
+                    self._registry.unregister(spec.name)
+                    result = False
+            return result
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": spec.name, "source": source, "success": result}
+            emit_duration("tool_registry.register_with_deps.duration_ms", started, tags=tags)
+            emit_count("tool_registry.register_with_deps.count", tags=tags)
 
     def unregister(self, name: str) -> bool:
         """Remove a tool by name; returns True if it was registered."""
-        return self._registry.unregister(name)
+        started = time.perf_counter()
+        removed = False
+        try:
+            removed = self._registry.unregister(name)
+            if removed:
+                try:
+                    from l1.kernel.gatechain import get_gatechain
+                    from l3.tool_system.dvg import get_dvg
+
+                    get_dvg().unregister(name)
+                    get_gatechain().unregister_tools([name])
+                except Exception:
+                    logger.debug("tool_registry: whitelist/DVG cleanup skipped", exc_info=True)
+            return removed
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            tags = {"tool": name, "success": removed}
+            emit_duration("tool_registry.unregister.duration_ms", started, tags=tags)
+            emit_count("tool_registry.unregister.count", tags=tags)
 
     def get(self, name: str) -> ToolSpec | None:
         """Fetch a tool spec by name, or None if unregistered."""
@@ -151,7 +203,7 @@ class ToolRegistry:
         entry = self._plugins.pop(name, None)
         if entry:
             for tname in entry.get("tools", []):
-                self._registry.unregister(tname)
+                self.unregister(tname)
 
     def register_middleware(self, hook_type: str, name: str, fn: Callable[[str, dict, str], dict | None]) -> None:
         """Register a middleware hook of the given type."""

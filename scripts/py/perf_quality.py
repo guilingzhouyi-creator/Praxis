@@ -9,7 +9,8 @@ Layer mapping (benchmark -> layer):
         (mutex.acquire_release / event_bus.emit / channel.put_get /
          worker_pool.submit / thread.create_join)
   - L3: R4 candidate-ledger ingestion from ``bench_r4_candidate_store.py``
-        (submit / durable ops/sec)
+        (submit / durable ops/sec), plus security/toolchain cross-link
+        microbenchmarks from ``bench_security_toolchain.py``
   - L5: end-to-end card throughput from ``bench_card.py`` (steps/sec)
 
 Gate semantics (mirrors layer_quality.py):
@@ -52,6 +53,7 @@ _BENCH_PLATFORM = ROOT / "tests" / "benchmarks" / "bench_platform.py"
 _BENCH_R4 = ROOT / "tests" / "benchmarks" / "bench_r4_candidate_store.py"
 _BENCH_CARD = ROOT / "tests" / "benchmarks" / "bench_card.py"
 _BENCH_SCALE = ROOT / "tests" / "benchmarks" / "bench_scale.py"
+_BENCH_TOOLCHAIN = ROOT / "tests" / "benchmarks" / "bench_security_toolchain.py"
 
 
 def _run_driver(args: list[str], timeout: int = 180) -> str:
@@ -104,6 +106,21 @@ def measure_l3() -> dict[str, float]:
             except ValueError:
                 continue
     return {k: v for k, v in result.items() if k in ("submit_ops_per_sec", "durable_ops_per_sec")}
+
+
+def measure_toolchain() -> dict[str, float]:
+    """Run security/toolchain microbenchmarks and extract ops/sec metrics."""
+    out = _run_driver([str(_BENCH_TOOLCHAIN), "--iterations", "100", "--rounds", "3"])
+    result: dict[str, float] = {}
+    for line in out.splitlines():
+        if ":" not in line or not line.split(":", 1)[0].strip().endswith("ops_per_sec"):
+            continue
+        key, _, value = line.partition(":")
+        try:
+            result[key.strip()] = float(value.strip())
+        except ValueError:
+            continue
+    return result
 
 
 # In-process L3 query benchmarks (Phase perf pass): department / violation /
@@ -209,6 +226,7 @@ def measure_all() -> dict[str, dict[str, float]]:
     l1.update(measure_amdahl())
     l3 = measure_l3()
     l3.update(measure_l3_dept())
+    l3.update(measure_toolchain())
     return {"L1": l1, "L3": l3, "L5": measure_l5()}
 
 

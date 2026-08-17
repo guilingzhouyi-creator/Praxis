@@ -463,6 +463,7 @@ def handle_think(term, card, phases):
             system=system_prompt,
             user_id=human_user or term.agent_id,
             cell_id=term.cell_id,
+            card_id=getattr(card, "card_id", ""),
         )
         # Pass card-level gate_scope for GateChain enforcement
         gate_scope = card.params.get("_gate_scope", "") if hasattr(card, "params") else ""

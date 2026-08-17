@@ -47,8 +47,9 @@ DEFAULT_CHAIN_KIND = "ambient"
 def _hash_row(fields: dict[str, Any]) -> tuple[str, str]:
     """Return (full sha256, truncated prefix) of a canonical evidence row.
 
-    The fixity anchor covers every substantive field (ts, phase, gate,
-    decision, target, source, tags, raw) — a tampered row fails verification.
+    The fixity anchor covers row identity, every substantive field, and
+    ``prev_hash`` — a tampered, deleted, inserted, or reordered row fails
+    verification.
     """
     payload = json.dumps(fields, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
     full = hashlib.sha256(payload).hexdigest()
@@ -108,6 +109,7 @@ class EvidencePoint:
     raw_size: int
     raw_hash: str
     hash_prefix: str
+    prev_hash: str = ""
 
     def to_dict(self) -> dict:
         """Serialize to a plain dict (API / report payload)."""
@@ -125,6 +127,7 @@ class EvidencePoint:
             "raw_size": self.raw_size,
             "raw_hash": self.raw_hash,
             "hash_prefix": self.hash_prefix,
+            "prev_hash": self.prev_hash,
         }
 
 
@@ -155,6 +158,7 @@ def _ev_from_dict(data: dict) -> EvidencePoint | None:
             raw_size=int(data.get("raw_size", 0)),
             raw_hash=data.get("raw_hash", ""),
             hash_prefix=data.get("hash_prefix", ""),
+            prev_hash=data.get("prev_hash", ""),
         )
     except Exception:
         return None

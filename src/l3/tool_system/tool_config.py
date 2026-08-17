@@ -39,6 +39,13 @@ def _resolve_handler(handler_path: str) -> Any:
         return None
 
 
+def _dynamic_handler_allowed(handler_path: str) -> bool:
+    """Return whether a dynamic handler belongs to the reviewed namespace."""
+    from l1.kernel.params.tool import TOOL_REGISTRY_HANDLER_PREFIXES
+
+    return bool(handler_path) and handler_path.startswith(TOOL_REGISTRY_HANDLER_PREFIXES)
+
+
 def _parse_param(p: dict) -> ParamSpec:
     return ParamSpec(
         name=p["name"],
@@ -121,12 +128,12 @@ class ToolConfig:
         """Hot-reload tools.yaml (dev). Clears registry first."""
         from .tool_registry import get_registry as _get_tr
 
-        _get_tr()._registry.clear()
+        _get_tr().clear()
         cls._loaded = False
         return cls.load(yaml_path)
 
     @classmethod
-    def register_from_dict(cls, name: str, defn: dict, ring: str = "ring_1") -> dict:
+    def register_from_dict(cls, name: str, defn: dict, ring: str = "ring_1") -> dict:  # noqa: PLR0911
         """Dynamically register a single tool from a dict spec (YAML/API).
 
         Validates the ring against TOOL_REGISTRY_ALLOWED_RINGS and the
@@ -162,11 +169,30 @@ class ToolConfig:
         ]
         if len(dynamic) >= TOOL_REGISTRY_MAX_DYNAMIC:
             return {"success": False, "error": f"dynamic tool cap reached ({TOOL_REGISTRY_MAX_DYNAMIC})"}
+        handler_path = str(defn.get("handler", "") or "")
+        if not _dynamic_handler_allowed(handler_path):
+            return {
+                "success": False,
+                "error": f"handler not found or outside allowed l3.tools.* namespace: {handler_path}",
+            }
         domain = defn.get("category") or TOOL_REGISTRY_DEFAULT_CATEGORY
         spec = cls._build_spec(name, defn, domain, ring)
         if spec is None:
             return {"success": False, "error": f"handler not found: {defn.get('handler', '')}"}
-        ok = registry.register(spec, source="dynamic")
+        deps = defn.get("deps", defn.get("depends_on", []))
+        if isinstance(deps, str):
+            deps = [deps]
+        if not isinstance(deps, list) or not all(isinstance(dep, str) and dep for dep in deps):
+            return {"success": False, "error": "deps/depends_on must be a list of non-empty strings"}
+        spec.metadata["deps"] = list(deps)
+        ok = registry.register_tool_with_deps(spec, list(deps), source="dynamic")
+        if ok:
+            try:
+                from l1.kernel.gatechain import get_gatechain
+
+                get_gatechain().register_tools([name])
+            except Exception:
+                logger.debug("tool_config: G1 refresh skipped", exc_info=True)
         return {"success": ok, "name": name, "ring": ring}
 
     @classmethod

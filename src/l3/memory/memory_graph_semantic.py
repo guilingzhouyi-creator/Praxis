@@ -7,6 +7,7 @@ auto-degrade to ``paused`` on engine failure. Composed by MemoryGraph.
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +27,36 @@ from .memory_graph_constants import (
 logger = logging.getLogger(__name__)
 
 
+def _measure_semantic_extraction(fn):
+    """Wrap semantic extraction with bounded StatsCenter performance signals."""
+
+    @functools.wraps(fn)
+    def measured(self, entries, *args, **kwargs):
+        import time
+
+        started = time.perf_counter()
+        result: dict = {}
+        try:
+            result = fn(self, entries, *args, **kwargs)
+            return result
+        finally:
+            from l3.services.observability import emit_count, emit_duration
+
+            mode = result.get("mode", getattr(self, "_edge_mode", ""))
+            tags = {
+                "edge_mode": mode,
+                "source": kwargs.get("created_by", "llm"),
+                "success": result.get("success", False),
+            }
+            emit_duration("r5.semantic.duration_ms", started, tags=tags)
+            emit_count("r5.semantic.pairs", int(result.get("pairs", 0) or 0), tags=tags)
+            emit_count("r5.semantic.edges", int(result.get("added", 0) or 0), tags=tags)
+            if not result.get("success", False):
+                emit_count("r5.semantic.failures", 1, tags=tags)
+
+    return measured
+
+
 class SemanticExtractionMixin:
     """Hybrid-mode LLM semantic edge extraction — composed by MemoryGraph."""
 
@@ -36,8 +67,13 @@ class SemanticExtractionMixin:
     add_semantic_edge: Callable[..., Any]
     set_edge_mode: Callable[..., Any]
 
+    @_measure_semantic_extraction
     def extract_semantic_edges(
-        self, entries: list[dict], engine: Any = None, max_pairs: int = _LLM_EXTRACT_MAX_PAIRS
+        self,
+        entries: list[dict],
+        engine: Any = None,
+        max_pairs: int = _LLM_EXTRACT_MAX_PAIRS,
+        created_by: str = "llm",
     ) -> dict:
         """LLM extracts contradicts/depends_on/refines between entry pairs.
 
@@ -50,12 +86,12 @@ class SemanticExtractionMixin:
         Returns: {"success", "added": N, "relations": [...], "mode": ...}
         """
         if self._edge_mode != _EDGE_MODE_HYBRID:
-            return {"success": False, "added": 0, "error": f"edge_mode is {self._edge_mode}, not hybrid"}
+            return {"success": False, "added": 0, "pairs": 0, "error": f"edge_mode is {self._edge_mode}, not hybrid"}
         if not self._enabled or self._conn is None:
-            return {"success": False, "added": 0, "error": "graph disabled"}
+            return {"success": False, "added": 0, "pairs": 0, "error": "graph disabled"}
         candidates = [e for e in entries if e and e.get("id") and e.get("content")]
         if len(candidates) < 2:
-            return {"success": True, "added": 0, "relations": [], "mode": self._edge_mode}
+            return {"success": True, "added": 0, "pairs": 0, "relations": [], "mode": self._edge_mode}
         try:
             engine = engine or self._resolve_llm_engine()
             pairs = self._pick_pairs(candidates, max_pairs)
@@ -78,18 +114,31 @@ class SemanticExtractionMixin:
                     engine_failures += 1
                     continue
                 if rel in _SEMANTIC_RELATIONS:
-                    r = self.add_semantic_edge(a["id"], b["id"], rel, created_by="llm")
+                    r = self.add_semantic_edge(a["id"], b["id"], rel, created_by=created_by)
                     if r.get("success"):
                         added += 1
                         relations.append({"from": a["id"], "to": b["id"], "relation": rel})
             if engine_failures and engine_failures == len(pairs):
                 raise RuntimeError("LLM semantic extraction engine failed")
-            return {"success": True, "added": added, "relations": relations, "mode": self._edge_mode}
+            return {
+                "success": True,
+                "added": added,
+                "pairs": len(pairs),
+                "failures": engine_failures,
+                "relations": relations,
+                "mode": self._edge_mode,
+            }
         except Exception as e:
             # Auto-degrade: LLM failure → paused (manually recoverable)
             logger.warning("memory_graph: LLM semantic extract failed, edge_mode -> paused: %s", e)
             self.set_edge_mode(_EDGE_MODE_PAUSED)
-            return {"success": False, "added": 0, "error": str(e), "mode": self._edge_mode}
+            return {
+                "success": False,
+                "added": 0,
+                "pairs": len(locals().get("pairs", [])),
+                "error": str(e),
+                "mode": self._edge_mode,
+            }
 
     def _resolve_llm_engine(self):
         try:

@@ -18,15 +18,19 @@ def _load_tools() -> dict:
         from l3.tool_system.tool_config import ToolConfig
 
         n = ToolConfig.load()
-        _register_g1_whitelist()
+        dynamic = _load_dynamic_tools()
+        if not dynamic.get("success", False):
+            return {"success": False, "error": dynamic.get("error", "dynamic tool load failed")}
+        if not _register_g1_whitelist():
+            return {"success": False, "error": "G1 whitelist registration failed"}
         _register_capability_executor()
-        return {"success": True, "tools": n}
+        return {"success": True, "tools": n + int(dynamic.get("tools", 0) or 0), "dynamic": dynamic}
     except Exception as e:
         logger.warning("tool_config load failed: %s", e)
         return {"success": False, "error": str(e)}
 
 
-def _register_g1_whitelist() -> None:
+def _register_g1_whitelist() -> bool:
     """Populate the GateChain G1 whitelist from the loaded tool registry.
 
     W2.3: without this, G1 sees an empty whitelist and (now fail-closed)
@@ -37,14 +41,20 @@ def _register_g1_whitelist() -> None:
         from l1.kernel.gatechain import get_gatechain
         from l3.tool_system.tool_registry import TOOL_REGISTRY
 
-        names = list(TOOL_REGISTRY.keys())
+        names = list(TOOL_REGISTRY.all_names()) if hasattr(TOOL_REGISTRY, "all_names") else list(TOOL_REGISTRY.keys())
         if not names:
             logger.warning("boot: G1 whitelist empty — tool registry has no tools")
-            return
-        get_gatechain().register_tools(names)
+            return False
+        gatechain = get_gatechain()
+        if hasattr(gatechain, "replace_tools"):
+            gatechain.replace_tools(names)
+        else:
+            gatechain.register_tools(names)
         logger.info("boot: G1 whitelist populated with %d tools", len(names))
+        return True
     except Exception as e:
         logger.warning("boot: G1 whitelist registration failed: %s", e)
+        return False
 
 
 def _register_capability_executor() -> None:
@@ -104,8 +114,9 @@ def _load_dynamic_tools() -> dict:
     for name, defn in data.items():
         if not isinstance(defn, dict):
             continue
-        ring = defn.pop("ring", "ring_1")
-        r = ToolConfig.register_from_dict(name, defn, ring=ring)
+        definition = dict(defn)
+        ring = definition.pop("ring", "ring_1")
+        r = ToolConfig.register_from_dict(name, definition, ring=ring)
         if r.get("success"):
             loaded += 1
         else:
@@ -152,6 +163,15 @@ def _load_dvg() -> dict:
             rejected.append(str(name))
     if rejected:
         logger.warning("dvg: %d rejected (cycle?) — %s", len(rejected), ", ".join(rejected[:5]))
+    try:
+        from l3.tool_system.tool_registry import get_registry
+
+        for spec in get_registry().list_tools(include_muted=True):
+            deps = spec.metadata.get("deps", []) if getattr(spec, "metadata", None) else []
+            if deps:
+                dvg.register_tool_deps(spec.name, [str(dep) for dep in deps])
+    except Exception as e:
+        logger.debug("dvg: dynamic dependency restore skipped: %s", e)
     logger.info("dvg: loaded %d dependency nodes from %s", loaded, path.name)
     return {"success": True, "tools": loaded, "rejected": rejected}
 

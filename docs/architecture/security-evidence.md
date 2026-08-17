@@ -112,6 +112,13 @@ reload tails the file (`EVIDENCE_CHAIN_RELOAD_LINES`); in-memory index caps
 (`EVIDENCE_CHAIN_MAX_CHAINS` 64, `EVIDENCE_CHAIN_MAX_EVIDENCE` 512) ejects
 the oldest. Deterministic, no LLM involved.
 
+Chain lifecycle metadata (`kind`, `source`, opened/closed timestamps, close
+reason, and ordered evidence ids) is persisted beside the JSONL file in the
+`EVIDENCE_CHAIN_META_SUFFIX` sidecar. This keeps a closed attack chain closed
+after restart even when the hot evidence window is tail-loaded. Fixity is one
+append-only predecessor chain across the file, so deletion, insertion,
+reordering, and field edits all fail `verify_chain`.
+
 ## API surface
 
 | Method | Path | Purpose |
@@ -132,3 +139,6 @@ Callers inside the loop use the module surface instead: `begin_chain`,
   one-way, best-effort.
 - **Bus**: the same `security.*` counters already flow to StatsCenter;
   evidence is a second, append-only consumer (see `l3-bus.md`).
+- **Attack tools**: posture-gated recon/scan/fetch handlers record both the
+  posture decision and the allowed call's structured result. A network failure
+  after authorization is therefore distinguishable from a blocked attempt.

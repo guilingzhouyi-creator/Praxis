@@ -212,7 +212,8 @@ class PipelineStepsMixin:
         try:
             from l3.tool_system.dvg import get_dvg
 
-            if not get_dvg().can_run(tool_name):
+            plan = get_dvg().execution_plan(tool_name)
+            if not plan:
                 return {"success": False, "error": f"tool '{tool_name}' has unregistered prerequisites (DVG)"}
         except Exception as e:
             logger.debug("tool_pipeline: dvg check skipped: %s", e)

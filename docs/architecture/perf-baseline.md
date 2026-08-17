@@ -10,6 +10,7 @@ stored baseline in `config/quality/perf-baseline.yaml`.
 |-------|------------------|---------|
 | L1 | `tests/benchmarks/bench_platform.py --json` | `mutex.acquire_release`, `event_bus.emit`, `channel.put_get`, `worker_pool.submit`, `thread.create_join` (ops/sec) |
 | L3 | `tests/benchmarks/bench_r4_candidate_store.py` | `submit_ops_per_sec`, `durable_ops_per_sec` (candidate-ledger ingestion) |
+| L3 | `tests/benchmarks/bench_security_toolchain.py` | DVG planning/registration, TODO persistence, R5 rule/semantic edges, evidence append/verify (ops/sec) |
 | L5 | `tests/benchmarks/bench_card.py` | `card.steps_per_sec` (end-to-end card throughput) |
 
 ## Gate model
@@ -25,6 +26,29 @@ hand-edited). Regenerate with:
 ```bash
 python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
 ```
+
+## Unified metric contract
+
+Runtime measurements from the security/toolchain cross-links are emitted to
+`StatsCenter` through `src/l3/services/observability.py`. Duration values use
+the `*.duration_ms` suffix; volume values use `*.count`, `*.nodes`,
+`*.records`, `*.edges`, or `*.tasks`; benchmark drivers expose the comparable
+`*_ops_per_sec` values. New points use bounded dimensions only:
+`cell`, `agent`, `card`, `tool`, `mode`, `edge_mode`, `source`, `success`,
+`status`, `phase`, and `relation`. Evidence payloads and target URLs remain
+out of metric tags. Ingestion is best-effort and never changes the protected
+execution path.
+
+The current namespaces are:
+
+- `tool_registry.*` and `dvg.*` for config-driven registration and dependency planning;
+- `todo.*` for JSON persistence and register-backed executor/card/skill indexes;
+- `r5.*` for rule supply and bounded hybrid semantic extraction;
+- `security_evidence.*` for append, sidecar metadata, and fixity verification;
+- `attack_tool.*` for posture-gated tool latency and outcomes.
+
+`perf_quality.py` includes the security/toolchain driver in the L3 gate and
+applies the same 90% drift floor as every existing layer baseline.
 
 ## Usage
 

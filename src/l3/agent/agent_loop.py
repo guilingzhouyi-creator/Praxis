@@ -139,6 +139,7 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         prompt_key: str = "",
         cell_id: str = "",
         todo_path: str = "",
+        card_id: str = "",
     ):
         self.task = task
         self.agent_id = agent_id
@@ -147,18 +148,21 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         self._prompt_key = prompt_key
         self._user_id = user_id or agent_id
         self._cell_id = cell_id
+        self._card_id = card_id
+        self._last_card_id = card_id
         self._tools: list[ToolSpec] = []
         self._loop_detector = ToolLoopDetector(cell_id=cell_id, agent_id=agent_id)
         self._repeat_detector = CoarseRepeatDetector(cell_id=cell_id, agent_id=agent_id)
-        self._todo = TodoTracker(state_path=todo_path)
+        self._todo = TodoTracker(state_path=todo_path, executor_id=agent_id, card_id=card_id, session_id=card_id)
         # Register this executor's tracker in the in-memory TodoRegister so a
         # Cell can see the cross-executor TODO table (multi-AgentLoop view);
         # the JSON state file remains the persistence layer.
         try:
             from l3.services.todo_tracker import get_todo_register
 
-            get_todo_register().register(self.agent_id, self._todo)
+            self._todo_registry_key = get_todo_register().register_executor(self.agent_id, self._todo)
         except Exception:
+            self._todo_registry_key = self.agent_id
             logger.debug("agent_loop: todo register skipped", exc_info=True)
         # Register this instance for per-entity context audit (execution
         # layer, one AgentLoop per agent entity).
@@ -201,6 +205,17 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         """Set the card-derived context tags that bias skill retrieval."""
         if tags:
             self._card_tags = [t for t in tags if isinstance(t, str) and t][:R4_CARD_TAG_MAX]
+
+    def set_card_id(self, card_id: str) -> None:
+        """Bind this executor and its TODO table to the current card."""
+        self._card_id = str(card_id or "")
+        self._last_card_id = self._card_id
+        self._todo.bind_context(card_id=self._card_id, session_id=self._card_id)
+
+    def skill_session_key(self) -> str:
+        """Return the canonical card/session foreign key for skill guidance."""
+        card_id = str(getattr(self, "_card_id", "") or getattr(self, "_last_card_id", "") or "")
+        return f"card:{card_id}" if card_id else self.agent_id
 
     def register_chat_params_hook(self, hook: Callable) -> None:
         """Register a hook that modifies LLM call parameters.

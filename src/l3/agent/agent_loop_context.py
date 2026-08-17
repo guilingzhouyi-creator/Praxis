@@ -459,7 +459,10 @@ class AgentLoopContextMixin:
                         from l1.kernel.skill import get_skill_manager as _gm
 
                         if _gm().guidance_policy().get("mode", "full") == "full" and es.get("stages"):
-                            cur = _gm().current_stage(es["name"], self.agent_id)
+                            session_key = (
+                                self.skill_session_key() if hasattr(self, "skill_session_key") else self.agent_id
+                            )
+                            cur = _gm().current_stage(es["name"], session_key)
                             if cur.get("staged"):
                                 block += f" [unit {es['name']}:{cur['stage'].get('id', '')}]"
                     except Exception:
@@ -520,12 +523,26 @@ class AgentLoopContextMixin:
             if injected:
                 try:
                     from l1.kernel.skill import get_skill_manager
+                    from l3.memory.skill_guidance import materialize_stage_todo
 
                     _sm = get_skill_manager()
                     _now = time.time()
                     for _name in injected:
                         _sm.update(_name, {"last_used": _now})
                         _sm.bump_usage(_name, key="inject_count")
+                        _todo = getattr(self, "_todo", None)
+                        if _todo is not None:
+                            try:
+                                materialize_stage_todo(
+                                    _todo,
+                                    _sm,
+                                    _name,
+                                    session_key=self.skill_session_key()
+                                    if hasattr(self, "skill_session_key")
+                                    else self.agent_id,
+                                )
+                            except Exception:
+                                logger.debug("agent_loop: stage TODO materialize skipped", exc_info=True)
                         # Card→skill signal: injected skills ride the current
                         # card's preference attribution (bounded set).
                         _used = getattr(self, "_card_skills_used", None)
@@ -564,7 +581,13 @@ class AgentLoopContextMixin:
                 try:
                     from l1.kernel.skill import get_skill_manager
 
-                    get_skill_manager().bump_usage_for_tools([content])
+                    sm = get_skill_manager()
+                    if content.startswith("[skill:") and "]" in content:
+                        skill_name = content[7 : content.index("]")].split(":", 1)[0]
+                        if skill_name:
+                            sm.bump_usage(skill_name, key="todo_verified")
+                    else:
+                        sm.bump_usage_for_tools([content])
                 except Exception as e:
                     logger.debug("skill usage bump skipped: %s", e)
             advanced = 0
@@ -574,7 +597,10 @@ class AgentLoopContextMixin:
                     from l3.memory.skill_guidance import advance_on_stage_todo_verified
 
                     advanced = advance_on_stage_todo_verified(
-                        self._todo, get_skill_manager(), content, session_key=agent_id
+                        self._todo,
+                        get_skill_manager(),
+                        content,
+                        session_key=self.skill_session_key() if hasattr(self, "skill_session_key") else agent_id,
                     ).get("advanced", 0)
                 except Exception as e:
                     logger.debug("skill stage advance skipped: %s", e)
