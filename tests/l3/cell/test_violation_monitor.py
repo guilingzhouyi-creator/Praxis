@@ -86,3 +86,26 @@ class TestViolationMonitor:
         with vm._lock:
             assert vm._overreach == {}
             assert vm._state["enabled"] is False
+
+    def test_set_enabled_writes_settings_key(self):
+        # P2#1 fix: set_enabled must land on the settings flat key so all
+        # three channels (API PUT / L2 monitor / settings surface) control
+        # the same switch that enabled() reads.
+        from l1.kernel.settings import get_settings
+        from l3.cell import violation_monitor as vm
+
+        vm.reset_violation_monitor()
+        try:
+            r = vm.set_enabled(True)
+            assert r.get("success") is True
+            assert bool(get_settings().get("departments.violation_monitor", False)) is True
+        finally:
+            vm.set_enabled(False)
+            vm.reset_violation_monitor()
+
+    def test_set_enabled_none_keeps_current(self, monkeypatch):
+        from l3.cell import violation_monitor as vm
+
+        monkeypatch.setattr(vm, "enabled", lambda: False)
+        r = vm.set_enabled(None)
+        assert r.get("enabled") is False

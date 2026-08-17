@@ -70,11 +70,24 @@ def enabled() -> bool:
 
 
 def set_enabled(value: bool | None = None) -> dict:
-    """Set the operator switch (None = keep current)."""
+    """Set the operator switch via the settings flat key (all channels unified).
+
+    API PUT, L2 ``departments monitor``, and the generic settings surface all
+    land on the same ``departments.violation_monitor`` key that ``enabled()``
+    reads — a set always takes effect (division still gates it). ``None``
+    keeps the current setting.
+    """
+    if value is None:
+        return {"success": True, "enabled": enabled()}
+    try:
+        from l1.kernel.settings import get_settings
+
+        get_settings().set("departments.violation_monitor", bool(value))
+    except Exception as e:
+        logger.warning("violation_monitor: switch persist skipped: %s", e)
     with _lock:
-        if value is not None:
-            _state["enabled"] = bool(value)
-        return {"success": True, "enabled": _state["enabled"]}
+        _state["enabled"] = bool(value)
+    return {"success": True, "enabled": enabled()}
 
 
 def status() -> dict:
