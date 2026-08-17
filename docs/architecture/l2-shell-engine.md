@@ -8,8 +8,8 @@ capabilities). This document supersedes the "CLI command collection" reality
 described in `l2-shell.md`; the audit baseline and staged plan live in
 `docs/roadmaps/l2-multifrontend-session-layer.md`.
 
-Current snapshot (2026-08): 36 modules / 4,783 lines; 51 YAML commands + 63
-code-registered `_cmd_*` handlers; 74 allowlisted cross-layer imports (67 → L3,
+Current snapshot (2026-08): 43 modules / 5,860 lines; 51 YAML commands + 63
+`_cmd_*` handler functions (15 code-only); 74 allowlisted cross-layer imports (67 → L3,
 7 → L4). Boundary audit score: 36/100 (see roadmap §1).
 
 ## Responsibility boundary

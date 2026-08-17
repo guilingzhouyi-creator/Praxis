@@ -33,7 +33,7 @@ flowchart TB
         BUS["buses / scheduler / services"]
     end
     subgraph L2["L2 Shell"]
-        SH["49 YAML commands + 3 code / i18n / completer"]
+        SH["51 YAML commands + 63 code / i18n / completer"]
     end
     subgraph L1["L1 Kernel"]
         EVT["EventBus"]
