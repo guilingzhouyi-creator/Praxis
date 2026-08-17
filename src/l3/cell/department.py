@@ -56,7 +56,22 @@ class DepartmentManager:
     def __init__(self) -> None:
         self._departments: dict[str, Department] = {}
         self._lock = threading.RLock()
+        # Lookup indexes (role -> dept_id, dept_type -> dept_id) rebuilt on
+        # load/register so department_for_role / route_content hot paths
+        # avoid an O(N) scan per query.
+        self._role_index: dict[str, str] = {}
+        self._type_index: dict[str, str] = {}
         self._load_defaults()
+
+    def _rebuild_indexes(self) -> None:
+        """Rebuild the role/type lookup indexes from the registry."""
+        with self._lock:
+            self._role_index = {}
+            self._type_index = {}
+            for dept in self._departments.values():
+                for role in dept.roles:
+                    self._role_index.setdefault(role, dept.id)
+                self._type_index.setdefault(dept.dept_type, dept.id)
 
     def _load_defaults(self) -> None:
         """Load departments from config/discovery/departments.yaml.
@@ -114,6 +129,7 @@ class DepartmentManager:
                 dept_type="test",
                 cell_identity="test",
             )
+        self._rebuild_indexes()
 
     # ── Activation ──
 
@@ -151,15 +167,22 @@ class DepartmentManager:
         """Register an additional department (extensible; config/API later)."""
         with self._lock:
             self._departments[dept_id] = Department(dept_id, list(roles), description, auto_enabled)
+        self._rebuild_indexes()
         return {"success": True, "department": dept_id, "roles": list(roles)}
 
     def department_for_role(self, role: str, cell_count: int | None = None) -> str | None:
         """Return the department id owning *role* when division is active."""
         if not self.active(cell_count):
             return None
+        # Indexed lookup first (O(1)); fall back to a scan when the index
+        # misses (roles changed at runtime via a later mutation).
         with self._lock:
+            dept_id = self._role_index.get(role)
+            if dept_id is not None:
+                return dept_id
             for dept in self._departments.values():
                 if dept.auto_enabled and role in dept.roles:
+                    self._role_index.setdefault(role, dept.id)
                     return dept.id
         return None
 
@@ -177,15 +200,23 @@ class DepartmentManager:
             return {"success": True, "routed": False, "department": "", "content_type": content_type}
         with self._lock:
             dept = None
-            for d in self._departments.values():
-                if not d.auto_enabled:
-                    continue
-                # Phase C: permission_scope participates in matching — a
-                # content type listed in a department's scope belongs to it
-                # even when it is not the dept_type nor a role.
-                if content_type == d.dept_type or content_type in d.roles or content_type in d.permission_scope:
-                    dept = d
-                    break
+            # Fast path: exact dept_type match via the type index (O(1)).
+            dept_id = self._type_index.get(content_type)
+            if dept_id is not None:
+                dept = self._departments.get(dept_id)
+            # Fallback: scan for a role/scope match (dept_type not indexed
+            # because it is not any department's type).
+            if dept is None or not dept.auto_enabled:
+                dept = None
+                for d in self._departments.values():
+                    if not d.auto_enabled:
+                        continue
+                    # Phase C: permission_scope participates in matching — a
+                    # content type listed in a department's scope belongs to it
+                    # even when it is not the dept_type nor a role.
+                    if content_type == d.dept_type or content_type in d.roles or content_type in d.permission_scope:
+                        dept = d
+                        break
         if dept is None:
             return {"success": True, "routed": False, "department": "", "content_type": content_type}
         # Phase C permission boundary: a department with an explicit

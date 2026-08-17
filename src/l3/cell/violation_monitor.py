@@ -44,6 +44,10 @@ _CONTENT_MARKERS: dict[str, tuple[str, ...]] = {
 _state: dict[str, Any] = {"enabled": VIOLATION_MONITOR_ENABLED_DEFAULT}
 _lock = threading.RLock()
 _overreach: dict[str, int] = {}  # agent_id -> overreach counter
+# Memoized role -> owning-department lookup (check_output hot path). Cleared
+# on reset; department roles are config/bootstrap-time, so the cache stays
+# valid for the process lifetime.
+_dept_cache: dict[str, str] = {}
 
 
 def enabled() -> bool:
@@ -119,9 +123,12 @@ def check_output(agent_id: str, cell_id: str, role: str, text: str) -> dict:
         from l3.cell.department import get_department_manager
 
         mgr = get_department_manager()
-        # The agent's owning department (by role); unknown role -> allow.
-        owner_id = mgr.department_for_role(role)
+        # The agent's owning department (by role); memoized per role.
+        owner_id = _dept_cache.get(role)
         if owner_id is None:
+            owner_id = mgr.department_for_role(role) or ""
+            _dept_cache[role] = owner_id
+        if not owner_id:
             return {"allowed": True, "monitored": True, "reason": "no department for role"}
         owner = mgr._departments.get(owner_id)
         content_type = _classify(text)
@@ -181,7 +188,8 @@ def _emit_stop(agent_id: str, owner_id: str, content_type: str, count: int) -> N
 
 def reset_violation_monitor() -> None:
     """Reset switch + counters (tests / lifecycle)."""
-    global _overreach
+    global _overreach, _dept_cache
     with _lock:
         _state["enabled"] = VIOLATION_MONITOR_ENABLED_DEFAULT
         _overreach = {}
+        _dept_cache = {}

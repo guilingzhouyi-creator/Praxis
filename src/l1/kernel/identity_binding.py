@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 _EVENT_TYPE = "identity_binding_mutated"
 _state_locks: dict[str, threading.RLock] = {}
 _state_locks_guard = threading.Lock()
+# Memoized built-in generalized definitions per role (see
+# IdentityBindingManager._default_definition) — prompt templates are
+# boot-time constants, so the cache is process-lifetime valid.
+_default_def_cache: dict[str, str] = {}
 
 
 def _default_state_path() -> str:
@@ -418,14 +422,26 @@ class IdentityBindingManager:
 
     @staticmethod
     def _default_definition(role: str) -> str:
-        """Return the built-in generalized definition for a role ("" when absent)."""
+        """Return the built-in generalized definition for a role ("" when absent).
+
+        The prompt-registry lookup is memoized per role — the definition
+        templates are boot-time constants (config/praxis.yaml prompts:),
+        so a cached value stays valid for the process lifetime. This keeps
+        the resolve_definition hot path (AgentLoop system-prompt assembly)
+        from re-hitting the registry on every unbound role query.
+        """
+        cached = _default_def_cache.get(role)
+        if cached is not None:
+            return cached
         try:
             from .prompts import get_prompt
 
-            return get_prompt(f"identity_definition.{role}", "")
+            text = get_prompt(f"identity_definition.{role}", "")
         except Exception as e:
             logger.debug("identity_binding: default definition skipped: %s", e)
-            return ""
+            text = ""
+        _default_def_cache[role] = text
+        return text
 
     def resolve_definition(self, cell_id: str, role: str) -> str:
         """Return the effective definition for (cell_id, role).
