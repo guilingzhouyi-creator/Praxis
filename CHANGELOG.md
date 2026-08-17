@@ -5,45 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
-- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
-- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
-- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
-- **Fix (memory)**: comply with truncation constants and layer-import allowlist
-- **Fix (judge)**: count only full-mode records as COMPLETE in stats
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
 ### 文档
 
+- **Docs (stats)**: refresh doc-stats and changelog for prebuild lifecycle fix
 - **Docs (stats)**: fix README snapshot and changelog drift
 - **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
 - **Docs (stats)**: refresh judge dashboard
@@ -126,6 +90,43 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
+- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
+- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
+- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
+- **Fix (memory)**: comply with truncation constants and layer-import allowlist
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
 
 ### 新增
 
