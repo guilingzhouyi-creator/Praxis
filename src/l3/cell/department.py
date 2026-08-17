@@ -64,11 +64,19 @@ class DepartmentManager:
         self._load_defaults()
 
     def _rebuild_indexes(self) -> None:
-        """Rebuild the role/type lookup indexes from the registry."""
+        """Rebuild the role/type lookup indexes from the registry.
+
+        Only auto-enabled departments are indexed — a disabled department
+        (``auto_enabled: false`` in departments.yaml) must not be resolved by
+        the fast paths, keeping them consistent with the fallback scans that
+        skip disabled departments.
+        """
         with self._lock:
             self._role_index = {}
             self._type_index = {}
             for dept in self._departments.values():
+                if not dept.auto_enabled:
+                    continue
                 for role in dept.roles:
                     self._role_index.setdefault(role, dept.id)
                 self._type_index.setdefault(dept.dept_type, dept.id)

@@ -129,3 +129,19 @@ class TestDepartmentPhaseC:
         dept.executor = ""
         # Built-in fallback when no override.
         assert model_role_for("test") == "build"
+
+    def test_disabled_department_not_indexed(self, monkeypatch):
+        # P2#4 fix: a department with auto_enabled=false must not be resolved
+        # by the role index fast path (consistent with the fallback scan that
+        # skips disabled departments).
+        from l3.cell.department import get_department_manager, reset_department_manager
+
+        reset_department_manager()
+        m = get_department_manager()
+        monkeypatch.setattr(m, "enabled", lambda: True)
+        monkeypatch.setattr(m, "cell_count", lambda: 3)
+        m.register("dept-disabled", ["ghost-role"], "retired")
+        m._departments["dept-disabled"].auto_enabled = False
+        m._rebuild_indexes()
+        assert m.department_for_role("ghost-role") is None
+        assert "ghost-role" not in m._role_index
