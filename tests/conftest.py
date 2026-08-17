@@ -36,6 +36,7 @@ _RESETS = {
     "l3.memory.r4_skill_supply": ("reset_supply_cache", None),
     "l3.memory.skill_memory_feedback": ("reset_feedback", None),
     "l3.services.user_profile": ("reset_service", None),
+    "l3.services.model_service": ("reset_service", None),
     "l3.config.settings_center": ("reset_center", None),
     "l3.tool_system.tool_registry": ("clear_mutes", None),
     "l3.tool_system.auto_test": ("reset_auto_test", None),

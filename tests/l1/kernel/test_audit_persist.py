@@ -13,16 +13,18 @@ def _marker() -> str:
 def test_record_audit_persists_on_flush() -> None:
     """Flushed audit entries must land in the persist journal."""
     from l1.kernel import flush_audit_buffer, record_audit
-    from l1.kernel.persist import count, query
+    from l1.kernel.persist import query
 
     marker = _marker()
-    before = count("audit.syscall")
     record_audit("test.audit", "audit-probe", success=True, detail=marker)
     flush_audit_buffer()
 
-    rows = query("audit.syscall", limit=200)
-    assert len(rows) >= before + 1, "journal did not grow"
-    assert any(r["payload"].get("detail") == marker for r in rows), "marker not persisted"
+    # Filter by marker instead of a fixed-limit scan: the shared event store
+    # accumulates rows across the parallel suite, so a LIMIT-trunced query
+    # could miss the newest entry (and "journal grew" would be satisfied by
+    # any concurrent row). The marker check is exact and concurrency-proof.
+    rows = [r for r in query("audit.syscall", limit=1000) if r["payload"].get("detail") == marker]
+    assert rows, "marker not persisted"
 
 
 def test_audit_persist_payload_shape() -> None:
