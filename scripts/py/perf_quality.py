@@ -154,12 +154,20 @@ def _seed_dept_state() -> None:
 
 def measure_l3_dept() -> dict[str, float]:
     """Measure department/violation/identity query throughput (L3, in-process)."""
+    import os
+
     _seed_dept_state()
     from l1.kernel.identity_binding import get_identity_binding_manager, reset_identity_binding_manager
     from l3.cell import violation_monitor as vm
     from l3.cell.department import get_department_manager, reset_department_manager
 
     mgr = get_department_manager()
+    # P2#3 fix: the bench bind() would persist a spurious cell-1/build binding
+    # into the production state file. Point the manager at a temp state path
+    # (before first instantiation) so the bench never mutates real identity
+    # state; the temp file is removed in cleanup below.
+    tmp_state = ROOT / ".praxis" / "perf_identity_tmp.json"
+    os.environ["PRAXIS_IDENTITY_STATE"] = str(tmp_state)
     reset_identity_binding_manager()
     ibm = get_identity_binding_manager()
     ibm.bind("cell-1", "build", "frag", internal=True)
@@ -182,10 +190,16 @@ def measure_l3_dept() -> dict[str, float]:
             lambda n: [ibm.resolve_definition("cell-1", "build") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
         ),
     }
-    # Clean up the seeded singletons so the rest of the scan is unaffected.
+    # Clean up the seeded singletons + temp state file so the rest of the
+    # scan (and any later praxis run) is unaffected.
     vm.reset_violation_monitor()
     reset_identity_binding_manager()
     reset_department_manager()
+    try:
+        if tmp_state.exists():
+            tmp_state.unlink()
+    except OSError as e:
+        print(f"perf_quality: temp identity state cleanup failed: {e}", file=sys.stderr)
     return result
 
 
@@ -232,6 +246,15 @@ def compare(measured: dict[str, dict[str, float]], baseline: dict[str, Any]) -> 
         for name, ops in sorted(metrics.items()):
             base = bl.get(name)
             if base is None:
+                # Optional score metrics (e.g. amdahl_parallel_score) are only
+                # emitted on hardware where the fit is meaningful; a missing
+                # baseline entry for them is a soft notice, not a hard failure
+                # (the baseline is regenerated where the metric appears).
+                if name.endswith("_score"):
+                    findings.append(
+                        _finding(layer, name, ops, None, "soft", "no baseline entry (optional score metric)")
+                    )
+                    continue
                 findings.append(_finding(layer, name, ops, None, "hard", "no baseline entry"))
                 continue
             if ops <= 0.0:
@@ -274,6 +297,9 @@ def emit_baseline(measured: dict[str, dict[str, float]]) -> str:
     doc = [
         "# Per-layer performance baseline (generated — do not hand-edit).",
         "# Regenerate: python scripts/py/perf_quality.py --baseline",
+        "# Optional score metrics (names ending in _score, e.g. amdahl_parallel_score)",
+        "# are emitted only where the underlying fit is meaningful; a missing",
+        "# baseline entry for them is a soft notice, not a hard gate failure.",
         "layers:",
     ]
     for layer, metrics in sorted(measured.items()):
