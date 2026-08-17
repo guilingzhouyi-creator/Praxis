@@ -173,7 +173,7 @@ class TestL3ASubagentStrategy:
             r2 = pool.commission("investigator", "look", strategy="")
             assert r2["success"] is True
         finally:
-            pool.shutdown(wait=False)
+            pool.shutdown(wait=True)
 
     def test_resolve_model_config_with_strategy(self):
         from l3.cell.peers.l3a.subagent import L3ASubAgentPool
