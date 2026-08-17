@@ -101,16 +101,16 @@ class TestLockChannel:
 
         def waiter():
             msg = LockMessage(op=LockOp.ACQUIRE, lock_name="lk", agent_id="w")
-            r = ch.request(msg)
+            r = ch.request(msg, timeout=0.2)
             results["val"] = r
             ready.set()
 
         t = threading.Thread(target=waiter, daemon=True)
         t.start()
-        ready.wait(timeout=2.0)
+        ready.wait(timeout=0.5)
         # Respond with the right msg_id — need to capture it from send
         ch.respond("lk", {"ok": True})  # wrong approach, let's just test send+respond
-        t.join(1)
+        t.join(0.3)
 
     def test_pending_count(self):
         from l1.kernel.ipc import LockChannel, LockMessage, LockOp

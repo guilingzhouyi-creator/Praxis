@@ -155,11 +155,18 @@ BATCH_1 = [s for s in FULL_ORDER if s != "l3-slow"]
 BATCH_2 = ["l3-slow"]
 
 
-def run_targets(targets: list[str], label: str, parallel: bool = False) -> int:
-    """Run pytest over *targets*; return the process exit code."""
+def run_targets(targets: list[str], label: str, parallel: bool = False, no_xdist: bool = False) -> int:
+    """Run pytest over *targets*; return the process exit code.
+
+    ``no_xdist`` disables the pyproject ``addopts`` (``-n auto --dist
+    loadfile``) by overriding ``-o addopts=`` — xdist startup is very slow
+    under WSL, so local slice runs default to serial there.
+    """
     cmd = [sys.executable, "-m", "pytest"]
     if parallel:
         cmd += ["-n", "auto", "--dist", "loadfile"]
+    if no_xdist:
+        cmd += ["-o", "addopts="]
     cmd += targets + ["-v", "--tb=short", "-q"]
     print(f"\n{'=' * 60}")
     print(f"  Slice: {label} ({len(targets)} target dir(s))")
@@ -170,50 +177,50 @@ def run_targets(targets: list[str], label: str, parallel: bool = False) -> int:
     return r.returncode
 
 
-def run_slice(name: str, parallel: bool = False) -> int:
+def run_slice(name: str, parallel: bool = False, no_xdist: bool = False) -> int:
     """Run one named slice; unknown names print the slice list and return 2."""
     if name not in SLICES:
         print(f"unknown slice: {name!r} — available: {', '.join(SLICES)}", file=sys.stderr)
         return 2
-    return run_targets(SLICES[name], name, parallel=parallel)
+    return run_targets(SLICES[name], name, parallel=parallel, no_xdist=no_xdist)
 
 
-def _run_legacy_batch(sel: str, parallel: bool) -> int:
+def _run_legacy_batch(sel: str, parallel: bool, no_xdist: bool) -> int:
     """Run a legacy batch (1 = all but slow, 2 = slow) sequentially."""
     names = BATCH_1 if sel == "1" else BATCH_2 if sel == "2" else None
     if names is None:
         print("--batch expects 1 or 2", file=sys.stderr)
         return 2
     for name in names:
-        code = run_slice(name, parallel=parallel)
+        code = run_slice(name, parallel=parallel, no_xdist=no_xdist)
         if code != 0:
             return code
     return 0
 
 
-def _run_full(parallel: bool) -> int:
+def _run_full(parallel: bool, no_xdist: bool) -> int:
     """Run every slice in dependency order; stop at the first failure."""
     for name in FULL_ORDER:
-        code = run_slice(name, parallel=parallel)
+        code = run_slice(name, parallel=parallel, no_xdist=no_xdist)
         if code != 0:
             return code
     return 0
 
 
-def _run_slice_arg(argv: list[str], parallel: bool) -> int:
+def _run_slice_arg(argv: list[str], parallel: bool, no_xdist: bool) -> int:
     """Handle ``--slice <name>``; missing name prints usage and returns 2."""
     idx = argv.index("--slice")
     if idx + 1 < len(argv):
-        return run_slice(argv[idx + 1], parallel=parallel)
+        return run_slice(argv[idx + 1], parallel=parallel, no_xdist=no_xdist)
     print("--slice requires a slice name (see --list-slices)", file=sys.stderr)
     return 2
 
 
-def _run_batch_arg(argv: list[str], parallel: bool) -> int:
+def _run_batch_arg(argv: list[str], parallel: bool, no_xdist: bool) -> int:
     """Handle ``--batch <1|2>``; missing selector returns 2."""
     idx = argv.index("--batch")
     if idx + 1 < len(argv):
-        return _run_legacy_batch(argv[idx + 1], parallel)
+        return _run_legacy_batch(argv[idx + 1], parallel, no_xdist)
     return 2
 
 
@@ -227,16 +234,17 @@ def main() -> int:
         return 0
 
     parallel = "--parallel" in argv
+    no_xdist = "--no-xdist" in argv
     if "--slice" in argv:
-        return _run_slice_arg(argv, parallel)
+        return _run_slice_arg(argv, parallel, no_xdist)
     if "--batch" in argv:
-        return _run_batch_arg(argv, parallel)
+        return _run_batch_arg(argv, parallel, no_xdist)
 
     pattern = [a for a in argv if not a.startswith("--")]
     if pattern:
-        return run_targets([pattern[0]], pattern[0], parallel=parallel)
+        return run_targets([pattern[0]], pattern[0], parallel=parallel, no_xdist=no_xdist)
 
-    return _run_full(parallel)
+    return _run_full(parallel, no_xdist)
 
 
 if __name__ == "__main__":
