@@ -17,14 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from l1.kernel.params.api import (
-    API_CORS_ALLOW_HEADERS,
-    API_CORS_ALLOW_METHODS,
-    API_CORS_ORIGIN,
-    API_GATEWAY_HOST,
-    API_GATEWAY_PORT,
-    ENV_API_TOKEN,
-)
+from l1.kernel.params.api import ENV_API_TOKEN
 from l4.api.api_handler import ApiGatewayHandler, _auth_ok  # noqa: F401 — _auth_ok re-exported for tests
 from l4.api.api_middleware import (
     CORSMiddleware,
@@ -32,6 +25,13 @@ from l4.api.api_middleware import (
     MiddlewareChain,
 )
 from l4.api_handlers import ApiHandlers
+from l4.params import (
+    API_CORS_ALLOW_HEADERS,
+    API_CORS_ALLOW_METHODS,
+    API_CORS_ORIGIN,
+    API_GATEWAY_HOST,
+    API_GATEWAY_PORT,
+)
 
 logger = logging.getLogger(__name__)
 

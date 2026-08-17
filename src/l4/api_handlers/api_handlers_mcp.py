@@ -410,21 +410,22 @@ def _visible_tools() -> dict[str, dict]:
 
 
 def _dispatch_tool(name: str, arguments: dict) -> dict:
-    if name in _L3A_TOOLS:
-        if _export_mode == MCP_MODE_NORMAL:
-            return {"success": False, "error": f"tool {name} not exposed in mode {_export_mode}"}
-        try:
+    try:
+        if name in _L3A_TOOLS:
+            if _export_mode == MCP_MODE_NORMAL:
+                return {"success": False, "error": f"tool {name} not exposed in mode {_export_mode}"}
             return _L3A_TOOLS[name]["handler"](arguments or {})
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    if _export_mode in (MCP_MODE_NORMAL, MCP_MODE_FULL):
-        try:
-            from l3.tool_system.tool_spec import execute_tool_spec
+        if _export_mode not in (MCP_MODE_NORMAL, MCP_MODE_FULL):
+            return {"success": False, "error": f"unknown tool: {name}"}
+        from l1.kernel.capability import invoke_capability
 
-            return execute_tool_spec(name, arguments or {}, "")
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    return {"success": False, "error": f"unknown tool: {name}"}
+        pr = invoke_capability("", name, arguments or {}, interactive=True)
+        # Preserve the legacy handler-dict shape for MCP clients.
+        if isinstance(pr, dict) and pr.get("success") and isinstance(pr.get("result"), dict):
+            return pr["result"]
+        return pr
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # ── HTTP handlers (called by ApiGateway route dispatcher) ──

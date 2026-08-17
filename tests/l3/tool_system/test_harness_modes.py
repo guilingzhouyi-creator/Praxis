@@ -250,3 +250,15 @@ class TestControlBar:
         finally:
             reset_harness_mode()
             reset_presentation_mode()
+
+    def test_posture_matrix_failure_rejects(self, monkeypatch):
+        """WS2.2: an unavailable posture matrix must refuse, never continue."""
+        from l3.tool_system import harness as harness_mod
+
+        def _boom():
+            raise RuntimeError("matrix unavailable")
+
+        monkeypatch.setattr("l3.tool_system.posture_matrix.get_posture_matrix", _boom)
+        r = harness_mod.set_harness_mode("minimal", source="test", confirmed=True)
+        assert r.get("success") is False
+        assert "posture boundary check failed" in r.get("error", "")

@@ -140,6 +140,9 @@ class ToolSpec:
     returns: ReturnSpec = field(default_factory=ReturnSpec)
     handler: Callable | None = None
     parallel_safe: bool = False
+    # True once the agent loop wrapped the handler in the tool pipeline;
+    # unwrapped specs are rejected by direct-execution paths (llm_tools).
+    gated: bool = False
     sandbox_profile: str | None = None  # "DANGER_0".."DANGER_4", None = no sandbox
     metadata: dict = field(default_factory=dict)
 
@@ -375,8 +378,13 @@ def _run_handler(spec, current_args: dict, agent_id: str, tool_name: str) -> tup
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def execute_tool_spec(tool_name: str, args: dict, agent_id: str = "") -> dict:
-    """Execute a tool through the registry, with mute and middleware support."""
+def _execute_tool_spec(tool_name: str, args: dict, agent_id: str = "") -> dict:
+    """Execute a tool through the registry, with mute and middleware support.
+
+    PRIVATE: the registry-level executor, reachable ONLY from the tool
+    pipeline (tool_pipeline_steps). Every other caller must go through
+    ``l3.tool_system.invoke.invoke_gated`` (enforced by the static gate test).
+    """
     spec = get_tool(tool_name)
     invalid = _validate_tool(spec, tool_name, args)
     if invalid is not None:

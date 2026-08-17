@@ -30,10 +30,7 @@ TIERED_CACHE_L3_TTL: Final[float] = 3600.0
 # Bypass monitor: changes at or below the small-change threshold are fixed
 # in place by the review department; larger changes are routed back through
 # the Cell-to-Cell channel (rework) and reported to the L3A queue.
-REVIEW_SMALL_CHANGE_MAX_LINES: Final[int] = 50
-REVIEW_PIPELINE_ENABLED_DEFAULT: Final[bool] = True
 # When disabled, review diffs are returned but never auto-fixed nor reworked
-REVIEW_AUTOFIX_ENABLED_DEFAULT: Final[bool] = True
 
 
 # ── Diff persistence (2.1-D5) ───────────────────────────────────────────────
@@ -41,28 +38,17 @@ REVIEW_AUTOFIX_ENABLED_DEFAULT: Final[bool] = True
 # periodically (not per-second), and far-old stitched diffs are compressed
 # to a binary stream and pushed out to R4 rather than deleted. Eviction
 # reports to the L3A bus / user.
-DIFF_PERSIST_RING_CAPACITY: Final[int] = 200
-DIFF_PERSIST_FLUSH_INTERVAL: Final[float] = 5.0  # seconds between periodic writes
-DIFF_PERSIST_ENABLED_DEFAULT: Final[bool] = False  # heavy-frontend only
-DIFF_PERSIST_R4_FONDS: Final[str] = "diff"
-DIFF_PERSIST_R4_SERIES: Final[str] = "stitched"
 # Side-channel durable store: stitched diffs are appended to a JSONL file
 # at a fixed interval (crash-recoverable), then ring eviction compresses
 # the oldest to a binary stream into R4. Never deleted — compressed out.
-DIFF_PERSIST_FILE: Final[str] = "diff_persist.jsonl"
 # Shared Zstd dictionary for L2 review frames (Phase 2). Trained from code
 # samples (see config/discovery/diff_languages.yaml `diff_dictionary:`), kept
 # in data_dir; absent → codec degrades to zlib silently.
-DIFF_DICTIONARY_FILE: Final[str] = "diff_dictionary.bin"
 
 
 # ── Diff line-level record scoring (2.1-D7) ────────────────────────────────
 # Weights for the line-precise relevance record attached to each reviewed
 # diff hunk (feeds RC collection / memory).
-DIFF_LINE_SCORE_ADDED_WEIGHT: Final[float] = 1.0  # added line relevance
-DIFF_LINE_SCORE_REMOVED_WEIGHT: Final[float] = 0.7  # removed line relevance
-DIFF_LINE_SCORE_REVIEWED_WEIGHT: Final[float] = 1.3  # reviewed hunk bonus
-DIFF_LINE_SCORE_MAX_PER_HUNK: Final[float] = 5.0  # cap per hunk
 
 # ── Filesystem service (fs_adapter watch polling) ──
 
@@ -70,19 +56,12 @@ FS_WATCH_INTERVAL: Final[float] = 2.0
 
 # ── Central security verdict gate scores (central_security.py) ──
 
-SECURITY_GATE_SCORE_CONSTITUTION: Final[float] = 0.3
 # Verdict score added when constitution review errors out
-SECURITY_GATE_SCORE_CONSTITUTION_ERROR: Final[float] = 0.5
 # Weight of gatechain check failures in the security verdict
-SECURITY_GATE_SCORE_GATECHAIN: Final[float] = 0.5
 # Weight of authentication failures in the security verdict
-SECURITY_GATE_SCORE_AUTH: Final[float] = 0.5
 # Weight of insufficient ring clearance in the security verdict
-SECURITY_GATE_SCORE_CLEARANCE: Final[float] = 0.1
 # Weight of tool-mode (danger) violations in the security verdict
-SECURITY_GATE_SCORE_TOOL_MODE: Final[float] = 0.8
 # Weight of rate-limit violations in the security verdict
-SECURITY_GATE_SCORE_RATE_LIMIT: Final[float] = 0.4
 
 
 # ── Context register (Cell-level, shared across agent terminals) ──
@@ -92,19 +71,10 @@ CONTEXT_REGISTER_MAX_ENTRIES: Final[int] = 200
 
 # ── Scout pool ──
 
-SCOUT_POOL_MIN_IDLE: Final[int] = 2
 # Cap on scouts spawned across all agents
-SCOUT_POOL_MAX_TOTAL: Final[int] = 16
-SCOUT_POOL_MAX: Final[int] = 16  # alias for SCOUT_POOL_MAX_TOTAL
-SCOUT_POOL_MAX_PER_AGENT: Final[int] = 4
 MAX_SCOUTS_PER_AGENT: Final[int] = 4  # alias for SCOUT_POOL_MAX_PER_AGENT
-SCOUT_POOL_IDLE_TIMEOUT: Final[float] = 60.0
-SCOUT_CACHE_TTL: Final[float] = 30.0
 # Max scout outcomes cached per cell
-SCOUT_CACHE_MAX_ENTRIES: Final[int] = 200
 # Total wait for scout results before giving up
-SCOUT_TIMEOUT: Final[float] = 300.0
-SCOUT_COLLECT_TIMEOUT: Final[float] = 310.0  # async scout collection wait (s)
 TOOL_SCOUT_RUN_TIMEOUT: Final[int] = 180
 TOOL_SCOUT_MAX_STEPS: Final[int] = 10
 
@@ -153,7 +123,6 @@ CARD_QUEUE_PENDING_MAX: Final[int] = 200
 # Cap on cards queued per cell
 CARD_QUEUE_CELL_MAX: Final[int] = 10
 # Seconds between card approval-gate auto-saves
-CARD_GATE_AUTO_SAVE: Final[float] = 10.0
 # Seconds between pending-queue auto-saves
 PENDING_QUEUE_AUTO_SAVE: Final[float] = 5.0
 # Seconds between issue-table auto-saves
@@ -461,7 +430,6 @@ SHELL_HISTORY_MAX_LIMIT: Final[int] = 200
 SHELL_HISTORY_DEFAULT_LIMIT: Final[int] = 20
 SHELL_AUTOCOMPLETE_DISPLAY_LIMIT: Final[int] = 15  # commands shown in help
 TOOL_RESULT_DISPLAY_LIMIT: Final[int] = 5
-SCOUT_FINDINGS_DISPLAY_LIMIT: Final[int] = 5
 # Max lean-case entries shown in /skills output
 SKILL_LEAN_CASES_LIMIT: Final[int] = 20
 SKILL_LIST_DISPLAY_LIMIT: Final[int] = 30  # max skills shown in /skills list
@@ -633,7 +601,6 @@ FAULT_RETRY_INTERVAL: Final[float] = 1.0
 # Backoff sleep between execution retries
 EXEC_BACKOFF_INTERVAL: Final[float] = 1.0
 # Seconds between scout health checks
-SCOUT_MONITOR_INTERVAL: Final[float] = 5.0
 
 # ── Log/display truncation limits ──
 LOG_TRUNC_20: Final[int] = 20
@@ -1037,9 +1004,6 @@ SANDBOX_PROFILE_HOST: Final[str] = "DANGER_4"
 # SANDBOX_TMP_ROOT moved to l1.kernel.paths.get_paths().sandbox_root
 
 # ── Sandbox diff / cross-review tuning ──
-DIFF_CONTEXT_LINES: Final[int] = 3  # context lines before/after a hunk
-DIFF_CHAR_LEVEL_MAX_LINES: Final[int] = 10  # replace hunks <= N lines get char-level diff
-DIFF_PINGPONG_WINDOW_SECONDS: Final[float] = 30.0  # same-agent rapid edit warn window
 SANDBOX_EXEC_TIMEOUT: Final[float] = 300.0
 
 # ── Fault tolerance ──

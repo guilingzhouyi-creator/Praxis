@@ -377,6 +377,10 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
         pipeline = get_pipeline()
         fn = getattr(spec, "handler", None) or spec
         tool_name = getattr(spec, "name", "") or (fn.__name__ if hasattr(fn, "__name__") else "unknown")
+        # Mark the spec as pipeline-wrapped so direct-execution paths
+        # (llm_tools._execute_one_tool) reject any unwrapped spec handler.
+        if hasattr(spec, "gated"):
+            spec.gated = True
         local_registry = {t.name: t for t in self._tools} if self._tools else None
 
         def wrapped(args, agent):
@@ -389,6 +393,15 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                     _used = getattr(self, "_card_skills_used", None)
                     if _sk and _used is not None and len(_used) < R4_CARD_SKILL_SIGNAL_MAX:
                         _used.add(_sk)
+            except Exception:
+                pass
+            # W3.2: cancellation check — a cancelled agent aborts at the
+            # next tool round instead of continuing to burn tokens.
+            try:
+                from l1.kernel.process import get_table as _pt
+
+                if _pt().is_cancelled(self.agent_id):
+                    return {"success": False, "error": "agent cancelled", "cancelled": True}
             except Exception:
                 pass
             # Forward the driving card nature into the tool args so tools

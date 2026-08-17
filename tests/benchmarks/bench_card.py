@@ -11,11 +11,11 @@ from contextlib import suppress
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from l1.kernel.params.agent import TERMINAL_MAX_WORKERS
-from l1.kernel.params.system import SCOUT_POOL_MAX_PER_AGENT, SCOUT_POOL_MAX_TOTAL
 from l3.agent.scout import get_pool
 from l3.agent_terminal import reset_terminals
 from l3.card.models import Card, CardMode, Phase, PhaseMode, Step
 from l3.cell import get_cell, reset_cells
+from l3.params import SCOUT_POOL_MAX_PER_AGENT, SCOUT_POOL_MAX_TOTAL
 
 cell = get_cell("bench", ["/project"])
 cell.add_agent("agent_a", role="http", territory=["/project"], ring=1, max_scouts=4, auto_boot=True)

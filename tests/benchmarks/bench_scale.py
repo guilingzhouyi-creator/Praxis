@@ -44,7 +44,7 @@ from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
-from l1.kernel.params.api import (  # noqa: E402
+from l4.params import (
     EVAL_ALLOC_SHARD_WORKERS,
     EVAL_AMDAHL_AGENTS,
     EVAL_AMDAHL_LATENCY_PERCENTILES,
@@ -1141,7 +1141,7 @@ def run_ipc_rtt(iters: int, rounds: int) -> dict[str, Any]:
 
 def _diff_header_wall(iters: int) -> float:
     """diff_frame build_frame_header + parse_frame_header round trip."""
-    from l1.kernel.diff_frame import build_frame_header, parse_frame_header
+    from l4.sandbox.diff_frame import build_frame_header, parse_frame_header
 
     start = time.perf_counter()
     for _ in range(iters):

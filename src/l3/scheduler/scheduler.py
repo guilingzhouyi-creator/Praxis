@@ -9,12 +9,14 @@ ScopeScheduler: task → step budget + scout quota
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
 from collections.abc import Callable
 
 from l1.kernel.params.system import SCHEDULER_TASK_RETENTION
+from l1.kernel.ports.scheduler import KernelSchedulerPort
 from l2.i18n import t as _t
 
 from .scheduler_rate import get_rate_scheduler
@@ -26,7 +28,7 @@ from .scheduler_types import Task, TaskPriority
 logger = logging.getLogger(__name__)
 
 
-class CentralScheduler:
+class CentralScheduler(KernelSchedulerPort):
     """Unified CentralScheduler — 5-dimension scheduling matrix.
 
     Matrix dimensions:
@@ -199,6 +201,34 @@ class CentralScheduler:
             "scope": self.scope.stats(),
             "time": self.time_scheduler.stats() if hasattr(self.time_scheduler, "stats") else {},
         }
+
+    def preempt(self, task_id: str, reason: str = "") -> dict:
+        """Preempt a scheduled task (W6.2): mark it and drop it from the pool."""
+        with self._lock:
+            t = self._tasks.get(task_id)
+            if not t:
+                return {"success": False, "error": _t("core.task_not_found")}
+            t.preempted = True
+            t.error = f"preempted: {reason}" if reason else "preempted"
+            t.completed_at = time.time()
+        with contextlib.suppress(Exception):
+            self.pool.cancel(task_id)
+        return {"success": True, "task_id": task_id, "agent_id": t.agent_id}
+
+    def notify_event(self, event: str, data: dict | None = None) -> None:
+        """Process-lifecycle notification from the kernel syscall path (W6.2).
+
+        Currently a hook: the scheduler accounts agent load changes for
+        spawn/exit and clears pool entries for cancellations. Never raises.
+        """
+        data = data or {}
+        try:
+            if event == "process.spawn" and data.get("agent_id"):
+                self.router.update_load(data["agent_id"], 0.0)
+            elif event == "process.exit" and data.get("agent_id"):
+                self.router.update_load(data["agent_id"], -0.1)
+        except Exception:
+            logger.debug("scheduler: notify_event(%s) failed", event, exc_info=True)
 
 
 # Legacy Scheduler alias for backward compat

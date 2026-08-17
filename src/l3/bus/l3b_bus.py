@@ -26,7 +26,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
-from l1.kernel.params.system import L3B_MAILBOX_MAXLEN, SCOUT_POOL_IDLE_TIMEOUT
+from l1.kernel.params.system import L3B_MAILBOX_MAXLEN
+from l3.params import SCOUT_POOL_IDLE_TIMEOUT
 
 logger = logging.getLogger(__name__)
 

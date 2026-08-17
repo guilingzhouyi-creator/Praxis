@@ -16,16 +16,27 @@ import logging
 import time
 from typing import Any
 
-from l1.kernel.params.api import (
+from l4.api.api_middleware import Request
+from l4.params import (
     API_CORS_ALLOW_HEADERS,
     API_CORS_ALLOW_METHODS,
     API_CORS_ORIGIN,
     API_GATEWAY_QUEUE_TIMEOUT,
     API_MAX_BODY_BYTES,
 )
-from l4.api.api_middleware import Request
 
 logger = logging.getLogger(__name__)
+
+
+def _deny_when_unconfigured() -> bool:
+    """Return whether unauthenticated requests are denied (W2.1, fail-closed)."""
+    import os
+
+    from l1.kernel.params.api import AUTH_DENY_WHEN_UNCONFIGURED, ENV_AUTH_OPEN
+
+    if os.environ.get(ENV_AUTH_OPEN) == "1":
+        return False
+    return AUTH_DENY_WHEN_UNCONFIGURED
 
 
 def _auth_ok(headers, auth_token: str) -> bool:
@@ -34,8 +45,9 @@ def _auth_ok(headers, auth_token: str) -> bool:
     Dual-channel: AuthPort-issued login tokens (``Authorization: Bearer``)
     take precedence; the static shared token stays supported on both Bearer
     and the legacy ``X-API-Token`` header.  With no static token configured
-    and no AuthPort reachable, requests pass (backward-compatible open
-    default — the central security gate decides).
+    and no AuthPort reachable, requests are DENIED by default (fail-closed,
+    W2.1); set ``AUTH_DENY_WHEN_UNCONFIGURED = False`` only for explicitly
+    open deployments.
     """
     import hmac
 
@@ -57,12 +69,12 @@ def _auth_ok(headers, auth_token: str) -> bool:
         # Channel 2: static shared token
         if auth_token:
             return len(token) == len(auth_token) and hmac.compare_digest(token, auth_token)
-        return True
+        return _deny_when_unconfigured()
     # Legacy header: static token only
     if auth_token:
         received = headers.get("X-API-Token", "")
         return len(received) == len(auth_token) and hmac.compare_digest(received, auth_token)
-    return True
+    return not _deny_when_unconfigured()
 
 
 class ApiGatewayHandler(http.server.BaseHTTPRequestHandler):

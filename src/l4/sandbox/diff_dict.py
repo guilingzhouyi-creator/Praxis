@@ -18,7 +18,7 @@ import threading
 from pathlib import Path
 from typing import Any, cast
 
-from l1.kernel.params.system import DIFF_DICTIONARY_FILE
+from l4.params import DIFF_DICTIONARY_FILE
 
 logger = logging.getLogger(__name__)
 

@@ -50,7 +50,8 @@ class MemoryCompactMixin:
           ≥ 0.4 → Ring 2 (Short-term)
           < 0.4 → Ring 1 (Working)
         """
-        from l1.kernel.params.agent import ARCHIVE_IMPORTANCE_THRESHOLD, COMPACT_RING2_IMPORTANCE, SCOUT_RECALL_LIMIT
+        from l1.kernel.params.agent import ARCHIVE_IMPORTANCE_THRESHOLD, COMPACT_RING2_IMPORTANCE
+        from l3.params import SCOUT_RECALL_LIMIT
 
         entries = self.recall(agent_id=agent_id, rings=[1, 2], limit=SCOUT_RECALL_LIMIT)
         candidates = _suggest_compact(entries)
@@ -132,7 +133,7 @@ class MemoryCompactMixin:
           - Most recent `keep_recent_turns` turns are kept full
           - Old tool results are replaced with a one-line summary
         """
-        from l1.kernel.params.agent import SCOUT_RECALL_LIMIT
+        from l3.params import SCOUT_RECALL_LIMIT
 
         entries = self.recall(agent_id=agent_id, rings=[1, 2, 3], limit=SCOUT_RECALL_LIMIT)
         # Find most recent turn timestamps to protect

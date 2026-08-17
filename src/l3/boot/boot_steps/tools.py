@@ -18,10 +18,61 @@ def _load_tools() -> dict:
         from l3.tool_system.tool_config import ToolConfig
 
         n = ToolConfig.load()
+        _register_g1_whitelist()
+        _register_capability_executor()
         return {"success": True, "tools": n}
     except Exception as e:
         logger.warning("tool_config load failed: %s", e)
         return {"success": False, "error": str(e)}
+
+
+def _register_g1_whitelist() -> None:
+    """Populate the GateChain G1 whitelist from the loaded tool registry.
+
+    W2.3: without this, G1 sees an empty whitelist and (now fail-closed)
+    BLOCKs every tool call. Registration must happen once per boot, after
+    the registry is populated.
+    """
+    try:
+        from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.tool_registry import TOOL_REGISTRY
+
+        names = list(TOOL_REGISTRY.keys())
+        if not names:
+            logger.warning("boot: G1 whitelist empty — tool registry has no tools")
+            return
+        get_gatechain().register_tools(names)
+        logger.info("boot: G1 whitelist populated with %d tools", len(names))
+    except Exception as e:
+        logger.warning("boot: G1 whitelist registration failed: %s", e)
+
+
+def _register_capability_executor() -> None:
+    """Wire the kernel invoke-capability syscall to the gated pipeline.
+
+    W6.1: boot is the ONLY place that connects the L1 capability seam to
+    the L3 ToolPipeline adapter; boundary callers (L2 shell, API/MCP) go
+    through ``l1.kernel.invoke_capability`` so the Rust rewrite can replace
+    the adapter without touching any caller.
+    """
+    try:
+        from l1.kernel.capability import register_capability_executor
+        from l3.tool_system.invoke import invoke_gated
+
+        def _executor(name, args, agent_id="", domain="", nature="", interactive=False) -> dict:
+            return invoke_gated(
+                name,
+                args,
+                agent_id=agent_id,
+                domain=domain,
+                nature=nature,
+                interactive=interactive,
+            )
+
+        register_capability_executor(_executor)
+        logger.info("boot: capability executor wired to ToolPipeline")
+    except Exception as e:
+        logger.warning("boot: capability executor wiring failed: %s", e)
 
 
 def _load_dynamic_tools() -> dict:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from l1.kernel.ports import CardRegistryPort
+from l3.ports import CardRegistryPort
 
 logger = logging.getLogger(__name__)
 

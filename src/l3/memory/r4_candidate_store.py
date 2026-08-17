@@ -31,17 +31,17 @@ from l1.kernel.params.agent import (
 from l1.kernel.params.system import SKILL_POSTURE_DEFAULT, SKILL_POSTURE_VALID
 from l1.kernel.paths import get_paths
 from l1.kernel.platform import ensure_dir
-from l1.kernel.ports import (
+from l1.kernel.ports.types import (
     CandidateBinding,
     CandidateCollectionResult,
     CandidateEvidence,
-    CandidateLedgerPort,
     CandidateRecord,
     CandidateResult,
     CandidateSnapshot,
     CandidateState,
     CandidateStatus,
 )
+from l3.ports import CandidateLedgerPort
 
 logger = logging.getLogger(__name__)
 

@@ -43,11 +43,9 @@ from l1.kernel.params.system import (
     MEMORY_RING_WORKING_BUDGET,
     MEMORY_RING_WORKING_TTL,
     PMU_SNAPSHOT_INTERVAL,
-    SCOUT_CACHE_TTL,
-    SCOUT_POOL_MAX_PER_AGENT,
-    SCOUT_POOL_MAX_TOTAL,
 )
 from l1.kernel.paths import get_paths as _gp
+from l3.params import SCOUT_CACHE_TTL, SCOUT_POOL_MAX_PER_AGENT, SCOUT_POOL_MAX_TOTAL
 
 logger = logging.getLogger(__name__)
 

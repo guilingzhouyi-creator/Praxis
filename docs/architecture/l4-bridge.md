@@ -74,6 +74,10 @@ sequenceDiagram
     F->>A: POST /auth/refresh | /auth/logout (revoke)
 ```
 
+**Fail-closed auth (W2.1):** with no static token configured and no AuthPort
+reachable, requests are DENIED (`AUTH_DENY_WHEN_UNCONFIGURED`, default True).
+Explicit opt-out for open deployments: `PRAXIS_AUTH_OPEN=1`.
+
 ## Auth contract
 
 - `POST /api/v2/auth/login|logout|refresh` — HMAC-signed token lifecycle

@@ -81,7 +81,9 @@ def set_harness_mode(mode: str, confirmed: bool = False, source: str = "api") ->
         if not bound.get("success"):
             return {"success": False, "error": bound.get("error", "harness mode forbidden by posture matrix")}
     except Exception as e:
-        logger.debug("harness: posture boundary check skipped: %s", e)
+        # WS2.2 fail-closed: an unavailable posture matrix must refuse the
+        # mode change, never silently continue with the old behavior.
+        return {"success": False, "error": f"harness posture boundary check failed: {e}"}
     if mode == "minimal" and not confirmed:
         return {
             "success": False,

@@ -125,6 +125,14 @@ def wire_defaults() -> dict[str, str]:
     register_port("r4_candidates", R4CandidateAdapter())
     registry["r4_candidates"] = "r4_candidate_ledger"
 
+    # KernelSchedulerPort (W6.2) — the L3 CentralScheduler implements the
+    # kernel-facing scheduling mechanism seam; the kernel syscall path
+    # notifies it via the port instead of importing L3.
+    from l3.scheduler.scheduler import get_scheduler
+
+    register_port("scheduler", get_scheduler())
+    registry["scheduler"] = "central_scheduler"
+
     # Hook chain — shared LifecycleHooks singleton with EventEmitHook
     # pre-registered. Not a port: consumed via hook.get_hook_chain().
     from l3.services.hook import get_hook_chain

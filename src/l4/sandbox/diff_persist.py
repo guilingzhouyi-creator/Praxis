@@ -19,7 +19,7 @@ import os
 import threading
 import time
 
-from l1.kernel.params.system import (
+from l4.params import (
     DIFF_PERSIST_ENABLED_DEFAULT,
     DIFF_PERSIST_FILE,
     DIFF_PERSIST_FLUSH_INTERVAL,

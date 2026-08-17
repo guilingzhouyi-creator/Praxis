@@ -480,7 +480,8 @@ def _register_llm_port(engine: LLMEngine) -> None:
     Registered as "llm" so L3 callers can use ``get_port("llm")`` instead of
     importing from ``l4.llm.llm`` directly.
     """
-    from l1.kernel.ports import LLMPort, register_port
+    from l1.kernel.ports import register_port
+    from l4.ports import LLMPort
 
     class _LLMEngineAdapter(LLMPort):
         """Thin adapter: LLMEngine → LLMPort interface."""

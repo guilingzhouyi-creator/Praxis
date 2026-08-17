@@ -37,6 +37,7 @@ class Task:
     completed_at: float = 0.0
     result: Any = None
     error: str = ""
+    preempted: bool = False  # W6.2: preempted via the scheduler port
 
 
 @dataclass

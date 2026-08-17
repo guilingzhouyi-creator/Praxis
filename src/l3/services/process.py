@@ -78,6 +78,14 @@ class ProcessManager:
         handle = ProcessHandle(id=pid, name=name, process=proc)
         with self._lock:
             self._processes[pid] = handle
+        # W3.3: long-lived OS handles land in the kernel process table too, so
+        # `health`/ps surfaces can report them without touching L3 internals.
+        try:
+            from l1.kernel.process import get_table as _pt
+
+            _pt().register_handle(name, proc)
+        except Exception:
+            pass
         threading.Thread(target=self._reader, args=(pid,), daemon=True).start()
         logger.info("process started: %s (%s)", pid, " ".join(cmd))
         return {"success": True, "id": pid, "pid": proc.pid}

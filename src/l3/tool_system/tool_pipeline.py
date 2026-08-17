@@ -118,6 +118,7 @@ class ToolPipeline(PipelineStepsMixin):
         _registry: dict | None = None,
         _executor: Any = None,
         _parent_call_id: str = "",
+        _interactive: bool = False,
     ) -> dict:
         """Execute a tool through the pipeline with hierarchical call tracking.
 
@@ -214,6 +215,7 @@ class ToolPipeline(PipelineStepsMixin):
             _skip=_skip,
             _start=_start,
             call_id=call_id,
+            _interactive=_interactive,
         )
         if blocked is not None:
             return blocked

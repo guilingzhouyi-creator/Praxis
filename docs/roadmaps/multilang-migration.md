@@ -82,6 +82,13 @@ as backward-compatible aliases.
 Rust follows the same shape, with two additional considerations tied to the
 roadmap's Rust kernel sink (`l1_kernel_rs`):
 
+> **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` (score 42/100)
+> defines what `l1_kernel_rs` may carry — mechanism only (sync / event / process /
+> allocator / gatechain / constitution + a single invoke-capability gate). Policy
+> (skills, prompts, model registry, scheduler strategy) stays in Python/config.
+> Re-run the §4 invariant checklist before `execute()` delegates to the Rust
+> kernel's process/fs ports.
+
 1. **Backend file**: `rust_language_backend` with `language="rust"`,
    `file_suffix=".rs"`, `render_sdk()` emitting Rust bindings, and
    `execute()` invoking `rustc`/`cargo` (or a precompiled runner) with a

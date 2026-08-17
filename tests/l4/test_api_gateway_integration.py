@@ -19,7 +19,7 @@ class TestAPIGatewayInit:
         assert hasattr(gw, "_routes")
 
     def test_default_host_port(self):
-        from l1.kernel.params.api import API_GATEWAY_HOST, API_GATEWAY_PORT
+        from l4.params import API_GATEWAY_HOST, API_GATEWAY_PORT
 
         assert API_GATEWAY_HOST == "127.0.0.1"
         assert API_GATEWAY_PORT == 8080
@@ -69,8 +69,8 @@ class TestMiddlewareIntegration:
         assert chain is not None
 
     def test_cors_middleware(self):
-        from l1.kernel.params.api import API_CORS_ORIGIN
         from l4.api.api_middleware import CORSMiddleware
+        from l4.params import API_CORS_ORIGIN
 
         mw = CORSMiddleware()
         assert mw is not None
@@ -94,7 +94,9 @@ class TestHttpParamLink:
         # port=0 → OS-assigned ephemeral port: no fixed-port collision race
         # between parallel workers. Readiness is polled instead of a blind
         # sleep, so a loaded CI runner cannot hit a not-yet-bound server.
-        gw = ApiGateway(port=0, auth_token="")
+        # W2.1: API auth is closed by default — use a static token here so
+        # this test exercises param-confusion, not the auth gate.
+        gw = ApiGateway(port=0, auth_token="test-token")
         gw._routes.clear()
         gw.register_route(
             "GET",
@@ -108,7 +110,7 @@ class TestHttpParamLink:
             while True:
                 try:
                     conn = http.client.HTTPConnection("127.0.0.1", gw.port, timeout=1)
-                    conn.request("GET", "/api/v2/card/abc?_id=evil")
+                    conn.request("GET", "/api/v2/card/abc?_id=evil", headers={"X-API-Token": "test-token"})
                     resp = conn.getresponse()
                     data = json.loads(resp.read().decode())
                     conn.close()

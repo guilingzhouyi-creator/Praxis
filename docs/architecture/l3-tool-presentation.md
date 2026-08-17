@@ -23,7 +23,7 @@ re-entering and re-executing near-identical programs.
 | `l3/tool_system/run_code_cache.py` | Per-Cell program cache: tiered-cache storage, tf-idf similarity, TTL renewal, incremental-patch evidence, reclamation |
 | `l3/tools/_run_code.py` | `run_code` tool handler: validate → cache-hit check → in-process execution with injected bindings (Python) / subprocess (other backends) |
 | `l1/kernel/params/tool.py` | `TOOL_PRESENTATION_*` / `CODE_RUN_*` constants (modes, limits, cache TTL/floor) |
-| `l1/kernel/prompts.py` | `agent_loop.run_code_usage` — Code Mode usage instructions |
+| `l3/agent/prompts.py` (WS5.3; kernel keeps a shim) | `agent_loop.run_code_usage` — Code Mode usage instructions |
 | `l3/agent/agent_loop_context.py` | Model-facing tool filtering (code-only) + SDK/usage injection |
 
 ## Presentation modes

@@ -130,6 +130,15 @@ class RequestPool:
             self._queue.pop(idx)
             return best
 
+    def cancel(self, task_id: str) -> bool:
+        """Remove a still-queued task by id (preempt support, W6.2)."""
+        with self._lock:
+            for i, t in enumerate(self._queue):
+                if t.id == task_id:
+                    self._queue.pop(i)
+                    return True
+            return False
+
     def pending(self, agent_id: str | None = None) -> list[dict]:
         """List pending tasks, optionally filtered by agent."""
         with self._lock:

@@ -22,6 +22,7 @@ if os.environ.get("PYTEST_XDIST_WORKER"):
 _RESETS = {
     "l4.api.api_gateway": ("stop_api", None),
     "l4.ci_review": ("reset_service", None),
+    "l1.kernel.capability": ("reset_capability_executor", None),
     "l3.card.approval_gate": ("reset_gate", None),
     "l3.card.card_registry": ("reset_registry", None),
     "l3.card.issue": ("reset_table", None),
@@ -74,6 +75,7 @@ _RESETS = {
     "l3.cell.peers.l3a": ("reset_daemon", None),
     "l3.bus.htn_planner": ("reset_service", None),
     "l4.llm.llm": ("reset_engine", None),
+    "l4.llm.model_registry": ("reset_registry", None),  # WS5.2: moved out of kernel
     "l3.memory.skill_retriever": ("reset_retriever", None),
     "l1.kernel.skill": ("reset_skill_manager", None),
     "l1.kernel.identity_binding": ("reset_identity_binding_manager", None),

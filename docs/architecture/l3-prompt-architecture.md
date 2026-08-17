@@ -67,7 +67,7 @@ ReferenceChannel, and StatsCenter. Engineering mode may enable verbose root
 logging and the prompt monitor. Production mode restores the configured log
 level, disables the monitor, and does not expose engineering prompt overlays.
 Every prompt overlay is persisted under the `engineering_debug.prompt_overrides.*`
-runtime namespace, versioned by `l1.kernel.prompts`, and can be rolled back by
+runtime namespace, versioned by `l3.agent.prompts` (WS5.3 moved it out of the kernel; the kernel keeps a compat shim), and can be rolled back by
 version. Overlay writes require a developer role or ring-3 clearance and are
 bounded by `ENGINEERING_DEBUG_PROMPT_MAX_CHARS`; disabling engineering mode
 restores the built-in/deployment prompt source.

@@ -332,9 +332,7 @@ CONSTITUTION_ACTION_LEN_THRESHOLD: Final[int] = 5
 # Agent name reserved for scouts in the constitution
 CONSTITUTION_SCOUT_AGENT_NAME: Final[str] = "scout"
 # Canonical scout agent name
-SCOUT_AGENT_NAME: Final[str] = "scout"
 # Ring level scouts may not exceed
-SCOUT_RING_LIMIT: Final[str] = "RING_1"
 # Keyword marking shared territory in the constitution
 CONSTITUTION_SHARED_KEYWORD: Final[str] = "shared"
 # Section marker for user-defined constitution rules
@@ -410,49 +408,19 @@ LLM_CACHE_RETENTION_STRING: Final[str] = "24h"
 
 
 # ── Scout/SubAgent truncation ──
-SCOUT_FINDING_TRUNC: Final[int] = 500
-SCOUT_RESULT_TRUNC: Final[int] = 300
 # Chars kept per file read by scouts
-SCOUT_FILE_READ_TRUNC: Final[int] = 4000
 # Max grep results a scout may return
-SCOUT_GREP_MAX: Final[int] = 20
 # Chars kept per grep hit in scout output
-SCOUT_GREP_OUTPUT_TRUNC: Final[int] = 4000
 # Max directory entries listed by scouts
-SCOUT_DIR_LIMIT: Final[int] = 100
 # Max memory entries scouts may recall
-SCOUT_RECALL_LIMIT: Final[int] = 200
 
 # ── CardGate thresholds ──
-CARD_GATE_SMALL_MAX_FILES: Final[int] = 1
-CARD_GATE_SMALL_MAX_LINES: Final[int] = 50
 # File cap for medium-size card gate reviews
-CARD_GATE_MEDIUM_MAX_FILES: Final[int] = 5
 # Line cap for medium-size card gate reviews
-CARD_GATE_MEDIUM_MAX_LINES: Final[int] = 200
 # Keywords marking a card as architectural (architecture review required)
-CARD_GATE_ARCH_KEYWORDS: Final[list[str]] = [
-    "architecture",
-    "redesign",
-    "refactor",
-    "migration",
-    "restructure",
-    "reorganize",
-    "extract",
-    "split",
-    "merge module",
-    "架构",
-    "重构",
-    "重设计",
-    "迁移",
-    "拆分",
-]
 # Timeout for card gate approval (s)
-CARD_GATE_APPROVAL_TIMEOUT: Final[float] = 3600.0
 # Timeout for card gate convention review (s)
-CARD_GATE_CONVENTION_TIMEOUT: Final[float] = 7200.0
 # History entries kept per card gate
-CARD_GATE_HISTORY_LIMIT: Final[int] = 50
 CARD_TIMELINE_EXECUTION: Final[int] = 3600  # execution card default timeline (s)
 CARD_TIMELINE_REVIEW: Final[int] = 1800  # review card default timeline (s)
 
@@ -478,7 +446,6 @@ COMPACT_RING2_IMPORTANCE: Final[float] = 0.4
 
 # ── Agent ID prefix constants ──
 AGENT_ID_PREFIXES: Final[frozenset[str]] = frozenset({"agent-", "l3", "human"})
-SCOUT_PREFIX: Final[str] = "scout-"
 # Prefix for subagent IDs
 SUB_PREFIX: Final[str] = "sub-"
 
@@ -531,7 +498,6 @@ SUBAGENT_LOOP_TIMEOUT: Final[float] = 30.0
 
 # ── Feedback loop / Verifier ──
 MAX_SELF_HEAL: Final[int] = 3
-REVIEW_MAX_ROUNDS: Final[int] = 2
 # Loop control defaults (may be overridden via praxis.yaml loop_control:)
 LOOP_MAX_ITERATIONS: Final[int] = 50
 LOOP_MAX_ATTEMPTS: Final[int] = 3
@@ -549,8 +515,6 @@ LOOP_COARSE_REPEAT_STOP: Final[int] = 6
 LOOP_VERIFY_CADENCE: Final[bool] = True
 
 # ── Scout defaults ──
-SCOUT_LOOP_STEPS: Final[int] = 10
-SCOUT_LOOP_TIMEOUT: Final[float] = 180.0
 
 
 # ── Decomposer (L3 card decomposition) ──

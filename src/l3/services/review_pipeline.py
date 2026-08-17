@@ -18,11 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from l1.kernel.params.system import (
-    REVIEW_AUTOFIX_ENABLED_DEFAULT,
-    REVIEW_PIPELINE_ENABLED_DEFAULT,
-    REVIEW_SMALL_CHANGE_MAX_LINES,
-)
+from l3.params import REVIEW_AUTOFIX_ENABLED_DEFAULT, REVIEW_PIPELINE_ENABLED_DEFAULT, REVIEW_SMALL_CHANGE_MAX_LINES
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +121,7 @@ class ReviewPipeline:
         header_hunks = None
         if frame:
             try:
-                from l1.kernel.diff_frame import parse_frame_header
+                from l4.sandbox.diff_frame import parse_frame_header
 
                 head = parse_frame_header(frame)
                 if head is not None:

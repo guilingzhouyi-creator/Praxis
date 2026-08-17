@@ -85,7 +85,9 @@ flowchart TB
 | L3 | [l3-scheduler.md](l3-scheduler.md) | 5D scheduler (route/pool/time/rate/scope) + safety layers |
 | L3 | [l3-routing.md](l3-routing.md) | HTN intent decomposition + L3B cross-cell routing |
 | L3 | [l3-convention.md](l3-convention.md) | cross-cell deliberation (orchestrator/answers/aggregate/report) |
-| L2 | [l2-shell.md](l2-shell.md) | Shell family over shared engine, i18n, completer, agent selector |
+| L2 | [l2-shell.md](l2-shell.md) | Shell family over shared engine, i18n, completer, agent selector (current implementation) |
+| L2 | [l2-shell-engine.md](l2-shell-engine.md) | Target Shell Engine: unified session data layer (protocol v1), frontend adapters, single execution bridge, TS rewrite mapping |
+| L2 | [l2-multifrontend-session-layer.md](../roadmaps/l2-multifrontend-session-layer.md) | L2 boundary audit baseline (36/100) + multi-frontend session-layer roadmap (P0–P4) |
 | L1 | [l1-kernel.md](l1-kernel.md) | Process table, sync, event bus, constitution, GateChain, ports, params |
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
 | — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
@@ -100,30 +102,30 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 37 files / 4,783 lines |
+| L2 Shell | 38 files / 5,198 lines |
 | L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 108 files / 22,411 lines |
-| L1 Kernel | 66 files / 19,282 lines |
-| L2 Shell | 37 files / 4,783 lines |
-| L3 Cell | 339 files / 74,312 lines |
-| L4 Bridge | 108 files / 22,411 lines |
+| L4 Bridge | 112 files / 23,102 lines |
+| L1 Kernel | 68 files / 17,919 lines |
+| L2 Shell | 38 files / 5,198 lines |
+| L3 Cell | 344 files / 75,381 lines |
+| L4 Bridge | 112 files / 23,102 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
-| L3 Memory | 46 files / 10,435 lines |
+| L3 Memory | 46 files / 10,436 lines |
 | L3 Card | 27 files / 6,451 lines |
-| L3 Services | 43 files / 11,188 lines |
-| L3 Bus | 17 files / 4,395 lines |
+| L3 Services | 43 files / 11,224 lines |
+| L3 Bus | 17 files / 4,396 lines |
 | L3 Agent | 36 files / 7,483 lines |
-| L4 Handlers | 34 files / 6,234 lines |
+| L4 Handlers | 34 files / 6,245 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
 | Params modules / constants | 8 / 1,263 |
 | Health | 0.757 (grade B) |
-| L3 Agent | 36 files / 7,598 lines |
-| L4 Handlers | 34 files / 6,234 lines |
+| L3 Agent | 37 files / 8,229 lines |
+| L4 Handlers | 34 files / 6,245 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,276 |
+| Params modules / constants | 8 / 1,175 |
 | Health | 0.737 (grade B) |
 
 ## Reading path

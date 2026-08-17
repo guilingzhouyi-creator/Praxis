@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import time
 
-from l1.kernel.params.system import (
+from l4.params import (
     SECURITY_GATE_SCORE_AUTH,
     SECURITY_GATE_SCORE_CLEARANCE,
     SECURITY_GATE_SCORE_CONSTITUTION,

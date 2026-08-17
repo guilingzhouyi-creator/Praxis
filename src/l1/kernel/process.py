@@ -24,6 +24,7 @@ from collections import deque
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import islice
+from typing import Any
 
 from .params.allocator import PROCESS_GC_INTERVAL
 from .params.kernel import (
@@ -102,6 +103,17 @@ def _apply_transition(pcb: PCB, action: str) -> bool:
     return True
 
 
+def _handle_alive(handle: Any) -> bool:
+    """Liveness probe for a registered handle (Popen-style poll, W3.3)."""
+    poll = getattr(handle, "poll", None)
+    if callable(poll):
+        try:
+            return poll() is None
+        except Exception:
+            return True
+    return True
+
+
 @dataclass
 class ResourceUsage:
     """ResourceUsage — resource usage record (tokens_allocated, tokens_used, workers_active, scouts_active, memory_entries)."""
@@ -131,6 +143,8 @@ class PCB:
         self.exit_code: int | None = None
         self.exit_reason: str = ""
         self.identity_verified: bool = False  # Ed25519 keypair generated (#P5)
+        self.cancelled: bool = False  # W3.2: cancellation flag (agent loop checks per round)
+        self.cancel_reason: str = ""
 
     def touch(self) -> None:
         """Mark this PCB as recently active (update last_active timestamp)."""
@@ -195,6 +209,8 @@ class ProcessTable:
         self._pid_to_name: dict[int, str] = {}  # reverse index: pid → name
         self._next_pid = 1
         self._audit_log: deque[dict] = deque(maxlen=PROCESS_AUDIT_MAX)
+        self._handles: dict[str, dict] = {}  # W3.3: long-lived OS handles (Popen)
+        self._next_handle_id = 0
 
         # PID 0: kernel init
         init = PCB(pid=0, name=PROCESS_INIT_NAME, role=PROCESS_INIT_ROLE, ring=PROCESS_INIT_RING)
@@ -321,6 +337,106 @@ class ProcessTable:
             pcb.identity_verified = True
             pcb.touch()
             return True
+
+    def set_running(self, name: str) -> bool:
+        """Drive READY -> RUNNING for the named process (card execution start, W3.1).
+
+        Returns False when the process is unknown; a process already RUNNING
+        is left untouched (idempotent).
+        """
+        with self._lock:
+            pid = self._name_index.get(name)
+            pcb = self._processes.get(pid) if pid else None
+            if not pcb:
+                return False
+            if pcb.state is ProcessState.RUNNING:
+                return True
+            if not _apply_transition(pcb, "run"):
+                return False
+            pcb.touch()
+            return True
+
+    def yield_process(self, name: str) -> bool:
+        """Drive RUNNING -> READY after a card finishes (agent stays alive, W3.1).
+
+        A process already READY is left untouched (idempotent).
+        """
+        with self._lock:
+            pid = self._name_index.get(name)
+            pcb = self._processes.get(pid) if pid else None
+            if not pcb:
+                return False
+            if pcb.state is ProcessState.READY:
+                return True
+            if not _apply_transition(pcb, "yield"):
+                return False
+            pcb.touch()
+            return True
+
+    def exit_by_name(self, name: str, exit_code: int = 0, reason: str = "") -> bool:
+        """Terminate a process by name (session shutdown path, W3.1)."""
+        with self._lock:
+            pid = self._name_index.get(name)
+        if pid is None:
+            return False
+        return self.exit(pid, exit_code, reason)
+
+    def cancel(self, name: str, reason: str = "cancelled") -> bool:
+        """Cancel a process (W3.2): mark cancelled + STOPPED transition + interrupt.
+
+        The cancellation flag makes is_cancelled true so the agent loop
+        aborts at the next round boundary; the STOPPED state makes G2 reject
+        any further gatechain execution for this PCB.
+        """
+        with self._lock:
+            pid = self._name_index.get(name)
+            pcb = self._processes.get(pid) if pid else None
+            if not pcb:
+                return False
+            pcb.cancelled = True
+            pcb.cancel_reason = reason
+            if pcb.state is not ProcessState.STOPPED:
+                _apply_transition(pcb, "stop")
+            pcb.touch()
+            self._audit("cancel", pid, name, reason)
+        try:
+            from .interrupt import InterruptType, fire
+
+            fire(InterruptType.CANCELLED, agent_id=name, reason=reason)
+        except Exception:
+            logger.warning("process.cancel: interrupt fire failed", exc_info=True)
+        return True
+
+    def is_cancelled(self, name: str) -> bool:
+        """True when the named process has been cancelled (W3.2)."""
+        with self._lock:
+            pid = self._name_index.get(name)
+            pcb = self._processes.get(pid) if pid else None
+            return bool(pcb and pcb.cancelled)
+
+    def register_handle(self, name: str, handle: Any) -> str:
+        """Register a long-lived OS handle (e.g. Popen) under a name (W3.3).
+
+        Returns the handle id. Use list_handles for liveness checks.
+        """
+        with self._lock:
+            self._next_handle_id += 1
+            hid = f"handle-{self._next_handle_id}"
+            self._handles[hid] = {"name": name, "handle": handle, "registered_at": time.time()}
+            return hid
+
+    def list_handles(self) -> list[dict]:
+        """Registered long-lived handles with liveness (W3.3)."""
+        with self._lock:
+            return [
+                {
+                    "id": hid,
+                    "name": h["name"],
+                    "alive": _handle_alive(h["handle"]),
+                    "registered_at": h["registered_at"],
+                }
+                for hid, h in sorted(self._handles.items())
+            ]
 
     def exit(self, pid: int, exit_code: int = 0, reason: str = "") -> bool:
         """Terminate a process — crash transition + record exit info."""

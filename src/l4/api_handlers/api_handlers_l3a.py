@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from l1.kernel.params.api import API_PAGE_MAX_LIMIT
 from l1.kernel.params.system import LOG_TRUNC_100
+from l4.params import API_PAGE_MAX_LIMIT
 
 
 def _get_daemon():

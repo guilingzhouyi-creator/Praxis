@@ -3,11 +3,12 @@
 Split into sub-modules for maintainability:
   types.py     — Endpoint, Result, Message, Event
   core.py      — TransportPort, ChannelPort, EventBusPort, WorkerPort, TaskHandle
-  service.py   — I18nPort, CardRegistryPort, MonitorBusPort, LLMPort,
-                 AuthPort, WebSocketPort, RpcServerPort, FilesystemPort
+  service.py   — AuthPort, WebSocketPort, RpcServerPort, FilesystemPort,
+                 InputActivityPort (domain ports live in l3.ports / l4.ports)
   storage.py   — StoragePort, FsStoragePort (TS-friendly read/write surface)
   lock.py      — LockPort, ThreadLockPort (mutex abstraction)
   process.py   — ProcessPort, SubprocessProcessPort, ProcessResult (exec seam)
+  scheduler.py — KernelSchedulerPort (submit/poll/preempt mechanism seam)
   registry.py  — register_port, get_port, reset_ports
 
 All public names are re-exported here so existing
@@ -35,16 +36,11 @@ from l1.kernel.ports.registry import (
     register_port,
     reset_ports,
 )
+from l1.kernel.ports.scheduler import KernelSchedulerPort
 from l1.kernel.ports.service import (
     AuthPort,
-    CandidateLedgerPort,
-    CardRegistryPort,
     FilesystemPort,
-    I18nPort,
     InputActivityPort,
-    LLMConfig,
-    LLMPort,
-    MonitorBusPort,
     RpcServerPort,
     WebSocketPort,
 )
@@ -79,8 +75,6 @@ __all__ = [
     "CandidateEvidence",
     "CandidateResult",
     "CandidateRecord",
-    "CandidateLedgerPort",
-    "CardRegistryPort",
     "CandidateSnapshot",
     "CandidateState",
     "CandidateStatus",
@@ -91,14 +85,11 @@ __all__ = [
     "EventBusPort",
     "FilesystemPort",
     "FsStoragePort",
-    "I18nPort",
     "InputActivityPort",
     "InputActivitySnapshot",
-    "LLMConfig",
-    "LLMPort",
+    "KernelSchedulerPort",
     "LockPort",
     "Message",
-    "MonitorBusPort",
     "ProcessPort",
     "ProcessOptions",
     "ProcessResult",

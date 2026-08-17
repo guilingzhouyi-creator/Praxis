@@ -97,7 +97,7 @@ class TestTerminalManager:
         assert r.get("success") is False
 
     def test_run_tool_preserves_all_positional_args(self, monkeypatch):
-        """Regression: every positional arg must reach execute_tool_spec.
+        """Regression: every positional arg must reach _execute_tool_spec.
 
         The legacy parser dropped the LAST positional token (``elif i <
         len(parts) - 1``); multi-arg calls like ``read_file a.txt b.txt``
@@ -117,7 +117,26 @@ class TestTerminalManager:
             return {"success": True, "data": "ok"}
 
         monkeypatch.setattr("l3.tool_system.tool_spec.get_tool", fake_get_tool)
-        monkeypatch.setattr("l3.tool_system.tool_spec.execute_tool_spec", fake_execute)
+        # W1.2: shell tools now run through invoke_gated → pipeline; patch the
+        # executor binding the pipeline actually calls (tool_pipeline_steps).
+        import l3.tool_system.tool_pipeline_steps as _tps
+
+        monkeypatch.setattr(_tps, "_execute_tool_spec", fake_execute)
+        monkeypatch.setattr(
+            "l3.tool_system.tool_registry.TOOL_REGISTRY", {"read_file": object(), "write_file": object()}
+        )
+        from l1.kernel.capability import register_capability_executor
+        from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.invoke import invoke_gated
+
+        get_gatechain().register_tools(["read_file", "write_file"])
+
+        # W6.1: the shell goes through the kernel capability seam; wire the
+        # boot-style adapter so the patched pipeline executor is reached.
+        def _cap_exec(name, args, agent_id="", domain="", nature="", interactive=False):
+            return invoke_gated(name, args, agent_id=agent_id, domain=domain, nature=nature, interactive=interactive)
+
+        register_capability_executor(_cap_exec)
 
         shell = TerminalShell()
         r = shell.run("read_file a.txt b.txt")
@@ -140,7 +159,26 @@ class TestTerminalManager:
             return {"success": True, "data": "ok"}
 
         monkeypatch.setattr("l3.tool_system.tool_spec.get_tool", fake_get_tool)
-        monkeypatch.setattr("l3.tool_system.tool_spec.execute_tool_spec", fake_execute)
+        # W1.2: shell tools now run through invoke_gated → pipeline; patch the
+        # executor binding the pipeline actually calls (tool_pipeline_steps).
+        import l3.tool_system.tool_pipeline_steps as _tps
+
+        monkeypatch.setattr(_tps, "_execute_tool_spec", fake_execute)
+        monkeypatch.setattr(
+            "l3.tool_system.tool_registry.TOOL_REGISTRY", {"read_file": object(), "write_file": object()}
+        )
+        from l1.kernel.capability import register_capability_executor
+        from l1.kernel.gatechain import get_gatechain
+        from l3.tool_system.invoke import invoke_gated
+
+        get_gatechain().register_tools(["read_file", "write_file"])
+
+        # W6.1: the shell goes through the kernel capability seam; wire the
+        # boot-style adapter so the patched pipeline executor is reached.
+        def _cap_exec(name, args, agent_id="", domain="", nature="", interactive=False):
+            return invoke_gated(name, args, agent_id=agent_id, domain=domain, nature=nature, interactive=interactive)
+
+        register_capability_executor(_cap_exec)
 
         shell = TerminalShell()
         r = shell.run("write_file out.txt mode=w")

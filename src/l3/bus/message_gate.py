@@ -21,8 +21,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from l1.kernel.params.agent import CARD_GATE_APPROVAL_TIMEOUT
 from l3._persistable import PersistableMixin
+from l3.params import CARD_GATE_APPROVAL_TIMEOUT
 
 from .monitor_bus import MonitorEvent
 

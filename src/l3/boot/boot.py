@@ -50,6 +50,7 @@ from .boot_steps import (  # noqa: F401 — re-export for tests / external calle
     _load_tools,
     _post_boot_health_check,
     _prepare_layout,
+    _register_event_schema,
 )
 
 logger = logging.getLogger(__name__)
@@ -444,7 +445,8 @@ def _register_default_boot_steps(agent_config: list | None) -> None:
     register_boot_step("init_system_bus", _init_system_bus, depends_on=["load_dvg"])
     register_boot_step("init_services", _init_services, depends_on=["init_system_bus"])
     register_boot_step("init_record_center", _init_record_center, depends_on=["init_services"])
-    register_boot_step("create_cell", lambda: _create_cell(agent_config), depends_on=["init_record_center"])
+    register_boot_step("register_event_schema", _register_event_schema, depends_on=["init_record_center"])
+    register_boot_step("create_cell", lambda: _create_cell(agent_config), depends_on=["register_event_schema"])
 
 
 def boot_status() -> dict:

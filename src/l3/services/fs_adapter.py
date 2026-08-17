@@ -20,17 +20,47 @@ logger = logging.getLogger(__name__)
 
 
 class FsAdapter(FilesystemPort):
-    """Filesystem port adapter — direct OS access with path safety checks."""
+    """Filesystem port adapter — OS access routed through VFS mount checks (WS5.5).
+
+    Paths under a VFS mount point are governed by the mount mapping (operating
+    on the mapped real path) plus read-only enforcement; paths outside any
+    mount keep direct OS access. This makes the adapter file operations go
+    through the kernel VFS boundary instead of bypassing it.
+    """
 
     def __init__(self, watch_interval: float = FS_WATCH_INTERVAL):
         self._watch_interval = watch_interval
         self._watchers: dict[str, dict] = {}  # root -> {"mtime": float, "stop": bool}
         self._lock = threading.Lock()
 
+    def _vfs_route(self, path: str, for_write: bool = False) -> str | None:
+        """Route *path* through the VFS mount table; return the OS path to use.
+
+        Returns the mapped real path when a mount matches (enforcing read-only
+        mounts on writes and containment inside the mount root), or None for
+        unmounted paths (direct OS access preserved).
+        """
+        from l1.kernel.vfs import get_vfs
+
+        meta = get_vfs().resolve_mount(path)
+        if meta is None:
+            return None
+        if for_write and meta["read_only"]:
+            raise PermissionError("EROFS: read-only mount " + repr(meta["mount"]))
+        if not meta["real_path"]:
+            raise PermissionError("EINVAL: mount " + repr(meta["mount"]) + " has no real path")
+        root = Path(meta["root"]).resolve()
+        target = Path(meta["real_path"]).resolve()
+        # containment: the mapped path must stay inside the mount root
+        if not target.is_relative_to(root):
+            raise PermissionError("EACCES: path escapes mount " + repr(meta["mount"]))
+        return str(target)
+
     def read(self, path: str) -> dict:
         """Read a text file (UTF-8); returns content or an error dict."""
         try:
-            p = Path(path).resolve()
+            routed = self._vfs_route(path)
+            p = Path(routed if routed is not None else path).resolve()
             if not p.exists():
                 return {"success": False, "error": "file not found"}
             if not p.is_file():
@@ -42,7 +72,8 @@ class FsAdapter(FilesystemPort):
     def write(self, path: str, content: str) -> dict:
         """Write text content (UTF-8), creating parent dirs; returns size."""
         try:
-            p = Path(path).resolve()
+            routed = self._vfs_route(path, for_write=True)
+            p = Path(routed if routed is not None else path).resolve()
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
             return {"success": True, "path": str(p), "size": len(content.encode("utf-8"))}
@@ -52,7 +83,8 @@ class FsAdapter(FilesystemPort):
     def list_tree(self, root: str) -> dict:
         """Recursively list all entries under root with relative paths."""
         try:
-            p = Path(root).resolve()
+            routed = self._vfs_route(root)
+            p = Path(routed if routed is not None else root).resolve()
             if not p.exists():
                 return {"success": False, "error": "path not found"}
             if not p.is_dir():

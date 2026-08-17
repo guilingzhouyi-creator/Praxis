@@ -24,15 +24,14 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from .net_transport import TcpAdapter, TransportConfig
 from .params.api import ENV_PRAXIS_PORT, PRAXIS_PORT_DEFAULT
 from .ports import (
-    CardRegistryPort,
     Endpoint,
     Event,
     EventBusPort,
-    I18nPort,
     TransportPort,
     get_port,
 )
@@ -73,18 +72,18 @@ def _get_bus() -> EventBusPort | None:
         return None
 
 
-def _get_i18n() -> I18nPort | None:
+def _get_i18n() -> Any | None:
+    """Return the registered i18n adapter (WS5.1: duck-typed, no domain import)."""
     try:
-        i = get_port("i18n")
-        return i if isinstance(i, I18nPort) else None
+        return get_port("i18n")
     except KeyError:
         return None
 
 
-def _get_card_registry() -> CardRegistryPort | None:
+def _get_card_registry() -> Any | None:
+    """Return the registered card-registry adapter (WS5.1: duck-typed, no domain import)."""
     try:
-        c = get_port("card_registry")
-        return c if isinstance(c, CardRegistryPort) else None
+        return get_port("card_registry")
     except KeyError:
         return None
 

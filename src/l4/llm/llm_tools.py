@@ -21,6 +21,16 @@ class LLMToolsMixin:
     @staticmethod
     def _execute_one_tool(tool_def, fn_args, call_id, fn_name, t_start: float = 0.0):
         if tool_def and tool_def.handler:
+            # Only pipeline-wrapped specs may execute here (W1.3): a bare
+            # handler bypasses clearance/approval/gatechain/sandbox.
+            if not getattr(tool_def, "gated", False):
+                return {
+                    "name": fn_name,
+                    "arguments": fn_args,
+                    "error": "UNGATED_TOOL: direct handler execution rejected (tool not pipeline-wrapped)",
+                    "call_id": call_id,
+                    "elapsed": round(time.time() - t_start, 3) if t_start else 0.0,
+                }
             result = tool_def.handler(fn_args, "")
             return {
                 "name": fn_name,

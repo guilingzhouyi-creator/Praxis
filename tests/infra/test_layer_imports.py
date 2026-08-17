@@ -16,6 +16,18 @@ LAYER_ORDER = {"l1": 0, "l2": 1, "l3": 2, "l4": 3, "l5": 4}
 # pair; add a line here when introducing a new cross-layer import.
 ALLOWLIST = {
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
+    ("l2/i18n.py", "l4.ports"),  # WS5.1: I18nPort moved out of kernel
+    ("l1/kernel/commands.py", "l2.commands"),  # WS5.3: transition shim
+    ("l1/kernel/model_registry.py", "l4.llm.model_registry"),  # WS5.2: transition shim
+    ("l1/kernel/prompts.py", "l3.agent.prompts"),  # WS5.3: transition shim
+    ("l3/services/review_pipeline.py", "l4.sandbox.diff_frame"),  # WS5.3: moved module
+    ("l3/services/model_service.py", "l4.ports"),  # WS5.1: LLMConfig moved out of kernel
+    ("l2/shells/terminal.py", "l3.params"),  # WS5.4: scout business params live in L3
+    ("l3/services/diff_record_source.py", "l4.params"),  # WS5.4: diff business params live in L4
+    ("l3/services/central_security.py", "l4.params"),  # WS5.4: security-gate params live in L4
+    ("l3/config/bootstrap.py", "l4.params"),  # WS5.4: api business params live in L4
+    ("l3/config/config.py", "l4.params"),  # WS5.4: api business params live in L4
+    ("l3/config/config_handlers_bridge.py", "l4.params"),  # WS5.4: api business params live in L4
     ("l2/l2_shell/__init__.py", "l3.cell"),
     ("l2/l2_shell/commands/__init__.py", "l3.error_bus"),
     ("l2/l2_shell/commands/common.py", "l3.agent_terminal"),
@@ -216,8 +228,11 @@ def _ensure_layer_allowlist() -> None:
         (1, 3, "l3.error_bus"),
         (1, 3, "l3.stagnation"),
         (1, 3, "l3.agent.stagnation"),
+        (1, 3, "l3.agent.prompts"),  # WS5.3: kernel prompts shim
         (1, 3, "l3.cell"),
+        (1, 2, "l2.commands"),  # WS5.3: kernel commands shim
         (1, 4, "l4.adapters"),
+        (1, 4, "l4.llm.model_registry"),  # WS5.2: kernel model_registry shim
         (1, 4, "l4.llm_base"),
         (2, 3, "l3.cache"),
         (2, 3, "l3.l3b"),
@@ -232,8 +247,11 @@ def _ensure_layer_allowlist() -> None:
         (2, 3, "l3.tool_system"),
         (2, 3, "l3.error_bus"),
         (2, 3, "l3.card"),
+        (2, 3, "l3.params"),  # WS5.4: business params live in L3
         (2, 4, "l4.adapters"),
         (3, 4, "l4.mcp_bridge"),
+        (3, 4, "l4.params"),  # WS5.4: bridge business params live in L4
+        (3, 4, "l4.ports"),  # WS5.1: L3 services consume LLMConfig
         (3, 4, "l4.cron_scheduler"),
         (3, 4, "l4.ci_review"),
     ]:

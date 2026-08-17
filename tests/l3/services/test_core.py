@@ -224,6 +224,10 @@ class TestAgentTerminal:
 
             pcb = _pt().spawn("test-agent-term", role="test", ring=1)
             pcb.identity_verified = True
+            # W2.3: G1 is fail-closed — populate the whitelist for this card run.
+            from l1.kernel.gatechain import get_gatechain
+
+            get_gatechain().register_tools(["read_file", "write_file", "intent_parse"])
             term = get_terminal("test-agent-term", role="test", territory=[".", ".."], cell_id="test")
             boot_r = term.boot()
             assert boot_r.get("success"), "agent terminal should boot"

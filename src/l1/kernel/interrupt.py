@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class InterruptType(Enum):
-    """InterruptType — enum of AGENT_CRASH, RESOURCE_EXHAUSTION, DEADLOCK_DETECTED, OOM_KILL."""
+    """InterruptType — enum of AGENT_CRASH, RESOURCE_EXHAUSTION, DEADLOCK_DETECTED, OOM_KILL, CANCELLED."""
 
     AGENT_CRASH = auto()
     RESOURCE_EXHAUSTION = auto()
     DEADLOCK_DETECTED = auto()
     OOM_KILL = auto()
+    CANCELLED = auto()  # W3.2: process cancellation signal
 
 
 @dataclass

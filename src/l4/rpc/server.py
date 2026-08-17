@@ -14,8 +14,9 @@ import logging
 import threading
 from collections.abc import Callable
 
-from l1.kernel.params.api import API_GATEWAY_HOST, RPC_SERVER_PORT
+from l1.kernel.params.api import RPC_SERVER_PORT
 from l1.kernel.ports import RpcServerPort
+from l4.params import API_GATEWAY_HOST
 from l4.rpc.protocol import RpcMessage
 from l4.rpc.transport import RpcTransport
 

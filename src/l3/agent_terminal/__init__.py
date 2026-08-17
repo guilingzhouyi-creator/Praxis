@@ -39,10 +39,10 @@ from l1.kernel.params.system import (
     LOG_TRUNC_200,
     LOG_TRUNC_500,
     POLL_INTERVAL_SLOW,
-    SCOUT_COLLECT_TIMEOUT,
     SESSION_AUTO_RELOAD_ENABLED_DEFAULT,
     SESSION_MONITOR_ENABLED_DEFAULT,
 )
+from l3.params import SCOUT_COLLECT_TIMEOUT
 from l3.services.model_service import get_service as _get_model_service
 
 from ..agent._term_lifecycle import run_cache_keepalive  # noqa: F401  (re-export)
