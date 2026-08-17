@@ -8,6 +8,7 @@
 ### 文档
 
 - **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs**: add L2 shell engine architecture + multifrontend roadmap
 - **Docs**: rust-readiness hardening — plan status, kernel surface boundary
@@ -88,19 +89,9 @@
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
 
-### 性能
-
-- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
-- **Perf (memory)**: interruptible thread shutdown via Event.wait
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
-
 ### 变更
 
+- **Chore**: format fs_adapter_vfs test and refresh changelog
 - **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
 - **Test (infra)**: split runner into per-layer slices
 - **Chore**: ignore atomcode runtime config
@@ -136,6 +127,17 @@
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
 - **Chore (reset)**: update repo references after remote reset to Praxis
+
+### 性能
+
+- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ### 新增
 
