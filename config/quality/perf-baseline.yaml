@@ -2,14 +2,18 @@
 # Regenerate: python scripts/py/perf_quality.py --baseline
 layers:
   L1:
-    channel.put_get: 892703.032
-    event_bus.emit: 1057459.471
-    mutex.acquire_release: 1219376.279
-    thread.create_join: 5224.841
-    worker_pool.submit: 11907.066
+    channel.put_get: 1272434.111
+    event_bus.emit: 963326.655
+    mutex.acquire_release: 1272376.328
+    thread.create_join: 5762.759
+    worker_pool.submit: 16529.411
   L3:
-    durable_ops_per_sec: 6572.182
-    submit_ops_per_sec: 6576.969
+    dept_role_ops_per_sec: 4053958.183
+    dept_route_ops_per_sec: 1737697.966
+    durable_ops_per_sec: 7339.573
+    identity_definition_ops_per_sec: 3640202.386
+    submit_ops_per_sec: 7345.417
+    violation_check_ops_per_sec: 1983343.879
   L5:
-    card.steps_per_sec: 74.600
+    card.steps_per_sec: 97.400
 

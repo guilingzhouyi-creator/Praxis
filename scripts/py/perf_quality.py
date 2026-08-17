@@ -33,11 +33,16 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE = ROOT / "config" / "quality" / "perf-baseline.yaml"
+
+# In-process L3 query benches import l3.* directly — put src on sys.path so
+# they resolve the worktree sources (never an installed praxis copy).
+sys.path.insert(0, str(ROOT / "src"))
 
 PERF_DRIFT_FLOOR = 0.9  # ops_per_sec must stay >= 90% of baseline
 
@@ -77,6 +82,96 @@ def measure_l3() -> dict[str, float]:
     return {k: v for k, v in result.items() if k in ("submit_ops_per_sec", "durable_ops_per_sec")}
 
 
+# In-process L3 query benchmarks (Phase perf pass): department / violation /
+# identity hot paths measured as ops/sec. These run in-process (no driver
+# script) — they exercise the indexed/cached lookup paths directly.
+_DEPT_ITERS = 2_000
+_DEPT_ROUNDS = 3
+
+
+def _median(values: list[float]) -> float:
+    """Return the median of *values*."""
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _ops_per_sec(fn, iters: int, rounds: int) -> float:
+    """Run *fn* for *rounds* passes of *iters* ops; return median ops/sec."""
+    rates: list[float] = []
+    for _ in range(rounds):
+        start = time.perf_counter()
+        fn(iters)
+        elapsed = time.perf_counter() - start
+        rates.append(iters / elapsed if elapsed > 0 else 0.0)
+    return _median(rates)
+
+
+def _seed_dept_state() -> None:
+    """Seed the department registry + monitor state for the L3 query benches.
+
+    Registers a handful of departments (division active) so the indexed
+    lookups / violation checks measure a realistic multi-department setup.
+    """
+    from l3.cell.department import get_department_manager, reset_department_manager
+
+    reset_department_manager()
+    m = get_department_manager()
+    # Force division active (switch + cell count) without touching settings.
+    m.enabled = lambda: True  # type: ignore[method-assign]
+    m.cell_count = lambda: 3  # type: ignore[method-assign]
+    for i in range(4):
+        m.register(f"dept-{i}", [f"role-{i}"], "bench dept")
+        m._departments[f"dept-{i}"].dept_type = f"type-{i}"
+    m._departments["dept-0"].permission_scope = ["test", "verification"]
+    m._rebuild_indexes()
+
+
+def measure_l3_dept() -> dict[str, float]:
+    """Measure department/violation/identity query throughput (L3, in-process)."""
+    _seed_dept_state()
+    from l1.kernel.identity_binding import get_identity_binding_manager, reset_identity_binding_manager
+    from l3.cell import violation_monitor as vm
+    from l3.cell.department import get_department_manager, reset_department_manager
+
+    mgr = get_department_manager()
+    reset_identity_binding_manager()
+    ibm = get_identity_binding_manager()
+    ibm.bind("cell-1", "build", "frag", internal=True)
+    vm.reset_violation_monitor()
+    vm.set_enabled(True)
+
+    result = {
+        "dept_role_ops_per_sec": _ops_per_sec(
+            lambda n: [mgr.department_for_role("role-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+        "dept_route_ops_per_sec": _ops_per_sec(
+            lambda n: [mgr.route_content("type-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+        "violation_check_ops_per_sec": _ops_per_sec(
+            lambda n: [vm.check_output("a", "c1", "role-2", "def test_foo(): assert 1") for _ in range(n)],
+            _DEPT_ITERS,
+            _DEPT_ROUNDS,
+        ),
+        "identity_definition_ops_per_sec": _ops_per_sec(
+            lambda n: [ibm.resolve_definition("cell-1", "build") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+    }
+    # Clean up the seeded singletons so the rest of the scan is unaffected.
+    vm.reset_violation_monitor()
+    reset_identity_binding_manager()
+    reset_department_manager()
+    return result
+
+
+def measure_all() -> dict[str, dict[str, float]]:
+    """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
+    l3 = measure_l3()
+    l3.update(measure_l3_dept())
+    return {"L1": measure_l1(), "L3": l3, "L5": measure_l5()}
+
+
 def measure_l5() -> dict[str, float]:
     """Run bench_card and extract steps-per-second (L5)."""
     out = _run_driver([str(_BENCH_CARD)])
@@ -87,11 +182,6 @@ def measure_l5() -> dict[str, float]:
             except ValueError:
                 return {}
     return {}
-
-
-def measure_all() -> dict[str, dict[str, float]]:
-    """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
-    return {"L1": measure_l1(), "L3": measure_l3(), "L5": measure_l5()}
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
