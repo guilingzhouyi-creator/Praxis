@@ -9,6 +9,7 @@ stored baseline in `config/quality/perf-baseline.yaml`.
 | Layer | Benchmark driver | Metrics |
 |-------|------------------|---------|
 | L1 | `tests/benchmarks/bench_platform.py --json` | `mutex.acquire_release`, `event_bus.emit`, `channel.put_get`, `worker_pool.submit`, `thread.create_join` (ops/sec) |
+| L2 | `tests/benchmarks/bench_l2_protocol.py` | envelope encode/decode and JSONL host command dispatch (ops/sec + p95 batch latency) |
 | L3 | `tests/benchmarks/bench_r4_candidate_store.py` | `submit_ops_per_sec`, `durable_ops_per_sec` (candidate-ledger ingestion) |
 | L3 | `tests/benchmarks/bench_security_toolchain.py` | DVG planning/registration, TODO persistence, R5 rule/semantic edges, evidence append/verify (ops/sec) |
 | L5 | `tests/benchmarks/bench_card.py` | `card.steps_per_sec` (end-to-end card throughput) |
@@ -49,6 +50,37 @@ The current namespaces are:
 
 `perf_quality.py` includes the security/toolchain driver in the L3 gate and
 applies the same 90% drift floor as every existing layer baseline.
+
+## Sampling contract
+
+`config/quality/perf-schema.json` is the machine-readable result contract and
+`scripts/py/perf_harness.py` is the shared sampler for in-process benchmarks.
+It discards a configurable warmup round, records seven samples by default, and
+emits a versioned document containing platform metadata, per-sample throughput,
+average operation latency, p95 batch latency, median absolute deviation (MAD),
+and coefficient of variation (CV). `perf_quality.py --run-json` wraps the
+layer measurements in the same schema with `schema_version`, `generated_at`,
+`platform`, and `layers` fields.
+
+The sampler treats variance as evidence, not as a reason to silently rewrite a
+baseline. Baselines are regenerated only on the same platform and dependency
+set after a stable run; local WSL measurements remain diagnostic when they
+diverge from a dedicated CI baseline.
+
+Missing baseline entries are blocking by default. During an intentional metric
+migration, `--allow-missing-baseline` converts those entries into visible,
+non-blocking notices; it never changes the stored file. A stable layer can be
+promoted without rewriting unrelated layers:
+
+```bash
+python tests/benchmarks/bench_l2_protocol.py --iterations 5000 --warmups 3 --samples 31 \
+  --json .praxis/l2-continuous.json
+python scripts/py/perf_quality.py --baseline --baseline-layer L2 > /tmp/praxis-perf-baseline.yaml
+mv /tmp/praxis-perf-baseline.yaml config/quality/perf-baseline.yaml
+```
+
+The layer-scoped command preserves existing values and only replaces the
+selected layer after the operator has reviewed the repeated-sample report.
 
 ## Usage
 

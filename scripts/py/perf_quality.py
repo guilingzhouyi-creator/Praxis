@@ -25,6 +25,7 @@ Usage:
     python scripts/py/perf_quality.py                # scan + gate verdict
     python scripts/py/perf_quality.py --report       # measured table only
     python scripts/py/perf_quality.py --baseline     # emit baseline YAML to stdout
+    python scripts/py/perf_quality.py --baseline-layer L2 # update one layer in the baseline
     python scripts/py/perf_quality.py --run-json <f> # dump measured JSON (debug)
 """
 
@@ -34,7 +35,7 @@ import argparse
 import json
 import subprocess
 import sys
-import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,16 @@ BASELINE = ROOT / "config" / "quality" / "perf-baseline.yaml"
 # In-process L3 query benches import l3.* directly — put src on sys.path so
 # they resolve the worktree sources (never an installed praxis copy).
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts" / "py"))
+
+from perf_harness import (  # noqa: E402
+    PERF_HARNESS_WARMUP_ROUNDS,
+    platform_fingerprint,
+    run_benchmark,
+)
+from perf_harness import (  # noqa: E402
+    SCHEMA_VERSION as PERF_SCHEMA_VERSION,
+)
 
 PERF_DRIFT_FLOOR = 0.9  # ops_per_sec must stay >= 90% of baseline
 
@@ -54,11 +65,15 @@ _BENCH_R4 = ROOT / "tests" / "benchmarks" / "bench_r4_candidate_store.py"
 _BENCH_CARD = ROOT / "tests" / "benchmarks" / "bench_card.py"
 _BENCH_SCALE = ROOT / "tests" / "benchmarks" / "bench_scale.py"
 _BENCH_TOOLCHAIN = ROOT / "tests" / "benchmarks" / "bench_security_toolchain.py"
+_BENCH_L2_PROTOCOL = ROOT / "tests" / "benchmarks" / "bench_l2_protocol.py"
 
 
 def _run_driver(args: list[str], timeout: int = 180) -> str:
     """Run a benchmark driver and return its combined stdout/stderr."""
     proc = subprocess.run([sys.executable, *args], capture_output=True, text=True, timeout=timeout, cwd=ROOT)
+    if proc.returncode:
+        detail = (proc.stdout + proc.stderr).strip()
+        raise RuntimeError(f"benchmark driver failed with exit code {proc.returncode}: {detail}")
     return proc.stdout + proc.stderr
 
 
@@ -123,6 +138,59 @@ def measure_toolchain() -> dict[str, float]:
     return result
 
 
+def _record_variance_warning(
+    diagnostics: list[dict[str, Any]] | None,
+    benchmark: str,
+    summary: dict[str, Any],
+) -> None:
+    """Append a non-blocking variance diagnostic when a sample is unstable."""
+    if diagnostics is None or not summary.get("variance_warning"):
+        return
+    median = float(summary.get("ops_per_sec", 0.0))
+    mad = float(summary.get("mad_ops_per_sec", 0.0))
+    mad_pct = mad / median * 100 if median > 0 else 0.0
+    diagnostics.append(
+        {
+            "benchmark": benchmark,
+            "median_ops_per_sec": median,
+            "mad_ops_per_sec": mad,
+            "mad_pct": mad_pct,
+            "coefficient_of_variation": float(summary.get("coefficient_of_variation", 0.0)),
+            "note": "sample variance exceeds the configured MAD warning threshold",
+        }
+    )
+
+
+def measure_l2(diagnostics: list[dict[str, Any]] | None = None) -> dict[str, float]:
+    """Run the L2 protocol benchmark and extract throughput metrics."""
+    tmp = ROOT / ".praxis" / "perf_l2_protocol.json"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    _run_driver(
+        [
+            str(_BENCH_L2_PROTOCOL),
+            "--iterations",
+            "1000",
+            "--warmups",
+            "1",
+            "--samples",
+            "3",
+            "--json",
+            str(tmp),
+        ]
+    )
+    data = json.loads(tmp.read_text(encoding="utf-8"))
+    result: dict[str, float] = {}
+    for benchmark in data.get("benchmarks", []):
+        name = benchmark.get("name")
+        summary = benchmark.get("summary") or {}
+        if not name or not isinstance(summary, dict):
+            continue
+        _record_variance_warning(diagnostics, name, summary)
+        if isinstance(summary.get("ops_per_sec"), (int, float)):
+            result[f"{name}.ops_per_sec"] = float(summary["ops_per_sec"])
+    return result
+
+
 # In-process L3 query benchmarks (Phase perf pass): department / violation /
 # identity hot paths measured as ops/sec. These run in-process (no driver
 # script) — they exercise the indexed/cached lookup paths directly.
@@ -130,23 +198,18 @@ _DEPT_ITERS = 2_000
 _DEPT_ROUNDS = 3
 
 
-def _median(values: list[float]) -> float:
-    """Return the median of *values*."""
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
-
-
-def _ops_per_sec(fn, iters: int, rounds: int) -> float:
+def _ops_per_sec(
+    fn,
+    iters: int,
+    rounds: int,
+    *,
+    metric_name: str,
+    diagnostics: list[dict[str, Any]] | None = None,
+) -> float:
     """Run *fn* for *rounds* passes of *iters* ops; return median ops/sec."""
-    rates: list[float] = []
-    for _ in range(rounds):
-        start = time.perf_counter()
-        fn(iters)
-        elapsed = time.perf_counter() - start
-        rates.append(iters / elapsed if elapsed > 0 else 0.0)
-    return _median(rates)
+    result = run_benchmark("perf_quality.in_process", fn, iters, warmups=PERF_HARNESS_WARMUP_ROUNDS, samples=rounds)
+    _record_variance_warning(diagnostics, metric_name, result.as_dict()["summary"])
+    return result.median_ops_per_sec
 
 
 def _seed_dept_state() -> None:
@@ -169,7 +232,7 @@ def _seed_dept_state() -> None:
     m._rebuild_indexes()
 
 
-def measure_l3_dept() -> dict[str, float]:
+def measure_l3_dept(diagnostics: list[dict[str, Any]] | None = None) -> dict[str, float]:
     """Measure department/violation/identity query throughput (L3, in-process)."""
     import os
 
@@ -193,18 +256,32 @@ def measure_l3_dept() -> dict[str, float]:
 
     result = {
         "dept_role_ops_per_sec": _ops_per_sec(
-            lambda n: [mgr.department_for_role("role-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+            lambda n: [mgr.department_for_role("role-2") for _ in range(n)],
+            _DEPT_ITERS,
+            _DEPT_ROUNDS,
+            metric_name="dept_role_ops_per_sec",
+            diagnostics=diagnostics,
         ),
         "dept_route_ops_per_sec": _ops_per_sec(
-            lambda n: [mgr.route_content("type-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+            lambda n: [mgr.route_content("type-2") for _ in range(n)],
+            _DEPT_ITERS,
+            _DEPT_ROUNDS,
+            metric_name="dept_route_ops_per_sec",
+            diagnostics=diagnostics,
         ),
         "violation_check_ops_per_sec": _ops_per_sec(
             lambda n: [vm.check_output("a", "c1", "role-2", "def test_foo(): assert 1") for _ in range(n)],
             _DEPT_ITERS,
             _DEPT_ROUNDS,
+            metric_name="violation_check_ops_per_sec",
+            diagnostics=diagnostics,
         ),
         "identity_definition_ops_per_sec": _ops_per_sec(
-            lambda n: [ibm.resolve_definition("cell-1", "build") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+            lambda n: [ibm.resolve_definition("cell-1", "build") for _ in range(n)],
+            _DEPT_ITERS,
+            _DEPT_ROUNDS,
+            metric_name="identity_definition_ops_per_sec",
+            diagnostics=diagnostics,
         ),
     }
     # Clean up the seeded singletons + temp state file so the rest of the
@@ -220,14 +297,15 @@ def measure_l3_dept() -> dict[str, float]:
     return result
 
 
-def measure_all() -> dict[str, dict[str, float]]:
+def measure_all(diagnostics: list[dict[str, Any]] | None = None) -> dict[str, dict[str, float]]:
     """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
     l1 = measure_l1()
     l1.update(measure_amdahl())
+    l2 = measure_l2(diagnostics)
     l3 = measure_l3()
-    l3.update(measure_l3_dept())
+    l3.update(measure_l3_dept(diagnostics))
     l3.update(measure_toolchain())
-    return {"L1": l1, "L3": l3, "L5": measure_l5()}
+    return {"L1": l1, "L2": l2, "L3": l3, "L5": measure_l5()}
 
 
 def measure_l5() -> dict[str, float]:
@@ -255,7 +333,12 @@ def load_baseline(path: Path) -> dict[str, Any]:
         return {}
 
 
-def compare(measured: dict[str, dict[str, float]], baseline: dict[str, Any]) -> list[dict[str, Any]]:
+def compare(
+    measured: dict[str, dict[str, float]],
+    baseline: dict[str, Any],
+    *,
+    allow_missing_baseline: bool = False,
+) -> list[dict[str, Any]]:
     """Compare measured throughput against the baseline; return finding dicts."""
     findings: list[dict[str, Any]] = []
     layers_baseline = baseline.get("layers", {})
@@ -270,10 +353,12 @@ def compare(measured: dict[str, dict[str, float]], baseline: dict[str, Any]) -> 
                 # (the baseline is regenerated where the metric appears).
                 if name.endswith("_score"):
                     findings.append(
-                        _finding(layer, name, ops, None, "soft", "no baseline entry (optional score metric)")
+                        _finding(layer, name, ops, None, "notice", "no baseline entry (optional score metric)")
                     )
                     continue
-                findings.append(_finding(layer, name, ops, None, "hard", "no baseline entry"))
+                kind = "notice" if allow_missing_baseline else "hard"
+                note = "no baseline entry (explicitly allowed)" if allow_missing_baseline else "no baseline entry"
+                findings.append(_finding(layer, name, ops, None, kind, note))
                 continue
             if ops <= 0.0:
                 findings.append(_finding(layer, name, ops, base, "hard", "benchmark error/unavailable"))
@@ -290,7 +375,11 @@ def _finding(layer: str, key: str, cur: Any, base: Any, kind: str, note: str) ->
     return {"layer": layer, "key": key, "current": cur, "baseline": base, "kind": kind, "note": note}
 
 
-def render_report(measured: dict[str, dict[str, float]], findings: list[dict[str, Any]]) -> str:
+def render_report(
+    measured: dict[str, dict[str, float]],
+    findings: list[dict[str, Any]],
+    diagnostics: list[dict[str, Any]] | None = None,
+) -> str:
     """Render a human-readable table of measured throughput plus violations."""
     lines = ["Per-layer performance scan", "=" * 70]
     for layer, metrics in sorted(measured.items()):
@@ -298,11 +387,24 @@ def render_report(measured: dict[str, dict[str, float]], findings: list[dict[str
         for name, ops in sorted(metrics.items()):
             lines.append(f"    {name:<32} {ops:>12,.0f} ops/sec")
     lines.append("-" * 70)
-    if not findings:
+    if diagnostics:
+        lines.append(f"WARN: {len(diagnostics)} high-variance sample(s); baseline was not changed.")
+        for diagnostic in diagnostics:
+            lines.append(
+                f"  [variance] {diagnostic['benchmark']} MAD={diagnostic['mad_pct']:.2f}% "
+                f"CV={diagnostic['coefficient_of_variation']:.3f}"
+            )
+    blocking = [finding for finding in findings if finding["kind"] in {"hard", "soft"}]
+    notices = [finding for finding in findings if finding["kind"] == "notice"]
+    if not blocking:
+        if notices:
+            lines.append(f"NOTICE: {len(notices)} non-blocking baseline notice(s):")
+            for finding in notices:
+                lines.append(f"  [notice] {finding['layer']}.{finding['key']} - {finding['note']}")
         lines.append("PASS: all layers within performance baseline.")
     else:
-        lines.append(f"FAIL: {len(findings)} gate violation(s):")
-        for f in findings:
+        lines.append(f"FAIL: {len(blocking)} gate violation(s):")
+        for f in blocking:
             base = f"{f['baseline']:,.0f}" if isinstance(f["baseline"], (int, float)) else "n/a"
             lines.append(
                 f"  [{f['kind']}] {f['layer']}.{f['key']} current={f['current']:,.0f} baseline={base} — {f['note']}"
@@ -310,8 +412,13 @@ def render_report(measured: dict[str, dict[str, float]], findings: list[dict[str
     return "\n".join(lines)
 
 
-def emit_baseline(measured: dict[str, dict[str, float]]) -> str:
+def emit_baseline(
+    measured: dict[str, dict[str, float]],
+    existing: dict[str, Any] | None = None,
+) -> str:
     """Emit a baseline YAML document for the current measured values."""
+    layers = dict((existing or {}).get("layers", {}))
+    layers.update(measured)
     doc = [
         "# Per-layer performance baseline (generated — do not hand-edit).",
         "# Regenerate: python scripts/py/perf_quality.py --baseline",
@@ -320,7 +427,7 @@ def emit_baseline(measured: dict[str, dict[str, float]]) -> str:
         "# baseline entry for them is a soft notice, not a hard gate failure.",
         "layers:",
     ]
-    for layer, metrics in sorted(measured.items()):
+    for layer, metrics in sorted(layers.items()):
         doc.append(f"  {layer}:")
         for name, ops in sorted(metrics.items()):
             doc.append(f"    {name}: {ops:.3f}")
@@ -332,28 +439,59 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Per-layer performance baseline scanner")
     parser.add_argument("--report", action="store_true", help="print the measured table only (no verdict)")
     parser.add_argument("--baseline", action="store_true", help="emit the current values as baseline YAML to stdout")
+    parser.add_argument(
+        "--baseline-layer",
+        action="append",
+        dest="baseline_layers",
+        metavar="LAYER",
+        help="update only the named layer(s) while preserving other baseline values",
+    )
     parser.add_argument("--run-json", type=str, default="", help="dump measured values as JSON to a file")
+    parser.add_argument(
+        "--allow-missing-baseline",
+        action="store_true",
+        help="treat missing metric entries as non-blocking diagnostics (migration only)",
+    )
     args = parser.parse_args()
+    if args.baseline_layers and not args.baseline:
+        parser.error("--baseline-layer requires --baseline")
 
-    measured = measure_all()
+    diagnostics: list[dict[str, Any]] = []
+    measured = measure_all(diagnostics)
 
     if args.baseline:
-        print(emit_baseline(measured))
+        if args.baseline_layers:
+            selected = {layer: measured[layer] for layer in args.baseline_layers if layer in measured}
+            unknown = sorted(set(args.baseline_layers) - set(selected))
+            if unknown:
+                parser.error(f"unknown baseline layer(s): {', '.join(unknown)}")
+            print(emit_baseline(selected, load_baseline(BASELINE)))
+        else:
+            print(emit_baseline(measured))
         return 0
     if args.run_json:
-        Path(args.run_json).write_text(json.dumps(measured, indent=2), encoding="utf-8")
+        document = {
+            "schema_version": PERF_SCHEMA_VERSION,
+            "generated_at": datetime.now(UTC).isoformat(),
+            "platform": platform_fingerprint(),
+            "layers": measured,
+            "diagnostics": {"variance_warnings": diagnostics},
+        }
+        destination = Path(args.run_json)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return 0
     if args.report:
-        print(render_report(measured, []))
+        print(render_report(measured, [], diagnostics))
         return 0
 
     baseline = load_baseline(BASELINE)
     if not baseline:
         print(f"perf_quality: baseline missing — run --baseline to generate {BASELINE}", file=sys.stderr)
         return 2
-    findings = compare(measured, baseline)
-    print(render_report(measured, findings))
-    return 1 if findings else 0
+    findings = compare(measured, baseline, allow_missing_baseline=args.allow_missing_baseline)
+    print(render_report(measured, findings, diagnostics))
+    return 1 if any(finding["kind"] in {"hard", "soft"} for finding in findings) else 0
 
 
 if __name__ == "__main__":
