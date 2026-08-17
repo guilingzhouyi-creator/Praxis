@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "praxis/performance/v1",
+  "title": "Praxis performance result",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "platform"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "generated_at": {"type": "string"},
+    "platform": {"$ref": "#/$defs/platform"},
+    "layers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"type": "number", "minimum": 0}
+      }
+    },
+    "benchmarks": {"type": "array", "items": {"$ref": "#/$defs/benchmark"}},
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "variance_warnings": {"type": "array", "items": {"$ref": "#/$defs/variance_warning"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "platform": {
+      "type": "object",
+      "required": ["system", "release", "machine", "python", "cpu_count"],
+      "properties": {
+        "system": {"type": "string"},
+        "release": {"type": "string"},
+        "machine": {"type": "string"},
+        "python": {"type": "string"},
+        "cpu_count": {"type": "integer", "minimum": 0},
+        "wsl": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "sample": {
+      "type": "object",
+      "required": ["elapsed_s", "operations", "ops_per_sec", "latency_ms"],
+      "properties": {
+        "elapsed_s": {"type": "number", "minimum": 0},
+        "operations": {"type": "integer", "minimum": 1},
+        "ops_per_sec": {"type": "number", "minimum": 0},
+        "latency_ms": {"type": "number", "minimum": 0},
+        "rss_bytes": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "variance_warning": {
+      "type": "object",
+      "required": [
+        "benchmark", "median_ops_per_sec", "mad_ops_per_sec", "mad_pct",
+        "coefficient_of_variation", "note"
+      ],
+      "properties": {
+        "benchmark": {"type": "string", "minLength": 1},
+        "median_ops_per_sec": {"type": "number", "minimum": 0},
+        "mad_ops_per_sec": {"type": "number", "minimum": 0},
+        "mad_pct": {"type": "number", "minimum": 0},
+        "coefficient_of_variation": {"type": "number", "minimum": 0},
+        "note": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "benchmark": {
+      "type": "object",
+      "required": [
+        "schema_version", "name", "unit", "iterations", "warmups", "started_at",
+        "platform", "metadata", "samples", "summary"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "name": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "iterations": {"type": "integer", "minimum": 1},
+        "warmups": {"type": "integer", "minimum": 0},
+        "started_at": {"type": "string"},
+        "platform": {"$ref": "#/$defs/platform"},
+        "metadata": {"type": "object"},
+        "samples": {"type": "array", "items": {"$ref": "#/$defs/sample"}},
+        "summary": {
+          "type": "object",
+          "required": [
+            "ops_per_sec", "latency_ms", "latency_p95_ms", "mad_ops_per_sec",
+            "coefficient_of_variation", "variance_warning"
+          ],
+          "properties": {
+            "ops_per_sec": {"type": "number", "minimum": 0},
+            "latency_ms": {"type": "number", "minimum": 0},
+            "latency_p95_ms": {"type": "number", "minimum": 0},
+            "mad_ops_per_sec": {"type": "number", "minimum": 0},
+            "coefficient_of_variation": {"type": "number", "minimum": 0},
+            "variance_warning": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

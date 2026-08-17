@@ -82,6 +82,12 @@
 
 硬约束：TS L2 是 L3 的**纯投影器 + 分派器 + 桥客户端**，绝不重实现 AgentLoop/Tool Pipeline/Workflow/Scheduler/Memory/Planning。
 
+构建外围边界：`scripts/py/praxis_automation.py` 及其 manifest/性能 runner 不属于
+L2 协议和 TS 引擎迁移面。P3 只迁移 `parser/dispatcher/session/builtins/bridge.ts`；
+自动化脚手架继续在宿主构建环境运行，并通过 `ProcessPort` 调用基准/质量命令。
+TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议事件；需要展示时，
+只能通过协议 v1 的结果/事件投影消费版本化报告。
+
 ## 6. 阶段路线图
 
 | 阶段 | 内容 | 验收 |
@@ -97,4 +103,6 @@
 1. 先合入 WT 边界硬化（工具单门）——否则一切协议/TS 工作都建立在旁路之上。
 2. L3 command bridge 与 L2 边界迁移并行（P1），其完成是 TS 重写（P3）的前置。
 3. 与 `kernel-boundary-audit.md` 的衔接点：进程/事件/配置双权威收敛由 L1 路线图负责，L2 只要求"单一桥 + 单一写面"；L1 Rust 化完成后，协议 v1 的 bridge 目标地址变为 Rust kernel 的 capability 边界，Python/TS 两侧均无感。
-4. 全程保持：**L2 不拥有任何最终 authority**——安全/调度/业务/Agent/LLM/模型/工具治理逻辑一律不得塞入 Shell。
+4. 自动化外围只通过 `ProcessPort`、版本化报告和未来的 evidence/observability Port
+   与宿主连接；不得新增 L2→L3 直连或把 runner 嵌入 TS Shell。
+5. 全程保持：**L2 不拥有任何最终 authority**——安全/调度/业务/Agent/LLM/模型/工具治理逻辑一律不得塞入 Shell。

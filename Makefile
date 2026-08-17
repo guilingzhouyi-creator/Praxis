@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor
 
 install:
 	pip install -e ".[test]"
@@ -93,3 +93,15 @@ perf-quality-baseline:
 
 quality-all:
 	python scripts/py/layer_quality.py && python scripts/py/perf_quality.py
+
+automation-plan:
+	python scripts/py/praxis_automation.py plan --workflow performance
+
+automation-run:
+	python scripts/py/praxis_automation.py run --workflow performance --output .praxis/automation/run.json --json
+
+automation-report:
+	python scripts/py/praxis_automation.py report --input .praxis/automation/run.json --json
+
+automation-doctor:
+	python scripts/py/praxis_automation.py doctor --workflow performance --json

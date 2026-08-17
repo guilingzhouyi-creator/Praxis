@@ -64,6 +64,8 @@ def _register_gate_sections() -> None:
 
 def _register_service_defaults() -> None:
     """Register runtime limits + tool/persistence defaults (params → config fallback)."""
+    import l3.params as _l3_params
+    import l4.params as _l4_params
     from l1.kernel.params import agent as _pag
     from l1.kernel.params import api as _pa
     from l1.kernel.params import system as _ps
@@ -90,7 +92,7 @@ def _register_service_defaults() -> None:
             "pool_queue_timeout": _pa.POOL_QUEUE_TIMEOUT,
             "term_handler_timeout": _pa.TERM_HANDLER_TIMEOUT,
             "term_handler_long_timeout": _pa.TERM_HANDLER_LONG_TIMEOUT,
-            "gateway_queue_timeout": _pa.API_GATEWAY_QUEUE_TIMEOUT,
+            "gateway_queue_timeout": _l4_params.API_GATEWAY_QUEUE_TIMEOUT,
             "r4_agent_join_timeout": _pa.R4_AGENT_JOIN_TIMEOUT,
             "subagent_run_timeout": _pa.SUBAGENT_RUN_TIMEOUT,
             "subagent_join_timeout": _pa.SUBAGENT_JOIN_TIMEOUT,
@@ -125,7 +127,7 @@ def _register_service_defaults() -> None:
         {
             "interval": _ps.PERSIST_INTERVAL,
             "card_registry": _ps.CARD_REGISTRY_AUTO_SAVE,
-            "card_gate": _ps.CARD_GATE_AUTO_SAVE,
+            "card_gate": _l3_params.CARD_GATE_AUTO_SAVE,
             "pending_queue": _ps.PENDING_QUEUE_AUTO_SAVE,
             "issue_table": _ps.ISSUE_TABLE_AUTO_SAVE,
             "approval_gate": _ps.APPROVAL_GATE_AUTO_SAVE,
@@ -159,7 +161,7 @@ def _register_service_defaults() -> None:
             "memory_ring_score_average_threshold": _ps.MEMORY_RING_SCORE_AVERAGE_THRESHOLD,
             # ── L4 key modules (config-driven via get_service_limit) ──
             "channel_ring_capacity": _pa.CHANNEL_RING_CAPACITY,
-            "api_middleware_timeout": _pa.API_MIDDLEWARE_TIMEOUT,
+            "api_middleware_timeout": _l4_params.API_MIDDLEWARE_TIMEOUT,
             "lsp_cache_ttl": _pa.LSP_CACHE_TTL,
             "search_cache_max": _ps.SEARCH_CACHE_MAX,
             "ops_console_interval": _ps.OPS_CONSOLE_INTERVAL,
@@ -171,6 +173,7 @@ def _register_service_defaults() -> None:
 def _register_consumer_sections() -> None:
     """Register sections consumed by direct YAML readers (no merge warnings)."""
     import l1.kernel.settings as _settings_mod
+    import l3.params as _l3_params
     from l1.kernel.params import system as _ps
 
     register("skill_dirs", [".praxis/skills", "skills", ".skills"])
@@ -195,6 +198,7 @@ def _register_consumer_sections() -> None:
     register("diff_languages", {})  # diff_language.py reads diff_languages.yaml directly
     register("diff_dictionary", {})  # diff_dict.py reads the diff_dictionary section
     register("dvg", {})  # boot_steps/tools.py _load_dvg reads dvg.yaml directly
+    register("automation", {})  # scripts/py/praxis_automation.py reads automation.yaml directly
     register("identities", {})  # identity_roles.yaml (also loaded directly below)
     register("subagent_specs", {})  # subagent_spec.py reads subagent_specs.yaml directly
     # Shell family (boot_steps/shells.py reads get_config("shells")) —
@@ -212,9 +216,9 @@ def _register_consumer_sections() -> None:
     register(
         "review",
         {
-            "enabled": _ps.REVIEW_PIPELINE_ENABLED_DEFAULT,
-            "autofix_enabled": _ps.REVIEW_AUTOFIX_ENABLED_DEFAULT,
-            "max_small_change_lines": _ps.REVIEW_SMALL_CHANGE_MAX_LINES,
+            "enabled": _l3_params.REVIEW_PIPELINE_ENABLED_DEFAULT,
+            "autofix_enabled": _l3_params.REVIEW_AUTOFIX_ENABLED_DEFAULT,
+            "max_small_change_lines": _l3_params.REVIEW_SMALL_CHANGE_MAX_LINES,
         },
     )
     register(

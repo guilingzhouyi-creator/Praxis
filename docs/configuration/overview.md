@@ -59,7 +59,7 @@ noted):
 `build_detectors`, `test_detectors`, `provider_urls`, `ring_gates`,
 `gatechain_danger_levels`, `constitution`, `tool_rates`, `services`,
 `skill_dirs`, `shell_aliases`, `tool`, `persistence`, `service_limits`,
-`engineering_debug`
+`engineering_debug`, `automation`
 
 YAML files only carry the sections that override the code defaults:
 
@@ -71,6 +71,7 @@ YAML files only carry the sections that override the code defaults:
 | `engineering_debug.yaml` | `engineering_debug` |
 | `providers.yaml` | `provider_urls` |
 | `service_limits.yaml` | `service_limits` |
+| `automation.yaml` | `automation` |
 
 **Adding new values**: Simply add new keys to the appropriate YAML file. No code changes needed.
 

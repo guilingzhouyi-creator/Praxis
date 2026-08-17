@@ -18,6 +18,7 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 | Build discipline — worktree, waivers, DoD | `docs/workflow/code-of-conduct.md` |
 | Repo layout & naming rules | `docs/project-structure.md` |
 | Config system | `docs/configuration/overview.md` |
+| Automation perimeter | `docs/architecture/automation.md` |
 | Memory / skill / security / sandbox specs | `docs/architecture/l3-memory.md`, `skill-system.md`, `security-evidence.md`, `sandbox-diff.md` |
 
 ## Quick start

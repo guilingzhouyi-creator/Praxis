@@ -389,7 +389,6 @@ POOL_QUEUE_TIMEOUT: Final[float] = 1.0
 TERM_HANDLER_TIMEOUT: Final[float] = 15.0
 # Timeout for long terminal handler operations (s)
 TERM_HANDLER_LONG_TIMEOUT: Final[float] = 30.0
-# Timeout for API gateway request queueing (s)
 # Timeout for joining an R4Agent worker (s)
 R4_AGENT_JOIN_TIMEOUT: Final[float] = 5.0
 # Timeout for subagent task runs (s)

@@ -92,6 +92,7 @@ flowchart TB
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
 | — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
 | — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (perf_quality.py), drift floor |
+| — | [automation.md](automation.md) | Declarative automation manifest, DAG planning, ProcessPort execution, and evidence hooks |
 | — | [completion-judge.md](completion-judge.md) | CompletionJudge: 11-dimension "done" gate, COMPLETE/PARTIAL/INCOMPLETE verdicts, shared JSONL log, mode-split dashboard |
 | — | [skill-system.md](skill-system.md) | Skill manager (L1), R4Agent evolution, per-Cell bindings, staged/guided skills |
 | — | [runtime-subsystems.md](runtime-subsystems.md) | error bus (trace_id), AgentLoop entities, boot, search, LLM workers, resource buffer, ConfigDiscovery |
@@ -105,9 +106,9 @@ flowchart TB
 | L2 Shell | 43 files / 5,860 lines |
 | L3 Cell | 337 files / 73,588 lines |
 | L4 Bridge | 112 files / 23,209 lines |
-| L1 Kernel | 69 files / 18,132 lines |
+| L1 Kernel | 69 files / 18,137 lines |
 | L2 Shell | 43 files / 5,860 lines |
-| L3 Cell | 347 files / 76,742 lines |
+| L3 Cell | 347 files / 76,746 lines |
 | L4 Bridge | 112 files / 23,209 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
@@ -125,7 +126,7 @@ flowchart TB
 | L4 Handlers | 34 files / 6,325 lines |
 | API routes | 366 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,186 |
+| Params modules / constants | 8 / 1,189 |
 | Health | 0.716 (grade B) |
 
 ## Reading path

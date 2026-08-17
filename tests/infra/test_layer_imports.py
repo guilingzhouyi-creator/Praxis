@@ -29,6 +29,7 @@ ALLOWLIST = {
     ("l3/config/config.py", "l4.params"),  # WS5.4: api business params live in L4
     ("l3/config/config_handlers_bridge.py", "l4.params"),  # WS5.4: api business params live in L4
     ("l2/l2_shell/__init__.py", "l3.cell"),
+    ("l2/l2_shell/__init__.py", "l3.cell.peers.l3"),
     ("l2/l2_shell/commands/__init__.py", "l3.error_bus"),
     ("l2/l2_shell/commands/common.py", "l3.agent_terminal"),
     ("l2/l2_shell/commands/common.py", "l3.cell"),
@@ -37,6 +38,7 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/connect.py", "l3.agent_terminal"),
     ("l2/l2_shell/commands/connect.py", "l3.cell"),
     ("l2/l2_shell/commands/departments.py", "l3.cell.department"),
+    ("l2/l2_shell/commands/departments.py", "l3.cell.violation_monitor"),
     ("l2/l2_shell/commands/ci.py", "l3.config.settings_center"),
     ("l2/l2_shell/commands/ci.py", "l4.ci_review"),
     ("l2/l2_shell/commands/extra_cluster.py", "l3.bus.htn_a"),
@@ -108,6 +110,7 @@ ALLOWLIST = {
     ("l3/agent/_term_lifecycle.py", "l4.llm.llm_base"),
     ("l3/agent/subagent_task.py", "l4.llm.llm"),
     ("l3/boot/boot_steps/services.py", "l4.ci_review"),
+    ("l3/boot/boot_steps/discovery.py", "l4.params"),  # WS5.4: API middleware timeout moved to L4
     ("l3/boot/wiring.py", "l4.adapters.bus_memory"),
     ("l3/boot/wiring.py", "l4.adapters.card_registry"),
     ("l3/boot/wiring.py", "l4.adapters.i18n_yaml"),

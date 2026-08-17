@@ -173,6 +173,12 @@ RECORD_CENTER_AUTO_EXPORT_INTERVAL: Final[float] = 300.0
 # (benchmark.yml gate), not just a warning. Baseline lives in
 # tests/benchmarks/baseline.json (recorded by bench_trends.py record).
 BENCH_REGRESSION_LIMIT_PCT: Final[float] = 10.0
+# Warmup rounds discarded before recording a performance sample.
+PERF_HARNESS_WARMUP_ROUNDS: Final[int] = 1
+# Recorded rounds used to calculate robust performance summaries.
+PERF_HARNESS_SAMPLE_ROUNDS: Final[int] = 7
+# MAD percentage used to flag high-variance benchmark samples.
+PERF_HARNESS_MAD_WARN_PCT: Final[float] = 3.0
 
 # ── Memory ring quality scoring (quality_note) ──
 MEMORY_RING_SCORE_CHAR_WEIGHT: Final[float] = 0.3

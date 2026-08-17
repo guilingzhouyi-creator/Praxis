@@ -10,6 +10,9 @@ layers:
     mutex.acquire_release: 1405943.471
     thread.create_join: 7262.676
     worker_pool.submit: 18969.354
+  L2:
+    l2.protocol.encode_decode.ops_per_sec: 172698.686
+    l2.protocol.host_command.ops_per_sec: 38473.607
   L3:
     dept_role_ops_per_sec: 3094954.757
     dept_route_ops_per_sec: 1625700.374

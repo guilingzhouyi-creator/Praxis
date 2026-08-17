@@ -141,13 +141,38 @@ l1_kernel_rs（模块级，非整体重写）
 
 ---
 
+### 4.5 自动化与性能外围的重写边界
+
+当前的 `automation_runner.py`、`perf_harness.py`、`perf_quality.py` 和
+`config/discovery/automation.yaml` 属于构建/质量外围，不是 L1、L2 或 L3
+的业务权威。它们不得被复制进 TS Shell 或 `l1_kernel_rs`。
+
+外围与重写的稳定接缝固定为：
+
+1. 执行只依赖 `ProcessPort` / `ProcessResult`；Rust 进程适配器替换后，runner
+   和 manifest v1 不变。
+2. 运行报告遵循版本化 JSON schema；`trace_id`、指标和证据是旁路记录，不改变
+   受保护执行结果。
+3. DVG 仅作为当前 L3 规划适配器；未来若依赖图下沉到 Kernel，替换
+   `DependencyGraphPort` 实现，不改变 manifest 数据格式。
+
+进入 M3 前必须完成三项解耦：
+
+- 将 `PERF_HARNESS_*` 采样常量从 L1 `params/system.py` 迁到质量配置或构建脚本参数；
+- 为 observability/evidence/dependency graph 提供稳定 Port，移除 runner 对 L3
+  具体模块的直接依赖；
+- 将 L2 协议基线与 M3 的固定总量 Amdahl 证据分开保存，不能用前者推导 Rust
+  下沉优先级。
+
+---
+
 ## 5. 统一里程碑
 
 ```
 M0  现网基线（当前）           — 快速核心套件全绿；契约框架已注册（stub）
 M1  L2 抽象完整               — Phase 1–3 接通 /api/v2/shell 三端点；TS/TUI 可作纯 HTTP 客户端
-M2  会话收尾 + 文档            — Phase 4–6；l2-shell.md 契约面显式化
-M3  Rust 下沉优先级判定       — 完成真实固定总量 L1 基准；据 P 值和锁/队列等待定"先迁移哪个热路径"
+M2  会话收尾 + 文档            — Phase 4–6；l2-shell.md 契约面显式化；外围契约独立
+M3  Rust 下沉优先级判定       — 外围完成 §4.5 解耦；完成真实固定总量 L1 基准；据 P 值和锁/队列等待定"先迁移哪个热路径"
 M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Python 灰度共存，接口不变
 ```
 
@@ -166,6 +191,8 @@ M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Pytho
 | 前端差异化落在渲染/绑定层 | 引擎唯一，`dispatch` 契约不变 |
 | Rust 下沉内核是既定方向 | 早期 ADR 判断已被 load-adaptive 设计覆盖；缩放曲线只决定顺序/时机；**前置边界封口见 `kernel-boundary-audit.md` §11.2（Phase 0/1 先于任何迁移）** |
 | Rust 迁移无侵入 | 经 port 适配器替换，`l1_kernel_rs` 复用同一套常量，Python 灰度共存，接口不变 |
+| 自动化外围不进入重写核心 | manifest/报告保留为构建契约；执行、证据、指标和依赖图通过 Port 接入，不把脚手架变成 Kernel/L2 authority |
+| 性能基线不等于 Rust 证据 | L2 protocol 与常规层扫描只用于回归门禁；Rust 优先级仍须由 M3 固定总量 Amdahl JSON 决定 |
 | 契约 stub 必须接通 | 否则前端无法作为纯 HTTP 客户端走通，契约框架形同虚设 |
 | 会话状态迁移 | `state.py` deprecated shim 须移除，避免进程级全局态成为语言无关契约的漏洞 |
 

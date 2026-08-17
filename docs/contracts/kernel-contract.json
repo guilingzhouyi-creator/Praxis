@@ -242,6 +242,15 @@
       "module": "l1.kernel.identity_binding"
     },
     {
+      "classes": [],
+      "functions": [
+        "issue_identity_uid",
+        "reset_identity_uid",
+        "verify_identity_uid"
+      ],
+      "module": "l1.kernel.identity_uid"
+    },
+    {
       "classes": [
         "Interrupt",
         "InterruptTable",
