@@ -395,6 +395,15 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                         _used.add(_sk)
             except Exception:
                 pass
+            # W3.2: cancellation check — a cancelled agent aborts at the
+            # next tool round instead of continuing to burn tokens.
+            try:
+                from l1.kernel.process import get_table as _pt
+
+                if _pt().is_cancelled(self.agent_id):
+                    return {"success": False, "error": "agent cancelled", "cancelled": True}
+            except Exception:
+                pass
             # Forward the driving card nature into the tool args so tools
             # that gate on it (e.g. use_skill's offensive-posture check) can
             # see it — the LLM-generated args never carry this internal field.

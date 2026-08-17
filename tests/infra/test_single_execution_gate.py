@@ -15,10 +15,12 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_DIRS = (ROOT / "src" / "l2", ROOT / "src" / "l3", ROOT / "src" / "l4")
 
 # Modules allowed to call the registry-level executor directly.
-EXECUTOR_ALLOWLIST = frozenset({
-    "tool_pipeline_steps.py",  # the pipeline's own execute step
-    "tool_spec.py",  # the executor definition itself
-})
+EXECUTOR_ALLOWLIST = frozenset(
+    {
+        "tool_pipeline_steps.py",  # the pipeline's own execute step
+        "tool_spec.py",  # the executor definition itself
+    }
+)
 
 
 def _runtime_modules() -> list[Path]:

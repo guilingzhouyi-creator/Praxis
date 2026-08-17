@@ -27,13 +27,6 @@ from .capability import (
 )
 from .constitution import get_constitution
 from .device import DeviceHealth, DeviceType, get_device_manager
-from .diff_frame import (
-    FRAME_BUILD,
-    FRAME_CONFLICT,
-    FRAME_REVIEW,
-    build_frame_header,
-    parse_frame_header,
-)
 from .event import Signal, SignalType, register_signal_type
 from .event import get_bus as get_event_bus
 from .gatechain import get_gatechain
@@ -82,11 +75,26 @@ _thread_audit_buffer = threading.local()
 _AUDIT_FLUSH_SIZE = AUDIT_FLUSH_SIZE
 
 
+def _persist_audit_entries(entries: list[dict]) -> None:
+    """Durably append audit entries to the persist journal (W4.1).
+
+    Best-effort: the in-memory deque stays the query source; a failed disk
+    write degrades to a warning instead of breaking the audit trail.
+    """
+    try:
+        from .persist import append_many
+
+        append_many([("audit.syscall", e) for e in entries])
+    except Exception:
+        logger.warning("audit: persist journal append failed", exc_info=True)
+
+
 def _audit(op: str, agent_id: str, result: dict, detail: str = "") -> None:
     """Record a syscall in the audit trail.
 
     Uses a thread-local buffer to batch entries and reduce global lock contention.
     deque(maxlen=SYSCALL_AUDIT_MAX) handles O(1) pruning automatically.
+    Flushes also durably persist to the journal (event type ``audit.syscall``).
     """
     entry = {
         "op": op,
@@ -104,7 +112,9 @@ def _audit(op: str, agent_id: str, result: dict, detail: str = "") -> None:
     if len(buf) >= _AUDIT_FLUSH_SIZE:
         with _audit_lock:
             _audit_log.extend(buf)
+            flushed = list(buf)
         _thread_audit_buffer.entries = []
+        _persist_audit_entries(flushed)
 
 
 def flush_audit_buffer() -> None:
@@ -116,7 +126,9 @@ def flush_audit_buffer() -> None:
     if buf:
         with _audit_lock:
             _audit_log.extend(buf)
+            flushed = list(buf)
         _thread_audit_buffer.entries = []
+        _persist_audit_entries(flushed)
 
 
 def record_audit(op: str, agent_id: str, success: bool = True, error: str = "", detail: str = "") -> None:
@@ -141,7 +153,9 @@ def get_audit_log(limit: int = SYSCALL_AUDIT_QUERY_LIMIT, agent_id: str = "") ->
     if buf:
         with _audit_lock:
             _audit_log.extend(buf)
-            _thread_audit_buffer.entries = []
+            flushed = list(buf)
+        _thread_audit_buffer.entries = []
+        _persist_audit_entries(flushed)
     with _audit_lock:
         total = len(_audit_log)
         if agent_id:
@@ -270,21 +284,43 @@ def _sys_resource(agent_id: str, kw: dict) -> dict:
     )
 
 
+def _notify_scheduler(event: str, data: dict) -> None:
+    """Notify the scheduler port from the syscall path (W6.2).
+
+    Best-effort: the scheduler adapter is registered at boot; before boot or
+    with a broken adapter the syscall still succeeds.
+    """
+    try:
+        from .ports import get_port
+
+        port = get_port("scheduler")
+        notify = getattr(port, "notify_event", None)
+        if callable(notify):
+            notify(event, data)
+    except Exception:
+        pass
+
+
 def _sys_process(agent_id: str, kw: dict) -> dict:
     sub = kw.get("_sub", "list")
     pt = get_table()
     if sub == "spawn":
-        return {
-            "success": True,
-            "pid": pt.spawn(
-                kw.get("name", ""),
-                kw.get("role", ""),
-                kw.get("parent_pid", 0),
-                kw.get("ring", SYSCALL_DEFAULT_RING),
-            ).pid,
-        }
+        pid = pt.spawn(
+            kw.get("name", ""),
+            kw.get("role", ""),
+            kw.get("parent_pid", 0),
+            kw.get("ring", SYSCALL_DEFAULT_RING),
+        ).pid
+        _notify_scheduler("process.spawn", {"agent_id": kw.get("name", ""), "pid": pid})
+        return {"success": True, "pid": pid}
     if sub == "exit":
-        return {"success": pt.exit(kw.get("pid", 0), kw.get("exit_code", 0), kw.get("reason", ""))}
+        ok = pt.exit(kw.get("pid", 0), kw.get("exit_code", 0), kw.get("reason", ""))
+        _notify_scheduler("process.exit", {"agent_id": agent_id})
+        return {"success": ok}
+    if sub == "cancel":
+        ok = pt.cancel(kw.get("name", agent_id), kw.get("reason", "cancelled"))
+        _notify_scheduler("process.cancel", {"agent_id": kw.get("name", agent_id)})
+        return {"success": ok}
     if sub == "list":
         return {"success": True, "processes": pt.list_processes()}
     return {"success": False, "error": f"unknown process op: {sub}"}
@@ -318,7 +354,7 @@ def _register_builtin_syscalls() -> None:
         "condition": (_sys_condition, ["wait", "signal", "broadcast"]),
         "signal": (_sys_signal, ["emit", "on", "off"]),
         "resource": (_sys_resource, ["check", "release", "usage"]),
-        "process": (_sys_process, ["spawn", "exit", "list"]),
+        "process": (_sys_process, ["spawn", "exit", "cancel", "list"]),
         "alloc": (_sys_alloc, ["alloc", "free", "usage"]),
     }
     for group, (handler, subs) in _groups.items():
@@ -463,12 +499,6 @@ __all__ = [
     "register_syscall",
     "sync_status",
     "syscall",
-    # Diff frame header (2.1 Phase 1)
-    "FRAME_BUILD",
-    "FRAME_CONFLICT",
-    "FRAME_REVIEW",
-    "build_frame_header",
-    "parse_frame_header",
     # ConfigDiscovery
     "discovery",
 ]

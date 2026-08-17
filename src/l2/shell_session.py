@@ -95,6 +95,14 @@ class TerminalManager:
         session = TerminalSession(id=sid, pid=proc.pid, process=proc)
         with self._lock:
             self._sessions[sid] = session
+        # W3.3: register the interactive shell Popen in the kernel process
+        # table so handle liveness is visible at the kernel surface.
+        try:
+            from l1.kernel.process import get_table as _pt
+
+            _pt().register_handle(sid, proc)
+        except Exception:
+            pass
         threading.Thread(target=self._reader, args=(sid,), daemon=True).start()
         logger.info("terminal: %s (pid=%d)", sid, proc.pid)
         return {"success": True, "id": sid}

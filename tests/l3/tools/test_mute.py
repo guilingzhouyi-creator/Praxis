@@ -53,7 +53,7 @@ class TestToolMute:
         assert not is_muted("test_danger_tool")
 
     def test_execute_muted_returns_error(self):
-        from l3.tool_system.tool_spec import ToolSpec, clear_mutes, _execute_tool_spec, mute_tool, register
+        from l3.tool_system.tool_spec import ToolSpec, _execute_tool_spec, clear_mutes, mute_tool, register
 
         clear_mutes()
 

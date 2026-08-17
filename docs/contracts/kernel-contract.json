@@ -1,0 +1,760 @@
+{
+  "all_exports": [
+    "DeviceHealth",
+    "DeviceType",
+    "EVENT_AGENT_BOOT",
+    "EVENT_ARCHIVE_ALERT",
+    "EVENT_CROSS_REVIEW",
+    "EVENT_REVIEW_REQUESTED",
+    "EVENT_TASK_ASSIGN",
+    "EVENT_TOKEN_USAGE",
+    "Interrupt",
+    "InterruptType",
+    "NotifyPort",
+    "ProcessState",
+    "ResourceProfile",
+    "Signal",
+    "SignalType",
+    "clear_audit_log",
+    "discovery",
+    "emit_signal",
+    "fire",
+    "get_allocator",
+    "get_audit_log",
+    "get_barrier",
+    "get_condition",
+    "get_constitution",
+    "get_device_manager",
+    "get_event_bus",
+    "get_gatechain",
+    "get_identity_binding_manager",
+    "get_interrupt_table",
+    "get_limiter",
+    "get_lock_bus",
+    "get_mutex",
+    "get_notify",
+    "get_rwlock",
+    "get_semaphore",
+    "get_skill_manager",
+    "get_table",
+    "get_tool_chain",
+    "get_vfs",
+    "has_capability_executor",
+    "health",
+    "invoke_capability",
+    "push_event",
+    "register_capability_executor",
+    "register_process",
+    "register_syscall",
+    "reset_capability_executor",
+    "reset_identity_binding_manager",
+    "reset_notify",
+    "sync_status",
+    "syscall",
+    "territory_is_within"
+  ],
+  "contract_version": 1,
+  "kernel_package": "l1.kernel",
+  "modules": [
+    {
+      "classes": [],
+      "functions": [
+        "clear_audit_log",
+        "emit_signal",
+        "flush_audit_buffer",
+        "get_audit_log",
+        "health",
+        "push_event",
+        "record_audit",
+        "register_process",
+        "register_syscall",
+        "syscall"
+      ],
+      "module": "l1.kernel.__init__"
+    },
+    {
+      "classes": [
+        "Allocation",
+        "Allocator"
+      ],
+      "functions": [
+        "get_allocator",
+        "reset_allocator"
+      ],
+      "module": "l1.kernel.allocator"
+    },
+    {
+      "classes": [
+        "Component",
+        "ComponentMeta",
+        "SystemBus"
+      ],
+      "functions": [
+        "get_root_bus",
+        "reset_root_bus"
+      ],
+      "module": "l1.kernel.bus"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "has_capability_executor",
+        "invoke_capability",
+        "register_capability_executor",
+        "reset_capability_executor"
+      ],
+      "module": "l1.kernel.capability"
+    },
+    {
+      "classes": [
+        "RingChannel"
+      ],
+      "functions": [],
+      "module": "l1.kernel.channel_ring"
+    },
+    {
+      "classes": [
+        "Constitution"
+      ],
+      "functions": [
+        "get_constitution",
+        "reset_constitution"
+      ],
+      "module": "l1.kernel.constitution"
+    },
+    {
+      "classes": [
+        "CheckReport"
+      ],
+      "functions": [
+        "set_metric_sink",
+        "set_posture_provider"
+      ],
+      "module": "l1.kernel.constitution_checks"
+    },
+    {
+      "classes": [
+        "TerritoryConstitution"
+      ],
+      "functions": [
+        "diff_territory",
+        "load_territory",
+        "merge_proposal",
+        "parse_territory",
+        "render_territory",
+        "save_territory",
+        "update_territory"
+      ],
+      "module": "l1.kernel.constitution_io"
+    },
+    {
+      "classes": [
+        "Device",
+        "DeviceCapability",
+        "DeviceHealth",
+        "DeviceManager",
+        "DeviceType"
+      ],
+      "functions": [
+        "get_device_manager",
+        "register_device_type",
+        "reset_device_manager"
+      ],
+      "module": "l1.kernel.device"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "discover",
+        "get_config",
+        "get_service_limit",
+        "get_source",
+        "get_tool_config",
+        "register",
+        "register_discovery_dir",
+        "register_from_params",
+        "reset",
+        "set_config"
+      ],
+      "module": "l1.kernel.discovery"
+    },
+    {
+      "classes": [
+        "PraxisError"
+      ],
+      "functions": [
+        "catalog",
+        "error",
+        "get_locale",
+        "register_error",
+        "reset_error_capture_handler",
+        "reset_locale",
+        "set_error_capture_handler",
+        "set_locale"
+      ],
+      "module": "l1.kernel.errors"
+    },
+    {
+      "classes": [
+        "EventBus",
+        "Signal",
+        "SignalType"
+      ],
+      "functions": [
+        "get_bus",
+        "register_signal_type",
+        "reset_bus"
+      ],
+      "module": "l1.kernel.event"
+    },
+    {
+      "classes": [
+        "GateChain",
+        "GateResult",
+        "LedgerEntry",
+        "PatternKey",
+        "ToolHistoryLedger"
+      ],
+      "functions": [
+        "get_gatechain",
+        "register_stagnation_callback",
+        "reset_gatechain"
+      ],
+      "module": "l1.kernel.gatechain"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "safe_system_check",
+        "subsystem_status"
+      ],
+      "module": "l1.kernel.healthcheck"
+    },
+    {
+      "classes": [
+        "IdentityBinding",
+        "IdentityBindingManager"
+      ],
+      "functions": [
+        "get_identity_binding_manager",
+        "reset_identity_binding_manager"
+      ],
+      "module": "l1.kernel.identity_binding"
+    },
+    {
+      "classes": [
+        "Interrupt",
+        "InterruptTable",
+        "InterruptType"
+      ],
+      "functions": [
+        "fire",
+        "get_table",
+        "register_handler"
+      ],
+      "module": "l1.kernel.interrupt"
+    },
+    {
+      "classes": [
+        "LockBus",
+        "LockChannel",
+        "LockMessage",
+        "LockOp"
+      ],
+      "functions": [
+        "get_lock_bus",
+        "reset_lock_bus"
+      ],
+      "module": "l1.kernel.ipc"
+    },
+    {
+      "classes": [
+        "LifecycleRecord",
+        "LifecycleRegistry",
+        "LifecycleState"
+      ],
+      "functions": [
+        "get_lifecycle",
+        "reset_lifecycle",
+        "state",
+        "transition"
+      ],
+      "module": "l1.kernel.lifecycle"
+    },
+    {
+      "classes": [
+        "Action",
+        "ControllerMetrics",
+        "ControllerState",
+        "Decision",
+        "LoadAdaptiveController"
+      ],
+      "functions": [],
+      "module": "l1.kernel.load_adaptive"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "register_migration",
+        "run_pending"
+      ],
+      "module": "l1.kernel.migration"
+    },
+    {
+      "classes": [
+        "NetKernel",
+        "Peer"
+      ],
+      "functions": [
+        "get_net",
+        "reset_net"
+      ],
+      "module": "l1.kernel.net"
+    },
+    {
+      "classes": [
+        "TcpAdapter",
+        "TransportConfig"
+      ],
+      "functions": [],
+      "module": "l1.kernel.net_transport"
+    },
+    {
+      "classes": [
+        "LocalNotifyAdapter",
+        "NotifyPort"
+      ],
+      "functions": [
+        "get_notify",
+        "reset_notify"
+      ],
+      "module": "l1.kernel.notify"
+    },
+    {
+      "classes": [
+        "OS",
+        "OSState"
+      ],
+      "functions": [
+        "get_os",
+        "reset_os"
+      ],
+      "module": "l1.kernel.os"
+    },
+    {
+      "classes": [
+        "AgentDefaults",
+        "ConstitutionRuleDef"
+      ],
+      "functions": [
+        "resolve_priority",
+        "role_for_domain"
+      ],
+      "module": "l1.kernel.params.agent"
+    },
+    {
+      "classes": [
+        "AllocatorDefaults",
+        "ResourceProfileDefaults"
+      ],
+      "functions": [],
+      "module": "l1.kernel.params.allocator"
+    },
+    {
+      "classes": [
+        "GateStatus",
+        "WitnessStatus"
+      ],
+      "functions": [],
+      "module": "l1.kernel.params.gatechain"
+    },
+    {
+      "classes": [
+        "PraxisRing",
+        "RequestPoolConfig"
+      ],
+      "functions": [],
+      "module": "l1.kernel.params.kernel"
+    },
+    {
+      "classes": [
+        "DeployMode",
+        "PraxisPaths"
+      ],
+      "functions": [
+        "config_dir",
+        "configure_paths",
+        "data_dir",
+        "events_db",
+        "get_paths",
+        "memories_dir",
+        "monitor_bus_log",
+        "reset_paths",
+        "skill_evolved_dir",
+        "skill_lean_dir",
+        "skill_project_evolved_dir"
+      ],
+      "module": "l1.kernel.paths"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "append",
+        "append_many",
+        "count",
+        "last_seq",
+        "query",
+        "replay",
+        "restore",
+        "save"
+      ],
+      "module": "l1.kernel.persist"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "create_interactive_shell",
+        "create_ipc_server",
+        "ensure_dir",
+        "get_config_dir",
+        "get_temp_dir",
+        "grep_cmd",
+        "join_url",
+        "register_shutdown_handler",
+        "remove_ipc_socket",
+        "run_args",
+        "run_shell",
+        "safe_chmod",
+        "set_nonblocking",
+        "shell_command",
+        "tail_file",
+        "which"
+      ],
+      "module": "l1.kernel.platform"
+    },
+    {
+      "classes": [
+        "ChannelPort",
+        "EventBusPort",
+        "TaskHandle",
+        "TransportPort",
+        "WorkerPort"
+      ],
+      "functions": [],
+      "module": "l1.kernel.ports.core"
+    },
+    {
+      "classes": [
+        "LockPort",
+        "ThreadLockPort"
+      ],
+      "functions": [
+        "new_lock"
+      ],
+      "module": "l1.kernel.ports.lock"
+    },
+    {
+      "classes": [
+        "ProcessOptions",
+        "ProcessPort",
+        "ProcessResult",
+        "SubprocessProcessPort"
+      ],
+      "functions": [
+        "get_process_port"
+      ],
+      "module": "l1.kernel.ports.process"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "get_port",
+        "register_port",
+        "reset_ports"
+      ],
+      "module": "l1.kernel.ports.registry"
+    },
+    {
+      "classes": [
+        "KernelSchedulerPort"
+      ],
+      "functions": [],
+      "module": "l1.kernel.ports.scheduler"
+    },
+    {
+      "classes": [
+        "AuthPort",
+        "FilesystemPort",
+        "InputActivityPort",
+        "RpcServerPort",
+        "WebSocketPort"
+      ],
+      "functions": [],
+      "module": "l1.kernel.ports.service"
+    },
+    {
+      "classes": [
+        "FsStoragePort",
+        "StoragePort"
+      ],
+      "functions": [
+        "get_storage",
+        "reset_storage",
+        "set_storage"
+      ],
+      "module": "l1.kernel.ports.storage"
+    },
+    {
+      "classes": [
+        "CandidateBinding",
+        "CandidateCollectionResult",
+        "CandidateEvidence",
+        "CandidateRecord",
+        "CandidateResult",
+        "CandidateSkillResult",
+        "CandidateSnapshot",
+        "CandidateStatus",
+        "CandidateValidation",
+        "Endpoint",
+        "Event",
+        "InputActivitySnapshot",
+        "Message",
+        "Result"
+      ],
+      "functions": [],
+      "module": "l1.kernel.ports.types"
+    },
+    {
+      "classes": [
+        "PCB",
+        "ProcessState",
+        "ProcessTable",
+        "ResourceUsage"
+      ],
+      "functions": [
+        "get_table",
+        "reset_table"
+      ],
+      "module": "l1.kernel.process"
+    },
+    {
+      "classes": [
+        "Registry"
+      ],
+      "functions": [
+        "get_registry"
+      ],
+      "module": "l1.kernel.registry"
+    },
+    {
+      "classes": [
+        "MapRegistry",
+        "RegisterableSpec",
+        "Registry"
+      ],
+      "functions": [],
+      "module": "l1.kernel.registry_base"
+    },
+    {
+      "classes": [
+        "ReputationSystem"
+      ],
+      "functions": [
+        "get_reputation",
+        "reset_reputation"
+      ],
+      "module": "l1.kernel.reputation"
+    },
+    {
+      "classes": [
+        "ResourceLimiter",
+        "ResourceProfile"
+      ],
+      "functions": [
+        "get_limiter",
+        "reset_limiter"
+      ],
+      "module": "l1.kernel.resource"
+    },
+    {
+      "classes": [
+        "CheckResult",
+        "RuleDescriptor",
+        "RuleSeverity"
+      ],
+      "functions": [
+        "str_to_severity"
+      ],
+      "module": "l1.kernel.rule_descriptor"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "has_event",
+        "list_events",
+        "register_event",
+        "reset_event_schema"
+      ],
+      "module": "l1.kernel.schema"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "get_settings",
+        "inject_enabled",
+        "reset_settings",
+        "set_settings_provider"
+      ],
+      "module": "l1.kernel.settings"
+    },
+    {
+      "classes": [
+        "Skill",
+        "SkillManager"
+      ],
+      "functions": [
+        "audience_of",
+        "get_skill_manager",
+        "register_usage_feedback_hook",
+        "reset_skill_manager",
+        "skill_visible",
+        "validate_skill_content"
+      ],
+      "module": "l1.kernel.skill"
+    },
+    {
+      "classes": [
+        "SkillGuidanceMixin"
+      ],
+      "functions": [],
+      "module": "l1.kernel.skill_guidance"
+    },
+    {
+      "classes": [
+        "SkillPersistMixin"
+      ],
+      "functions": [
+        "resolve_skill_dirs"
+      ],
+      "module": "l1.kernel.skill_persist"
+    },
+    {
+      "classes": [
+        "SkillPolicyMixin"
+      ],
+      "functions": [],
+      "module": "l1.kernel.skill_policy"
+    },
+    {
+      "classes": [
+        "SkillRetrievalMixin"
+      ],
+      "functions": [],
+      "module": "l1.kernel.skill_retrieval"
+    },
+    {
+      "classes": [
+        "Swapper"
+      ],
+      "functions": [
+        "get_swapper",
+        "reset_swapper"
+      ],
+      "module": "l1.kernel.swapper"
+    },
+    {
+      "classes": [
+        "Barrier",
+        "Condition",
+        "LockState",
+        "Mutex",
+        "RWLock",
+        "Semaphore"
+      ],
+      "functions": [
+        "get_barrier",
+        "get_condition",
+        "get_mutex",
+        "get_rwlock",
+        "get_semaphore",
+        "registry_status",
+        "reset_registry",
+        "unregister"
+      ],
+      "module": "l1.kernel.sync"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "is_within"
+      ],
+      "module": "l1.kernel.territory"
+    },
+    {
+      "classes": [
+        "CallLink",
+        "ToolChain"
+      ],
+      "functions": [
+        "get_tool_chain",
+        "reset_tool_chain"
+      ],
+      "module": "l1.kernel.tool_chain"
+    },
+    {
+      "classes": [],
+      "functions": [
+        "check_and_migrate",
+        "register_migration",
+        "stamp"
+      ],
+      "module": "l1.kernel.versioning"
+    },
+    {
+      "classes": [
+        "MountPoint",
+        "MountType",
+        "VFS",
+        "VNode"
+      ],
+      "functions": [
+        "get_vfs",
+        "reset_vfs"
+      ],
+      "module": "l1.kernel.vfs"
+    },
+    {
+      "classes": [
+        "ThreadPoolWorker"
+      ],
+      "functions": [],
+      "module": "l1.kernel.worker_thread"
+    }
+  ],
+  "syscalls": [
+    "alloc.alloc",
+    "alloc.free",
+    "alloc.usage",
+    "barrier.reset",
+    "barrier.wait",
+    "condition.broadcast",
+    "condition.signal",
+    "condition.wait",
+    "mutex.acquire",
+    "mutex.release",
+    "mutex.status",
+    "process.cancel",
+    "process.exit",
+    "process.list",
+    "process.spawn",
+    "resource.check",
+    "resource.release",
+    "resource.usage",
+    "semaphore.acquire",
+    "semaphore.release",
+    "semaphore.status",
+    "signal.emit",
+    "signal.off",
+    "signal.on"
+  ]
+}

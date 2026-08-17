@@ -51,6 +51,21 @@ class CardExecutionMixin:
         raise NotImplementedError
 
     def _process_card(self, card: TerminalCard) -> CardResult:
+        """Route a terminal card to its execution path (PCB FSM driven, W3.1).
+
+        Drives the kernel process table: READY -> RUNNING while the card runs,
+        RUNNING -> READY when it finishes — the agent stays alive across cards
+        and ``ps``/`health` show the real state.
+        """
+        from l1.kernel.process import get_table as _pt
+
+        _pt().set_running(self.agent_id)
+        try:
+            return self._process_card_impl(card)
+        finally:
+            _pt().yield_process(self.agent_id)
+
+    def _process_card_impl(self, card: TerminalCard) -> CardResult:
         """Route a terminal card to its execution path."""
         from l3.agent_terminal import CardMode
 

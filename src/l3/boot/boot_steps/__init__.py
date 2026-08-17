@@ -13,6 +13,7 @@ from .cell import _create_cell
 from .config import _load_config
 from .constitution import _default_constitution, _load_constitution
 from .discovery import _init_discovery
+from .events import _register_event_schema
 from .health import _post_boot_health_check
 from .kernel import _init_kernel_and_vfs
 from .layout import _prepare_layout
@@ -25,6 +26,7 @@ __all__ = [
     "_create_cell",
     "_default_constitution",
     "_init_discovery",
+    "_register_event_schema",
     "_init_kernel_and_vfs",
     "_init_memory_and_archive",
     "_init_record_center",
