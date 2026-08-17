@@ -247,6 +247,16 @@ DEPARTMENT_ENABLED_DEFAULT: Final[bool] = False
 TEST_DEPARTMENT_ID: Final[str] = "test"
 TEST_DEPARTMENT_ROLES: Final[list[str]] = ["tester"]
 
+# ── Test-matrix prebuild (asynchronous parallel precompute) ──
+# When department division is active, the testing department's matrices are
+# prebuilt in the background (ThreadPoolWorker) and cached in the tiered-cache
+# L2 cross-cell layer (L2 TTL governs expiry), so a tester AgentLoop reads a
+# ready matrix instead of building it synchronously. Bounds keep the prebuild
+# bounded and the background pool small; failures degrade to synchronous
+# build (never raise).
+TEST_MATRIX_PREBUILD_MAX: Final[int] = 20  # per-card matrix entry cap
+TEST_MATRIX_PARALLEL_WORKERS: Final[int] = 2  # background prebuild pool size
+
 
 # ── Territory → role mapping ──
 

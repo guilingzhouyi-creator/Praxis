@@ -213,6 +213,15 @@ l3a:
 # departments: block here; the department registry lives in
 # config/discovery/departments.yaml (only its `departments:` dict is read,
 # its top-level `enabled` field is NOT consumed).
+#
+# Test-matrix prebuild (Phase 3.1): when departments.enabled AND
+# departments.test_matrix_prebuild are both true and the Cell count reaches
+# CELL_DEPARTMENT_MIN, the testing department's matrices are prebuilt in the
+# background and cached in the tiered-cache L2 layer — a tester AgentLoop
+# reads a ready matrix instead of building it synchronously. Both switches
+# are settings flat keys (default false), settable via /api/v2/settings;
+# bounds live in params (TEST_MATRIX_*), failures degrade to a synchronous
+# build (never raise).
 
 # ── Devices ──
 devices:
