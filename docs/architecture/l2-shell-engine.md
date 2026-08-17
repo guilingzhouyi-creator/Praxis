@@ -146,6 +146,35 @@ projects the same stream into its own view. The wire format is language-agnostic
 - Interrupted commands / orphan jobs: the L2 job table is a *projection* of
   L3/L1 job truth; on restart L2 re-syncs by query, never by guessing.
 
+### Reference implementation & contract pins (landed)
+
+The protocol is not just a design: a pure Python reference, machine-readable
+schemas, contract-pin tests, and a stdio host are already in the tree. All
+are **additive** - no existing engine behavior was changed.
+
+| Asset | Path | Purpose |
+|---|---|---|
+| Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay) + `SessionCursor`; stdlib-only, zero singletons, zero I/O |
+| JSON Schemas | `src/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
+| Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
+| Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
+| Dispatch JSON contract | `tests/l2/test_dispatch_contract.py` | every render-ready dispatch result must survive `json.dumps`; stable shapes for /help /lang /history /sysinfo, unknown-command, pipeline, alias |
+
+Usage (the future `bridge.ts` speaks exactly this):
+
+```bash
+$ printf '%s\n' '{"v":1,"session_id":"s-1","seq":1,"ts":0.0,"kind":"command","payload":{"name":"lang"}}' \\
+    | python -m l2.protocol.host
+{"kind":"result","payload":{"available":["en","ja","ko","zh-CN"],"locale":"en","success":true},...}
+{"kind":"ack","payload":{"ack_seq":1},...}
+```
+
+TS mirror strategy: port `envelope.py` semantics 1:1 into `envelope.ts`,
+translate `schema.py` into zod/io-ts types, and run the same expectations as
+`test_protocol_v1.py` in vitest - the Python tests double as the TS spec.
+The host is the integration seam: `bridge.ts` spawns it as a child process
+(or connects over WebSocket later) and only ever speaks protocol v1.
+
 ## Execution bridge
 
 Every side-effecting request exits L2 through exactly one bridge:
