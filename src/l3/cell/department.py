@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from l1.kernel.params.agent import (
     CELL_DEPARTMENT_MIN,
     CELL_IDENTITY_DEFAULT,
     CELL_IDENTITY_VALID,
+    DEPARTMENT_DEFINITION_MAX_CHARS,
     DEPARTMENT_ENABLED_DEFAULT,
     DEPARTMENT_TYPE_DEFAULT,
     DEPARTMENT_TYPES,
@@ -39,6 +40,14 @@ class Department:
     auto_enabled: bool = True
     dept_type: str = DEPARTMENT_TYPE_DEFAULT
     cell_identity: str = CELL_IDENTITY_DEFAULT
+    # Phase C: detailed definition (capped by DEPARTMENT_DEFINITION_MAX_CHARS)
+    # and permission scope — content types this department may handle.
+    # Routing a content type outside the scope is refused (not just unmapped).
+    definition: str = ""
+    permission_scope: list[str] = field(default_factory=list)
+    # Phase C (model_role_for de-hardcoding): optional executor override;
+    # when empty, the built-in dept_type -> executor fallback applies.
+    executor: str = ""
 
 
 class DepartmentManager:
@@ -90,6 +99,11 @@ class DepartmentManager:
                     auto_enabled=bool(spec.get("auto_enabled", True)),
                     dept_type=dept_type,
                     cell_identity=cell_identity,
+                    # Phase C: definition (capped), permission scope, executor
+                    # override — all config-driven, never hardcoded here.
+                    definition=str(spec.get("definition", "") or "")[:DEPARTMENT_DEFINITION_MAX_CHARS],
+                    permission_scope=[str(s) for s in (spec.get("permission_scope") or [])],
+                    executor=str(spec.get("executor", "") or ""),
                 )
         except Exception as e:
             logger.warning("department: config load failed, using built-in test dept: %s", e)
@@ -166,11 +180,26 @@ class DepartmentManager:
             for d in self._departments.values():
                 if not d.auto_enabled:
                     continue
-                if content_type == d.dept_type or content_type in d.roles:
+                # Phase C: permission_scope participates in matching — a
+                # content type listed in a department's scope belongs to it
+                # even when it is not the dept_type nor a role.
+                if content_type == d.dept_type or content_type in d.roles or content_type in d.permission_scope:
                     dept = d
                     break
         if dept is None:
             return {"success": True, "routed": False, "department": "", "content_type": content_type}
+        # Phase C permission boundary: a department with an explicit
+        # permission_scope refuses content types outside it (not just
+        # unmapped — an active scope is a hard boundary).
+        if dept.permission_scope and content_type not in dept.permission_scope:
+            return {
+                "success": True,
+                "routed": False,
+                "department": dept.id,
+                "content_type": content_type,
+                "refused": True,
+                "reason": f"{content_type!r} outside {dept.id} permission scope {dept.permission_scope}",
+            }
         return {
             "success": True,
             "routed": True,
@@ -224,11 +253,11 @@ def suggest_department(intent: str, domain: str = "") -> str:
 def model_role_for(dept_type: str) -> str:
     """Resolve the model_spec executor name for a department type (D4).
 
-    The build department runs the cheaper executor (low model), the review
-    department the stronger one (high model). Unknown department types
-    fall back to the default executor. The mapping is config data, never
-    hardcoded model names — deployments override via praxis.yaml
-    ``model_spec.build`` / ``model_spec.review``.
+    Phase C de-hardcoding: a registered department may override its executor
+    via ``departments.yaml`` ``executor:``; otherwise the built-in fallback
+    applies (review -> review, build/test -> build, unknown -> default). The
+    model names themselves stay config data (``model_spec.*``) — never
+    hardcoded here.
 
     Args:
         dept_type: One of DEPARTMENT_TYPES (build/test/review/...).
@@ -236,6 +265,16 @@ def model_role_for(dept_type: str) -> str:
     Returns:
         The model_spec executor name to resolve ("build"/"review"/...).
     """
+    # Config-driven override first: any registered department whose id or
+    # dept_type matches and declares an executor wins.
+    try:
+        mgr = get_department_manager()
+        with mgr._lock:
+            for dept in mgr._departments.values():
+                if dept.executor and (dept.id == dept_type or dept.dept_type == dept_type):
+                    return dept.executor
+    except Exception as e:
+        logger.debug("department: executor override lookup skipped: %s", e)
     if dept_type == "review":
         return "review"
     if dept_type in ("build", "test"):

@@ -68,6 +68,21 @@ _DEFAULTS: dict[str, str] = {
     "identity.match.build": "implement|construct|create|modify|write|build|generate|add|refactor|fix",
     "identity.match.test": "test|verify|validate|regress|check|assert|coverage|suite",
     "identity.match.review": "review|audit|inspect|approve|cross-check|analyze|assess",
+    # Identity definition (Phase B) — built-in generalized definitions per
+    # identity field. A registered identity's detailed definition defaults to
+    # these; user/API overrides replace them (never edit this dict for a
+    # deployment). Bounded by IDENTITY_DEFINITION_MAX_CHARS at bind time.
+    "identity_definition.build": (
+        "Build identity: produces and modifies code; owns construction "
+        "quality and implementation fidelity within its department scope."
+    ),
+    "identity_definition.test": (
+        "Test identity: writes and runs test matrices; owns verification "
+        "and regression coverage within its department scope."
+    ),
+    "identity_definition.review": (
+        "Review identity: audits and cross-checks work; owns approval and risk assessment within its department scope."
+    ),
     # Scout
     "scout.system": (
         "You are a scout agent in NOMOS Praxis. Read-only investigation.\n"

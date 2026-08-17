@@ -82,6 +82,19 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
         ".departments_suggest",
         "L3A-assisted department designation from a user intent",
     ),
+    # Violation monitor (Phase D) — department overreach output detection.
+    (
+        "GET",
+        "/api/v2/departments/violation-monitor",
+        ".violation_monitor_get",
+        "Violation monitor status (switch, thresholds, overreach counters)",
+    ),
+    (
+        "PUT",
+        "/api/v2/departments/violation-monitor",
+        ".violation_monitor_put",
+        "Set the violation monitor operator switch",
+    ),
     (
         "GET",
         "/api/v2/l3a/secretary",
@@ -1094,6 +1107,20 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
         "/api/v2/identity-binding",
         "l4.api_handlers.api_handlers_identity.handle_identity_binding_delete",
         "Unbind a role from a Cell",
+    ),
+    # Identity definition (Phase B) — resolve / set a registered identity's
+    # detailed definition (built-in generalized or custom; capped).
+    (
+        "GET",
+        "/api/v2/identity-binding/definition",
+        "l4.api_handlers.api_handlers_identity.handle_identity_definition_get",
+        "Resolve an identity's effective definition",
+    ),
+    (
+        "PUT",
+        "/api/v2/identity-binding/definition",
+        "l4.api_handlers.api_handlers_identity.handle_identity_definition_put",
+        "Set a custom identity definition",
     ),
     # ── Session Export ──
     ("POST", "/api/v2/session/export", "l3.services.session_export.handle_session_export", "Export session"),

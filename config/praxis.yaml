@@ -222,6 +222,15 @@ l3a:
 # are settings flat keys (default false), settable via /api/v2/settings;
 # bounds live in params (TEST_MATRIX_*), failures degrade to a synchronous
 # build (never raise).
+#
+# Violation monitor (Phase D): when departments.enabled AND
+# departments.violation_monitor are both true and the Cell count reaches
+# CELL_DEPARTMENT_MIN, agent output is classified (build/test/review) and
+# content outside the producing department's permission scope is refused —
+# light volumes are tolerated (<= VIOLATION_LIGHT_MAX), heavy volumes are
+# stopped (>= VIOLATION_HEAVY_THRESHOLD, emits a stop event). Switch default
+# false; inert below 2+ cells even when on. Settable via /api/v2/settings,
+# /api/v2/departments/violation-monitor, and L2 `departments monitor`.
 
 # ── Devices ──
 devices:

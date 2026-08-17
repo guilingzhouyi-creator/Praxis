@@ -22,8 +22,15 @@
 departments:
   # Testing department — the default example; a deployment may rename,
   # retype, or add departments (build/review/custom) without code changes.
+  # Phase C fields: definition (capped by DEPARTMENT_DEFINITION_MAX_CHARS),
+  # permission_scope (content types this department may handle; routing
+  # outside it is refused), executor (model_spec executor override — when
+  # empty the built-in dept_type -> executor fallback applies).
   test:
     type: test
     roles: ["tester"]
     cell_identity: test
     auto_enabled: true
+    definition: "Professional testing department: owns test matrices and verification."
+    permission_scope: [test, verification, matrix]
+    executor: build
