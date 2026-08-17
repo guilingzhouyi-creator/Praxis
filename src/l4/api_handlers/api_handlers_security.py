@@ -245,6 +245,28 @@ def departments_suggest(body: dict) -> dict:
     return {"success": True, "suggestion": suggest_department(intent, domain=str(body.get("domain", "")))}
 
 
+def violation_monitor_get(body: dict | None = None) -> dict:
+    """GET /api/v2/departments/violation-monitor — monitor status.
+
+    Returns the switch state, thresholds, and per-agent overreach counters.
+    """
+    from l3.cell.violation_monitor import status
+
+    return {"success": True, "monitor": status()}
+
+
+def violation_monitor_put(body: dict) -> dict:
+    """PUT /api/v2/departments/violation-monitor — set the operator switch.
+
+    Body: ``{"enabled": true|false}``. The monitor stays inert until
+    department division is active (Cell count >= CELL_DEPARTMENT_MIN), even
+    when switched on.
+    """
+    from l3.cell.violation_monitor import set_enabled
+
+    return set_enabled(bool(body.get("enabled", False)))
+
+
 def secretary_status(body: dict | None = None) -> dict:
     """GET /api/v2/l3a/secretary — L3A-C secretary status (mode/score)."""
     from l3.cell.peers.l3a.secretary import get_secretary

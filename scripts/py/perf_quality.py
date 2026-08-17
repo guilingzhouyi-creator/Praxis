@@ -33,11 +33,16 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE = ROOT / "config" / "quality" / "perf-baseline.yaml"
+
+# In-process L3 query benches import l3.* directly — put src on sys.path so
+# they resolve the worktree sources (never an installed praxis copy).
+sys.path.insert(0, str(ROOT / "src"))
 
 PERF_DRIFT_FLOOR = 0.9  # ops_per_sec must stay >= 90% of baseline
 
@@ -46,6 +51,7 @@ PERF_DRIFT_FLOOR = 0.9  # ops_per_sec must stay >= 90% of baseline
 _BENCH_PLATFORM = ROOT / "tests" / "benchmarks" / "bench_platform.py"
 _BENCH_R4 = ROOT / "tests" / "benchmarks" / "bench_r4_candidate_store.py"
 _BENCH_CARD = ROOT / "tests" / "benchmarks" / "bench_card.py"
+_BENCH_SCALE = ROOT / "tests" / "benchmarks" / "bench_scale.py"
 
 
 def _run_driver(args: list[str], timeout: int = 180) -> str:
@@ -63,6 +69,29 @@ def measure_l1() -> dict[str, float]:
     return {name: float(v["ops_per_sec"]) for name, v in data.get("micro", {}).items() if "ops_per_sec" in v}
 
 
+def measure_amdahl() -> dict[str, float]:
+    """Run bench_scale amdahl and extract the L1 serial fraction as a score.
+
+    The raw ``serial_fraction_p`` is a low-is-better ratio (high P = serial
+    bottleneck = Rust-migration priority). To keep the gate direction uniform
+    with the throughput metrics (high-is-better), it is reported as the
+    parallel score ``1 - p`` (0..1) — a regression (P rising) shows up as a
+    parallel-score drop and trips the 90% drift floor.
+    """
+    tmp = ROOT / ".praxis" / "perf_amdahl.json"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    _run_driver([str(_BENCH_SCALE), "--mode", "amdahl", "--json", str(tmp), "--rounds", "3"])
+    data = json.loads(tmp.read_text(encoding="utf-8"))
+    p = float((data.get("amdahl_l1") or {}).get("serial_fraction_p", 1.0))
+    # Degrade (omit the metric) when the fit is meaningless: a serial fraction
+    # of ~1.0 on short/WSL runs is measurement noise, not a real bottleneck —
+    # including it would trip the gate with a false hard error.
+    if p >= 0.99:
+        return {}
+    # Clamp to [0, 1] so a broken fit never produces a score above 1.0.
+    return {"amdahl_parallel_score": round(max(0.0, min(1.0, 1.0 - p)), 4)}
+
+
 def measure_l3() -> dict[str, float]:
     """Run bench_r4_candidate_store and extract ingestion ops/sec (L3)."""
     out = _run_driver([str(_BENCH_R4)])
@@ -77,6 +106,112 @@ def measure_l3() -> dict[str, float]:
     return {k: v for k, v in result.items() if k in ("submit_ops_per_sec", "durable_ops_per_sec")}
 
 
+# In-process L3 query benchmarks (Phase perf pass): department / violation /
+# identity hot paths measured as ops/sec. These run in-process (no driver
+# script) — they exercise the indexed/cached lookup paths directly.
+_DEPT_ITERS = 2_000
+_DEPT_ROUNDS = 3
+
+
+def _median(values: list[float]) -> float:
+    """Return the median of *values*."""
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _ops_per_sec(fn, iters: int, rounds: int) -> float:
+    """Run *fn* for *rounds* passes of *iters* ops; return median ops/sec."""
+    rates: list[float] = []
+    for _ in range(rounds):
+        start = time.perf_counter()
+        fn(iters)
+        elapsed = time.perf_counter() - start
+        rates.append(iters / elapsed if elapsed > 0 else 0.0)
+    return _median(rates)
+
+
+def _seed_dept_state() -> None:
+    """Seed the department registry + monitor state for the L3 query benches.
+
+    Registers a handful of departments (division active) so the indexed
+    lookups / violation checks measure a realistic multi-department setup.
+    """
+    from l3.cell.department import get_department_manager, reset_department_manager
+
+    reset_department_manager()
+    m = get_department_manager()
+    # Force division active (switch + cell count) without touching settings.
+    m.enabled = lambda: True  # type: ignore[method-assign]
+    m.cell_count = lambda: 3  # type: ignore[method-assign]
+    for i in range(4):
+        m.register(f"dept-{i}", [f"role-{i}"], "bench dept")
+        m._departments[f"dept-{i}"].dept_type = f"type-{i}"
+    m._departments["dept-0"].permission_scope = ["test", "verification"]
+    m._rebuild_indexes()
+
+
+def measure_l3_dept() -> dict[str, float]:
+    """Measure department/violation/identity query throughput (L3, in-process)."""
+    import os
+
+    _seed_dept_state()
+    from l1.kernel.identity_binding import get_identity_binding_manager, reset_identity_binding_manager
+    from l3.cell import violation_monitor as vm
+    from l3.cell.department import get_department_manager, reset_department_manager
+
+    mgr = get_department_manager()
+    # P2#3 fix: the bench bind() would persist a spurious cell-1/build binding
+    # into the production state file. Point the manager at a temp state path
+    # (before first instantiation) so the bench never mutates real identity
+    # state; the temp file is removed in cleanup below.
+    tmp_state = ROOT / ".praxis" / "perf_identity_tmp.json"
+    os.environ["PRAXIS_IDENTITY_STATE"] = str(tmp_state)
+    reset_identity_binding_manager()
+    ibm = get_identity_binding_manager()
+    ibm.bind("cell-1", "build", "frag", internal=True)
+    vm.reset_violation_monitor()
+    vm.set_enabled(True)
+
+    result = {
+        "dept_role_ops_per_sec": _ops_per_sec(
+            lambda n: [mgr.department_for_role("role-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+        "dept_route_ops_per_sec": _ops_per_sec(
+            lambda n: [mgr.route_content("type-2") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+        "violation_check_ops_per_sec": _ops_per_sec(
+            lambda n: [vm.check_output("a", "c1", "role-2", "def test_foo(): assert 1") for _ in range(n)],
+            _DEPT_ITERS,
+            _DEPT_ROUNDS,
+        ),
+        "identity_definition_ops_per_sec": _ops_per_sec(
+            lambda n: [ibm.resolve_definition("cell-1", "build") for _ in range(n)], _DEPT_ITERS, _DEPT_ROUNDS
+        ),
+    }
+    # Clean up the seeded singletons + temp state file so the rest of the
+    # scan (and any later praxis run) is unaffected.
+    vm.reset_violation_monitor()
+    reset_identity_binding_manager()
+    reset_department_manager()
+    try:
+        if tmp_state.exists():
+            tmp_state.unlink()
+    except OSError as e:
+        print(f"perf_quality: temp identity state cleanup failed: {e}", file=sys.stderr)
+    return result
+
+
+def measure_all() -> dict[str, dict[str, float]]:
+    """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
+    l1 = measure_l1()
+    l1.update(measure_amdahl())
+    l3 = measure_l3()
+    l3.update(measure_l3_dept())
+    return {"L1": l1, "L3": l3, "L5": measure_l5()}
+
+
 def measure_l5() -> dict[str, float]:
     """Run bench_card and extract steps-per-second (L5)."""
     out = _run_driver([str(_BENCH_CARD)])
@@ -87,11 +222,6 @@ def measure_l5() -> dict[str, float]:
             except ValueError:
                 return {}
     return {}
-
-
-def measure_all() -> dict[str, dict[str, float]]:
-    """Run every layer benchmark and return {layer: {metric: ops_per_sec}}."""
-    return {"L1": measure_l1(), "L3": measure_l3(), "L5": measure_l5()}
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
@@ -116,6 +246,15 @@ def compare(measured: dict[str, dict[str, float]], baseline: dict[str, Any]) -> 
         for name, ops in sorted(metrics.items()):
             base = bl.get(name)
             if base is None:
+                # Optional score metrics (e.g. amdahl_parallel_score) are only
+                # emitted on hardware where the fit is meaningful; a missing
+                # baseline entry for them is a soft notice, not a hard failure
+                # (the baseline is regenerated where the metric appears).
+                if name.endswith("_score"):
+                    findings.append(
+                        _finding(layer, name, ops, None, "soft", "no baseline entry (optional score metric)")
+                    )
+                    continue
                 findings.append(_finding(layer, name, ops, None, "hard", "no baseline entry"))
                 continue
             if ops <= 0.0:
@@ -158,6 +297,9 @@ def emit_baseline(measured: dict[str, dict[str, float]]) -> str:
     doc = [
         "# Per-layer performance baseline (generated — do not hand-edit).",
         "# Regenerate: python scripts/py/perf_quality.py --baseline",
+        "# Optional score metrics (names ending in _score, e.g. amdahl_parallel_score)",
+        "# are emitted only where the underlying fit is meaningful; a missing",
+        "# baseline entry for them is a soft notice, not a hard gate failure.",
         "layers:",
     ]
     for layer, metrics in sorted(measured.items()):

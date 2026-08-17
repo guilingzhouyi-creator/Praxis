@@ -234,6 +234,36 @@ IDENTITY_BINDING_STATE_TEMP_PREFIX: Final[str] = ".identity-binding-"
 IDENTITY_BINDING_STATE_TEMP_SUFFIX: Final[str] = ".tmp"
 IDENTITY_BINDING_PERSIST_UPSERT: Final[str] = "upsert"
 IDENTITY_BINDING_PERSIST_UNBIND: Final[str] = "unbind"
+
+# ── Identity UID (Phase A: system-issued declarative identity registry key) ──
+# Every identity binding carries a system-issued UID so department
+# registration can reference identities by id (declarative dependency).
+# Issued by the identity_uid singleton (L1), never client-supplied.
+IDENTITY_UID_LENGTH: Final[int] = 16  # uid body length (chars)
+IDENTITY_UID_PREFIX: Final[str] = "id-"  # uid prefix (readable namespace)
+
+# ── Identity definition (Phase B: registered-identity detailed definition) ──
+# A registered identity carries a detailed definition (default from the
+# prompt registry, user-overridable via API). Structural cap only — the
+# definition text lives in prompts / API input, never in params.
+IDENTITY_DEFINITION_MAX_CHARS: Final[int] = 300  # per-identity definition cap
+
+# ── Department definition (Phase C: registered-department detailed definition) ──
+# A registered department carries a detailed definition + a permission scope
+# (allowed content types; routing beyond it is refused). Structural cap only —
+# the text lives in departments.yaml / API input, never in params.
+DEPARTMENT_DEFINITION_MAX_CHARS: Final[int] = 300  # per-department definition cap
+
+# ── Violation monitor (Phase D: department overreach output detection) ──
+# Second TODO-style monitor: when department division is active, an agent's
+# output is classified (build/test/review content); producing content that
+# belongs to another department is refused. Light volumes are allowed (the
+# judging system permits lightweight test work), heavy volumes are stopped.
+# Switch default off; requires division active (Cell count >= CELL_DEPARTMENT_MIN)
+# to take effect even when switched on.
+VIOLATION_MONITOR_ENABLED_DEFAULT: Final[bool] = False  # master switch
+VIOLATION_HEAVY_THRESHOLD: Final[int] = 10  # >= this many overreach outputs -> stop
+VIOLATION_LIGHT_MAX: Final[int] = 3  # <= this many overreach outputs are tolerated
 IDENTITY_BINDING_PERSIST_CLEAR: Final[str] = "clear"
 
 

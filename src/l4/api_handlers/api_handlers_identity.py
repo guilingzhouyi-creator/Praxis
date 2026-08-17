@@ -67,6 +67,64 @@ def handle_identity_binding_put(body: dict | None = None) -> dict:
         max_chars=max_chars,
         agent_id=b.get("_user_id", ""),
         writer_role=writer_role,
+        definition=str(b.get("definition", "") or ""),
+    )
+
+
+def handle_identity_definition_get(body: dict | None = None) -> dict:
+    """GET /api/v2/identity-binding/definition — resolve the effective definition.
+
+    Body: ``{"cell_id", "role"}``. Returns the custom definition when the
+    binding set one, otherwise the built-in generalized definition from the
+    prompt registry (``identity_definition.<role>``).
+    """
+    from l1.kernel.identity_binding import get_identity_binding_manager
+
+    b = body or {}
+    cell_id = b.get("cell_id", "")
+    role = b.get("role", "")
+    if not cell_id or not role:
+        return {"success": False, "error": "cell_id and role required"}
+    mgr = get_identity_binding_manager()
+    return {"success": True, "cell_id": cell_id, "role": role, "definition": mgr.resolve_definition(cell_id, role)}
+
+
+def handle_identity_definition_put(body: dict | None = None) -> dict:
+    """PUT /api/v2/identity-binding/definition — set a custom identity definition.
+
+    Body: ``{"cell_id", "role", "definition", "writer_role"?}``. The
+    definition is capped by ``IDENTITY_DEFINITION_MAX_CHARS`` (default 300);
+    a bound role is required (bind first via PUT /identity-binding).
+    """
+    from l1.kernel.identity_binding import get_identity_binding_manager
+
+    b = body or {}
+    cell_id = b.get("cell_id", "")
+    role = b.get("role", "")
+    # Coerce to str like the sibling binding handler — a non-string body
+    # value (int/list) would otherwise crash bind()'s slicing with a 500.
+    definition = str(b.get("definition", "") or "")
+    if not cell_id or not role:
+        return {"success": False, "error": "cell_id and role required"}
+    if not definition:
+        return {"success": False, "error": "definition required"}
+    writer_role = b.get("writer_role", "")
+    if not writer_role:
+        return {"success": False, "error": "writer_role required (l3/deployer or ring>=3)"}
+    mgr = get_identity_binding_manager()
+    existing = mgr.get_binding(cell_id, role)
+    if existing is None:
+        return {"success": False, "error": f"no binding for {cell_id}/{role} — bind first"}
+    # Rebind with the same fragment but the new definition (write gate applies).
+    return mgr.bind(
+        cell_id,
+        role,
+        existing.prompt_fragment,
+        domain_tags=existing.domain_tags,
+        max_chars=existing.max_chars,
+        agent_id=b.get("_user_id", ""),
+        writer_role=writer_role,
+        definition=definition,
     )
 
 

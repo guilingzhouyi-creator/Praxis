@@ -35,6 +35,7 @@ from .params.agent import (
     IDENTITY_BINDING_WRITE_MIN_RING,
     IDENTITY_BINDING_WRITE_ROLES,
     IDENTITY_DEFAULT_SET,
+    IDENTITY_DEFINITION_MAX_CHARS,
     IDENTITY_FIELDS,
 )
 from .prompts import get_prompt
@@ -44,6 +45,10 @@ logger = logging.getLogger(__name__)
 _EVENT_TYPE = "identity_binding_mutated"
 _state_locks: dict[str, threading.RLock] = {}
 _state_locks_guard = threading.Lock()
+# Memoized built-in generalized definitions per role (see
+# IdentityBindingManager._default_definition) — prompt templates are
+# boot-time constants, so the cache is process-lifetime valid.
+_default_def_cache: dict[str, str] = {}
 
 
 def _default_state_path() -> str:
@@ -67,12 +72,21 @@ class IdentityBinding:
     max_chars: int = 0
     updated_by: str = ""
     updated_at: float = field(default_factory=time.time)
+    # Phase A: system-issued UID (identity_uid issuer) — the declarative
+    # registry key that department registration can reference by id.
+    identity_id: str = ""
+    # Phase B: detailed definition of the registered identity (default from
+    # the prompt registry identity_definition.<role>, user-overridable via
+    # API). Bounded by IDENTITY_DEFINITION_MAX_CHARS; excluded from external
+    # views (same principle as the prompt fragment).
+    definition: str = ""
 
     def to_dict(self) -> dict:
-        """Serialize the binding (fragment excluded from external views)."""
+        """Serialize the binding (fragment/definition excluded from external views)."""
         return {
             "cell_id": self.cell_id,
             "role": self.role,
+            "identity_id": self.identity_id,
             "domain_tags": list(self.domain_tags),
             "max_chars": self.max_chars or IDENTITY_BINDING_MAX_CHARS,
             "updated_by": self.updated_by,
@@ -91,6 +105,8 @@ class _PersistedBinding:
     max_chars: int
     updated_by: str
     updated_at: float
+    identity_id: str = ""
+    definition: str = ""
 
     @classmethod
     def from_binding(cls, binding: IdentityBinding) -> _PersistedBinding:
@@ -103,6 +119,8 @@ class _PersistedBinding:
             max_chars=binding.max_chars,
             updated_by=binding.updated_by,
             updated_at=binding.updated_at,
+            identity_id=binding.identity_id,
+            definition=binding.definition,
         )
 
     def to_state_dict(self) -> dict:
@@ -115,6 +133,8 @@ class _PersistedBinding:
             "max_chars": self.max_chars,
             "updated_by": self.updated_by,
             "updated_at": self.updated_at,
+            "identity_id": self.identity_id,
+            "definition": self.definition,
         }
 
 
@@ -275,6 +295,16 @@ class IdentityBindingManager:
                 data = json.load(f)
             for cell_id, cell_map in (data or {}).items():
                 for role, d in (cell_map or {}).items():
+                    identity_id = str(d.get("identity_id", "") or "")
+                    # Re-register persisted UIDs into the issuer's seen-set so
+                    # a rebind keeps its id and no duplicate is issued.
+                    if identity_id:
+                        try:
+                            from .identity_uid import _track_existing
+
+                            _track_existing(identity_id)
+                        except Exception as e:
+                            logger.debug("identity_binding: uid track skipped: %s", e)
                     self._bindings.setdefault(str(cell_id), {})[str(role)] = IdentityBinding(
                         cell_id=str(cell_id),
                         role=str(role),
@@ -283,6 +313,8 @@ class IdentityBindingManager:
                         max_chars=int(d.get("max_chars", 0) or 0),
                         updated_by=str(d.get("updated_by", "")),
                         updated_at=float(d.get("updated_at", 0.0) or 0.0),
+                        identity_id=identity_id,
+                        definition=str(d.get("definition", "") or ""),
                     )
             self._revision += 1
             logger.info("identity_binding: restored %d cell(s) from %s", len(self._bindings), self._state_path)
@@ -321,6 +353,7 @@ class IdentityBindingManager:
         agent_id: str = "",
         writer_role: str = "",
         internal: bool = False,
+        definition: str = "",
     ) -> dict:
         """Bind a role in a Cell to a strict-role prompt fragment.
 
@@ -337,11 +370,20 @@ class IdentityBindingManager:
         # value would otherwise inflate the injected system prompt unboundedly.
         limit = min(limit, IDENTITY_BINDING_MAX_CHARS)
         fragment = prompt_fragment[:limit]
+        # Phase B: detailed definition — caller-supplied wins, otherwise the
+        # built-in generalized definition from the prompt registry
+        # (identity_definition.<role>); capped by IDENTITY_DEFINITION_MAX_CHARS.
+        definition = (definition or self._default_definition(role))[:IDENTITY_DEFINITION_MAX_CHARS]
+        # Phase A: system-issued UID — the declarative registry key for
+        # department registration. Issued once per binding; a rebind keeps
+        # the existing UID so department references stay stable.
         with self._persist_lock:
             with self._lock:
                 cell_map = self._bindings.setdefault(cell_id, {})
                 if len(cell_map) >= IDENTITY_BINDING_MAX_PER_CELL and role not in cell_map:
                     return {"success": False, "error": f"binding cap reached for cell {cell_id}"}
+                existing = cell_map.get(role)
+                identity_id = existing.identity_id if existing else self._issue_uid()
                 cell_map[role] = IdentityBinding(
                     cell_id=cell_id,
                     role=role,
@@ -349,6 +391,8 @@ class IdentityBindingManager:
                     domain_tags=list(domain_tags or []),
                     max_chars=limit,
                     updated_by=agent_id or writer_role,
+                    identity_id=identity_id,
+                    definition=definition,
                 )
                 self._revision += 1
                 snapshot = self._snapshot_locked()
@@ -364,7 +408,52 @@ class IdentityBindingManager:
                 ),
             )
         self._emit_mutated(cell_id, role, "bound")
-        return {"success": True, "cell_id": cell_id, "role": role, "chars": len(fragment)}
+        return {"success": True, "cell_id": cell_id, "role": role, "chars": len(fragment), "identity_id": identity_id}
+
+    def _issue_uid(self) -> str:
+        """Issue a fresh identity UID via the L1 issuer ("" on failure)."""
+        try:
+            from .identity_uid import issue_identity_uid
+
+            return issue_identity_uid()
+        except Exception as e:
+            logger.warning("identity_binding: uid issuance skipped: %s", e)
+            return ""
+
+    @staticmethod
+    def _default_definition(role: str) -> str:
+        """Return the built-in generalized definition for a role ("" when absent).
+
+        The prompt-registry lookup is memoized per role — the definition
+        templates are boot-time constants (config/praxis.yaml prompts:),
+        so a cached value stays valid for the process lifetime. This keeps
+        the resolve_definition hot path (AgentLoop system-prompt assembly)
+        from re-hitting the registry on every unbound role query.
+        """
+        cached = _default_def_cache.get(role)
+        if cached is not None:
+            return cached
+        try:
+            from .prompts import get_prompt
+
+            text = get_prompt(f"identity_definition.{role}", "")
+        except Exception as e:
+            logger.debug("identity_binding: default definition skipped: %s", e)
+            text = ""
+        _default_def_cache[role] = text
+        return text
+
+    def resolve_definition(self, cell_id: str, role: str) -> str:
+        """Return the effective definition for (cell_id, role).
+
+        Custom definition if the binding set one; otherwise the built-in
+        generalized definition from the prompt registry. Length is bounded by
+        ``IDENTITY_DEFINITION_MAX_CHARS``.
+        """
+        binding = self.get_binding(cell_id, role)
+        if binding and binding.definition:
+            return binding.definition[:IDENTITY_DEFINITION_MAX_CHARS]
+        return self._default_definition(role)[:IDENTITY_DEFINITION_MAX_CHARS]
 
     def unbind(
         self, cell_id: str, role: str, agent_id: str = "", writer_role: str = "", internal: bool = False

@@ -13,7 +13,7 @@ from l2.i18n import t as _t
 
 
 def _cmd_identity_binding(args: list[str]) -> dict:
-    """Manage per-Cell identity bindings: list | set | clear."""
+    """Manage per-Cell identity bindings: list | set | clear | define."""
     sub = args[0] if args else "list"
     if sub == "list":
         return _ib_list(args)
@@ -21,7 +21,50 @@ def _cmd_identity_binding(args: list[str]) -> dict:
         return _ib_set(args)
     if sub == "clear":
         return _ib_clear(args)
-    return {"success": False, "error": f"unknown subcommand: {sub} (list|set|clear)"}
+    if sub == "define":
+        return _ib_define(args)
+    return {"success": False, "error": f"unknown subcommand: {sub} (list|set|clear|define)"}
+
+
+def _ib_define(args: list[str]) -> dict:
+    """Set (or resolve) a registered identity's detailed definition.
+
+    Usage: identity-binding define <cell_id> <role> [--text "definition"]
+    Without --text, resolves the effective definition (custom or built-in).
+    """
+    from l1.kernel.identity_binding import get_identity_binding_manager
+
+    if len(args) < 3:
+        return {"success": False, "error": _t("shell.app_error.usage_identity_binding_define")}
+    cell_id, role = args[1], args[2]
+    mgr = get_identity_binding_manager()
+    text = ""
+    rest = args[3:]
+    if "--text" in rest:
+        idx = rest.index("--text")
+        if idx + 1 < len(rest):
+            text = rest[idx + 1]
+    if not text:
+        return {"success": True, "cell_id": cell_id, "role": role, "definition": mgr.resolve_definition(cell_id, role)}
+    writer_role = ""
+    if "--writer" in rest:
+        widx = rest.index("--writer")
+        if widx + 1 < len(rest):
+            writer_role = rest[widx + 1]
+    if not writer_role:
+        return {"success": False, "error": _t("shell.app_error.identity_binding_writer_required")}
+    existing = mgr.get_binding(cell_id, role)
+    if existing is None:
+        return {"success": False, "error": f"no binding for {cell_id}/{role} — bind first"}
+    return mgr.bind(
+        cell_id,
+        role,
+        existing.prompt_fragment,
+        domain_tags=existing.domain_tags,
+        max_chars=existing.max_chars,
+        writer_role=writer_role,
+        definition=text,
+    )
 
 
 def _ib_list(args: list[str]) -> dict:

@@ -127,3 +127,42 @@ class TestIdentityBindingHandlers:
 
         r = handle_identity_binding_delete({"cell_id": "cell-1"})
         assert r.get("success") is False
+
+    def test_definition_put_coerces_non_string(self):
+        # P3#5 fix: a non-string definition body must be coerced to str
+        # instead of crashing bind()'s slicing with a server error.
+        from l4.api_handlers.api_handlers_identity import (
+            handle_identity_binding_put,
+            handle_identity_definition_put,
+        )
+
+        # Bind first (with a deployer writer).
+        b = handle_identity_binding_put(
+            {
+                "cell_id": "cell-1",
+                "role": "writer",
+                "fragment": "frag",
+                "writer_role": "deployer",
+            }
+        )
+        assert b.get("success") is True
+        # Int definition -> coerced to "123", no crash, success.
+        r = handle_identity_definition_put(
+            {
+                "cell_id": "cell-1",
+                "role": "writer",
+                "definition": 123,
+                "writer_role": "deployer",
+            }
+        )
+        assert r.get("success") is True
+        # List definition -> coerced, no crash.
+        r2 = handle_identity_definition_put(
+            {
+                "cell_id": "cell-1",
+                "role": "writer",
+                "definition": ["a", "b"],
+                "writer_role": "deployer",
+            }
+        )
+        assert r2.get("success") is True

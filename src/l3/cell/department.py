@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from l1.kernel.params.agent import (
     CELL_DEPARTMENT_MIN,
     CELL_IDENTITY_DEFAULT,
     CELL_IDENTITY_VALID,
+    DEPARTMENT_DEFINITION_MAX_CHARS,
     DEPARTMENT_ENABLED_DEFAULT,
     DEPARTMENT_TYPE_DEFAULT,
     DEPARTMENT_TYPES,
@@ -39,6 +40,14 @@ class Department:
     auto_enabled: bool = True
     dept_type: str = DEPARTMENT_TYPE_DEFAULT
     cell_identity: str = CELL_IDENTITY_DEFAULT
+    # Phase C: detailed definition (capped by DEPARTMENT_DEFINITION_MAX_CHARS)
+    # and permission scope — content types this department may handle.
+    # Routing a content type outside the scope is refused (not just unmapped).
+    definition: str = ""
+    permission_scope: list[str] = field(default_factory=list)
+    # Phase C (model_role_for de-hardcoding): optional executor override;
+    # when empty, the built-in dept_type -> executor fallback applies.
+    executor: str = ""
 
 
 class DepartmentManager:
@@ -47,7 +56,30 @@ class DepartmentManager:
     def __init__(self) -> None:
         self._departments: dict[str, Department] = {}
         self._lock = threading.RLock()
+        # Lookup indexes (role -> dept_id, dept_type -> dept_id) rebuilt on
+        # load/register so department_for_role / route_content hot paths
+        # avoid an O(N) scan per query.
+        self._role_index: dict[str, str] = {}
+        self._type_index: dict[str, str] = {}
         self._load_defaults()
+
+    def _rebuild_indexes(self) -> None:
+        """Rebuild the role/type lookup indexes from the registry.
+
+        Only auto-enabled departments are indexed — a disabled department
+        (``auto_enabled: false`` in departments.yaml) must not be resolved by
+        the fast paths, keeping them consistent with the fallback scans that
+        skip disabled departments.
+        """
+        with self._lock:
+            self._role_index = {}
+            self._type_index = {}
+            for dept in self._departments.values():
+                if not dept.auto_enabled:
+                    continue
+                for role in dept.roles:
+                    self._role_index.setdefault(role, dept.id)
+                self._type_index.setdefault(dept.dept_type, dept.id)
 
     def _load_defaults(self) -> None:
         """Load departments from config/discovery/departments.yaml.
@@ -90,6 +122,11 @@ class DepartmentManager:
                     auto_enabled=bool(spec.get("auto_enabled", True)),
                     dept_type=dept_type,
                     cell_identity=cell_identity,
+                    # Phase C: definition (capped), permission scope, executor
+                    # override — all config-driven, never hardcoded here.
+                    definition=str(spec.get("definition", "") or "")[:DEPARTMENT_DEFINITION_MAX_CHARS],
+                    permission_scope=[str(s) for s in (spec.get("permission_scope") or [])],
+                    executor=str(spec.get("executor", "") or ""),
                 )
         except Exception as e:
             logger.warning("department: config load failed, using built-in test dept: %s", e)
@@ -100,6 +137,7 @@ class DepartmentManager:
                 dept_type="test",
                 cell_identity="test",
             )
+        self._rebuild_indexes()
 
     # ── Activation ──
 
@@ -137,15 +175,22 @@ class DepartmentManager:
         """Register an additional department (extensible; config/API later)."""
         with self._lock:
             self._departments[dept_id] = Department(dept_id, list(roles), description, auto_enabled)
+        self._rebuild_indexes()
         return {"success": True, "department": dept_id, "roles": list(roles)}
 
     def department_for_role(self, role: str, cell_count: int | None = None) -> str | None:
         """Return the department id owning *role* when division is active."""
         if not self.active(cell_count):
             return None
+        # Indexed lookup first (O(1)); fall back to a scan when the index
+        # misses (roles changed at runtime via a later mutation).
         with self._lock:
+            dept_id = self._role_index.get(role)
+            if dept_id is not None:
+                return dept_id
             for dept in self._departments.values():
                 if dept.auto_enabled and role in dept.roles:
+                    self._role_index.setdefault(role, dept.id)
                     return dept.id
         return None
 
@@ -163,14 +208,37 @@ class DepartmentManager:
             return {"success": True, "routed": False, "department": "", "content_type": content_type}
         with self._lock:
             dept = None
-            for d in self._departments.values():
-                if not d.auto_enabled:
-                    continue
-                if content_type == d.dept_type or content_type in d.roles:
-                    dept = d
-                    break
+            # Fast path: exact dept_type match via the type index (O(1)).
+            dept_id = self._type_index.get(content_type)
+            if dept_id is not None:
+                dept = self._departments.get(dept_id)
+            # Fallback: scan for a role/scope match (dept_type not indexed
+            # because it is not any department's type).
+            if dept is None or not dept.auto_enabled:
+                dept = None
+                for d in self._departments.values():
+                    if not d.auto_enabled:
+                        continue
+                    # Phase C: permission_scope participates in matching — a
+                    # content type listed in a department's scope belongs to it
+                    # even when it is not the dept_type nor a role.
+                    if content_type == d.dept_type or content_type in d.roles or content_type in d.permission_scope:
+                        dept = d
+                        break
         if dept is None:
             return {"success": True, "routed": False, "department": "", "content_type": content_type}
+        # Phase C permission boundary: a department with an explicit
+        # permission_scope refuses content types outside it (not just
+        # unmapped — an active scope is a hard boundary).
+        if dept.permission_scope and content_type not in dept.permission_scope:
+            return {
+                "success": True,
+                "routed": False,
+                "department": dept.id,
+                "content_type": content_type,
+                "refused": True,
+                "reason": f"{content_type!r} outside {dept.id} permission scope {dept.permission_scope}",
+            }
         return {
             "success": True,
             "routed": True,
@@ -224,11 +292,11 @@ def suggest_department(intent: str, domain: str = "") -> str:
 def model_role_for(dept_type: str) -> str:
     """Resolve the model_spec executor name for a department type (D4).
 
-    The build department runs the cheaper executor (low model), the review
-    department the stronger one (high model). Unknown department types
-    fall back to the default executor. The mapping is config data, never
-    hardcoded model names — deployments override via praxis.yaml
-    ``model_spec.build`` / ``model_spec.review``.
+    Phase C de-hardcoding: a registered department may override its executor
+    via ``departments.yaml`` ``executor:``; otherwise the built-in fallback
+    applies (review -> review, build/test -> build, unknown -> default). The
+    model names themselves stay config data (``model_spec.*``) — never
+    hardcoded here.
 
     Args:
         dept_type: One of DEPARTMENT_TYPES (build/test/review/...).
@@ -236,6 +304,16 @@ def model_role_for(dept_type: str) -> str:
     Returns:
         The model_spec executor name to resolve ("build"/"review"/...).
     """
+    # Config-driven override first: any registered department whose id or
+    # dept_type matches and declares an executor wins.
+    try:
+        mgr = get_department_manager()
+        with mgr._lock:
+            for dept in mgr._departments.values():
+                if dept.executor and (dept.id == dept_type or dept.dept_type == dept_type):
+                    return dept.executor
+    except Exception as e:
+        logger.debug("department: executor override lookup skipped: %s", e)
     if dept_type == "review":
         return "review"
     if dept_type in ("build", "test"):
