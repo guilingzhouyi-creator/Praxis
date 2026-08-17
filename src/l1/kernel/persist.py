@@ -319,4 +319,3 @@ def reset_persist() -> None:
         _READ_IDX = 0
         _DB_PATH = ""
         _PENDING = 0
-
