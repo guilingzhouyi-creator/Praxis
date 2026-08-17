@@ -111,6 +111,23 @@ roadmap's Rust kernel sink (`l1_kernel_rs`):
 | Usage text comes from `backend.render_usage()` (prompt override only as a global fallback) | Language-specific instructions travel with the backend |
 | Cache entries carry `language` from the backend/config default | Future cross-language cache separation keys on this field |
 
+## 4.1 Automation and benchmark perimeter
+
+The declarative automation runner and performance harness are host-side build
+tools, not Code Mode language backends. They must remain outside the TS L2
+engine and the Rust kernel mechanism set.
+
+- Execution is bound to the language-neutral `ProcessPort` / `ProcessResult`
+  contract, so a Rust process adapter can replace the Python adapter without
+  changing `automation.yaml` schema v1 or report consumers.
+- Performance reports use a versioned JSON schema. L2 protocol measurements are
+  regression evidence only; Rust migration priority still requires the fixed-work
+  Amdahl benchmark from `frontend-kernel-roadmap.md`.
+- Before a Rust sink is introduced, move sampler defaults out of L1
+  `params/system.py` and expose stable observability, evidence, and dependency
+  graph ports. The current runner's optional L3 hooks are a compatibility shim,
+  not a future authority boundary.
+
 ## 5. Open items / deferred
 
 - `CODE_RUN_DEFAULT_LANGUAGE` stays `"python"` until a second backend ships

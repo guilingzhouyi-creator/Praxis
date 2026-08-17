@@ -60,7 +60,7 @@
 | `net.py` / `net_transport.py` | 跨 Cell UDP/TCP/TLS 传输细节 | L4 transport；kernel 只留 IPC 原语 |
 | `notify.py` | 监督/通知策略 | L3 services（NotifyPort 可留） |
 | `identity_binding.py` | 角色→prompt 片段绑定 = 组织策略 | L3 identity |
-| `params/system.py` | REVIEW_*/SCOUT_*/DIFF_*/SECURITY_GATE_SCORE_*/RESULT_STORE_* 业务常量 | L3/L4 config |
+| `params/system.py` | REVIEW_*/SCOUT_*/DIFF_*/SECURITY_GATE_SCORE_*/RESULT_STORE_* 业务常量；`PERF_HARNESS_*` 构建采样常量 | L3/L4 config；`PERF_HARNESS_*` → `config/quality`/构建脚本 |
 | `params/agent.py` | BUILTIN_RULE_DEFS/AGENT_CLEARANCE/AGENT_PRIORITY/AGENT_ROLE_MAP/CARD_GATE_*/TERRITORY_MAP/reputation 权重 | config/policy 层 |
 | `params/api.py` | API 分页/token/WS/RPC 常量 | L4 config |
 | `SignalType` 业务成员 | Card/批准/工具域事件写进 kernel 枚举 | L3 事件 schema；kernel 留通用 string/channel 原语 |
