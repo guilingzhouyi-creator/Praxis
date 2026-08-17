@@ -44,6 +44,18 @@ def test_can_run_missing_prereq():
     assert dvg.can_run("tool_a")
 
 
+def test_execution_plan_is_prerequisites_first_and_empty_when_missing():
+    """The dispatch plan exposes transitive order and fails closed on gaps."""
+    dvg = get_dvg()
+    dvg.register_tool_deps("app", ["db"])
+    dvg.register_tool_deps("db", ["base"])
+    dvg.register_tool_deps("base", [])
+    assert dvg.execution_plan("app") == ["base", "db", "app"]
+    assert dvg.execution_plan("unknown") == ["unknown"]
+    dvg.unregister("base")
+    assert dvg.execution_plan("app") == ["db", "app"]
+
+
 def test_topo_order_prereqs_first():
     """Topological order lists prerequisites before dependents."""
     dvg = get_dvg()

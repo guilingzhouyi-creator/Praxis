@@ -169,6 +169,17 @@ RecordCenter source exporting identity/Cell-feature/log-enriched corpus
 for training correction, exposed via `/api/v2/memory/corpus` + L2
 `/memory corpus` (`export_corpus`).
 
+### M3 → R5 graph contract
+
+`supply_to_r5` is a non-blocking side-channel. With R5 disabled it returns
+zero and leaves refined records untouched. In `hybrid` edge mode it passes
+bounded `{id, entry_type, content}` candidates to the graph's injectable
+semantic engine; only validated `contradicts`, `depends_on`, or `refines`
+relations become edges. Engine failure is caught by the graph state machine,
+which moves semantic extraction to `paused`; rule-based edges remain
+available in `off`, `rules`, and `paused` modes. LLM-derived topology is
+attributable and recoverable without making a memory write depend on the LLM.
+
 **Reference-channel linkage**: every accepted memory write emits a
 `memory_refined` event on the reference channel (`get_rc().event`, source
 `memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the

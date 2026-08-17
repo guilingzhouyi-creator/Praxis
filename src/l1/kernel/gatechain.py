@@ -243,6 +243,16 @@ class GateChain:
         with self._lock:
             self._known_tools = self._known_tools.union(tool_names)
 
+    def replace_tools(self, tool_names: list[str]) -> None:
+        """Replace the G1 whitelist with the current registry names."""
+        with self._lock:
+            self._known_tools = frozenset(tool_names)
+
+    def unregister_tools(self, tool_names: list[str]) -> None:
+        """Remove tools from the G1 whitelist after registry removal."""
+        with self._lock:
+            self._known_tools = self._known_tools.difference(tool_names)
+
     def set_territories(self, territories: dict[str, list[str]]) -> None:
         """Merge *territories* (agent → tool list) into the gate chain map."""
         with self._lock:

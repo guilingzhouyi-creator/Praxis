@@ -32,6 +32,25 @@ from l1.kernel.params.tool import (
 logger = logging.getLogger(__name__)
 
 
+def _record_attack_result(tool: str, target: str, domain: str, result: dict) -> dict:
+    """Record an allowed attack-tool invocation and return its result."""
+    try:
+        from l3.tool_system.security_evidence import DECISION_ALLOW, record_evidence
+
+        record_evidence(
+            phase="attack_tool",
+            gate="execution",
+            decision=DECISION_ALLOW,
+            target=target,
+            source=tool,
+            tags={"domain": domain, "success": str(bool(result.get("success"))).lower()},
+            raw={"tool": tool, "result": result},
+        )
+    except Exception:
+        logger.debug("attack tool evidence skipped", exc_info=True)
+    return result
+
+
 def _posture_gate(domain: str, target: str) -> dict | None:
     """Reject unless security-test posture + offensive domain + whitelisted target.
 
@@ -44,7 +63,7 @@ def _posture_gate(domain: str, target: str) -> dict | None:
     """
     from l3.tool_system.posture_matrix import get_posture_matrix
     from l3.tool_system.security_evidence import DECISION_BLOCK, record_evidence
-    from l3.tool_system.security_mode import get_security_mode
+    from l3.tool_system.security_mode import get_posture, get_security_mode
 
     mode = get_security_mode()
     matrix = get_posture_matrix()
@@ -53,6 +72,8 @@ def _posture_gate(domain: str, target: str) -> dict | None:
         error = "attack tools require security-test posture (productive denies them)"
     elif not matrix.is_offensive(domain):
         error = f"attack tools require offensive posture for domain '{domain}'"
+    elif not get_posture().get("full_power", False):
+        error = "attack tools require explicit full_power confirmation"
     elif not matrix.target_allowed(domain, target):
         error = f"target '{target}' is not in domain '{domain}' whitelist"
     if error:
@@ -82,13 +103,17 @@ def http_probe(args: dict, agent_id: str) -> dict:
     if blocked:
         return blocked
     if not url.startswith(("http://", "https://")):
-        return {"success": False, "error": "url must be http(s)://"}
+        return _record_attack_result("http_probe", url, domain, {"success": False, "error": "url must be http(s)://"})
     try:
         req = urllib.request.Request(url, method=method, headers={"User-Agent": "praxis-attack/1.0"})
         with urllib.request.urlopen(req, timeout=ATTACK_PROBE_TIMEOUT) as resp:  # noqa: S310 - posture-gated
-            return {"success": True, "status": resp.status, "url": url, "method": method}
+            return _record_attack_result(
+                "http_probe", url, domain, {"success": True, "status": resp.status, "url": url, "method": method}
+            )
     except Exception as e:
-        return {"success": False, "error": f"probe failed: {e}", "url": url}
+        return _record_attack_result(
+            "http_probe", url, domain, {"success": False, "error": f"probe failed: {e}", "url": url}
+        )
 
 
 def tcp_scan(args: dict, agent_id: str) -> dict:
@@ -100,17 +125,24 @@ def tcp_scan(args: dict, agent_id: str) -> dict:
     if blocked:
         return blocked
     if isinstance(ports, str):
-        ports = [int(p) for p in ports.replace(" ", "").split(",") if p.strip()]
+        try:
+            ports = [int(p) for p in ports.replace(" ", "").split(",") if p.strip()]
+        except ValueError:
+            return _record_attack_result("tcp_scan", host, domain, {"success": False, "error": "invalid ports"})
     ports = [int(p) for p in ports if str(p).isdigit()][:ATTACK_SCAN_MAX_PORTS]
     if not ports:
-        return {"success": False, "error": "ports required (comma-separated)"}
+        return _record_attack_result(
+            "tcp_scan", host, domain, {"success": False, "error": "ports required (comma-separated)"}
+        )
     open_ports: list[int] = []
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(ATTACK_PROBE_TIMEOUT)
             if s.connect_ex((host, port)) == 0:
                 open_ports.append(port)
-    return {"success": True, "host": host, "open_ports": open_ports, "scanned": len(ports)}
+    return _record_attack_result(
+        "tcp_scan", host, domain, {"success": True, "host": host, "open_ports": open_ports, "scanned": len(ports)}
+    )
 
 
 def dns_lookup(args: dict, agent_id: str) -> dict:
@@ -123,9 +155,11 @@ def dns_lookup(args: dict, agent_id: str) -> dict:
     try:
         infos = socket.getaddrinfo(host, None)  # noqa: S105 - posture-gated
         addrs = sorted({info[4][0] for info in infos})
-        return {"success": True, "host": host, "addresses": addrs}
+        return _record_attack_result("dns_lookup", host, domain, {"success": True, "host": host, "addresses": addrs})
     except Exception as e:
-        return {"success": False, "error": f"dns lookup failed: {e}", "host": host}
+        return _record_attack_result(
+            "dns_lookup", host, domain, {"success": False, "error": f"dns lookup failed: {e}", "host": host}
+        )
 
 
 def url_fetch(args: dict, agent_id: str) -> dict:
@@ -138,18 +172,25 @@ def url_fetch(args: dict, agent_id: str) -> dict:
     if blocked:
         return blocked
     if not url.startswith(("http://", "https://")):
-        return {"success": False, "error": "url must be http(s)://"}
+        return _record_attack_result("url_fetch", url, domain, {"success": False, "error": "url must be http(s)://"})
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "praxis-attack/1.0"})
         with urllib.request.urlopen(req, timeout=ATTACK_PROBE_TIMEOUT) as resp:  # noqa: S310 - posture-gated
             body = resp.read(ATTACK_FETCH_MAX_BYTES + 1)
             truncated = len(body) > ATTACK_FETCH_MAX_BYTES
-            return {
-                "success": True,
-                "status": resp.status,
-                "url": url,
-                "body": body[:ATTACK_FETCH_MAX_BYTES].decode("utf-8", errors="replace"),
-                "truncated": truncated,
-            }
+            return _record_attack_result(
+                "url_fetch",
+                url,
+                domain,
+                {
+                    "success": True,
+                    "status": resp.status,
+                    "url": url,
+                    "body": body[:ATTACK_FETCH_MAX_BYTES].decode("utf-8", errors="replace"),
+                    "truncated": truncated,
+                },
+            )
     except Exception as e:
-        return {"success": False, "error": f"fetch failed: {e}", "url": url}
+        return _record_attack_result(
+            "url_fetch", url, domain, {"success": False, "error": f"fetch failed: {e}", "url": url}
+        )

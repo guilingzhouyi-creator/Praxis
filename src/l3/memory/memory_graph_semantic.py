@@ -37,7 +37,11 @@ class SemanticExtractionMixin:
     set_edge_mode: Callable[..., Any]
 
     def extract_semantic_edges(
-        self, entries: list[dict], engine: Any = None, max_pairs: int = _LLM_EXTRACT_MAX_PAIRS
+        self,
+        entries: list[dict],
+        engine: Any = None,
+        max_pairs: int = _LLM_EXTRACT_MAX_PAIRS,
+        created_by: str = "llm",
     ) -> dict:
         """LLM extracts contradicts/depends_on/refines between entry pairs.
 
@@ -78,7 +82,7 @@ class SemanticExtractionMixin:
                     engine_failures += 1
                     continue
                 if rel in _SEMANTIC_RELATIONS:
-                    r = self.add_semantic_edge(a["id"], b["id"], rel, created_by="llm")
+                    r = self.add_semantic_edge(a["id"], b["id"], rel, created_by=created_by)
                     if r.get("success"):
                         added += 1
                         relations.append({"from": a["id"], "to": b["id"], "relation": rel})

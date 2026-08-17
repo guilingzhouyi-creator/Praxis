@@ -40,7 +40,7 @@ def supply_after_refine(records: list[dict[str, Any]]) -> dict:
     return {"r5_edges": r5, "skills_supplied": skills, "agent_md_active": agent_md_active()}
 
 
-def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refinery") -> int:
+def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refinery", engine: Any = None) -> int:
     """Feed refined records into the R5 graph (semantic edges, non-blocking).
 
     Args:
@@ -57,16 +57,41 @@ def supply_to_r5(records: list[dict[str, Any]], created_by: str = "memory_refine
         g = get_graph()
         if not g.enabled:
             return 0
-        for rec in records:
-            if not rec.get("entry_id"):
-                continue
-            g.add_semantic_edge(
-                rec["entry_id"],
-                rec.get("entry_type", "note"),
-                weight=float(rec.get("refinery_score", 0.0) or 1.0),
-                created_by=created_by,
-            )
-            created += 1
+        eligible_records = [rec for rec in records if rec.get("entry_id") and rec.get("content")]
+        candidates = [
+            {
+                "id": str(rec.get("entry_id", "")),
+                "entry_type": rec.get("entry_type", "note"),
+                "content": str(rec.get("content", "")),
+            }
+            for rec in eligible_records
+        ]
+        if g.edge_mode == "hybrid" and len(candidates) >= 2:
+            extracted = g.extract_semantic_edges(candidates, engine=engine, created_by=created_by)
+            created = int(extracted.get("added", 0) or 0)
+        elif candidates:
+            # Rule edges remain available in off/rules/paused modes. The
+            # semantic engine is optional; a failed or paused side-channel
+            # must not make the R5 topology disappear.
+            recent: list[dict] = []
+            for rec, candidate in zip(eligible_records, candidates, strict=True):
+                edge_ids = g.remember_hook(
+                    candidate["id"],
+                    str(rec.get("agent_id", "")),
+                    candidate["entry_type"],
+                    str(rec.get("cell_id", "")),
+                    recent,
+                    created_by=created_by,
+                )
+                created += len(edge_ids)
+                recent.append(
+                    {
+                        "id": candidate["id"],
+                        "entry_type": candidate["entry_type"],
+                        "agent_id": str(rec.get("agent_id", "")),
+                        "cell_id": str(rec.get("cell_id", "")),
+                    }
+                )
     except Exception as e:
         logger.debug("memory_supply_chain: R5 supply skipped: %s", e)
     return created

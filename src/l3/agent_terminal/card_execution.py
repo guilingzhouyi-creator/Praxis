@@ -94,6 +94,7 @@ class CardExecutionMixin:
         # cards, so re-bias its skill retrieval to the current card's
         # nature/domain before continuing.
         try:
+            self._active_loop.set_card_id(card.card_id)
             _ptags = []
             _nature = card.params.get("_card_nature", "") if hasattr(card, "params") else ""
             _domain = card.params.get("_card_domain", "") if hasattr(card, "params") else ""

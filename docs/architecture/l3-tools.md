@@ -43,6 +43,7 @@ gated, and executed (plus the security evidence chain,
 | `tool_params.py` | ParamSpec / ReturnSpec declarations with type validation |
 | `tool_mode.py` | global read/write mode (write = all rings, read = Ring 1 only) |
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
+| `dvg.py` | Declarative prerequisite DAG; cycle-safe execution plans for tool admission |
 
 ### Pipeline (9 steps)
 
@@ -72,7 +73,28 @@ the G4 bypass are recorded via the injected L1 metric sink
 ## Config surface
 
 - `config/tools.yaml` — 68 tool definitions by ring layer (danger, params)
+- `config/discovery/tool_registry.yaml` — optional runtime definitions using
+  the API's `ToolConfig.register_from_dict` path; `deps`/`depends_on` are
+  supported, ring/cap checks apply, and handlers stay inside `l3.tools.*`.
+- `config/discovery/dvg.yaml` — static tool → prerequisite declarations;
+  dynamic dependency edges are restored after boot loading and cycles fail
+  closed without taking down the registry.
 - Ring tiers: Ring 1 (read-only), Ring 2.5 (write+approval), Ring 3 (danger)
+
+### Runtime registration and DVG admission
+
+`POST /api/v2/tools/register` and boot discovery share one registration path.
+Successful registration updates the ToolRegistry, DVG, and G1 whitelist;
+`unregister` removes all three references. `execution_plan(name)` exposes a
+prerequisites-first plan. A cyclic registration is rejected atomically. The
+pipeline uses the plan as an admission check and fails closed on a missing
+prerequisite or cycle. It does not silently execute
+prerequisite handlers: each tool remains an independently gated call, so side
+effects cannot hide behind a composite registration.
+
+Boot rebuilds G1 from the complete registry after static and dynamic loading,
+preventing a stale or empty whitelist and keeping hot registration symmetric
+with kernel gate cleanup.
 
 ## Harness — unified tool-usage control bar
 

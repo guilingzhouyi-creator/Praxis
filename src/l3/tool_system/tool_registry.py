@@ -50,6 +50,7 @@ class ToolRegistry:
         module-level ``TOOL_REGISTRY`` and ``get_registry()`` pointing at the
         same object — callers that captured the old reference stay consistent.
         """
+        old_names = self._registry.all_names()
         self._registry = MapRegistry(allow_overwrite=False)
         self._plugins = {}
         self._middleware = []
@@ -59,6 +60,14 @@ class ToolRegistry:
         self._muted_rings = set()
         self._mute_path_val = ""
         self._load_mutes()
+        try:
+            from l1.kernel.gatechain import get_gatechain
+            from l3.tool_system.dvg import get_dvg
+
+            get_dvg().clear()
+            get_gatechain().unregister_tools(old_names)
+        except Exception:
+            logger.debug("tool_registry: clear graph/whitelist cleanup skipped", exc_info=True)
 
     # ── Registry protocol ──
 
@@ -72,8 +81,8 @@ class ToolRegistry:
         Convenience for the config-driven tool set: a tool that declares
         ``deps`` in ``config/discovery/dvg.yaml`` is registered here with its
         prerequisites, so the tool pipeline's ``can_run`` preflight sees the
-        dependency immediately. A DVG cycle is rejected by the graph (the
-        edge is dropped, spec registration still succeeds) — never fatal.
+        dependency immediately. A DVG cycle rejects the whole registration,
+        keeping the registry and graph atomic.
 
         Args:
             spec: tool spec to register.
@@ -81,21 +90,35 @@ class ToolRegistry:
             source: registration source tag.
 
         Returns:
-            True when the spec was registered (DVG edge success is best-effort).
+            True when the spec and its DVG edge were registered.
         """
         ok = self._registry.register(spec, source=source)
-        if ok and deps:
+        if ok:
             try:
                 from l3.tool_system.dvg import get_dvg
 
-                get_dvg().register_tool_deps(spec.name, list(deps))
+                if not get_dvg().register_tool_deps(spec.name, list(deps)):
+                    self._registry.unregister(spec.name)
+                    return False
             except Exception:
                 logger.debug("tool_registry: dvg edge registration skipped", exc_info=True)
+                self._registry.unregister(spec.name)
+                return False
         return ok
 
     def unregister(self, name: str) -> bool:
         """Remove a tool by name; returns True if it was registered."""
-        return self._registry.unregister(name)
+        removed = self._registry.unregister(name)
+        if removed:
+            try:
+                from l1.kernel.gatechain import get_gatechain
+                from l3.tool_system.dvg import get_dvg
+
+                get_dvg().unregister(name)
+                get_gatechain().unregister_tools([name])
+            except Exception:
+                logger.debug("tool_registry: whitelist/DVG cleanup skipped", exc_info=True)
+        return removed
 
     def get(self, name: str) -> ToolSpec | None:
         """Fetch a tool spec by name, or None if unregistered."""
@@ -151,7 +174,7 @@ class ToolRegistry:
         entry = self._plugins.pop(name, None)
         if entry:
             for tname in entry.get("tools", []):
-                self._registry.unregister(tname)
+                self.unregister(tname)
 
     def register_middleware(self, hook_type: str, name: str, fn: Callable[[str, dict, str], dict | None]) -> None:
         """Register a middleware hook of the given type."""

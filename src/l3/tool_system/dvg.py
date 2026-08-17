@@ -88,8 +88,36 @@ class DvgGraph:
     def can_run(self, name: str) -> bool:
         """True when all transitive prerequisites are registered."""
         with self._lock:
-            seen: set[str] = set()
-            return self._walk(name, seen)
+            return bool(self.execution_plan(name))
+
+    def execution_plan(self, name: str) -> list[str]:
+        """Return prerequisites-first execution order for one tool.
+
+        An empty result means a prerequisite is missing or a cycle was found.
+        Tools without a DVG node still produce a one-item plan, which keeps
+        ordinary builtin dispatch backward compatible.
+        """
+        with self._lock:
+            order: list[str] = []
+            visiting: set[str] = set()
+            visited: set[str] = set()
+
+            def visit(node: str) -> bool:
+                if node in visited:
+                    return True
+                if node in visiting:
+                    return False
+                visiting.add(node)
+                if node in self._deps:
+                    for dep in self._deps[node]:
+                        if dep not in self._deps or not visit(dep):
+                            return False
+                visiting.remove(node)
+                visited.add(node)
+                order.append(node)
+                return True
+
+            return order if visit(name) else []
 
     def _walk(self, name: str, seen: set[str]) -> bool:
         """DFS availability check with cycle guard."""

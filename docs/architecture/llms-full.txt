@@ -110,18 +110,18 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 43 files / 5,650 lines |
+| L2 Shell | 38 files / 5,198 lines |
 | L3 Cell | 337 files / 73,588 lines |
 | L4 Bridge | 112 files / 23,102 lines |
-| L1 Kernel | 68 files / 17,929 lines |
-| L2 Shell | 43 files / 5,650 lines |
-| L3 Cell | 345 files / 75,611 lines |
+| L1 Kernel | 68 files / 17,942 lines |
+| L2 Shell | 38 files / 5,198 lines |
+| L3 Cell | 345 files / 76,122 lines |
 | L4 Bridge | 112 files / 23,102 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
-| L3 Memory | 46 files / 10,436 lines |
+| L3 Memory | 46 files / 10,465 lines |
 | L3 Card | 27 files / 6,451 lines |
-| L3 Services | 43 files / 11,224 lines |
+| L3 Services | 43 files / 11,374 lines |
 | L3 Bus | 17 files / 4,396 lines |
 | L3 Agent | 36 files / 7,483 lines |
 | L4 Handlers | 34 files / 6,245 lines |
@@ -129,12 +129,12 @@ flowchart TB
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
 | Params modules / constants | 8 / 1,263 |
 | Health | 0.757 (grade B) |
-| L3 Agent | 37 files / 8,273 lines |
+| L3 Agent | 37 files / 8,315 lines |
 | L4 Handlers | 34 files / 6,245 lines |
 | API routes | 362 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,177 |
-| Health | 0.737 (grade B) |
+| Params modules / constants | 8 / 1,179 |
+| Health | 0.716 (grade B) |
 
 ## Reading path
 
@@ -812,6 +812,17 @@ RecordCenter source exporting identity/Cell-feature/log-enriched corpus
 for training correction, exposed via `/api/v2/memory/corpus` + L2
 `/memory corpus` (`export_corpus`).
 
+### M3 → R5 graph contract
+
+`supply_to_r5` is a non-blocking side-channel. With R5 disabled it returns
+zero and leaves refined records untouched. In `hybrid` edge mode it passes
+bounded `{id, entry_type, content}` candidates to the graph's injectable
+semantic engine; only validated `contradicts`, `depends_on`, or `refines`
+relations become edges. Engine failure is caught by the graph state machine,
+which moves semantic extraction to `paused`; rule-based edges remain
+available in `off`, `rules`, and `paused` modes. LLM-derived topology is
+attributable and recoverable without making a memory write depend on the LLM.
+
 **Reference-channel linkage**: every accepted memory write emits a
 `memory_refined` event on the reference channel (`get_rc().event`, source
 `memory_ingest`) carrying entry id/type/cell/agent/importance/ring — the
@@ -1272,6 +1283,7 @@ gated, and executed (plus the security evidence chain,
 | `tool_params.py` | ParamSpec / ReturnSpec declarations with type validation |
 | `tool_mode.py` | global read/write mode (write = all rings, read = Ring 1 only) |
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
+| `dvg.py` | Declarative prerequisite DAG; cycle-safe execution plans for tool admission |
 
 ### Pipeline (9 steps)
 
@@ -1301,7 +1313,28 @@ the G4 bypass are recorded via the injected L1 metric sink
 ## Config surface
 
 - `config/tools.yaml` — 68 tool definitions by ring layer (danger, params)
+- `config/discovery/tool_registry.yaml` — optional runtime definitions using
+  the API's `ToolConfig.register_from_dict` path; `deps`/`depends_on` are
+  supported, ring/cap checks apply, and handlers stay inside `l3.tools.*`.
+- `config/discovery/dvg.yaml` — static tool → prerequisite declarations;
+  dynamic dependency edges are restored after boot loading and cycles fail
+  closed without taking down the registry.
 - Ring tiers: Ring 1 (read-only), Ring 2.5 (write+approval), Ring 3 (danger)
+
+### Runtime registration and DVG admission
+
+`POST /api/v2/tools/register` and boot discovery share one registration path.
+Successful registration updates the ToolRegistry, DVG, and G1 whitelist;
+`unregister` removes all three references. `execution_plan(name)` exposes a
+prerequisites-first plan. A cyclic registration is rejected atomically. The
+pipeline uses the plan as an admission check and fails closed on a missing
+prerequisite or cycle. It does not silently execute
+prerequisite handlers: each tool remains an independently gated call, so side
+effects cannot hide behind a composite registration.
+
+Boot rebuilds G1 from the complete registry after static and dynamic loading,
+preventing a stale or empty whitelist and keeping hot registration symmetric
+with kernel gate cleanup.
 
 ## Harness — unified tool-usage control bar
 
@@ -1450,6 +1483,13 @@ reload tails the file (`EVIDENCE_CHAIN_RELOAD_LINES`); in-memory index caps
 (`EVIDENCE_CHAIN_MAX_CHAINS` 64, `EVIDENCE_CHAIN_MAX_EVIDENCE` 512) ejects
 the oldest. Deterministic, no LLM involved.
 
+Chain lifecycle metadata (`kind`, `source`, opened/closed timestamps, close
+reason, and ordered evidence ids) is persisted beside the JSONL file in the
+`EVIDENCE_CHAIN_META_SUFFIX` sidecar. This keeps a closed attack chain closed
+after restart even when the hot evidence window is tail-loaded. Fixity is one
+append-only predecessor chain across the file, so deletion, insertion,
+reordering, and field edits all fail `verify_chain`.
+
 ## API surface
 
 | Method | Path | Purpose |
@@ -1470,6 +1510,9 @@ Callers inside the loop use the module surface instead: `begin_chain`,
   one-way, best-effort.
 - **Bus**: the same `security.*` counters already flow to StatsCenter;
   evidence is a second, append-only consumer (see `l3-bus.md`).
+- **Attack tools**: posture-gated recon/scan/fetch handlers record both the
+  posture decision and the allowed call's structured result. A network failure
+  after authorization is therefore distinguishable from a blocked attempt.
 
 
 ---
