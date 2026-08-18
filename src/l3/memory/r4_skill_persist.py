@@ -15,6 +15,7 @@ from l1.kernel.params.system import (
     SKILL_DISCLOSURE_DEFAULT,
     SKILL_POSTURE_DEFAULT,
     SKILL_POSTURE_VALID,
+    SKILL_SCOPE_VALID,
     SKILL_STATUS_DEFAULT,
 )
 
@@ -28,9 +29,11 @@ class SkillPersistMixin:
         """Resolve the SKILL.md path for a skill in the evolved dir.
 
         Layered persistence: project scope → travels with the repo; global
-        scope → machine-local data dir (must match the boot discovery dirs).
-        An explicit ``scope`` ("project"/"global") overrides the configured
-        default (``skill.evolve_scope``); empty string defers to config.
+        scope → machine-local data dir (must match the boot discovery dirs);
+        custom scope → user-authored third-tier dir (never touched by TTL
+        prune/curation). An explicit ``scope`` ("project"/"global"/"custom")
+        overrides the configured default (``skill.evolve_scope``); empty
+        string defers to config.
         """
         import os
 
@@ -38,6 +41,8 @@ class SkillPersistMixin:
         from l3.memory.r4_agent import _resolve_skill_scope
 
         scope = scope or _resolve_skill_scope()
+        if scope == "custom":
+            return os.path.join(_gp().skill_custom_dir, name, "SKILL.md")
         evolved_base = _gp().skill_project_evolved_dir if scope == "project" else _gp().skill_evolved_dir
         return os.path.join(evolved_base, name, "SKILL.md")
 
@@ -61,6 +66,8 @@ class SkillPersistMixin:
         scope: str = "",
         binding: dict | None = None,
         status: str = SKILL_STATUS_DEFAULT,
+        scope_identity: str = "",
+        priority: int = 0,
     ) -> str:
         """Persist a skill as SKILL.md with round-trip frontmatter.
 
@@ -101,6 +108,12 @@ class SkillPersistMixin:
             meta["binding"] = binding
         if status != SKILL_STATUS_DEFAULT:
             meta["status"] = status
+        if scope in SKILL_SCOPE_VALID:
+            meta["scope"] = scope
+            if scope_identity:
+                meta["scope-identity"] = scope_identity
+        if priority:
+            meta["priority"] = priority
         if allowed_tools:
             meta["allowed_tools"] = allowed_tools
         if variables:

@@ -47,6 +47,54 @@ class SkillPolicyMixin:
     _write_roles: tuple[str, ...]
     _offensive_enabled: bool
     _offensive_natures: tuple[str, ...]
+    _update_speed: str
+    _update_enabled: bool
+    _update_updated: float
+    _update_source: str
+
+    def set_update_policy(
+        self,
+        update_speed: str | None = None,
+        enabled: bool | None = None,
+        source: str = "runtime",
+    ) -> dict:
+        """Override the R4Agent skill-update cadence at runtime.
+
+        ``update_speed``: "fast" (Cell shared area — corrections follow
+        runtime data output) or "slow" (global dedicated tier — periodic
+        generalization/distillation of the shared area). ``enabled=False``
+        pauses skill updates without disabling the whole pipeline.
+        ``source`` records who changed the policy for auditability.
+        None fields are left untouched.
+        """
+        with self._lock:
+            if update_speed is not None:
+                if update_speed in ("fast", "slow"):
+                    self._update_speed = update_speed
+                else:
+                    return {"success": False, "error": f"update_speed must be 'fast' or 'slow', got {update_speed!r}"}
+            if enabled is not None:
+                self._update_enabled = bool(enabled)
+            if update_speed is not None or enabled is not None:
+                self._update_updated = time.time()
+                self._update_source = source
+            return {
+                "success": True,
+                "update_speed": self._update_speed,
+                "enabled": self._update_enabled,
+                "updated": self._update_updated,
+                "source": self._update_source,
+            }
+
+    def update_policy(self) -> dict:
+        """Return the current skill-update cadence policy."""
+        with self._lock:
+            return {
+                "update_speed": self._update_speed,
+                "enabled": self._update_enabled,
+                "updated": self._update_updated,
+                "source": self._update_source,
+            }
 
     def set_distill_policy(
         self,

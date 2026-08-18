@@ -507,6 +507,11 @@ SKILL_STATUS_VALID: Final[tuple[str, ...]] = ("draft", "canary", SKILL_STATUS_AC
 # Skill disclosure depth — full (default) / index (name+desc only) / none (hidden)
 SKILL_DISCLOSURE_DEFAULT: Final[str] = "full"
 SKILL_DISCLOSURE_VALID: Final[tuple[str, ...]] = ("full", "index", "none")
+# Skill scope — declarative injection target from frontmatter:
+#   agent  → inject into the named Agent entity context (scope-identity = role/id)
+#   cell   → inject into a Cell-domain shared skill area (scope-identity = cell id)
+#   global → inject everywhere
+SKILL_SCOPE_VALID: Final[tuple[str, ...]] = ("agent", "cell", "global")
 # Card natures that authorize injecting offensive-posture skills into a
 # session. The L3A decision layer marks a card with one of these natures;
 # AgentLoop derives the session-level authorization flag from it (default-deny

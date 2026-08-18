@@ -28,6 +28,7 @@ from l1.kernel.params.system import (
     SKILL_DISCLOSURE_VALID,
     SKILL_POSTURE_DEFAULT,
     SKILL_POSTURE_VALID,
+    SKILL_SCOPE_VALID,
     SKILL_STATUS_DEFAULT,
     SKILL_STATUS_VALID,
 )
@@ -190,6 +191,17 @@ class SkillPersistMixin:
             body = self._shared_principles + "\n\n" + body
         name = meta.get("name", os.path.basename(os.path.dirname(path)))
         desc = meta.get("description")
+        scope = meta.get("scope")
+        if scope not in SKILL_SCOPE_VALID:
+            scope = ""
+        scope_identity = str(meta.get("scope-identity", "") or "").strip()
+        # Declarative scope maps into the runtime binding (cell_ids/agent_ids)
+        # so the existing skill_is_injectable filter applies unchanged.
+        binding = self._normalize_binding(meta.get("binding"))
+        if scope and scope_identity:
+            binding[("cell_ids" if scope == "cell" else "agent_ids")] = sorted(
+                {*binding.get("cell_ids" if scope == "cell" else "agent_ids", []), scope_identity}
+            )
         data = {
             "name": name,
             "description": (desc or "")[:LOG_TRUNC_200],
@@ -207,8 +219,14 @@ class SkillPersistMixin:
             # malformed frontmatter never escalates a skill's posture.
             "posture": self._normalize_posture(meta.get("posture")),
             "disclosure": self._normalize_disclosure(meta.get("disclosure")),
-            "binding": self._normalize_binding(meta.get("binding")),
+            "binding": binding,
             "status": self._normalize_status(meta.get("status")),
+            # Declarative scope/priority (incremental §11.1): scope-identity +
+            # scope select the injection target; priority resolves conflicts
+            # between custom and builtin/evolved skills (builtins pin 0).
+            "scope": scope,
+            "scope_identity": scope_identity,
+            "priority": int(meta.get("priority", 0)) if str(meta.get("priority", "0")).lstrip("-").isdigit() else 0,
             # Quest-style staged skills: ordered stages, each with
             # id/name/instructions/completion — progressive disclosure reveals
             # only the active stage (see current_stage/advance_stage).

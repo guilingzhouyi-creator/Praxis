@@ -234,9 +234,23 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
             results["contradictions"] = contradictions
 
             # 4. Process pending failure traces into lean cases
-            processed = self._process_failure_traces()
-            if processed:
-                results["lean_cases_generated"] = processed
+            # Skill-update cadence (§11.5): enabled=False pauses skill
+            # evolution (fast lean-case corrections and slow generalization
+            # alike); update_speed selects the tier cadence (fast = Cell
+            # shared area follows runtime data; slow = global dedicated tier).
+            update_policy = {}
+            try:
+                from l1.kernel.skill import get_skill_manager
+
+                update_policy = get_skill_manager().update_policy()
+            except Exception:
+                pass
+            if not update_policy.get("enabled", True):
+                results["skill_updates_paused"] = True
+            else:
+                processed = self._process_failure_traces()
+                if processed:
+                    results["lean_cases_generated"] = processed
 
             # 4a. Clean up orphaned failure trace files (older than 24h, unresolved)
             cleaned = self._clean_orphan_traces()

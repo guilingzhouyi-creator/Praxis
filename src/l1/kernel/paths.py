@@ -234,6 +234,9 @@ class PraxisPaths:
     skill_dirs: list[str] = field(default_factory=list)
     skill_evolved_dir: str = ""
     skill_lean_dir: str = ""
+    # User-authored custom skills (third tier): registered via the skill
+    # registration system, never touched by R4Agent TTL prune/curation.
+    skill_custom_dir: str = ""
     # Project-scoped evolution target — evolved skills that should travel with
     # the project (e.g. into VCS) land here; global ones go to skill_evolved_dir.
     skill_project_evolved_dir: str = ""
@@ -323,6 +326,8 @@ class PraxisPaths:
                 self.skill_project_evolved_dir = self.skill_evolved_dir
         if not self.skill_lean_dir:
             self.skill_lean_dir = os.path.join(self.data_dir, "skills", "lean")
+        if not self.skill_custom_dir:
+            self.skill_custom_dir = os.path.join(self.data_dir, "skills", "custom")
         if not self.memories_dir:
             self.memories_dir = os.path.join(self.data_dir, "memories")
         if not self.install_dir:
