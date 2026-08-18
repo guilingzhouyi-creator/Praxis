@@ -21,6 +21,7 @@ _registry = get_registry()
 from . import (  # noqa: E402
     ci,  # noqa: F401
     connect,  # noqa: F401
+    direct,  # noqa: F401
     engineering_debug,  # noqa: F401
     extra,  # noqa: F401
     harness,  # noqa: F401
@@ -135,6 +136,7 @@ _SYSTEM_COMMANDS: list[tuple[str, Callable, dict]] = []
 for _module_name in (
     "common",
     "connect",
+    "direct",
     "system",
     "memory",
     "model",

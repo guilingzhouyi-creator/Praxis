@@ -71,6 +71,8 @@ shell:
     ci_admin_required: "admin confirmation required (add --admin)"
     ci_writes_disabled: "writes disabled (ci.control.shell.writable=false)"
     usage_connect: "usage: /connect <agent_id>"
+    usage_intent: "usage: /intent <text>[@<cell>/<agent>]"
+    usage_scout: "usage: /scout <task>"
     no_active_session: "no active session — not connected"
     no_agent_connected: "no agent connected — use /connect first"
     usage_cluster: "usage: /cluster [status]"
@@ -441,9 +443,9 @@ error:
 terminal:
   banner:
     title: "Agent OS Terminal — Type 'help' for commands, 'exit' to quit"
-    l3a: "!<intent>  → L3A direct session"
-    route: "!<intent>@<cell>/<agent> → Route to specific Cell/Agent"
-    scout: "!scout <task>  → Scout investigation"
+    l3a: "/intent <text>  → L3A direct session"
+    route: "/intent <text>@<cell>/<agent> → Route to specific Cell/Agent"
+    scout: "/scout <task>  → Scout investigation"
     system: "$ <command>  → Raw system command (Bash/PowerShell)"
     tool: "<tool> <args>  → Tool execution (aliases: rf→read_file)"
   help:
