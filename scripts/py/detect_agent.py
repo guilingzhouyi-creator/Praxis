@@ -1,21 +1,29 @@
 """Detect the agent framework / model driving the current commit session.
 
-Co-Authored-By attribution must reflect who ACTUALLY did the work, not what
-the agent guesses from context. This detector reads authoritative runtime
-signals (environment, parent process chain, DSH session) and reports the
-most likely author identity as JSON, so the commit-msg gate can compare it
-against the trailer the agent wrote.
+Co-Authored-By attribution must reflect who ACTUALLY executed the work, not
+what the agent guesses from context — and NOT what a config file merely
+declares (any process can read settings.yaml and claim that model). This
+detector reads EXECUTION EVIDENCE first: the harness session log records
+the real (provider, model) route of every LLM call, written by the harness,
+never by the agent, so it cannot be forged from within the session.
 
-Signals, strongest first:
-  1. explicit PRAXIS_AUTHOR / PRAXIS_MODEL overrides (operator-pinned)
-  2. DSH harness env (DSH_* set) — the DeepSeek Harness is the current host
-  3. CLAUDE_CODE_* env — Claude Code / claude agent
-  4. OPENAI_API_KEY / ANTHROPIC_API_KEY / DEEPSEEK_API_KEY — provider key
-  5. parent-process chain — a live opencode/claude/atomcode/dsh process
-  6. workspace agent dirs (.opencode/ .atomcode/ .claude/ .dsh/)
+Evidence tiers (strongest first):
+  A. execution record — the live DSH session log ($DSH_SESSION_JSONL)
+     records request/context + assistant/chunk.finish.replayState with the
+     actual provider/model route + responseId (harness-written, unfakeable).
+     Other frameworks: their own session stores (.opencode/ .atomcode/
+     .claude/) when parseable.
+  B. operator pin — explicit PRAXIS_AUTHOR / PRAXIS_MODEL (trusted only
+     when the operator sets it deliberately; still NOT proof of execution).
+  C. config declaration — ~/.dsh/settings.yaml agent-default-model (what
+     the deployment CONFIGURES, not what this commit ran).
+  D. weak signals — CLAUDE_CODE_* env, provider keys, parent-process chain,
+     workspace agent dirs. These identify the FRAMEWORK only; the model is
+     left unknown (never invented).
 
-Output (--json): {"framework", "agent", "model", "email",
-"confidence" (high|medium|low), "signals" (list of matched signal names)}
+Output (--json): {"framework", "agent", "model", "provider",
+"evidence" (A|B|C|D), "confidence" (high|medium|low|none),
+"signals" (matched signal names), "note" (human caveat)}
 
 Exit: 0 always (detection is informational; the gate decides policy).
 """
@@ -29,16 +37,63 @@ import sys
 from pathlib import Path
 
 
-def _dsh_default_model() -> str:
-    """Read the harness default model from ~/.dsh/settings.yaml (dynamic).
+def _dsh_home() -> Path:
+    """Locate the DSH home directory."""
+    env = os.environ.get("DSH_HOME", "").strip()
+    if env:
+        return Path(env).expanduser()
+    return Path.home() / ".dsh"
 
-    The model name is NOT hardcoded here — it changes with the deployment.
-    The DSH harness persists its agent-default-model (provider/model) in
-    settings.yaml; read it live so attribution always names the CURRENT
-    model, not a stale constant.
+
+def _read_session_log() -> tuple[str, str] | None:
+    """Read the REAL (provider, model) route from the live DSH session log.
+
+    $DSH_SESSION_JSONL is a zstd-compressed JSONL written by the harness:
+    every LLM round-trip appends a `request/context` record (provider/model)
+    and `assistant/chunk` finish records carry replayState with the same
+    route + a responseId. This is EXECUTION evidence — the agent cannot
+    alter the log it is running inside. Returns (provider, model) of the
+    MOST RECENT request, or None when the log is unreadable.
     """
-    dsh_home = Path(os.environ.get("DSH_HOME", "")).expanduser() or Path.home() / ".dsh"
-    cfg = dsh_home / "settings.yaml"
+    path = os.environ.get("DSH_SESSION_JSONL", "").strip()
+    if not path or not Path(path).is_file():
+        return None
+    try:
+        import zstandard
+
+        with open(path, "rb") as f:
+            raw = zstandard.ZstdDecompressor().stream_reader(f).read()
+        provider = model = ""
+        for line in raw.decode("utf-8", errors="replace").splitlines()[-400:]:
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            # request/context carries the authoritative route.
+            if rec.get("type") == "request/context":
+                data = rec.get("data") or {}
+                provider = str(data.get("provider") or "").strip()
+                model = str(data.get("model") or "").strip()
+            elif rec.get("type") == "assistant/chunk":
+                rs = ((rec.get("data") or {}).get("chunk") or {}).get("replayState") or {}
+                if rs.get("model"):
+                    provider = str(rs.get("provider") or provider or "").strip()
+                    model = str(rs.get("model") or "").strip()
+        if model:
+            return provider, model
+    except Exception:
+        return None
+    return None
+
+
+def _dsh_default_model() -> str:
+    """Config-declared default model (~/.dsh/settings.yaml) — fallback only.
+
+    This is what the deployment CONFIGURES, not proof this commit ran it.
+    Used only when execution evidence is unavailable, and the confidence is
+    downgraded accordingly.
+    """
+    cfg = _dsh_home() / "settings.yaml"
     if not cfg.is_file():
         return ""
     try:
@@ -57,8 +112,7 @@ def _parent_chain(max_depth: int = 6) -> list[str]:
     for _ in range(max_depth):
         try:
             with open(f"/proc/{pid}/comm", encoding="utf-8") as f:
-                comm = f.read().strip()
-            names.append(comm)
+                names.append(f.read().strip())
         except OSError:
             break
         try:
@@ -75,18 +129,45 @@ def _parent_chain(max_depth: int = 6) -> list[str]:
 
 def _workspace_dirs() -> list[str]:
     """Detect per-agent workspace directories (cheap existence probes)."""
-    found: list[str] = []
-    for name in (".opencode", ".atomcode", ".claude", ".dsh"):
-        if Path(name).is_dir():
-            found.append(name)
-    return found
+    return [n for n in (".opencode", ".atomcode", ".claude", ".dsh") if Path(n).is_dir()]
 
 
-def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own identity
-    """Return the best-effort author identity from runtime signals."""
+def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own identity
+    """Return the author identity from the strongest available evidence."""
     signals: list[str] = []
 
-    # 1. Explicit operator pin — highest authority, no guessing.
+    # Tier A — EXECUTION EVIDENCE (unfakeable, strongest).
+    if os.environ.get("DSH_SESSION_JSONL"):
+        signals.append("session:DSH_SESSION_JSONL")
+        route = _read_session_log()
+        if route:
+            provider, model = route
+            signals.append("evidence:session-log")
+            return {
+                "framework": "dsh",
+                "agent": "DeepSeek",
+                "model": model,
+                "provider": provider,
+                "evidence": "A",
+                "confidence": "high",
+                "signals": signals,
+                "note": "model read from the live harness session log (execution evidence)",
+            }
+        # DSH env present but log unreadable — downgrade to config.
+        model = _dsh_default_model()
+        signals.append("evidence:config")
+        return {
+            "framework": "dsh",
+            "agent": "DeepSeek",
+            "model": model,
+            "provider": "",
+            "evidence": "C",
+            "confidence": "low" if model else "none",
+            "signals": signals,
+            "note": "session log unreadable; model from config declaration only (NOT execution proof)",
+        }
+
+    # Tier B — operator pin (deliberate override, still not execution proof).
     pin_agent = os.environ.get("PRAXIS_AUTHOR", "").strip()
     pin_model = os.environ.get("PRAXIS_MODEL", "").strip()
     if pin_agent:
@@ -95,47 +176,29 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
             "framework": "pinned",
             "agent": pin_agent,
             "model": pin_model or "",
-            "email": f"noreply@{pin_agent.lower()}." if not pin_model else f"noreply@{pin_agent.lower()}.com",
-            "confidence": "high",
+            "provider": "",
+            "evidence": "B",
+            "confidence": "medium" if pin_model else "low",
             "signals": signals,
+            "note": "operator-pinned identity (not execution evidence)",
         }
 
     env = os.environ
-    # 2. DSH harness — the DeepSeek Harness injects DSH_* on every session.
-    if any(k.startswith("DSH_") for k in env):
-        signals.append("env:DSH_*")
-        # Model is read LIVE from ~/.dsh/settings.yaml (agent-default-model)
-        # — never hardcoded, so a deployment model bump propagates.
-        model = _dsh_default_model()
-        if not model:
-            # Fall back to the provider key / parent chain below rather than
-            # guessing a stale name.
-            signals.append("env:DSH_*:no-model")
-        return {
-            "framework": "dsh",
-            "agent": "DeepSeek",
-            "model": model,
-            "email": "noreply@deepseek.com",
-            "confidence": "high" if model else "medium",
-            "signals": signals,
-        }
-
-    # 3. Claude Code — CLAUDE_CODE_SSE_PORT etc. mark a claude session.
+    # Tier D1 — Claude Code env (framework identity, model unknown unless set).
     if any(k.startswith("CLAUDE_CODE_") for k in env):
         signals.append("env:CLAUDE_CODE_*")
         return {
             "framework": "claude-code",
             "agent": "Claude",
-            "model": env.get("CLAUDE_MODEL", "claude"),
-            "email": "noreply@anthropic.com",
-            "confidence": "high",
+            "model": env.get("CLAUDE_MODEL", ""),
+            "provider": "",
+            "evidence": "D",
+            "confidence": "medium" if env.get("CLAUDE_MODEL") else "low",
             "signals": signals,
+            "note": "framework from env; model unknown unless CLAUDE_MODEL set",
         }
 
-    # 4. Provider keys — last-resort provider-level attribution. The provider
-    #    fixes the AGENT identity; the specific model is unknown from a bare
-    #    key (the session may use any model the provider offers), so model is
-    #    left empty and the agent must not invent one.
+    # Tier D2 — provider keys (framework identity only; model NEVER invented).
     provider_agent = None
     if env.get("DEEPSEEK_API_KEY"):
         provider_agent = ("DeepSeek", "noreply@deepseek.com")
@@ -152,33 +215,38 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
             "framework": "provider-key",
             "agent": agent,
             "model": "",
-            "email": email,
-            "confidence": "medium",
+            "provider": "",
+            "evidence": "D",
+            "confidence": "low",
             "signals": signals,
+            "note": "provider key present; specific model unknown — do not invent one",
         }
 
-    # 5. Parent-process chain — a live agent runner is authoritative.
-    chain = _parent_chain()
-    chain_lower = [c.lower() for c in chain]
-    for marker, agent, email in (
+    # Tier D3 — parent-process chain (framework only).
+    chain = [c.lower() for c in _parent_chain()]
+    for marker, agent, _email in (
         ("dsh", "DeepSeek", "noreply@deepseek.com"),
         ("opencode", "OpenCode", "noreply@opencode.dev"),
         ("claude", "Claude", "noreply@anthropic.com"),
         ("atomcode", "AtomCode", "noreply@atomgit.com"),
     ):
-        if any(marker in c for c in chain_lower):
+        if any(marker in c for c in chain):
             signals.append(f"proc:{marker}")
             model = _dsh_default_model() if marker == "dsh" else ""
             return {
                 "framework": marker,
                 "agent": agent,
                 "model": model,
-                "email": email,
-                "confidence": "medium",
+                "provider": "",
+                "evidence": "D",
+                "confidence": "low" if not model else "medium",
                 "signals": signals,
+                "note": "framework from process chain; model not execution-verified"
+                if marker != "dsh"
+                else "model from config (not execution proof)",
             }
 
-    # 6. Workspace agent dirs — weak signal, low confidence.
+    # Tier D4 — workspace agent dirs (weakest).
     dirs = _workspace_dirs()
     for name in (".opencode", ".atomcode", ".claude", ".dsh"):
         if name in dirs:
@@ -188,18 +256,30 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
             "framework": "workspace-dir",
             "agent": "",
             "model": "",
-            "email": "",
-            "confidence": "low",
+            "provider": "",
+            "evidence": "D",
+            "confidence": "none",
             "signals": signals,
+            "note": "workspace dirs only — cannot identify agent or model",
         }
 
-    return {"framework": "unknown", "agent": "", "model": "", "email": "", "confidence": "none", "signals": []}
+    return {
+        "framework": "unknown",
+        "agent": "",
+        "model": "",
+        "provider": "",
+        "evidence": "",
+        "confidence": "none",
+        "signals": [],
+        "note": "no framework or model evidence found",
+    }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Detect the agent framework driving this session")
-    parser.add_argument("--json", action="store_true", help="emit JSON (default)")
-    parser.parse_args()
+    parser = argparse.ArgumentParser(description="Detect the agent framework/model from execution evidence")
+    parser.add_argument("--json", action="store_true", help="emit JSON (default behavior; kept for CLI compatibility)")
+    args = parser.parse_args()
+    del args
     print(json.dumps(detect(), ensure_ascii=False))
     return 0
 

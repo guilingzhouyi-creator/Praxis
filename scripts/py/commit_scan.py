@@ -147,16 +147,30 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
     if model not in reg.get("models", []):
         return [f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))})"]
 
-    # Live-runtime cross-check (high confidence only — never guess from a
-    # workspace dir or an empty signal set).
-    if detected and detected.get("confidence") == "high":
+    # Live-runtime cross-check against EXECUTION EVIDENCE.
+    #   - evidence A (session log, confidence high): the model is PROVEN — a
+    #     mismatch is a hard violation (impersonation cannot slip through).
+    #   - evidence C/D (config/weak, confidence low/none): the model is NOT
+    #     execution-verified — claiming a specific model is an unverifiable
+    #     assertion, so it is rejected too. Only evidence B (operator pin)
+    #     with an explicit model is trusted as a deliberate override.
+    if detected:
+        det_conf = detected.get("confidence")
         det_model = (detected.get("model") or "").strip().lower()
-        if det_model and det_model != model.lower():
-            violations.append(
-                f"model mismatch: trailer says '{model}' but the live session runs '{detected.get('model')}' "
-                f"(framework={detected.get('framework')}) — attribute the ACTUAL runner",
-            )
         det_agent = (detected.get("agent") or "").strip().lower()
+        if det_conf == "high" and det_model:
+            if det_model != model.lower():
+                violations.append(
+                    f"model mismatch: trailer says '{model}' but the session log proves '{detected.get('model')}' "
+                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — attribute the ACTUAL runner",
+                )
+        elif det_conf == "low" or det_conf == "none":
+            # No execution evidence — a specific model claim cannot be proven.
+            violations.append(
+                f"unverifiable model claim: '{model}' cannot be confirmed by execution evidence "
+                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — run the session "
+                "inside a framework whose log records the model, or use an operator pin (PRAXIS_AUTHOR/PRAXIS_MODEL)",
+            )
         if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode"):
             # AtomCode/OpenCode are the project's established author aliases;
             # the detector's framework name may differ (dsh vs the git alias).

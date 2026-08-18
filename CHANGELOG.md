@@ -7,10 +7,11 @@
 
 ### 治理
 
-- **Governance (commit)**: detected model is read LIVE from `~/.dsh/settings.yaml` (agent-default-model) — never hardcoded, so a deployment model bump propagates; provider-key / process-chain tiers report framework+agent only and never invent a model. Rejection messages carry step-by-step HOW TO FIX guidance; verify-local-merge.sh tells the agent how to accumulate to the threshold.
+- **Governance (commit)**: attribution now requires EXECUTION EVIDENCE, not config claims — detect_agent.py reads the live DSH session log ($DSH_SESSION_JSONL, harness-written, uneditable by the agent) which records the real (provider, model) of every LLM call. Config declarations (~/.dsh/settings.yaml) are low-confidence fallbacks; a model claim without execution evidence is rejected as unverifiable. Settings.yaml tampering cannot impersonate: even if config declares gpt-4o, the session log proves deepseek-v4-flash and the gate rejects the mismatch. Other frameworks without their own session evidence cannot claim a specific model.
 
 ### 新增
 
+- **Feat (git)**: generalize detected model + actionable rejection guidance
 - **Feat (git)**: verify Co-Authored-By truth + normalize subject format
 - **Feat (judge)**: local-merge gate + gate completeness/efficiency fixes
 - **Feat (l3a)**: switch defaults to new architecture (digest on, stateful)

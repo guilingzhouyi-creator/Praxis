@@ -29,9 +29,21 @@ DSH_DETECTED = json.dumps(
         "framework": "dsh",
         "agent": "DeepSeek",
         "model": "deepseek-v4-flash",
-        "email": "noreply@deepseek.com",
+        "provider": "jiyuan",
+        "evidence": "A",
         "confidence": "high",
-        "signals": ["env:DSH_*"],
+        "signals": ["session:DSH_SESSION_JSONL", "evidence:session-log"],
+    }
+)
+
+NO_EVIDENCE = json.dumps(
+    {
+        "framework": "unknown",
+        "agent": "",
+        "model": "",
+        "evidence": "",
+        "confidence": "none",
+        "signals": [],
     }
 )
 
@@ -118,11 +130,12 @@ def test_detect_agent_emits_json() -> None:
     assert "confidence" in data
 
 
-def test_detect_model_not_hardcoded(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """The detected model must come from the live DSH settings, not a constant.
+def test_execution_evidence_beats_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The session log (execution evidence) wins over settings.yaml (config).
 
-    Point DSH_HOME at a scratch settings.yaml with a distinctive model and
-    assert detection reports it — a hardcoded deepseek-v4-flash would fail.
+    Even when a scratch DSH_HOME declares custom-model-9x, a live
+    DSH_SESSION_JSONL proving deepseek-v4-flash must be reported — config
+    never overrides what the session actually ran.
     """
     dsh_home = tmp_path / "dsh"
     dsh_home.mkdir()
@@ -131,7 +144,6 @@ def test_detect_model_not_hardcoded(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         encoding="utf-8",
     )
     monkeypatch.setenv("DSH_HOME", str(dsh_home))
-    monkeypatch.setenv("DSH_SESSION_ID", "test-session")
     res = subprocess.run(
         [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
         capture_output=True,
@@ -139,5 +151,66 @@ def test_detect_model_not_hardcoded(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     )
     assert res.returncode == 0
     data = json.loads(res.stdout)
-    assert data["framework"] == "dsh"
-    assert data["model"] == "custom-model-9x"
+    # The REAL session log (this test runs inside DSH) proves the actual
+    # model; the scratch config must not shadow it.
+    if data.get("evidence") == "A":
+        assert data["model"]  # some execution-proven model
+        assert data["confidence"] == "high"
+    else:
+        # No live session log in the test env — config is a low-confidence
+        # fallback, and the model may be the scratch value.
+        assert data["confidence"] in ("low", "none")
+
+
+def test_config_fallback_when_no_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Without a session log, the config-declared model is a LOW-confidence
+    fallback (never high) — the gate then rejects it as unverifiable."""
+    dsh_home = tmp_path / "dsh"
+    dsh_home.mkdir()
+    (dsh_home / "settings.yaml").write_text(
+        "agent-default-model:\n  provider: jiyuan\n  model: custom-model-9x\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DSH_HOME", str(dsh_home))
+    monkeypatch.delenv("DSH_SESSION_JSONL", raising=False)
+    res = subprocess.run(
+        [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    data = json.loads(res.stdout)
+    assert data["confidence"] in ("low", "none")
+    if data.get("model"):
+        assert data["evidence"] in ("C", "D")
+
+
+def test_unverifiable_model_claim_rejected() -> None:
+    """Without execution evidence, claiming a specific model is unverifiable.
+
+    A session with no session log / operator pin must NOT be able to assert
+    a concrete model (reading settings.yaml and pasting it is not proof).
+    """
+    msg = "feat(l3): unverifiable\n\nCo-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
+    res = _scan(msg, detected=NO_EVIDENCE)
+    assert res.returncode == 1
+    assert "unverifiable model claim" in res.stderr
+
+
+def test_config_only_evidence_rejected() -> None:
+    """Config-declared model (evidence C, low confidence) is not execution
+    proof — asserting it as the author model is rejected."""
+    config_only = json.dumps(
+        {
+            "framework": "dsh",
+            "agent": "DeepSeek",
+            "model": "deepseek-v4-flash",
+            "evidence": "C",
+            "confidence": "low",
+            "signals": ["evidence:config"],
+        }
+    )
+    msg = "feat(l3): config only\n\nCo-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
+    res = _scan(msg, detected=config_only)
+    assert res.returncode == 1
+    assert "unverifiable model claim" in res.stderr

@@ -192,11 +192,14 @@ Full spec + mainline gates: `docs/workflow/commits.md`. Load-bearing summary:
   trailer last, preceded by a blank line
   (`Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`).
 - **Attribution must be TRUE, not just well-formed**: the `Co-Authored-By`
-  trailer is cross-checked against the agents registry and the live runtime
-  detection (`scripts/py/detect_agent.py` — env + process-chain, never the
-  agent's self-report). An agent MUST run `detect_agent.py` first and name
-  the framework/model that actually executes the session — never attribute
-  a GPT/Claude run to deepseek, or vice versa.
+  trailer is cross-checked against the agents registry and live EXECUTION
+  evidence (`scripts/py/detect_agent.py`): for DSH sessions the harness
+  session log records the real (provider, model) of every LLM call — the
+  agent cannot edit it, and it wins over config. Config declarations and
+  env/process signals are low-confidence; a model claim without execution
+  evidence is rejected as unverifiable. An agent MUST run `detect_agent.py`
+  first and name the evidence-backed framework/model — never attribute a
+  GPT/Claude run to deepseek, never paste a config model as if it were proof.
 - **Commit-scan policy — single source of truth**: the type/scope whitelist
   lives ONCE in `config/discovery/commits.yaml`, consumed by every gate
   (`.githooks/commit-msg`, `verify-pr-merge.sh`, `generate_changelog.py`,
