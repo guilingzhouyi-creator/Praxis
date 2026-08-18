@@ -236,12 +236,15 @@ def test_md_output(tmp_path):
     assert result.returncode == 0
     md = result.stdout
     assert "**Runs**: 3" in md
-    assert "**Duration** (full runs): avg 22s / P95 30s" in md
-    assert "**Longest INCOMPLETE streak**: 2 consecutive" in md
-    assert "**Completion rate by branch**" in md
     assert "**Check pass rate**" in md
     assert "**Numeric metrics**" in md
     assert "`coverage_pct`" in md
+    # Diagnostics (duration / streak / per-branch / pairs) are NOT standards:
+    # they must never appear in the committed Markdown dashboard.
+    assert "**Duration**" not in md
+    assert "**Longest INCOMPLETE streak**" not in md
+    assert "**Completion rate by branch**" not in md
+    assert "**Failure pairs**" not in md
 
 
 def test_partial_verdict_bucket(tmp_path):

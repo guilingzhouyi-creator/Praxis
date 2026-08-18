@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### 治理
+
+- **Governance (judge)**: trim committed dashboard to quantitative standards — per-branch completion, duration, streak, failure pairs now local json/text only; add inclusion criterion + generalization directions to completion-judge.md
+
 ### 文档
 
 - **Docs (stats)**: refresh judge dashboard

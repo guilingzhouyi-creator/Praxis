@@ -2,16 +2,20 @@
 # judge-stats — quantify the CompletionJudge's real effectiveness.
 #
 # Aggregates `.praxis/judge-runs.jsonl` (written by verify-completion.sh)
-# into evidence the gate actually works:
-#   - runs / completion rate (full-mode runs only count as COMPLETE)
-#   - PARTIAL runs (fast mode — checks skipped) reported separately
-#   - INCOMPLETE distribution: which check failed most often
-#   - trend: completion rate by day (is slacking being caught more?)
-#   - per-branch completion rate (which agent/domain is the weak link)
-#   - duration stats (avg / P95) split by full vs fast mode
-#   - longest consecutive INCOMPLETE streak — how hard the gate pushes
+# into evidence the gate actually works.
+#
+# INCLUSION CRITERION (what belongs in the committed dashboard):
+# The Markdown dashboard (docs/judge-stats.md) is the QUANTITATIVE-STANDARD
+# gate surface — it carries only:
+#   - gate verdicts (runs / COMPLETE / PARTIAL / INCOMPLETE, full vs fast)
+#   - per-check failure distribution (which standard dimension intercepts)
 #   - per-check pass rate over executed runs (ratchet evidence)
-#   - failure-pair analysis (checks that fail together)
+#   - numeric metric series (coverage / net delta / tests / lint / audit …)
+#     — the quantified standards themselves
+#   - daily trend of the completion rate (ratchet direction over time)
+# Diagnostics that attribute, time or correlate (per-branch completion,
+# duration, streaks, failure pairs) are NOT standards — they stay in the
+# --json/--text local output for operators and never enter the committed doc.
 #
 # Statistics conventions: full and fast runs are NEVER mixed in one rate or
 # duration figure; records are deduplicated (ts+verdict+branch+duration) and
@@ -241,14 +245,6 @@ if as_md:
     lines.append("")
     lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({pct(complete, total)}) | **PARTIAL**: {partial} ({pct(partial, total)}, fast mode — checks skipped) | **INCOMPLETE**: {total - complete - partial} ({pct(total - complete - partial, total)}, machine 'not done')")
     lines.append(f"**Mode split**: full {len(full_runs)} / fast {len(fast_runs)} (fast = at least one check skipped)")
-    if dur_full["n"]:
-        dur_line = f"**Duration** (full runs): avg {dur_full['avg']:.0f}s / P95 {dur_full['p95']}s ({dur_full['n']} runs)"
-        if dur_fast["n"]:
-            dur_line += f" — fast runs: avg {dur_fast['avg']:.0f}s / P95 {dur_fast['p95']}s ({dur_fast['n']} runs)"
-    else:
-        dur_line = f"**Duration** (fast runs only): avg {dur_fast['avg']:.0f}s / P95 {dur_fast['p95']}s ({dur_fast['n']} runs)"
-    lines.append(dur_line)
-    lines.append(f"**Longest INCOMPLETE streak**: {max_streak} consecutive")
     if exemptions:
         lines.append(f"**Gate exemptions** (MERGE_GATE_SKIP commits in history): {exemptions}")
     lines.append("")
@@ -261,21 +257,11 @@ if as_md:
         lines.append("**Failures by check** (most frequent evidence gaps):")
         for chk, n in fail_counter.most_common():
             lines.append(f"- `{chk}`: {n} ({pct(n, len(incomplete))} of incomplete)")
-    if len(branch_stats) > 1:
-        lines.append("")
-        lines.append("**Completion rate by branch** (weak-link detection):")
-        for b, s in sorted(branch_stats.items(), key=lambda kv: kv[1]["runs"], reverse=True):
-            lines.append(f"- `{b}`: {s['complete']}/{s['runs']} ({pct(s['complete'], s['runs'])})")
     if check_pass:
         lines.append("")
         lines.append("**Check pass rate** (over executed runs — ratchet evidence):")
         for chk, (p, n) in sorted(check_pass.items()):
             lines.append(f"- `{chk}`: {p}/{n} ({pct(p, n)})")
-    if pair_counter:
-        lines.append("")
-        lines.append("**Failure pairs** (checks failing together):")
-        for pair, n in pair_counter.most_common(5):
-            lines.append(f"- `{' + '.join(pair)}`: {n}")
     if metrics_summary:
         lines.append("")
         lines.append("**Numeric metrics** (latest / avg / min / max):")

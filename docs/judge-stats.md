@@ -2,8 +2,6 @@
 
 **Runs**: 136 | **COMPLETE**: 9 (7%) | **PARTIAL**: 19 (14%, fast mode — checks skipped) | **INCOMPLETE**: 108 (79%, machine 'not done')
 **Mode split**: full 37 / fast 99 (fast = at least one check skipped)
-**Duration** (full runs): avg 511s / P95 1015s (37 runs) — fast runs: avg 27s / P95 119s (99 runs)
-**Longest INCOMPLETE streak**: 29 consecutive
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
@@ -26,22 +24,6 @@
 - `index`: 11 (10% of incomplete)
 - `audit`: 5 (5% of incomplete)
 
-**Completion rate by branch** (weak-link detection):
-- `main`: 4/94 (4%)
-- `feature/test-matrix-prebuild`: 0/7 (0%)
-- `feature/root-kernel-preflight`: 2/5 (40%)
-- `feature/perf-hotpath`: 1/4 (25%)
-- `feature/judge-verdict-mode`: 1/4 (25%)
-- `feature/test-runner-slicing`: 0/4 (0%)
-- `feature/l3a-fidelity`: 0/4 (0%)
-- `feature/l3a-compression-migration`: 1/3 (33%)
-- `fix/runner-hang`: 0/2 (0%)
-- `feature/test-opt`: 0/2 (0%)
-- `feature/test-opt-sweep`: 0/2 (0%)
-- `feature/identity-uid`: 0/2 (0%)
-- `feature/root-security-toolchain`: 0/2 (0%)
-- `feature/ci-bench-smoke`: 0/1 (0%)
-
 **Check pass rate** (over executed runs — ratchet evidence):
 - `audit`: 128/133 (96%)
 - `changelog`: 41/134 (31%)
@@ -54,13 +36,6 @@
 - `lint`: 104/136 (76%)
 - `singleton`: 118/133 (89%)
 - `tests`: 24/39 (62%)
-
-**Failure pairs** (checks failing together):
-- `changelog + delta`: 45
-- `changelog + docs`: 29
-- `changelog + lint`: 27
-- `docs + lint`: 18
-- `delta + lint`: 17
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
