@@ -1216,6 +1216,12 @@ API_ROUTES: list[tuple[str, str, str, str]] = [
         "Reload built-in skills (developer)",
     ),
     (
+        "POST",
+        "/api/v2/skills/register",
+        "l4.api_handlers.api_handlers_skills.handle_skills_register",
+        "Register user custom skill (third tier, developer)",
+    ),
+    (
         "GET",
         "/api/v2/skills/permissions",
         "l4.api_handlers.api_handlers_skills.handle_skills_permissions",

@@ -358,6 +358,137 @@ def _skills_delete(sm, rest: list[str], role: str, agent_id: str) -> dict:
     return sm.delete(name, agent_id=agent_id, role=role)
 
 
+def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Register a user-authored custom skill (third tier, developer-only).
+
+    Usage:
+      /skills register <name> <desc> <prompt> [--scope agent|cell|global]
+                   [--identity <role|id>] [--priority <int>]
+                   [--tags <a,b>] [--tools <t1,t2>]
+
+    Registration persists the skill into the custom tier, links it to
+    related skill domains via the R5 graph (graceful when the graph is
+    off), and returns the registered skill with its enable state.
+    """
+    if len(rest) < 4:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_register")}
+    name, desc = rest[1], rest[2]
+    prompt_parts: list[str] = []
+    scope = ""
+    scope_identity = ""
+    priority = 0
+    tags: list[str] = []
+    tools: list[str] | None = None
+    args = rest[3:]
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg == "--scope" and idx + 1 < len(args):
+            scope = args[idx + 1]
+            idx += 2
+        elif arg == "--identity" and idx + 1 < len(args):
+            scope_identity = args[idx + 1]
+            idx += 2
+        elif arg == "--priority" and idx + 1 < len(args):
+            try:
+                priority = int(args[idx + 1])
+            except ValueError:
+                return {"success": False, "error": "priority must be an integer"}
+            idx += 2
+        elif arg == "--tags" and idx + 1 < len(args):
+            tags = [t.strip() for t in args[idx + 1].split(",") if t.strip()]
+            idx += 2
+        elif arg == "--tools" and idx + 1 < len(args):
+            tools = [t.strip() for t in args[idx + 1].split(",") if t.strip()]
+            idx += 2
+        else:
+            prompt_parts.append(arg)
+            idx += 1
+    prompt = " ".join(prompt_parts)
+    if not prompt:
+        return {"success": False, "error": "prompt is required"}
+    result = sm.create(
+        name,
+        description=desc,
+        prompt=prompt,
+        tags=tags,
+        allowed_tools=tools,
+        scope=scope,
+        scope_identity=scope_identity,
+        priority=priority,
+        agent_id=agent_id,
+        role=role,
+    )
+    if not result.get("success"):
+        return result
+    return _link_registered_skill(sm, name, scope, tags, result)
+
+
+def _link_registered_skill(sm, name: str, scope: str, tags: list[str], result: dict) -> dict:
+    """Register-time R5 linkage via the L3 entry point (layer-import safe).
+
+    Delegates to ``l3.memory.r4_skill_retrieval.link_registered_skill_graph``
+    so L2 never imports the memory graph directly. Degrades to a no-op when
+    the graph is disabled — registration never hard-fails on linkage."""
+    try:
+        from l3.memory.r4_skill_retrieval import link_registered_skill_graph
+
+        linked = link_registered_skill_graph(sm, name, scope, tags)
+        return {"success": True, "skill": name, "scope": scope, "linked": linked.get("linked", 0), **result}
+    except Exception:
+        return {"success": True, "skill": name, "scope": scope, "linked": 0, **result}
+
+
+def _skills_enable(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Enable a registered custom skill without deleting its file."""
+    name = rest[1] if len(rest) > 1 else ""
+    if not name:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_enable")}
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    data = {"status": "active"}
+    updated = sm.update(name, data, agent_id=agent_id, role=role)
+    if not updated.get("success"):
+        return updated
+    return {"success": True, "skill": name, "enabled": True, "authorized": who}
+
+
+def _skills_disable(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Disable a registered custom skill (keeps the file; stops injection)."""
+    name = rest[1] if len(rest) > 1 else ""
+    if not name:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_disable")}
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    data = {"status": "retired"}
+    updated = sm.update(name, data, agent_id=agent_id, role=role)
+    if not updated.get("success"):
+        return updated
+    return {"success": True, "skill": name, "enabled": False, "authorized": who}
+
+
+def _skills_update_speed(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Adjust the R4Agent skill-update cadence (fast|slow, on|off)."""
+    if len(rest) < 2:
+        return {"success": False, "error": "usage: /skills update-speed <fast|slow> [on|off]"}
+    speed = rest[1]
+    enabled: bool | None = None
+    if len(rest) > 2:
+        flag = rest[2].lower()
+        if flag in ("on", "enable"):
+            enabled = True
+        elif flag in ("off", "disable"):
+            enabled = False
+        else:
+            return {"success": False, "error": f"usage: /skills update-speed <fast|slow> [on|off], got {flag!r}"}
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    return sm.set_update_policy(update_speed=speed, enabled=enabled, source="shell")
+
+
 def _skills_reload(sm, rest: list[str], role: str, agent_id: str) -> dict:
     """Reload builtin skills (developer-only)."""
     ok, who = sm.authorize_write(agent_id, role)
@@ -384,6 +515,10 @@ _SKILL_HANDLERS: dict[str, Callable[..., dict]] = {
     "create": _skills_create,
     "update": _skills_update,
     "delete": _skills_delete,
+    "register": _skills_register,
+    "enable": _skills_enable,
+    "disable": _skills_disable,
+    "update-speed": _skills_update_speed,
     "reload": _skills_reload,
 }
 

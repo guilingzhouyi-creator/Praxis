@@ -81,6 +81,44 @@ def handle_skills_create(body: dict | None = None) -> dict:
     )
 
 
+def handle_skills_register(body: dict | None = None) -> dict:
+    """POST /api/v2/skills/register — register a user-authored custom skill.
+
+    Persists into the third-tier custom dir and links the new skill to
+    related skill domains via the R5 graph (graceful when the graph is
+    off). Body: {name, description, prompt, scope?, scope_identity?,
+    priority?, tags?, allowed_tools?}.
+    """
+    b = body or {}
+    name = b.get("name", "")
+    if not name:
+        return {"success": False, "error": "skill name is required"}
+    prompt = b.get("prompt", "")
+    if not prompt:
+        return {"success": False, "error": "prompt is required"}
+    agent_id, role = _caller(b)
+    result = _manager().create(
+        name=name,
+        description=b.get("description", ""),
+        prompt=prompt,
+        tags=b.get("tags"),
+        allowed_tools=b.get("allowed_tools"),
+        scope=b.get("scope", ""),
+        scope_identity=b.get("scope_identity", ""),
+        priority=int(b.get("priority", 0) or 0),
+        agent_id=agent_id,
+        role=role,
+    )
+    if not result.get("success"):
+        return result
+    try:
+        from l2.l2_shell.commands.system import _link_registered_skill
+
+        return _link_registered_skill(_manager(), name, b.get("scope", ""), b.get("tags") or [], result)
+    except Exception:
+        return result
+
+
 def handle_skills_update(body: dict | None = None, name: str = "") -> dict:
     """PUT /api/skills/:name — update skill (developer-only)."""
     if not name:
