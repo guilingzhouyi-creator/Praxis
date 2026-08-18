@@ -52,5 +52,7 @@ completeness-guard semantics in `tests/infra/test_resets_completeness.py`
   --strict` (CJK) and `test_resets_completeness.py` (singletons).
 - Soft gates ratchet: a baseline is a floor, not a target — metrics may only
   improve (monotonic) or stay within the drift band.
-- CI wiring: `scripts/sh/verify-completion.sh` consumes the scan as part of
-  the docs/lint dimensions; local runs use the repo venv.
+- CI wiring: `nightly.yml` runs `layer_quality.py` + `perf_quality.py`
+  (quality-baselines job) so drift from the stored baselines fails CI.
+  `verify-completion.sh` does NOT re-scan layers (it delegates to the
+  dedicated checkers); local runs use the repo venv.

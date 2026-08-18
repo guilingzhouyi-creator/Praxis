@@ -28,16 +28,29 @@ jobs:
       - name: hooks executable (gate guards)
         # The pre-commit/commit-msg/post-checkout hooks are load-bearing
         # gates; git silently skips non-executable core.hooksPath hooks, and
-        # the tracked exec bits drifted to 100644 once (2026-08-07), silently
-        # disabling every gate. Fail if the tracked modes are not 100755.
+        # the exec bits drifted once (2026-08-07), silently disabling every
+        # gate. Check the WORKING-TREE mode with stat(1), not git ls-files:
+        # with core.filemode=false (WSL mounts) git does NOT track a lost
+        # chmod on the worktree — ls-files would still report 100755 while
+        # the hook is actually skipped. Both surfaces must be 100755.
         run: |
-          BAD=$(git ls-files -s .githooks/ | awk '$1 != "100755" {print $4}' || true)
+          BAD=""
+          # 1. tracked (index) mode
+          BAD_TRACKED=$(git ls-files -s .githooks/ | awk '$1 != "100755" {print $4}' || true)
+          # 2. actual worktree mode (git ignores chmod loss when filemode=false)
+          for f in .githooks/*; do
+            [ -f "$f" ] || continue
+            MODE=$(stat -c '%a' "$f" 2>/dev/null || echo 0)
+            [ "$MODE" = "755" ] || BAD="${BAD} $f(worktree:$MODE)"
+          done
+          BAD="${BAD_TRACKED}${BAD}"
           if [ -n "$BAD" ]; then
-            echo "❌ hooks not tracked as executable:"; printf '%s\n' "$BAD"
-            echo "   fix with: git update-index --chmod=+x <file>"
+            echo "❌ hooks not executable:"; printf '%s\n' "$BAD"
+            echo "   tracked fix: git update-index --chmod=+x <file>"
+            echo "   worktree fix: chmod +x .githooks/pre-commit .githooks/commit-msg .githooks/post-checkout"
             exit 1
           fi
-          echo "✅ hooks tracked as 100755"
+          echo "✅ hooks executable (tracked 100755 + worktree 755)"
 
   mypy-debt:
     # mypy no-new-debt gate: type checking stays non-gating in PR CI, but the
@@ -118,6 +131,27 @@ jobs:
       - run: pip install -e ".[test]"
       - name: Circular import check
         run: python scripts/py/import_cycle_check.py
+
+  quality-baselines:
+    # Per-layer structural + performance baseline gates (layer_quality.py /
+    # perf_quality.py). Previously these only ran locally via make quality-all;
+    # wiring them into nightly closes the gap where a code change could drift
+    # past the stored baselines (soft-gate ratchet + hard red lines) without
+    # any CI surface noticing. perf_quality runs its benchmarks against the
+    # stored baseline with the 90% drift floor.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[test]"
+      - name: Layer quality baseline (structural hard/soft gates)
+        run: python scripts/py/layer_quality.py
+      - name: Perf quality baseline (throughput drift floor)
+        run: python scripts/py/perf_quality.py
+        timeout-minutes: 15
 
   judge-stats:
     # CompletionJudge effectiveness report: reads the committed dashboard

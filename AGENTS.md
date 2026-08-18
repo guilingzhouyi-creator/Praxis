@@ -241,6 +241,11 @@ Full spec: `docs/workflow/commits.md` (`## Push discipline`). Summary:
 - **Semi-finished work never enters mainline**; open `feature/*` branches for
   multi-phase/risky/parallel work; merge with `--no-ff` after double-green
   (branch + main tests).
+- **Local-merge gate before merging into local main**: run
+  `bash scripts/sh/verify-local-merge.sh` — rejects a feature branch until
+  its net code delta reaches the threshold (delegates to
+  `verify-main-merge-gate.sh` with `MAIN_BASE=main`; the push-time gate
+  only guards pushing main, this guards the branch entering local main).
 - **Keep merged branches for traceability** — DO NOT delete them
   (recover with `git branch <name> <tip-sha>`); check `git stash list` after
   interrupted commands.
