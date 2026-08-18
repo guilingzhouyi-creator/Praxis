@@ -149,7 +149,7 @@ class SkillRetrievalMixin:
                     "dependency_kind": s.get("dependency_kind", "soft"),
                     "scope": s.get("scope", ""),
                     "scope_identity": s.get("scope_identity", ""),
-                    "priority": int(s.get("priority", 0) or 0),
+                    "priority": int(s.get("priority", 0)) if str(s.get("priority", 0)).lstrip("-").isdigit() else 0,
                 }
             )
         if sort_by == "loaded_at":

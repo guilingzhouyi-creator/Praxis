@@ -99,6 +99,10 @@ def handle_skills_register(body: dict | None = None) -> dict:
         return {"success": False, "error": "prompt is required"}
     agent_id, role = _caller(b)
     try:
+        priority = int(b.get("priority", 0) or 0)
+    except (TypeError, ValueError):
+        return {"success": False, "error": "priority must be an integer"}
+    try:
         from l3.memory.r4_agent import get_r4_agent
 
         return get_r4_agent().register_custom_skill(
@@ -109,7 +113,7 @@ def handle_skills_register(body: dict | None = None) -> dict:
             allowed_tools=b.get("allowed_tools"),
             scope=b.get("scope", ""),
             scope_identity=b.get("scope_identity", ""),
-            priority=int(b.get("priority", 0) or 0),
+            priority=priority,
             agent_id=agent_id,
             role=role,
         )
@@ -123,18 +127,15 @@ def handle_skills_register(body: dict | None = None) -> dict:
             allowed_tools=b.get("allowed_tools"),
             scope=b.get("scope", ""),
             scope_identity=b.get("scope_identity", ""),
-            priority=int(b.get("priority", 0) or 0),
+            priority=priority,
             agent_id=agent_id,
             role=role,
         )
         if not result.get("success"):
             return result
-        try:
-            from l2.l2_shell.commands.system import _link_registered_skill
+        from l2.l2_shell.commands.system import _link_registered_skill
 
-            return _link_registered_skill(_manager(), name, b.get("scope", ""), b.get("tags") or [], result)
-        except Exception:
-            return result
+        return _link_registered_skill(_manager(), name, b.get("scope", ""), b.get("tags") or [], result)
 
 
 def handle_skills_update_policy(body: dict | None = None) -> dict:
@@ -145,14 +146,18 @@ def handle_skills_update_policy(body: dict | None = None) -> dict:
     """
     b = body or {}
     agent_id, role = _caller(b)
-    if b.get("update_speed") not in (None, "fast", "slow") and not isinstance(b.get("enabled"), bool):
-        return {"success": False, "error": "invalid update policy body"}
+    speed = b.get("update_speed")
+    enabled = b.get("enabled")
+    if speed is not None and speed not in ("fast", "slow"):
+        return {"success": False, "error": "update_speed must be 'fast' or 'slow'"}
+    if enabled is not None and not isinstance(enabled, bool):
+        return {"success": False, "error": "enabled must be a boolean"}
     ok, who = _manager().authorize_write(agent_id, role)
     if not ok:
         return {"success": False, "error": f"permission denied: {who}"}
     return _manager().set_update_policy(
-        update_speed=b.get("update_speed"),
-        enabled=b.get("enabled"),
+        update_speed=speed,
+        enabled=enabled,
         source="api",
     )
 

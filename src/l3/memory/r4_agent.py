@@ -244,8 +244,8 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
                 from l1.kernel.skill import get_skill_manager
 
                 update_policy = get_skill_manager().update_policy()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("R4Agent: skill update-policy fetch failed, defaults enabled: %s", e)
             if not update_policy.get("enabled", True):
                 results["skill_updates_paused"] = True
             else:
@@ -350,18 +350,23 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
             return result
         # Persist to the custom tier so the registration survives reload —
         # the SkillManager holds the skill in memory; the R4 archive/persist
-        # mixin writes SKILL.md into data_dir/skills/custom/<name>/.
+        # mixin writes SKILL.md into data_dir/skills/custom/<name>/. The
+        # real injection scope/scope-identity/binding ride in the frontmatter
+        # (tier routes the file, scope keeps its injection semantics).
         try:
+            persisted = sm.get(name) or {}
             self._persist_skill_md(
                 name=name,
                 description=description,
                 prompt=prompt,
                 tags=[*(tags or []), "custom"],
                 allowed_tools=allowed_tools,
-                scope="custom",
+                scope=scope,
                 scope_identity=scope_identity,
                 priority=priority,
                 posture=SKILL_POSTURE_DEFAULT,
+                binding=persisted.get("binding") or None,
+                tier="custom",
             )
         except Exception as e:
             logger.warning("R4Agent: custom skill persist failed (in-memory only): %s", e)

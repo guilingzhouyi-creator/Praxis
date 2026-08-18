@@ -206,6 +206,9 @@ class SkillRetrievalMixin:
                                     "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
                                     "binding": s.get("binding") or {},
                                     "status": s.get("status", "active"),
+                                    "scope": s.get("scope", ""),
+                                    "scope_identity": s.get("scope_identity", ""),
+                                    "priority": int(s.get("priority", 0) or 0),
                                 }
                             )
                     if evolved:
@@ -244,6 +247,9 @@ class SkillRetrievalMixin:
                         "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
                         "binding": s.get("binding") or {},
                         "status": s.get("status", "active"),
+                        "scope": s.get("scope", ""),
+                        "scope_identity": s.get("scope_identity", ""),
+                        "priority": int(s.get("priority", 0) or 0),
                     }
                 )
         # Priority conflict resolution (§11.1): custom skills outrank
