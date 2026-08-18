@@ -88,7 +88,7 @@ invisible to `dispatch` and every shell dialect.
 - Engine contract: `dispatch(text, session=None) -> dict` (`|` pipeline,
   `/` commands, Direct mode, L3A intent)
 - L3A direct session routing: `_handle_direct` → `intent_parse` → card
-- Tool execution via `l3.tool_system.tool_spec.execute_tool_spec`
+- Tool execution via the single gated capability seam (`l1.kernel.capability.invoke_capability`, wired at boot to the L3 ToolPipeline adapter)
 - Event emission: shell state changes / human corrections
   (`reference_channel.human_correction` — a profile collector source)
 - HTTP contract (language-agnostic, see `l5-user.md`):
