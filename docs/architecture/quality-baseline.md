@@ -22,14 +22,14 @@ hand-edited). Regenerate with:
 python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml
 ```
 
-## Current baseline (2026-08-16)
+## Current baseline (2026-08-18)
 
 | Layer | Files | Lines | comment_ratio | mega>200 | large 120-200 | missDoc | shortDoc | hardc | cjk |
 |-------|-------|-------|---------------|----------|---------------|---------|----------|-------|-----|
-| L1 Kernel | 57 | 15,706 | 0.0396 | 0 | 0 | 9 | 1 | 1 | 0 |
-| L2 Shell | 35 | 4,665 | 0.0146 | 0 | 0 | 0 | 0 | 3 | 0 |
-| L3 Cell | 335 | 72,868 | 0.0320 | 0 | 6 | 1 | 16 | 18 | 0 |
-| L4 Bridge | 107 | 22,115 | 0.0266 | 0 | 1 | 0 | 5 | 1 | 0 |
+| L1 Kernel | 57 | 15,706 | 0.0385 | 0 | 0 | 0 | 1 | 1 | 0 |
+| L2 Shell | 35 | 4,665 | 0.0151 | 0 | 0 | 0 | 0 | 3 | 0 |
+| L3 Cell | 335 | 72,868 | 0.0327 | 0 | 6 | 0 | 0 | 17 | 0 |
+| L4 Bridge | 107 | 22,115 | 0.0270 | 0 | 1 | 0 | 0 | 1 | 0 |
 | L5 User | 2 | 599 | 0.0184 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Numbers are snapshots — refresh with the scanner, never hand-edit.

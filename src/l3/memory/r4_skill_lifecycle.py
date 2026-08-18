@@ -26,6 +26,7 @@ from l1.kernel.params.system import (
     SECONDS_PER_DAY,
     SECONDS_PER_HOUR,
     SKILL_LIBRARY_MAX,
+    SKILL_LIST_SCAN_LIMIT,
     SKILL_TTL_DAYS,
     SKILL_TTL_EXTEND_PER_USE,
 )
@@ -456,7 +457,7 @@ class SkillLifecycleMixin:
         from l1.kernel.skill import get_skill_manager
 
         sm = get_skill_manager()
-        seeds = [s["name"] for s in sm.list_skills(tags=["evolved"], limit=20)]
+        seeds = [s["name"] for s in sm.list_skills(tags=["evolved"], limit=SKILL_LIST_SCAN_LIMIT)]
         if not seeds:
             return []
         try:

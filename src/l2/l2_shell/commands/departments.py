@@ -8,7 +8,12 @@ at runtime via the same surface the /api/v2/settings endpoint writes to.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from l2.i18n import t as _t
+
+if TYPE_CHECKING:
+    from l3.cell.department import DepartmentManager
 
 
 def _set_switch(sub: str) -> dict:
@@ -19,7 +24,7 @@ def _set_switch(sub: str) -> dict:
     return {"success": True, "note": f"departments {'enabled' if sub == 'enable' else 'disabled'}"}
 
 
-def _dept_route(mgr: object, args: list[str]) -> dict:
+def _dept_route(mgr: DepartmentManager, args: list[str]) -> dict:
     """Route a content type to its owning department (with optional --cells)."""
     content_type = args[1] if len(args) > 1 else "test"
     cell_count = None
@@ -75,7 +80,7 @@ def _dept_monitor(args: list[str]) -> dict:
     return {"success": False, "error": f"unknown monitor subcommand: {sub} (status|enable|disable|reset)"}
 
 
-def _dept_define(mgr: object, args: list[str]) -> dict:
+def _dept_define(mgr: DepartmentManager, args: list[str]) -> dict:
     """Update a registered department's definition / scope / executor (runtime).
 
     Usage: departments define <dept-id> [--text "definition"] [--scope a,b]

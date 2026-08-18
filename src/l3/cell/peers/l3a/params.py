@@ -92,6 +92,7 @@ INBOX_RELOAD_LIMIT: int = 50
 # ── Session paging / compression / limits ──
 SESSION_PAGE_SIZE: int = 20  # default page size for history paging
 SESSION_COMPRESS_KEEP: int = 10  # keep_last default for compress()
+SESSION_COMPRESS_INGRESS_RECALL_LIMIT: int = 500  # recall cap for the ingress-rate window in memory_usage()
 SESSION_MEMORY_WINDOW_SECONDS: float = 3600.0  # memory_usage() aggregation window
 SESSION_MAX_STEPS_UNLIMITED: int = 999999  # sentinel for "unlimited" step cap
 

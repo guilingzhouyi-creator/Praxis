@@ -32,6 +32,7 @@ def _measure_semantic_extraction(fn):
 
     @functools.wraps(fn)
     def measured(self, entries, *args, **kwargs):
+        """Run the wrapped extractor and record a bounded perf signal."""
         import time
 
         started = time.perf_counter()

@@ -63,28 +63,37 @@ class CandidateLedgerPort(ABC):
         records: list[CandidateRecord],
         source: str = "refined_memory",
         binding: CandidateBinding | None = None,
-    ) -> CandidateCollectionResult: ...
+    ) -> CandidateCollectionResult:
+        """Submit candidate records from a source (refined memory by default)."""
 
     @abstractmethod
-    def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]: ...
+    def list_candidates(self, state: CandidateState | str = "") -> list[CandidateSnapshot]:
+        """List candidate snapshots, optionally filtered by state."""
 
     @abstractmethod
-    def get_candidate(self, candidate_id: str) -> CandidateSnapshot | None: ...
+    def get_candidate(self, candidate_id: str) -> CandidateSnapshot | None:
+        """Return one candidate snapshot by id (None when absent)."""
 
     @abstractmethod
-    def status(self) -> CandidateStatus: ...
+    def status(self) -> CandidateStatus:
+        """Return the ledger status (enabled, counts, last activity)."""
 
     @abstractmethod
-    def set_enabled(self, enabled: bool) -> CandidateStatus: ...
+    def set_enabled(self, enabled: bool) -> CandidateStatus:
+        """Enable or disable the ledger; returns the resulting status."""
 
     @abstractmethod
-    def validate(self, candidate_id: str) -> CandidateResult: ...
+    def validate(self, candidate_id: str) -> CandidateResult:
+        """Validate a candidate before it may be published."""
 
     @abstractmethod
-    def publish(self, candidate_id: str, intent: str, scope: str = "") -> CandidateResult: ...
+    def publish(self, candidate_id: str, intent: str, scope: str = "") -> CandidateResult:
+        """Publish a validated candidate with the given intent and scope."""
 
     @abstractmethod
-    def activate(self, candidate_id: str) -> CandidateResult: ...
+    def activate(self, candidate_id: str) -> CandidateResult:
+        """Activate a published candidate into live use."""
 
     @abstractmethod
-    def retire(self, candidate_id: str) -> CandidateResult: ...
+    def retire(self, candidate_id: str) -> CandidateResult:
+        """Retire a candidate, removing it from active rotation."""

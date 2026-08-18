@@ -517,7 +517,7 @@ class SessionCompressMixin:
             stats = mem.stats() if hasattr(mem, "stats") else {}
             now = time.time()
             since = now - window
-            recent = mem.recall(agent_id=_p.AGENT_ID, rings=[1, 2, 3], limit=500)
+            recent = mem.recall(agent_id=_p.AGENT_ID, rings=[1, 2, 3], limit=_p.SESSION_COMPRESS_INGRESS_RECALL_LIMIT)
             ingress: dict[str, Any] = {"count": 0, "by_type": {}}
             for e in recent:
                 if getattr(e, "timestamp", 0) >= since:

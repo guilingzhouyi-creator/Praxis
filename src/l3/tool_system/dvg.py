@@ -136,6 +136,7 @@ class DvgGraph:
                     visited: set[str] = set()
 
                     def visit(node: str) -> bool:
+                        """Depth-first visit with cycle guard; True when acyclic."""
                         if node in visited:
                             return True
                         if node in visiting:

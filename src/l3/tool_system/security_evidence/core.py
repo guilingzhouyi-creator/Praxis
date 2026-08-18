@@ -88,8 +88,11 @@ def _measure_evidence(name: str):
     """Decorate an evidence operation with a best-effort duration metric."""
 
     def decorate(fn):
+        """Wrap fn with the duration/outcome measurement."""
+
         @functools.wraps(fn)
         def measured(self, *args, **kwargs):
+            """Measured call of the wrapped evidence operation."""
             started = time.perf_counter()
             result: dict = {}
             try:
