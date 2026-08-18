@@ -71,6 +71,8 @@ shell:
     ci_admin_required: "관리자 확인이 필요합니다 (--admin 추가)"
     ci_writes_disabled: "쓰기가 비활성화되었습니다 (ci.control.shell.writable=false)"
     usage_connect: "사용법: /connect <agent_id>"
+    usage_intent: "사용법: /intent <text>[@<cell>/<agent>]"
+    usage_scout: "사용법: /scout <task>"
     no_active_session: "활성 세션이 없습니다 — 연결되지 않음"
     no_agent_connected: "에이전트가 연결되지 않았습니다 — 먼저 /connect 사용"
     usage_cluster: "사용법: /cluster [status]"
@@ -441,9 +443,9 @@ error:
 terminal:
   banner:
     title: "Agent OS 터미널 — 'help' 로 명령어 보기, 'exit'로 종료"
-    l3a: "!<intent>  → L3A 직접 세션"
-    route: "!<intent>@<cell>/<agent> → 지정 Cell/Agent 로 라우팅"
-    scout: "!scout <task>  → 스카우트 조사"
+    l3a: "/intent <text>  → L3A 직접 세션"
+    route: "/intent <text>@<cell>/<agent> → 지정 Cell/Agent 로 라우팅"
+    scout: "/scout <task>  → 스카우트 조사"
     system: "$ <command>  → 시스템 명령 실행（Bash/PowerShell）"
     tool: "<tool> <args>  → 도구 실행（별칭: rf→read_file）"
   help:

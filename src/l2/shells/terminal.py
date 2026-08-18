@@ -34,8 +34,67 @@ from .session import ShellSession
 logger = logging.getLogger(__name__)
 
 
+def intent_direct(intent: str, agent_id: str) -> dict:
+    """Parse an intent via the intent_parse capability; return card details.
+
+    Shared by the canonical `/intent` command.
+    """
+    try:
+        from l1.kernel.capability import invoke_capability
+
+        r = invoke_capability(agent_id, "intent_parse", {"text": intent}, interactive=True)
+        if r.get("success"):
+            handler_r = r.get("result", {})
+            card = handler_r.get("data", {}) if isinstance(handler_r, dict) else {}
+            return {
+                "success": True,
+                "type": "intent",
+                "intent": intent,
+                "card_id": card.get("card_id", "?"),
+                "domain": card.get("domain", "?"),
+                "agent": card.get("agent_id", "?"),
+                "card_type": card.get("card_type", "?"),
+            }
+        return {"success": False, "type": "intent", "intent": intent, "error": r.get("error", "parse failed")}
+    except Exception as e:
+        return {"success": False, "type": "intent", "intent": intent, "error": str(e)}
+
+
+def scout_commission(task: str, agent_id: str, cell_id: str) -> dict:
+    """Commission a Scout for investigation; return status and findings.
+
+    Shared by the canonical `/scout` command.
+    """
+    if not task:
+        return {"success": False, "type": "scout", "error": "scout usage"}
+    try:
+        from l3.agent.scout import get_pool as _get_scout_pool
+        from l3.cell import get_cell
+
+        cell = get_cell(cell_id)
+        if (
+            hasattr(cell, "permission")
+            and cell.permission
+            and not cell.permission.is_visible("scout", agent_id)
+        ):
+            return {"success": False, "type": "scout", "error": "scout disabled"}
+        pool = _get_scout_pool()
+        r = pool.commission(agent_id, task)
+        findings = [str(f)[:LOG_TRUNC_200] for f in r.get("findings", [])[:SCOUT_FINDINGS_DISPLAY_LIMIT]]
+        return {
+            "success": True,
+            "type": "scout",
+            "task": task,
+            "status": r.get("status", "?"),
+            "findings": findings,
+            "error": r.get("error"),
+        }
+    except Exception as e:
+        return {"success": False, "type": "scout", "task": task, "error": str(e)}
+
+
 class TerminalShell(Shell):
-    """Terminal dialect: ``!`` direct intents, ``$`` system commands, ``/`` engine commands, tool calls."""
+    """Terminal dialect: ``/`` engine commands (incl. /intent, /scout), ``$`` system commands, tool calls."""
 
     name = "terminal"
 
@@ -53,7 +112,8 @@ class TerminalShell(Shell):
         """Execute one input line through the terminal dialect; return a dict result.
 
         Dialect:
-          ``!<intent>@<cell>/<agent>`` → L3A direct intent (scout subcommand)
+          ``/intent <text>[@<cell>/<agent>]`` → direct intent (canonical)
+          ``/scout <task>``             → commission a Scout (canonical)
           ``$ <command>``              → raw system command (via ProcessPort)
           ``/<engine command>``        → L2 command engine (dispatch)
           ``<tool> <args>``            → direct tool execution (aliases: rf→read_file)
@@ -70,8 +130,6 @@ class TerminalShell(Shell):
             result = self._tools_result()
         elif line in ("status", "st"):
             result = self._tool_result("agent_status", sess)
-        elif line.startswith("!"):
-            result = self._run_intent(line[1:].strip(), sess)
         elif line.startswith("$"):
             result = self._system_result(line[1:].strip())
         elif line.startswith("/"):
@@ -138,69 +196,6 @@ class TerminalShell(Shell):
             logger.warning("shells.terminal: list_tools failed (%s), falling back to command list", e)
             names = [{"name": c, "description": ""} for c in get_command_names()]
             return {"success": True, "type": "tools", "tools": names, "total": len(names)}
-
-    def _run_intent(self, rest: str, session: ShellSession) -> dict:
-        """Handle a direct-session intent (``!`` prefix) for the session's agent."""
-        if rest.startswith("scout"):
-            return self._scout_result(rest[5:].strip(), session)
-        if "@" in rest:
-            intent, _, route = rest.partition("@")
-            parts = route.split("/")
-            target_agent = parts[1] if len(parts) > 1 else session.agent_id
-            return self._direct_intent_result(intent, target_agent)
-        return self._direct_intent_result(rest, session.agent_id)
-
-    def _direct_intent_result(self, intent: str, agent_id: str) -> dict:
-        """Parse an intent via the intent_parse tool and return the card details."""
-        try:
-            from l1.kernel.capability import invoke_capability
-
-            r = invoke_capability(agent_id, "intent_parse", {"text": intent}, interactive=True)
-            if r.get("success"):
-                handler_r = r.get("result", {})
-                card = handler_r.get("data", {}) if isinstance(handler_r, dict) else {}
-                return {
-                    "success": True,
-                    "type": "intent",
-                    "intent": intent,
-                    "card_id": card.get("card_id", "?"),
-                    "domain": card.get("domain", "?"),
-                    "agent": card.get("agent_id", "?"),
-                    "card_type": card.get("card_type", "?"),
-                }
-            return {"success": False, "type": "intent", "intent": intent, "error": r.get("error", "parse failed")}
-        except Exception as e:
-            return {"success": False, "type": "intent", "intent": intent, "error": str(e)}
-
-    def _scout_result(self, task: str, session: ShellSession) -> dict:
-        """Commission a Scout for investigation; return status and findings."""
-        if not task:
-            return {"success": False, "type": "scout", "error": "scout usage"}
-        try:
-            from l3.agent.scout import get_pool as _get_scout_pool
-            from l3.cell import get_cell
-
-            cell = get_cell(session.cell_id)
-            # Check delegation permission gate
-            if (
-                hasattr(cell, "permission")
-                and cell.permission
-                and not cell.permission.is_visible("scout", session.agent_id)
-            ):
-                return {"success": False, "type": "scout", "error": "scout disabled"}
-            pool = _get_scout_pool()
-            r = pool.commission(session.agent_id, task)
-            findings = [str(f)[:LOG_TRUNC_200] for f in r.get("findings", [])[:SCOUT_FINDINGS_DISPLAY_LIMIT]]
-            return {
-                "success": True,
-                "type": "scout",
-                "task": task,
-                "status": r.get("status", "?"),
-                "findings": findings,
-                "error": r.get("error"),
-            }
-        except Exception as e:
-            return {"success": False, "type": "scout", "task": task, "error": str(e)}
 
     def _system_result(self, cmd: str) -> dict:
         """Execute a raw system command through the one-shot process port."""

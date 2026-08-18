@@ -115,7 +115,7 @@ projects the same stream into its own view. The wire format is language-agnostic
 - `seq` — per-session monotonic id; the recovery cursor.
 - `trace_id` — reuses the unified trace (L3 `error_bus` convention); never mint new ids.
 - `kind`:
-  - `intent` — natural-language or `!`-dialect intent → L3 AgentLoop
+  - `intent` — natural-language intent (via `/intent`; legacy `!` prefix accepted) → L3 AgentLoop
   - `command` — structured `/`-command invocation → dispatch table
   - `event` — state/status/stream metadata (task started, tool gated, session switched)
   - `result` — terminal one-shot result (dict contract, render-ready)
@@ -128,7 +128,7 @@ projects the same stream into its own view. The wire format is language-agnostic
 | Frontend input | Canonical message |
 |---|---|
 | `/status` (all frontends) | `command{name:"status", args:[]}` |
-| `!scout investigate X@cell/agent` | `intent{type:"scout", task:"…", target:{cell,agent}}` |
+| `/scout investigate X@cell/agent` | `intent{type:"scout", task:"…", target:{cell,agent}}` |
 | `$ ls -la` | `command{name:"__system", args:["ls","-la"]}` → Execution Bridge → ProcessPort |
 | `cat x | grep y` | `command{name:"__pipeline", stages:[…]}` (semantics only; L2 never spawns) |
 | web `POST /api/v2/shell` body | same envelope (adapter wraps/unwraps HTTP) |

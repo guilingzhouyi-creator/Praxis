@@ -71,6 +71,8 @@ shell:
     ci_admin_required: "管理者の確認が必要です（--admin を追加）"
     ci_writes_disabled: "書き込みが無効です (ci.control.shell.writable=false)"
     usage_connect: "使い方: /connect <agent_id>"
+    usage_intent: "使い方: /intent <text>[@<cell>/<agent>]"
+    usage_scout: "使い方: /scout <task>"
     no_active_session: "アクティブなセッションがありません — 未接続"
     no_agent_connected: "エージェントに未接続 — 先に /connect を使用"
     usage_cluster: "使い方: /cluster [status]"
@@ -441,9 +443,9 @@ error:
 terminal:
   banner:
     title: "Agent OS ターミナル — 'help' でコマンド一覧、'exit' で終了"
-    l3a: "!<intent>  → L3A ダイレクトセッション"
-    route: "!<intent>@<cell>/<agent> → 指定 Cell/Agent へルーティング"
-    scout: "!scout <task>  → スカウト調査"
+    l3a: "/intent <text>  → L3A ダイレクトセッション"
+    route: "/intent <text>@<cell>/<agent> → 指定 Cell/Agent へルーティング"
+    scout: "/scout <task>  → スカウト調査"
     system: "$ <command>  → 生のシステムコマンド（Bash/PowerShell）"
     tool: "<tool> <args>  → ツール実行（エイリアス: rf→read_file）"
   help:
