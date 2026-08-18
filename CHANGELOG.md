@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh doc-stats and changelog after migration
 - **Docs**: sync l3-memory and migration plan to new defaults
 - **Docs**: mark compression v2 migration gaps complete
 - **Docs**: add L3A compression v2 migration plan
