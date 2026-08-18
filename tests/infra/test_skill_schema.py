@@ -120,6 +120,9 @@ class TestSchemaRoundTrip:
             "stages:\n"
             "  - id: one\n"
             "    instructions: do one\n"
+            "scope: cell\n"
+            "scope-identity: cell-alpha\n"
+            "priority: 3\n"
             "---\n"
             "body\n",
             encoding="utf-8",
@@ -130,6 +133,14 @@ class TestSchemaRoundTrip:
         assert skill["disclosure"] == "index"
         assert skill["next"] == ["code-review"]
         assert skill["stages"][0]["id"] == "one"
+        # Declarative scope/priority round-trip: scope + identity are
+        # preserved and mapped into the runtime binding so the existing
+        # skill_is_injectable filter applies unchanged.
+        assert skill["scope"] == "cell"
+        assert skill["scope_identity"] == "cell-alpha"
+        assert skill["priority"] == 3
+        binding = skill.get("binding") or {}
+        assert binding.get("cell_ids") == ["cell-alpha"]
 
 
 class TestSchemaBodyLayout:

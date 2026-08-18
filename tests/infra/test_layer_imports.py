@@ -95,6 +95,7 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/system.py", "l3.bus.observability_bus"),
     ("l2/l2_shell/commands/system.py", "l3.cell"),
     ("l2/l2_shell/commands/system.py", "l3.memory.r4_agent"),
+    ("l2/l2_shell/commands/system.py", "l3.memory.r4_skill_retrieval"),
     ("l2/l2_shell/commands/system.py", "l3.memory.skill_retriever"),
     ("l2/l2_shell/commands/system.py", "l3.scheduler.scheduler"),
     ("l2/l2_shell/commands/system.py", "l3.scheduler.think_registry"),
