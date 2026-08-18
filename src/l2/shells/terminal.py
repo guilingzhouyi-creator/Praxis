@@ -72,11 +72,7 @@ def scout_commission(task: str, agent_id: str, cell_id: str) -> dict:
         from l3.cell import get_cell
 
         cell = get_cell(cell_id)
-        if (
-            hasattr(cell, "permission")
-            and cell.permission
-            and not cell.permission.is_visible("scout", agent_id)
-        ):
+        if hasattr(cell, "permission") and cell.permission and not cell.permission.is_visible("scout", agent_id):
             return {"success": False, "type": "scout", "error": "scout disabled"}
         pool = _get_scout_pool()
         r = pool.commission(agent_id, task)
