@@ -103,30 +103,30 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 44 files / 5,898 lines |
+| L2 Shell | 44 files / 6,072 lines |
 | L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 112 files / 23,209 lines |
-| L1 Kernel | 69 files / 18,167 lines |
-| L2 Shell | 44 files / 5,898 lines |
-| L3 Cell | 347 files / 76,746 lines |
-| L4 Bridge | 112 files / 23,209 lines |
+| L4 Bridge | 112 files / 23,302 lines |
+| L1 Kernel | 69 files / 18,269 lines |
+| L2 Shell | 44 files / 6,072 lines |
+| L3 Cell | 347 files / 76,912 lines |
+| L4 Bridge | 112 files / 23,302 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 6,964 lines |
-| L3 Memory | 46 files / 10,526 lines |
+| L3 Memory | 46 files / 10,692 lines |
 | L3 Card | 27 files / 6,451 lines |
 | L3 Services | 44 files / 11,485 lines |
 | L3 Bus | 17 files / 4,396 lines |
 | L3 Agent | 36 files / 7,483 lines |
-| L4 Handlers | 34 files / 6,325 lines |
-| API routes | 366 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
+| L4 Handlers | 34 files / 6,406 lines |
+| API routes | 368 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |
 | Params modules / constants | 8 / 1,263 |
 | Health | 0.757 (grade B) |
 | L3 Agent | 37 files / 8,330 lines |
-| L4 Handlers | 34 files / 6,325 lines |
-| API routes | 366 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=37, skill=27, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,190 |
+| L4 Handlers | 34 files / 6,406 lines |
+| API routes | 368 (`/api/v2/*` versioned) |
+| Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |
+| Params modules / constants | 8 / 1,191 |
 | Health | 0.716 (grade B) |
 
 ## Reading path
