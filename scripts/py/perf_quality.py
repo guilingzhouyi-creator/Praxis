@@ -66,6 +66,7 @@ _BENCH_CARD = ROOT / "tests" / "benchmarks" / "bench_card.py"
 _BENCH_SCALE = ROOT / "tests" / "benchmarks" / "bench_scale.py"
 _BENCH_TOOLCHAIN = ROOT / "tests" / "benchmarks" / "bench_security_toolchain.py"
 _BENCH_L2_PROTOCOL = ROOT / "tests" / "benchmarks" / "bench_l2_protocol.py"
+_BENCH_COMPRESSION = ROOT / "tests" / "benchmarks" / "bench_compression.py"
 
 
 def _run_driver(args: list[str], timeout: int = 180) -> str:
@@ -133,6 +134,24 @@ def measure_toolchain() -> dict[str, float]:
         key, _, value = line.partition(":")
         try:
             result[key.strip()] = float(value.strip())
+        except ValueError:
+            continue
+    return result
+
+
+def measure_compression() -> dict[str, float]:
+    """Run bench_compression and extract compression ratio + throughput (L3)."""
+    out = _run_driver([str(_BENCH_COMPRESSION), "--messages", "200", "--rounds", "3"])
+    result: dict[str, float] = {}
+    for line in out.splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        if key not in ("compression_ratio", "compress_ops_per_sec"):
+            continue
+        try:
+            result[key] = float(value.strip())
         except ValueError:
             continue
     return result
@@ -305,6 +324,7 @@ def measure_all(diagnostics: list[dict[str, Any]] | None = None) -> dict[str, di
     l3 = measure_l3()
     l3.update(measure_l3_dept(diagnostics))
     l3.update(measure_toolchain())
+    l3.update(measure_compression())
     return {"L1": l1, "L2": l2, "L3": l3, "L5": measure_l5()}
 
 
