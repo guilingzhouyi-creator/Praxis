@@ -375,6 +375,27 @@ class SessionCompressMixin:
         logger.info("l3a session %s: compressed %d msgs → summary (+%d kept)", self.id, len(old), keep_last)
         # ── R5 swarm-domain graph linkage: graph reduction after compaction (derived layer, failures non-blocking) ──
         self._compact_graph()
+        # Phase 3.1 G5: structured compression event → ReferenceChannel for analysis.
+        try:
+            from l3.bus.reference_channel import get_rc
+
+            get_rc().event(
+                "l3a_compress",
+                {
+                    "session_id": str(self.id),
+                    "compressed": len(old),
+                    "kept": keep_last,
+                    "deduplicated": deduplicated,
+                    "compression_ratio": round(before_tokens / after_tokens, 2) if after_tokens > 0 else 0.0,
+                    "sensitive_hits": len(sensitive_hits),
+                    "levels_raw": len(high),
+                    "levels_summarized": len(medium),
+                    "levels_skeleton": len(low),
+                },
+                source="session_compress",
+            )
+        except Exception:
+            logger.debug("l3a session: RC compress event skipped")
         return {
             "success": True,
             "session_id": self.id,

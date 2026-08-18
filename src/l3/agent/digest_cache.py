@@ -154,6 +154,17 @@ def fold_messages(cell_id: str, card_id: str, messages: list[dict]) -> str:
         get_tiered_cache().set_shared_summary(cell_id, f"{card_id}{_DIGEST_SUFFIX}", capped)
     except Exception as e:
         logger.debug("digest_cache: buffer write skipped: %s", e)
+    # Phase 3.1 G5: structured digest event → ReferenceChannel for analysis.
+    try:
+        from l3.bus.reference_channel import get_rc
+
+        get_rc().event(
+            "l3a_digest",
+            {"cell_id": cell_id, "card_id": card_id, "messages": len(messages), "digest_chars": len(capped)},
+            source="digest_cache",
+        )
+    except Exception:
+        logger.debug("digest_cache: RC digest event skipped")
     return capped
 
 

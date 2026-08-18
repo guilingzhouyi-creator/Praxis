@@ -158,10 +158,21 @@ def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> 
         from l3.memory.tiered_cache import get_tiered_cache
 
         get_tiered_cache().set("L1", _key(cell_id, call_id), entry)
-        return True
     except Exception as e:
         logger.debug("tool_result_cache: offload skipped: %s", e)
         return False
+    # Phase 3.1 G5: structured offload event → ReferenceChannel for analysis.
+    try:
+        from l3.bus.reference_channel import get_rc
+
+        get_rc().event(
+            "l3a_tool_offload",
+            {"cell_id": cell_id, "call_id": call_id, "tool": tool_name, "size": len(str(result))},
+            source="tool_result_cache",
+        )
+    except Exception:
+        logger.debug("tool_result_cache: RC offload event skipped")
+    return True
 
 
 def fetch_result(cell_id: str, call_id: str) -> dict:
