@@ -40,9 +40,49 @@ _state: dict[str, Any] = {
 }
 _lock = threading.RLock()
 
+# Config-file driven operator switches (l1.kernel.settings → SettingsCenter).
+_SWITCH_RECURSION = "l3a.compression_guard.recursion_threshold"
+_SWITCH_BREAKER = "l3a.compression_guard.breaker_enabled"
+_hydrated = False
+
+
+def _hydrate() -> None:
+    """Hydrate the guard-switch cache from SettingsCenter (config-file driven)."""
+    global _hydrated
+    if _hydrated:
+        return
+    with _lock:
+        if _hydrated:
+            return
+        try:
+            from l1.kernel.settings import get_settings
+
+            _state["recursion_threshold"] = int(
+                get_settings().get(_SWITCH_RECURSION, COMPRESSION_RECURSION_THRESHOLD_DEFAULT)
+            )
+            _state["breaker_enabled"] = bool(get_settings().get(_SWITCH_BREAKER, COMPRESSION_BREAKER_ENABLED_DEFAULT))
+        except Exception:
+            logger.debug("compression_guard: settings hydrate skipped", exc_info=True)
+        _hydrated = True
+
+
+def _persist(recursion_threshold: int | None = None, breaker_enabled: bool | None = None) -> None:
+    """Persist guard-switch overrides to SettingsCenter (best-effort)."""
+    try:
+        from l1.kernel.settings import get_settings
+
+        s = get_settings()
+        if recursion_threshold is not None:
+            s.set(_SWITCH_RECURSION, int(recursion_threshold))
+        if breaker_enabled is not None:
+            s.set(_SWITCH_BREAKER, bool(breaker_enabled))
+    except Exception:
+        logger.debug("compression_guard: settings persist skipped", exc_info=True)
+
 
 def guard_status() -> dict:
     """Return the compression-guard switch + breaker state."""
+    _hydrate()
     with _lock:
         return {
             "recursion_threshold": int(_state["recursion_threshold"]),
@@ -65,23 +105,28 @@ def set_guard_switches(recursion_threshold: int | None = None, breaker_enabled: 
     Returns:
         dict with success flag and the effective state.
     """
+    _hydrate()
+    final_threshold = max(0, int(recursion_threshold)) if recursion_threshold is not None else None
+    final_breaker = bool(breaker_enabled) if breaker_enabled is not None else None
     with _lock:
-        if recursion_threshold is not None:
-            _state["recursion_threshold"] = max(0, int(recursion_threshold))
+        if final_threshold is not None:
+            _state["recursion_threshold"] = final_threshold
             # Operator intervention: reset a tripped breaker.
             _state["tripped"] = False
             _state["trip_reason"] = ""
             _state["trip_at"] = 0.0
             _state["per_session_depth"] = {}
-        if breaker_enabled is not None:
-            _state["breaker_enabled"] = bool(breaker_enabled)
+        if final_breaker is not None:
+            _state["breaker_enabled"] = final_breaker
             if not _state["breaker_enabled"]:
                 _state["tripped"] = False
-        return {"success": True, **guard_status()}
+    _persist(recursion_threshold=final_threshold, breaker_enabled=final_breaker)
+    return {"success": True, **guard_status()}
 
 
 def reset_guard() -> None:
     """Reset all compression-guard state (tests / lifecycle)."""
+    global _hydrated
     with _lock:
         _state["recursion_threshold"] = COMPRESSION_RECURSION_THRESHOLD_DEFAULT
         _state["breaker_enabled"] = COMPRESSION_BREAKER_ENABLED_DEFAULT
@@ -89,6 +134,14 @@ def reset_guard() -> None:
         _state["trip_reason"] = ""
         _state["trip_at"] = 0.0
         _state["per_session_depth"] = {}
+        _hydrated = False
+    try:
+        from l1.kernel.settings import get_settings
+
+        get_settings().reset(_SWITCH_RECURSION)
+        get_settings().reset(_SWITCH_BREAKER)
+    except Exception:
+        logger.debug("compression_guard: settings reset skipped", exc_info=True)
 
 
 def _trip(reason: str) -> None:
@@ -125,6 +178,7 @@ def check_recursion(session_id: str) -> dict:
         ``{"success": False, "blocked": True, "error": <manual prompt>}``
         when the threshold or breaker stops it.
     """
+    _hydrate()
     with _lock:
         tripped = bool(_state["tripped"])
         breaker_enabled = bool(_state["breaker_enabled"])

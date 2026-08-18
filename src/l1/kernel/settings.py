@@ -14,6 +14,15 @@ from collections.abc import Callable
 from typing import Any
 
 from l1.kernel.params.api import DEFAULT_MODEL_OLLAMA_CODER
+from l1.kernel.params.system import (
+    COMPRESSION_BREAKER_ENABLED_DEFAULT,
+    COMPRESSION_RECURSION_THRESHOLD_DEFAULT,
+    DIGEST_ENABLED_DEFAULT,
+    DIGEST_MAX_CHARS_DEFAULT,
+    SENSITIVE_DETECT_ENABLED_DEFAULT,
+    TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT,
+    TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT,
+)
 
 # Re-export legacy DEFAULTS for callers that reference kernel.settings.DEFAULTS
 DEFAULTS: dict[str, Any] = {
@@ -55,6 +64,15 @@ DEFAULTS: dict[str, Any] = {
     # L3A-C secretary (Phase 4) — when on, the secretary records card
     # production contributions and upgrades assist → peer at the threshold.
     "l3a.secretary.enabled": True,
+    # L3A context-compression 3.1 operator switches (config-file driven).
+    # Defaults mirror l1.kernel.params.system; runtime API/L2 writes persist.
+    "l3a.digest.enabled": DIGEST_ENABLED_DEFAULT,
+    "l3a.digest.max_chars": DIGEST_MAX_CHARS_DEFAULT,
+    "l3a.tool_result.enabled": TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT,
+    "l3a.tool_result.max_chars": TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT,
+    "l3a.sensitive.enabled": SENSITIVE_DETECT_ENABLED_DEFAULT,
+    "l3a.compression_guard.recursion_threshold": COMPRESSION_RECURSION_THRESHOLD_DEFAULT,
+    "l3a.compression_guard.breaker_enabled": COMPRESSION_BREAKER_ENABLED_DEFAULT,
     # CI review (card-triggered automation) — mirrors praxis.yaml `ci:` section.
     "ci.review.enabled": True,
     "ci.review.auto_trigger": True,

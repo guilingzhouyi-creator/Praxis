@@ -31,13 +31,51 @@ from l1.kernel.params.system import (
 logger = logging.getLogger(__name__)
 
 _state: dict[str, Any] = {"enabled": DIGEST_ENABLED_DEFAULT, "max_chars": DIGEST_MAX_CHARS_DEFAULT}
+_hydrated = False
 _lock = threading.RLock()
+
+# Config-file driven operator switches (l1.kernel.settings → SettingsCenter).
+_SWITCH_ENABLED = "l3a.digest.enabled"
+_SWITCH_MAX_CHARS = "l3a.digest.max_chars"
 
 _DIGEST_SUFFIX = "::digest"
 
 
+def _hydrate() -> None:
+    """Hydrate the switch cache from SettingsCenter (config-file driven)."""
+    global _hydrated
+    if _hydrated:
+        return
+    with _lock:
+        if _hydrated:
+            return
+        try:
+            from l1.kernel.settings import get_settings
+
+            _state["enabled"] = bool(get_settings().get(_SWITCH_ENABLED, DIGEST_ENABLED_DEFAULT))
+            _state["max_chars"] = int(get_settings().get(_SWITCH_MAX_CHARS, DIGEST_MAX_CHARS_DEFAULT))
+        except Exception:
+            logger.debug("digest_cache: settings hydrate skipped", exc_info=True)
+        _hydrated = True
+
+
+def _persist(enabled: bool | None = None, max_chars: int | None = None) -> None:
+    """Persist switch overrides to SettingsCenter (best-effort)."""
+    try:
+        from l1.kernel.settings import get_settings
+
+        s = get_settings()
+        if enabled is not None:
+            s.set(_SWITCH_ENABLED, bool(enabled))
+        if max_chars is not None:
+            s.set(_SWITCH_MAX_CHARS, int(max_chars))
+    except Exception:
+        logger.debug("digest_cache: settings persist skipped", exc_info=True)
+
+
 def digest_status() -> dict:
     """Return the digest-cache switch state."""
+    _hydrate()
     with _lock:
         return {"enabled": bool(_state["enabled"]), "max_chars": int(_state["max_chars"])}
 
@@ -52,19 +90,32 @@ def set_digest_switches(enabled: bool | None = None, max_chars: int | None = Non
     Returns:
         dict with success flag and the effective switches.
     """
+    _hydrate()
+    final_enabled = bool(enabled) if enabled is not None else None
+    final_max_chars = max(64, int(max_chars)) if max_chars is not None else None
     with _lock:
-        if enabled is not None:
-            _state["enabled"] = bool(enabled)
-        if max_chars is not None:
-            _state["max_chars"] = max(64, int(max_chars))
-        return {"success": True, **digest_status()}
+        if final_enabled is not None:
+            _state["enabled"] = final_enabled
+        if final_max_chars is not None:
+            _state["max_chars"] = final_max_chars
+    _persist(enabled=final_enabled, max_chars=final_max_chars)
+    return {"success": True, **digest_status()}
 
 
 def reset_digest() -> None:
     """Reset the digest-cache switches (tests / lifecycle)."""
+    global _hydrated
     with _lock:
         _state["enabled"] = DIGEST_ENABLED_DEFAULT
         _state["max_chars"] = DIGEST_MAX_CHARS_DEFAULT
+        _hydrated = False
+    try:
+        from l1.kernel.settings import get_settings
+
+        get_settings().reset(_SWITCH_ENABLED)
+        get_settings().reset(_SWITCH_MAX_CHARS)
+    except Exception:
+        logger.debug("digest_cache: settings reset skipped", exc_info=True)
 
 
 def _cap(text: str, limit: int) -> str:
@@ -86,6 +137,7 @@ def fold_messages(cell_id: str, card_id: str, messages: list[dict]) -> str:
         The digest text (capped); the raw span is replaced by this line in
         the caller's context trail. Empty when the cache is disabled.
     """
+    _hydrate()
     with _lock:
         enabled = bool(_state["enabled"])
         max_chars = int(_state["max_chars"])
@@ -107,6 +159,7 @@ def fold_messages(cell_id: str, card_id: str, messages: list[dict]) -> str:
 
 def get_digest(cell_id: str, card_id: str) -> str:
     """Recover a folded span's digest from the buffer ("" when absent)."""
+    _hydrate()
     with _lock:
         enabled = bool(_state["enabled"])
     if not enabled:
