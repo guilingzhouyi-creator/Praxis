@@ -74,6 +74,25 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
 
         return get_strategy(self.config.provider)
 
+    def _get_protocol(self) -> str:
+        """Resolve the wire protocol (runtime registry > config > stateless default)."""
+        try:
+            from .assembly import get_protocol
+
+            registered = get_protocol(self.config.provider)
+            if registered:
+                return registered
+        except Exception:
+            pass
+        try:
+            strategy = self._get_strategy()
+            protocol = getattr(strategy, "protocol", None)
+            if protocol in ("stateless", "stateful", "auto"):
+                return str(protocol)
+        except Exception:
+            pass
+        return "stateless"
+
     def context_window(self, cell_id: str = "", agent_id: str = "") -> int:
         """Query the effective context window for the current provider+model.
 
@@ -227,14 +246,31 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         # Filter by provider capabilities
         strategy_params = self._apply_strategy(merged)
 
-        result = self._provider.generate(
-            prompt,
-            system,
-            mt,
-            user_id=user_id,
-            cache_retention=self.config.cache_retention,
-            **strategy_params,
-        )
+        # Phase 3.1 G1/G2: protocol selection — stateful uses the pluggable
+        # assembly factory (assemble_messages) + native message-list call;
+        # stateless (default) keeps the historical per-provider splicing.
+        if self._get_protocol() == "stateful" and hasattr(self._provider, "generate_with_messages"):
+            from l1.kernel.prompts import get_prompt as _gp
+
+            from .assembly import assemble_messages
+
+            fallback = str(_gp("llm.fallback_system", "You are a helpful assistant."))
+            messages = assemble_messages(self.config.provider, prompt, system, fallback_system=fallback)
+            result = self._provider.generate_with_messages(
+                messages,
+                max_tokens=mt,
+                user_id=user_id,
+                cache_retention=self.config.cache_retention,
+            )
+        else:
+            result = self._provider.generate(
+                prompt,
+                system,
+                mt,
+                user_id=user_id,
+                cache_retention=self.config.cache_retention,
+                **strategy_params,
+            )
 
         # Post-call hooks
         for hook in _LLM_HOOKS.get("post", []):

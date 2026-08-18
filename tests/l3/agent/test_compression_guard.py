@@ -6,6 +6,7 @@ from l3.agent.compression_guard import (
     check_recursion,
     guard_status,
     record_compress_pass,
+    report_compress_error,
     reset_guard,
     set_guard_switches,
 )
@@ -49,6 +50,49 @@ def test_setting_threshold_resets_tripped_breaker():
         check_recursion("s2")
         assert guard_status()["tripped"] is True
         set_guard_switches(recursion_threshold=3)
+        assert guard_status()["tripped"] is False
+    finally:
+        reset_guard()
+
+
+def test_error_storm_trips_breaker():
+    reset_guard()
+    try:
+        # Breaker defaults on; 4 failures stay below the storm threshold.
+        for _ in range(4):
+            report_compress_error("s-storm")
+        assert guard_status()["tripped"] is False
+        assert guard_status()["error_storm_count"] == 4
+        # The 5th failure trips the breaker.
+        report_compress_error("s-storm")
+        assert guard_status()["tripped"] is True
+        assert "error storm" in guard_status()["trip_reason"]
+    finally:
+        reset_guard()
+
+
+def test_error_storm_ignored_when_breaker_off():
+    reset_guard()
+    try:
+        set_guard_switches(breaker_enabled=False)
+        for _ in range(10):
+            report_compress_error("s-off")
+        assert guard_status()["tripped"] is False
+    finally:
+        reset_guard()
+
+
+def test_successful_pass_resets_storm_burst():
+    reset_guard()
+    try:
+        for _ in range(3):
+            report_compress_error("s-reset")
+        assert guard_status()["error_storm_count"] == 3
+        record_compress_pass("s-reset")
+        assert guard_status()["error_storm_count"] == 0
+        # A fresh burst must reach the full threshold again before tripping.
+        for _ in range(4):
+            report_compress_error("s-reset")
         assert guard_status()["tripped"] is False
     finally:
         reset_guard()

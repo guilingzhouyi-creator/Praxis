@@ -34,11 +34,49 @@ _state: dict[str, Any] = {
     "enabled": TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT,
     "max_chars": TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT,
 }
+_hydrated = False
 _lock = threading.RLock()
+
+# Config-file driven operator switches (l1.kernel.settings → SettingsCenter).
+_SWITCH_ENABLED = "l3a.tool_result.enabled"
+_SWITCH_MAX_CHARS = "l3a.tool_result.max_chars"
+
+
+def _hydrate() -> None:
+    """Hydrate the switch cache from SettingsCenter (config-file driven)."""
+    global _hydrated
+    if _hydrated:
+        return
+    with _lock:
+        if _hydrated:
+            return
+        try:
+            from l1.kernel.settings import get_settings
+
+            _state["enabled"] = bool(get_settings().get(_SWITCH_ENABLED, TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT))
+            _state["max_chars"] = int(get_settings().get(_SWITCH_MAX_CHARS, TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT))
+        except Exception:
+            logger.debug("tool_result_cache: settings hydrate skipped", exc_info=True)
+        _hydrated = True
+
+
+def _persist(enabled: bool | None = None, max_chars: int | None = None) -> None:
+    """Persist switch overrides to SettingsCenter (best-effort)."""
+    try:
+        from l1.kernel.settings import get_settings
+
+        s = get_settings()
+        if enabled is not None:
+            s.set(_SWITCH_ENABLED, bool(enabled))
+        if max_chars is not None:
+            s.set(_SWITCH_MAX_CHARS, int(max_chars))
+    except Exception:
+        logger.debug("tool_result_cache: settings persist skipped", exc_info=True)
 
 
 def tool_result_status() -> dict:
     """Return the offload-cache switch state."""
+    _hydrate()
     with _lock:
         return {"enabled": bool(_state["enabled"]), "max_chars": int(_state["max_chars"])}
 
@@ -53,20 +91,33 @@ def set_tool_result_switches(enabled: bool | None = None, max_chars: int | None 
     Returns:
         dict with success flag and the effective switches.
     """
+    _hydrate()
+    final_enabled = bool(enabled) if enabled is not None else None
+    final_max_chars = max(512, int(max_chars)) if max_chars is not None else None
     with _lock:
-        if enabled is not None:
-            _state["enabled"] = bool(enabled)
-        if max_chars is not None:
-            _state["max_chars"] = max(512, int(max_chars))
-        return {"success": True, **tool_result_status()}
+        if final_enabled is not None:
+            _state["enabled"] = final_enabled
+        if final_max_chars is not None:
+            _state["max_chars"] = final_max_chars
+    _persist(enabled=final_enabled, max_chars=final_max_chars)
+    return {"success": True, **tool_result_status()}
 
 
 def reset_tool_result() -> None:
     """Reset the offload-cache switches (tests / lifecycle)."""
+    global _hydrated
     with _lock:
         _state["enabled"] = TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT
         _state["max_chars"] = TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT
+        _hydrated = False
     _register.clear()
+    try:
+        from l1.kernel.settings import get_settings
+
+        get_settings().reset(_SWITCH_ENABLED)
+        get_settings().reset(_SWITCH_MAX_CHARS)
+    except Exception:
+        logger.debug("tool_result_cache: settings reset skipped", exc_info=True)
 
 
 def _key(cell_id: str, call_id: str) -> str:
@@ -95,6 +146,7 @@ def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> 
     Returns:
         True when the result was offloaded, False when disabled / skipped.
     """
+    _hydrate()
     with _lock:
         enabled = bool(_state["enabled"])
     if not enabled:
@@ -106,10 +158,21 @@ def offload_result(cell_id: str, call_id: str, tool_name: str, result: dict) -> 
         from l3.memory.tiered_cache import get_tiered_cache
 
         get_tiered_cache().set("L1", _key(cell_id, call_id), entry)
-        return True
     except Exception as e:
         logger.debug("tool_result_cache: offload skipped: %s", e)
         return False
+    # Phase 3.1 G5: structured offload event → ReferenceChannel for analysis.
+    try:
+        from l3.bus.reference_channel import get_rc
+
+        get_rc().event(
+            "l3a_tool_offload",
+            {"cell_id": cell_id, "call_id": call_id, "tool": tool_name, "size": len(str(result))},
+            source="tool_result_cache",
+        )
+    except Exception:
+        logger.debug("tool_result_cache: RC offload event skipped")
+    return True
 
 
 def fetch_result(cell_id: str, call_id: str) -> dict:
@@ -118,6 +181,7 @@ def fetch_result(cell_id: str, call_id: str) -> dict:
     Register first (O(1) in-process); falls back to the tiered-cache L1
     buffer (cross-restart recovery) when the register misses.
     """
+    _hydrate()
     with _lock:
         enabled = bool(_state["enabled"])
     if not enabled:
@@ -189,6 +253,7 @@ def maybe_offload(cell_id: str, call_id: str, tool_name: str, result: dict) -> d
         A context-trail entry: the offload reference (with digest) when
         offloaded, else the original result unchanged.
     """
+    _hydrate()
     with _lock:
         max_chars = int(_state["max_chars"])
     try:

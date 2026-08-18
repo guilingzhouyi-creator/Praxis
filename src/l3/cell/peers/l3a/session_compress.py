@@ -237,24 +237,36 @@ class SessionCompressMixin:
         except Exception:
             logger.debug("l3a session: compression memory persist failed")
 
-    def _post_compress_scan(self, summary_text: str) -> list[dict]:
-        """Record the pass for the recursion threshold and scan the summary for sensitive info."""
-        sensitive_hits: list[dict] = []
+    def _apply_sensitive_policy(self, summary_text: str) -> tuple[str, list, bool]:
+        """Apply the sensitive-info action policy (report/redact/block).
+
+        Runs BEFORE the fold so redact actually changes the folded text and
+        block refuses the fold instead of folding first.
+        """
+        action = "report"
+        hits: list = []
+        final_text = summary_text
+        try:
+            from l3.agent.sensitive_detect import redact_text, scan_text, sensitive_action
+
+            action = sensitive_action()
+            hits = scan_text(summary_text)
+            if hits and action == "redact":
+                final_text = redact_text(summary_text)
+        except Exception:
+            logger.debug("l3a session: sensitive policy skipped")
+        if hits:
+            logger.warning("l3a session %s: %d sensitive hit(s) in summary (action=%s)", self.id, len(hits), action)
+        return final_text, hits, action == "block" and bool(hits)
+
+    def _post_compress_scan(self) -> None:
+        """Record the compression pass for the recursion-threshold bookkeeping."""
         try:
             from l3.agent.compression_guard import record_compress_pass
 
             record_compress_pass(str(getattr(self, "id", "")))
         except Exception:
             logger.debug("l3a session: compression guard bookkeeping skipped")
-        try:
-            from l3.agent.sensitive_detect import scan_text
-
-            sensitive_hits = scan_text(summary_text)
-        except Exception:
-            logger.debug("l3a session: sensitive scan skipped")
-        if sensitive_hits:
-            logger.warning("l3a session %s: %d sensitive hit(s) in compressed summary", self.id, len(sensitive_hits))
-        return sensitive_hits
 
     def _compact_graph(self) -> None:
         """R5 swarm-domain graph reduction after compaction (derived layer, non-blocking)."""
@@ -280,8 +292,6 @@ class SessionCompressMixin:
           3. Distortion report — returns role/type distribution, high-value
              preservation counts, and the snapshot archive_ref.
         """
-        from .session_history import Message as _Message
-
         # Phase 3.1 B6: recursive-compression threshold + circuit breaker —
         # a tripped breaker or a reached threshold stops the pass before
         # anything is folded (default: recursive off, breaker on). Degrades
@@ -289,6 +299,24 @@ class SessionCompressMixin:
         blocked = self._compression_guard_check()
         if blocked:
             return blocked
+        try:
+            return self._compress_impl(keep_last, summary)
+        except Exception:
+            self._report_compress_error()
+            raise
+
+    def _report_compress_error(self) -> None:
+        """Report a compression failure to the circuit breaker (error-storm tracking)."""
+        try:
+            from l3.agent.compression_guard import report_compress_error
+
+            report_compress_error(str(getattr(self, "id", "")))
+        except Exception:
+            logger.debug("l3a session: error-storm report skipped")
+
+    def _compress_impl(self, keep_last: int = _p.SESSION_COMPRESS_KEEP, summary: str = "") -> dict:
+        """Run the five-level compression pipeline (lossless snapshot + fold)."""
+        from .session_history import Message as _Message
 
         split = self._split_history(keep_last)
         if split is None:
@@ -334,6 +362,18 @@ class SessionCompressMixin:
             except Exception:
                 logger.debug("l3a session: premise guard skipped")
 
+        # Phase 3.1 G6: sensitive-info action policy (report/redact/block)
+        # applied BEFORE the fold so redact changes the folded text and block
+        # refuses the fold outright.
+        summary_text, sensitive_hits, sensitive_blocked = self._apply_sensitive_policy(summary_text)
+        if sensitive_blocked:
+            return {
+                "success": False,
+                "error": "compression blocked by sensitive-info policy (block action)",
+                "compressed": 0,
+                "sensitive_hits": sensitive_hits,
+            }
+
         # Persist the summary into L3A's own memory (ring 2) before folding
         self._persist_compression_memory(summary_text, old, high, snapshot_ref)
 
@@ -353,12 +393,33 @@ class SessionCompressMixin:
             self.history._messages = [summary_msg] + keep
         after_tokens = len(summary_text) // TOKEN_CHARS_PER_TOKEN + SESSION_MSG_OVERHEAD
         # Phase 3.1 B6: record the compression pass for the recursion
-        # threshold, and run the bypass sensitive-info scan on the folded
-        # summary (default ON; hits are reported, never blocking the fold).
-        sensitive_hits = self._post_compress_scan(summary_text)
+        # threshold (the sensitive scan now runs BEFORE the fold via
+        # _apply_sensitive_policy — G6 action semantics).
+        self._post_compress_scan()
         logger.info("l3a session %s: compressed %d msgs → summary (+%d kept)", self.id, len(old), keep_last)
         # ── R5 swarm-domain graph linkage: graph reduction after compaction (derived layer, failures non-blocking) ──
         self._compact_graph()
+        # Phase 3.1 G5: structured compression event → ReferenceChannel for analysis.
+        try:
+            from l3.bus.reference_channel import get_rc
+
+            get_rc().event(
+                "l3a_compress",
+                {
+                    "session_id": str(self.id),
+                    "compressed": len(old),
+                    "kept": keep_last,
+                    "deduplicated": deduplicated,
+                    "compression_ratio": round(before_tokens / after_tokens, 2) if after_tokens > 0 else 0.0,
+                    "sensitive_hits": len(sensitive_hits),
+                    "levels_raw": len(high),
+                    "levels_summarized": len(medium),
+                    "levels_skeleton": len(low),
+                },
+                source="session_compress",
+            )
+        except Exception:
+            logger.debug("l3a session: RC compress event skipped")
         return {
             "success": True,
             "session_id": self.id,

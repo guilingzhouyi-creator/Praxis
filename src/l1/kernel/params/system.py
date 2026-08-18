@@ -201,10 +201,10 @@ MEMORY_FILTER_FINE_GRAINED_DEFAULT: Final[bool] = False
 # ── Conversation digest cache (Phase 3.1, B1) ─────────────────────────
 # Card-indexed summary buffer for folded conversation spans. Operator
 # switches (API + L2 Shell), never code-embedded:
-#   enabled   — master switch (off = folded spans are dropped, backward
-#               compatible with the plain truncation behavior)
+#   enabled   — master switch (on = folded spans are condensed into the
+#               card-indexed digest; off = legacy plain truncation)
 #   max_chars — per-digest character cap (min 64)
-DIGEST_ENABLED_DEFAULT: Final[bool] = False
+DIGEST_ENABLED_DEFAULT: Final[bool] = True
 DIGEST_MAX_CHARS_DEFAULT: Final[int] = 400
 # ── Tool-result offload cache (Phase 3.1, B2) ─────────────────────────
 # Structured per-Cell unloading of oversized tool results: the full payload
@@ -222,6 +222,10 @@ TOOL_RESULT_READBACK_MAX_CHARS: Final[int] = 12_000
 # keys, bearer tokens, private keys, IP literals). Operator switch
 # (API + L2 Shell); default ON — a baseline guard on the compression path.
 SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
+# Sensitive-info action policy (3.1, G6): report | redact | block. Default
+# report keeps the historical report-only behavior; redact masks hits in the
+# folded text; block refuses the fold when hits are present.
+SENSITIVE_DETECT_ACTION_DEFAULT: Final[str] = "report"
 # ── Recursive-compression threshold + circuit breaker (Phase 3.1, B6) ──
 # Recursive compression is DISABLED by default (threshold 0 = off): when
 # enabled and a session's compression depth reaches the threshold, the
@@ -231,6 +235,11 @@ SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
 # and logs the event for later analysis.
 COMPRESSION_RECURSION_THRESHOLD_DEFAULT: Final[int] = 0  # 0 = recursive off
 COMPRESSION_BREAKER_ENABLED_DEFAULT: Final[bool] = True
+# Error-storm detection (circuit breaker): this many compression failures
+# within the window below trips the breaker independently of the recursion
+# threshold. The breaker master switch (default ON) gates the storm trip.
+COMPRESSION_ERROR_STORM_THRESHOLD: Final[int] = 5
+COMPRESSION_ERROR_STORM_WINDOW: Final[float] = 60.0
 # ── Cell-domain shared prompt library (3.2) ───────────────────────────
 # Unified layered system-prompt pool per Cell (upper shared base + lower
 # dynamic docs, auto-hit by context pressure). Operator switch (API + L2

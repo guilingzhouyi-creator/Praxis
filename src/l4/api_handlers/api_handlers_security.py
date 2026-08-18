@@ -661,14 +661,19 @@ def memory_sensitive_get(body: dict | None = None) -> dict:
 
 
 def memory_sensitive_set(body: dict) -> dict:
-    """Enable/disable sensitive-info bypass detection (B6)."""
+    """Enable/disable sensitive-info bypass detection + action policy (B6/G6)."""
     from l3.agent.sensitive_detect import set_sensitive_switches
 
-    try:
-        enabled = _strict_bool(body.get("enabled"))
-    except ValueError as e:
-        return {"success": False, "error": str(e)}
-    return set_sensitive_switches(enabled=enabled)
+    enabled = None
+    if "enabled" in body:
+        try:
+            enabled = _strict_bool(body.get("enabled"))
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+    action = body.get("action")
+    if action is not None and action not in ("report", "redact", "block"):
+        return {"success": False, "error": "action must be one of: report, redact, block"}
+    return set_sensitive_switches(enabled=enabled, action=action)
 
 
 def memory_compression_guard_get(body: dict | None = None) -> dict:

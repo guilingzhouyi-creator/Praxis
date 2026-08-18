@@ -282,12 +282,12 @@ inside the AgentLoop run path, keyed by card index:
   data). Exposed via `GET /api/v2/memory/context-audit` + L2
   `/memory context-audit [cell_id]`.
 - **Digest cache** (`agent/digest_cache.py`): when the master switch is on
-  (default off), a folded conversation span (`_truncate_trail`) is
+  (default on), a folded conversation span (`_truncate_trail`) is
   condensed into a character-capped digest and stored in the tiered-cache
   L2 shared-summary layer, keyed by card index
   (`{cell_id}::{card_id}::digest`); the trail keeps the digest line and
   `get_digest` recovers it. Switches: `/api/v2/memory/digest` + L2
-  `/memory digest [on|off] [max_chars=N]` (`DIGEST_ENABLED_DEFAULT` off,
+  `/memory digest [on|off] [max_chars=N]` (`DIGEST_ENABLED_DEFAULT` on,
   `DIGEST_MAX_CHARS_DEFAULT` 400).
 - **Tool-result offload** (`agent/tool_result_cache.py`): when enabled
   (default on), an oversized structured tool result is offloaded to an

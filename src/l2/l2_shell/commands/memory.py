@@ -171,12 +171,19 @@ def _memory_prompt_library(rest: list[str]) -> dict:
 
 
 def _memory_sensitive(rest: list[str]) -> dict:
-    """/memory sensitive [on|off] — sensitive-info detection switch (global op)."""
+    """/memory sensitive [on|off] [action=report|redact|block] — sensitive-info switch (global op)."""
     from l3.agent.sensitive_detect import sensitive_status, set_sensitive_switches
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
+    enabled = None
+    action = None
     if sub in ("on", "off"):
-        return set_sensitive_switches(enabled=sub == "on")
+        enabled = sub == "on"
+    for arg in rest[1:]:
+        if arg.startswith("action=") and arg[7:] in ("report", "redact", "block"):
+            action = arg[7:]
+    if enabled is not None or action is not None:
+        return set_sensitive_switches(enabled=enabled, action=action)
     return sensitive_status()
 
 

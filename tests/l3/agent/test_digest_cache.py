@@ -12,12 +12,14 @@ from l3.agent.digest_cache import (
 )
 
 
-def test_disabled_by_default():
+def test_default_enabled_and_disabled_returns_empty():
     reset_digest()
     try:
-        assert digest_status()["enabled"] is False
+        assert digest_status()["enabled"] is True
         msgs = [{"role": "user", "content": "第一步：分析"}]
-        assert fold_messages("cell-A", "card-1", msgs) == ""
+        assert fold_messages("cell-A", "card-1", msgs) != ""
+        set_digest_switches(enabled=False)
+        assert fold_messages("cell-A", "card-2", msgs) == ""
     finally:
         reset_digest()
 

@@ -77,6 +77,7 @@ _RESETS = {
     "l3.cell.peers.l3a": ("reset_daemon", None),
     "l3.bus.htn_planner": ("reset_service", None),
     "l4.llm.llm": ("reset_engine", None),
+    "l4.llm.assembly": ("reset_assembly", None),
     "l4.llm.model_registry": ("reset_registry", None),  # WS5.2: moved out of kernel
     "l3.memory.skill_retriever": ("reset_retriever", None),
     "l1.kernel.skill": ("reset_skill_manager", None),

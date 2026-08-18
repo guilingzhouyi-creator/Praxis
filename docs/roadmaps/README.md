@@ -22,6 +22,7 @@ Praxis 的路线图文档集中于此目录统一管理。每条路线图登记�
 | [foundation-gaps-plan.md](../design/foundation-gaps-plan.md) | 已闭环 | L1 端口地基(WebSocket/AuthPort/RPC/FilesystemPort/Hook),6 缺口已合入 |
 | [rust-readiness-hardening-plan.md](../design/rust-readiness-hardening-plan.md) | 进行中(WS1/WS2 已落地) | Python 侧封口,先于 Rust 重写;单一执行门 + fail-closed 授权 |
 | [test-runner-slicing-plan.md](../design/test-runner-slicing-plan.md) | 已落地(切片实现,剩余 `tests/l4/llm` 与 CI 收口) | `tests/runner.py` 全量 SLICES + `--slice/--parallel/--list-slices` |
+| [l3a-compression-v2-migration.md](../design/l3a-compression-v2-migration.md) | 进行中(Phase 0 计划落定) | L3A 上下文压缩子系统 3.1 补充缺口绞杀者迁移:装配工厂/协议选型/配置持久化/错误风暴/RC 闭环/敏感语义/压缩比基准 | `docs/architecture/l3-memory.md`、`docs/architecture/l3a-central.md`、`docs/architecture/perf-baseline.md` |
 
 ## 管理规则
 
