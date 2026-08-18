@@ -62,6 +62,7 @@ from l1.kernel.params.system import (
     SKILL_OFFENSIVE_AUTHORIZED_NATURES,
     SKILL_OFFENSIVE_ENABLED,
     SKILL_POSTURE_DEFAULT,
+    SKILL_SCOPE_VALID,
     SKILL_STATUS_DEFAULT,
     SKILL_STATUS_VALID,
     SKILL_STRATEGY_CAPABILITY_VIEW,
@@ -204,6 +205,13 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
         self._retrieval_min_score: float = R4_RETRIEVAL_MIN_SCORE
         self._pipeline_updated: float = 0.0
         self._pipeline_source: str = "params"
+        # Skill-update cadence policy (§11.5): fast (Cell shared area follows
+        # runtime data output) vs slow (global dedicated tier — periodic
+        # generalization/distillation). enabled=False pauses updates.
+        self._update_speed: str = "fast"
+        self._update_enabled: bool = True
+        self._update_updated: float = 0.0
+        self._update_source: str = "params"
         # Progressive-disclosure policy — runtime knobs for the session
         # catalog (two-level index, audience filter, L3A capability view).
         self._full_index_enabled: bool = SKILL_CATALOG_FULL_INDEX_ENABLED
@@ -381,6 +389,9 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
         agent_id: str = "",
         role: str = "",
         internal: bool = False,
+        scope: str = "",
+        scope_identity: str = "",
+        priority: int = 0,
     ) -> dict:
         """Create a skill programmatically with structured fields (developer-only).
 
@@ -414,7 +425,19 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             "layer": layer if layer in ("exec", "decision") else "",
             "binding": self._normalize_binding(binding),
             "status": status if status in SKILL_STATUS_VALID else "",
+            "scope": scope if scope in SKILL_SCOPE_VALID else "",
+            "scope_identity": scope_identity,
+            "priority": int(priority) if isinstance(priority, int) or str(priority).lstrip("-").isdigit() else 0,
         }
+        # Declarative scope maps into the runtime binding (cell_ids/agent_ids)
+        # — parity with the _load_markdown path so programmatic create() and
+        # SKILL.md round-trip behave identically (skill_is_injectable filter
+        # applies unchanged).
+        norm_binding = self._normalize_binding(data["binding"])
+        if scope in SKILL_SCOPE_VALID and scope_identity:
+            key = "cell_ids" if scope == "cell" else "agent_ids"
+            norm_binding[key] = sorted({*norm_binding.get(key, []), scope_identity})
+        data["binding"] = norm_binding
         return self.register(name, data, agent_id=agent_id, role=role, internal=internal)
 
     def update(self, name: str, data: dict, agent_id: str = "", role: str = "", internal: bool = False) -> dict:

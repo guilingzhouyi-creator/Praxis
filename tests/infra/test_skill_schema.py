@@ -120,6 +120,9 @@ class TestSchemaRoundTrip:
             "stages:\n"
             "  - id: one\n"
             "    instructions: do one\n"
+            "scope: cell\n"
+            "scope-identity: cell-alpha\n"
+            "priority: 3\n"
             "---\n"
             "body\n",
             encoding="utf-8",
@@ -130,6 +133,83 @@ class TestSchemaRoundTrip:
         assert skill["disclosure"] == "index"
         assert skill["next"] == ["code-review"]
         assert skill["stages"][0]["id"] == "one"
+        # Declarative scope/priority round-trip: scope + identity are
+        # preserved and mapped into the runtime binding so the existing
+        # skill_is_injectable filter applies unchanged.
+        assert skill["scope"] == "cell"
+        assert skill["scope_identity"] == "cell-alpha"
+        assert skill["priority"] == 3
+        binding = skill.get("binding") or {}
+        assert binding.get("cell_ids") == ["cell-alpha"]
+
+
+class TestRegisterAndCadence:
+    """Registration persistence, enable/disable, and update cadence control."""
+
+    def test_register_persists_to_custom_tier(self):
+        """Registering a custom skill writes SKILL.md into the custom dir."""
+        import os
+
+        from l1.kernel.paths import get_paths as _gp
+        from l3.memory.r4_agent import get_r4_agent
+
+        name = "reg-persist-test"
+        sm = get_skill_manager()
+        sm.delete(name, agent_id="dev", role="l3")
+        result = get_r4_agent().register_custom_skill(
+            name=name,
+            description="Use when testing register persistence",
+            prompt="do the thing",
+            tags=["execution"],
+            scope="cell",
+            scope_identity="cell-reg",
+            priority=4,
+            agent_id="dev",
+            role="l3",
+        )
+        assert result.get("success"), result
+        skill = sm.get(name)
+        assert skill is not None
+        assert "custom" in skill.get("tags", [])
+        assert skill.get("scope") == "cell"
+        assert skill.get("scope_identity") == "cell-reg"
+        md = os.path.join(_gp().skill_custom_dir, name, "SKILL.md")
+        assert os.path.isfile(md), f"expected persisted SKILL.md at {md}"
+        sm.delete(name, agent_id="dev", role="l3")
+
+    def test_disable_then_enable_status(self):
+        """Disable flips status to retired; enable restores active."""
+        sm = get_skill_manager()
+        name = "reg-toggle-test"
+        created = sm.create(
+            name,
+            description="Use when testing toggle",
+            prompt="body",
+            tags=["custom"],
+            agent_id="dev",
+            role="l3",
+        )
+        assert created.get("success"), created
+        disabled = sm.update(name, {"status": "retired"}, agent_id="dev", role="l3")
+        assert disabled.get("success"), disabled
+        assert not sm.skill_is_injectable(sm.get(name), agent_id="dev", role="l3")
+        enabled = sm.update(name, {"status": "active"}, agent_id="dev", role="l3")
+        assert enabled.get("success"), enabled
+        assert sm.skill_is_injectable(sm.get(name), agent_id="dev", role="l3")
+        sm.delete(name, agent_id="dev", role="l3")
+
+    def test_update_policy_controls_cadence(self):
+        """set_update_policy fast|slow + enabled persists on the manager."""
+        sm = get_skill_manager()
+        fast = sm.set_update_policy(update_speed="fast", enabled=True, source="test")
+        assert fast.get("success") and fast.get("update_speed") == "fast"
+        slow = sm.set_update_policy(update_speed="slow", enabled=False, source="test")
+        assert slow.get("success") and slow.get("update_speed") == "slow" and slow.get("enabled") is False
+        policy = sm.update_policy()
+        assert policy.get("update_speed") == "slow" and policy.get("enabled") is False
+        invalid = sm.set_update_policy(update_speed="bogus", source="test")
+        assert not invalid.get("success")
+        sm.set_update_policy(update_speed="fast", enabled=True, source="reset")
 
 
 class TestSchemaBodyLayout:

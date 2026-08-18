@@ -20,6 +20,53 @@ from l1.kernel.params.agent import (
 )
 from l1.kernel.params.system import SKILL_POSTURE_DEFAULT
 
+
+def _system_permits_posture(skill_posture: str) -> bool:
+    """Return whether the current system posture permits injecting a skill.
+
+    Posture linkage (§11.4): under the productive posture only productive
+    skills are exposed; offensive skills require the attack posture
+    (security-test, confirmed). Read-only, best-effort — if the security
+    posture cannot be resolved we fail closed (productive filter applies).
+    """
+    try:
+        from l3.tool_system.security_mode import get_posture
+
+        posture = get_posture()
+        classification = str(posture.get("classification", "productive"))
+    except Exception:
+        classification = "productive"
+    if skill_posture == "offensive":
+        return classification == "attack"
+    return True
+
+
+def link_registered_skill_graph(sm, name: str, scope: str, tags: list[str]) -> dict:
+    """Register-time R5 linkage (L3 entry point).
+
+    Connect the new custom skill to related skill domains via semantic
+    edges (``related``). Degrades to a no-op when the graph is disabled —
+    registration never hard-fails on linkage. Kept in L3 so L2/API callers
+    never import the memory graph directly (layer-import gate).
+    """
+    linked = 0
+    try:
+        from l3.memory.memory_graph import get_graph
+
+        graph = get_graph()
+        if graph is None or not getattr(graph, "enabled", False):
+            return {"success": True, "skill": name, "scope": scope, "linked": 0}
+        for candidate in sm.list_skills(tags=tags, limit=20, include_prompt=False):
+            if candidate["name"] == name:
+                continue
+            edge = graph.add_semantic_edge(name, candidate["name"], "related", weight=0.8, created_by="register")
+            if edge.get("success"):
+                linked += 1
+        return {"success": True, "skill": name, "scope": scope, "linked": linked}
+    except Exception:
+        return {"success": True, "skill": name, "scope": scope, "linked": 0}
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,6 +194,8 @@ class SkillRetrievalMixin:
                                 continue
                             if not _passes_card_tags(s, tags):
                                 continue
+                            if not _system_permits_posture(str(s.get("posture", SKILL_POSTURE_DEFAULT))):
+                                continue
                             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                                 continue
                             evolved.append(
@@ -157,9 +206,13 @@ class SkillRetrievalMixin:
                                     "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
                                     "binding": s.get("binding") or {},
                                     "status": s.get("status", "active"),
+                                    "scope": s.get("scope", ""),
+                                    "scope_identity": s.get("scope_identity", ""),
+                                    "priority": int(s.get("priority", 0) or 0),
                                 }
                             )
                     if evolved:
+                        evolved.sort(key=lambda s: -int(s.get("priority", 0) or 0))
                         return evolved[:limit]
             except Exception as e:
                 logger.debug("R4Agent: graph diffusion fallback to linear: %s", e)
@@ -181,6 +234,8 @@ class SkillRetrievalMixin:
                 continue
             if not _passes_card_tags(s, tags):
                 continue
+            if not _system_permits_posture(str(s.get("posture", SKILL_POSTURE_DEFAULT))):
+                continue
             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                 continue
             if s.get("prompt"):
@@ -192,8 +247,15 @@ class SkillRetrievalMixin:
                         "posture": s.get("posture", SKILL_POSTURE_DEFAULT),
                         "binding": s.get("binding") or {},
                         "status": s.get("status", "active"),
+                        "scope": s.get("scope", ""),
+                        "scope_identity": s.get("scope_identity", ""),
+                        "priority": int(s.get("priority", 0) or 0),
                     }
                 )
+        # Priority conflict resolution (§11.1): custom skills outrank
+        # builtin/evolved on equal relevance — sort descending by priority
+        # so higher-priority skills surface first (builtins pin 0).
+        evolved.sort(key=lambda s: -int(s.get("priority", 0) or 0))
         evolved = evolved[:limit]
         self._skill_cache[cache_key] = (rev, evolved)
         return evolved

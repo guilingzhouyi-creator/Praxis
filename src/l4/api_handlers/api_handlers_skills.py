@@ -81,6 +81,87 @@ def handle_skills_create(body: dict | None = None) -> dict:
     )
 
 
+def handle_skills_register(body: dict | None = None) -> dict:
+    """POST /api/v2/skills/register — register a user-authored custom skill.
+
+    Persists into the third-tier custom dir (survives restart), tags it
+    ``custom`` so TTL prune / curation leave it alone, and links it to
+    related skill domains via the R5 graph (graceful when the graph is
+    off). Body: {name, description, prompt, scope?, scope_identity?,
+    priority?, tags?, allowed_tools?}.
+    """
+    b = body or {}
+    name = b.get("name", "")
+    if not name:
+        return {"success": False, "error": "skill name is required"}
+    prompt = b.get("prompt", "")
+    if not prompt:
+        return {"success": False, "error": "prompt is required"}
+    agent_id, role = _caller(b)
+    try:
+        priority = int(b.get("priority", 0) or 0)
+    except (TypeError, ValueError):
+        return {"success": False, "error": "priority must be an integer"}
+    try:
+        from l3.memory.r4_agent import get_r4_agent
+
+        return get_r4_agent().register_custom_skill(
+            name=name,
+            description=b.get("description", ""),
+            prompt=prompt,
+            tags=b.get("tags"),
+            allowed_tools=b.get("allowed_tools"),
+            scope=b.get("scope", ""),
+            scope_identity=b.get("scope_identity", ""),
+            priority=priority,
+            agent_id=agent_id,
+            role=role,
+        )
+    except Exception:
+        # Fallback: in-memory registration only (persist is best-effort).
+        result = _manager().create(
+            name=name,
+            description=b.get("description", ""),
+            prompt=prompt,
+            tags=b.get("tags"),
+            allowed_tools=b.get("allowed_tools"),
+            scope=b.get("scope", ""),
+            scope_identity=b.get("scope_identity", ""),
+            priority=priority,
+            agent_id=agent_id,
+            role=role,
+        )
+        if not result.get("success"):
+            return result
+        from l2.l2_shell.commands.system import _link_registered_skill
+
+        return _link_registered_skill(_manager(), name, b.get("scope", ""), b.get("tags") or [], result)
+
+
+def handle_skills_update_policy(body: dict | None = None) -> dict:
+    """POST /api/v2/skills/update-policy — adjust R4Agent skill-update cadence.
+
+    Body: {update_speed?: "fast"|"slow", enabled?: bool}. Mirrors the L2
+    ``/skills update-speed`` control; ``source`` records the mutator.
+    """
+    b = body or {}
+    agent_id, role = _caller(b)
+    speed = b.get("update_speed")
+    enabled = b.get("enabled")
+    if speed is not None and speed not in ("fast", "slow"):
+        return {"success": False, "error": "update_speed must be 'fast' or 'slow'"}
+    if enabled is not None and not isinstance(enabled, bool):
+        return {"success": False, "error": "enabled must be a boolean"}
+    ok, who = _manager().authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    return _manager().set_update_policy(
+        update_speed=speed,
+        enabled=enabled,
+        source="api",
+    )
+
+
 def handle_skills_update(body: dict | None = None, name: str = "") -> dict:
     """PUT /api/skills/:name — update skill (developer-only)."""
     if not name:
