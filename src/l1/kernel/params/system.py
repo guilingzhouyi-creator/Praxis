@@ -231,6 +231,11 @@ SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
 # and logs the event for later analysis.
 COMPRESSION_RECURSION_THRESHOLD_DEFAULT: Final[int] = 0  # 0 = recursive off
 COMPRESSION_BREAKER_ENABLED_DEFAULT: Final[bool] = True
+# Error-storm detection (circuit breaker): this many compression failures
+# within the window below trips the breaker independently of the recursion
+# threshold. The breaker master switch (default ON) gates the storm trip.
+COMPRESSION_ERROR_STORM_THRESHOLD: Final[int] = 5
+COMPRESSION_ERROR_STORM_WINDOW: Final[float] = 60.0
 # ── Cell-domain shared prompt library (3.2) ───────────────────────────
 # Unified layered system-prompt pool per Cell (upper shared base + lower
 # dynamic docs, auto-hit by context pressure). Operator switch (API + L2

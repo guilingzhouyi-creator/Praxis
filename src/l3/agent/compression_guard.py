@@ -25,6 +25,8 @@ from typing import Any
 
 from l1.kernel.params.system import (
     COMPRESSION_BREAKER_ENABLED_DEFAULT,
+    COMPRESSION_ERROR_STORM_THRESHOLD,
+    COMPRESSION_ERROR_STORM_WINDOW,
     COMPRESSION_RECURSION_THRESHOLD_DEFAULT,
 )
 
@@ -37,6 +39,8 @@ _state: dict[str, Any] = {
     "trip_reason": "",
     "trip_at": 0.0,
     "per_session_depth": {},  # session_id -> consecutive compression count
+    "error_storm_count": 0,  # recent compression failures within the window
+    "error_storm_first": 0.0,  # first failure timestamp of the current burst
 }
 _lock = threading.RLock()
 
@@ -90,6 +94,7 @@ def guard_status() -> dict:
             "tripped": bool(_state["tripped"]),
             "trip_reason": str(_state["trip_reason"]),
             "trip_at": float(_state["trip_at"]),
+            "error_storm_count": int(_state["error_storm_count"]),
         }
 
 
@@ -116,6 +121,8 @@ def set_guard_switches(recursion_threshold: int | None = None, breaker_enabled: 
             _state["trip_reason"] = ""
             _state["trip_at"] = 0.0
             _state["per_session_depth"] = {}
+            _state["error_storm_count"] = 0
+            _state["error_storm_first"] = 0.0
         if final_breaker is not None:
             _state["breaker_enabled"] = final_breaker
             if not _state["breaker_enabled"]:
@@ -134,6 +141,8 @@ def reset_guard() -> None:
         _state["trip_reason"] = ""
         _state["trip_at"] = 0.0
         _state["per_session_depth"] = {}
+        _state["error_storm_count"] = 0
+        _state["error_storm_first"] = 0.0
         _hydrated = False
     try:
         from l1.kernel.settings import get_settings
@@ -151,6 +160,8 @@ def _trip(reason: str) -> None:
         _state["trip_reason"] = reason
         _state["trip_at"] = time.time()
         _state["per_session_depth"] = {}
+        _state["error_storm_count"] = 0
+        _state["error_storm_first"] = 0.0
     logger.warning("compression_guard: circuit breaker TRIPPED — %s", reason)
     try:
         from l3.tool_system.security_evidence import record_evidence
@@ -165,6 +176,34 @@ def _trip(reason: str) -> None:
         )
     except Exception:
         logger.debug("compression_guard: evidence record skipped")
+
+
+def report_compress_error(session_id: str) -> None:
+    """Record a compression failure; trip the breaker on an error storm.
+
+    Called from the session compression path when a pass raises. A burst of
+    COMPRESSION_ERROR_STORM_THRESHOLD failures within
+    COMPRESSION_ERROR_STORM_WINDOW seconds trips the breaker (when the
+    breaker is enabled), pausing compression until operator intervention.
+    """
+    _hydrate()
+    with _lock:
+        if not bool(_state["breaker_enabled"]):
+            return
+        now = time.time()
+        first = float(_state["error_storm_first"])
+        if first and now - first > COMPRESSION_ERROR_STORM_WINDOW:
+            _state["error_storm_count"] = 0
+            _state["error_storm_first"] = 0.0
+        if not _state["error_storm_first"]:
+            _state["error_storm_first"] = now
+        _state["error_storm_count"] = int(_state["error_storm_count"]) + 1
+        should_trip = int(_state["error_storm_count"]) >= COMPRESSION_ERROR_STORM_THRESHOLD
+        count = int(_state["error_storm_count"])
+    if should_trip:
+        _trip(
+            f"compression error storm: {count} failures within {COMPRESSION_ERROR_STORM_WINDOW}s (session {session_id})"
+        )
 
 
 def check_recursion(session_id: str) -> dict:
@@ -207,6 +246,9 @@ def record_compress_pass(session_id: str) -> None:
     """Record one compression pass for a session (threshold bookkeeping)."""
     with _lock:
         _state["per_session_depth"][session_id] = int(_state["per_session_depth"].get(session_id, 0)) + 1
+        # A successful pass resets the error-storm burst.
+        _state["error_storm_count"] = 0
+        _state["error_storm_first"] = 0.0
 
 
 def reset_session_depth(session_id: str) -> None:

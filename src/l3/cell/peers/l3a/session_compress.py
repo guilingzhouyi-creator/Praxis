@@ -280,8 +280,6 @@ class SessionCompressMixin:
           3. Distortion report — returns role/type distribution, high-value
              preservation counts, and the snapshot archive_ref.
         """
-        from .session_history import Message as _Message
-
         # Phase 3.1 B6: recursive-compression threshold + circuit breaker —
         # a tripped breaker or a reached threshold stops the pass before
         # anything is folded (default: recursive off, breaker on). Degrades
@@ -289,6 +287,24 @@ class SessionCompressMixin:
         blocked = self._compression_guard_check()
         if blocked:
             return blocked
+        try:
+            return self._compress_impl(keep_last, summary)
+        except Exception:
+            self._report_compress_error()
+            raise
+
+    def _report_compress_error(self) -> None:
+        """Report a compression failure to the circuit breaker (error-storm tracking)."""
+        try:
+            from l3.agent.compression_guard import report_compress_error
+
+            report_compress_error(str(getattr(self, "id", "")))
+        except Exception:
+            logger.debug("l3a session: error-storm report skipped")
+
+    def _compress_impl(self, keep_last: int = _p.SESSION_COMPRESS_KEEP, summary: str = "") -> dict:
+        """Run the five-level compression pipeline (lossless snapshot + fold)."""
+        from .session_history import Message as _Message
 
         split = self._split_history(keep_last)
         if split is None:
