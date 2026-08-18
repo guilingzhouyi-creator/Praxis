@@ -1,8 +1,8 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 135 | **COMPLETE**: 9 (7%) | **PARTIAL**: 18 (13%, fast mode — checks skipped) | **INCOMPLETE**: 108 (80%, machine 'not done')
-**Mode split**: full 37 / fast 98 (fast = at least one check skipped)
-**Duration** (full runs): avg 511s / P95 1015s (37 runs) — fast runs: avg 27s / P95 119s (98 runs)
+**Runs**: 136 | **COMPLETE**: 9 (7%) | **PARTIAL**: 19 (14%, fast mode — checks skipped) | **INCOMPLETE**: 108 (79%, machine 'not done')
+**Mode split**: full 37 / fast 99 (fast = at least one check skipped)
+**Duration** (full runs): avg 511s / P95 1015s (37 runs) — fast runs: avg 27s / P95 119s (99 runs)
 **Longest INCOMPLETE streak**: 29 consecutive
 
 | Date | Runs | Complete | Rate |
@@ -11,7 +11,7 @@
 | 2026-08-15 | 10 | 0 | 0% |
 | 2026-08-16 | 38 | 5 | 13% |
 | 2026-08-17 | 45 | 0 | 0% |
-| 2026-08-18 | 21 | 4 | 19% |
+| 2026-08-18 | 22 | 4 | 18% |
 
 **Failures by check** (most frequent evidence gaps):
 - `changelog`: 93 (86% of incomplete)
@@ -27,7 +27,7 @@
 - `audit`: 5 (5% of incomplete)
 
 **Completion rate by branch** (weak-link detection):
-- `main`: 4/93 (4%)
+- `main`: 4/94 (4%)
 - `feature/test-matrix-prebuild`: 0/7 (0%)
 - `feature/root-kernel-preflight`: 2/5 (40%)
 - `feature/perf-hotpath`: 1/4 (25%)
@@ -43,16 +43,16 @@
 - `feature/ci-bench-smoke`: 0/1 (0%)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 127/132 (96%)
-- `changelog`: 40/133 (30%)
-- `complex`: 121/132 (92%)
+- `audit`: 128/133 (96%)
+- `changelog`: 41/134 (31%)
+- `complex`: 122/133 (92%)
 - `coverage`: 25/37 (68%)
-- `cycle`: 121/132 (92%)
-- `delta`: 82/132 (62%)
-- `docs`: 99/135 (73%)
-- `index`: 121/132 (92%)
-- `lint`: 103/135 (76%)
-- `singleton`: 117/132 (89%)
+- `cycle`: 122/133 (92%)
+- `delta`: 83/133 (62%)
+- `docs`: 100/136 (74%)
+- `index`: 122/133 (92%)
+- `lint`: 104/136 (76%)
+- `singleton`: 118/133 (89%)
 - `tests`: 24/39 (62%)
 
 **Failure pairs** (checks failing together):
@@ -65,8 +65,8 @@
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
 - `coverage_pct`: 67.0 / 64.58 / 0.0 / 68.0
-- `mega_funcs`: 2.0 / 17.66 / 0.0 / 211.0
-- `net_delta`: 1009.0 / 316.55 / -4.0 / 3828.0
+- `mega_funcs`: 2.0 / 17.53 / 0.0 / 211.0
+- `net_delta`: 0.0 / 311.82 / -4.0 / 3828.0
 - `ruff_errors`: 2.0 / 2.0 / 2.0 / 2.0
 - `tests_failed`: 1.0 / 1.09 / 1.0 / 2.0
 - `tests_passed`: 4799.0 / 4708.85 / 4583.0 / 4809.0
