@@ -1,6 +1,6 @@
 # L3A 上下文压缩子系统 v2 迁移计划（3.1 补充缺口）
 
-> 状态：Phase 0（计划落定）
+> 状态：**G1–G7 全落地**（Phase 1/2/5 完成，7 提交）；Phase 3/4 迁移切换+移除为部署动作（见 §10）
 > 分支：`feature/l3a-compression-migration`（worktree `/home/guiling/dev/praxis-compression`）
 > 关联：`docs/architecture/l3-memory.md`、`docs/architecture/l3a-central.md`、`docs/architecture/perf-baseline.md`
 
@@ -128,3 +128,19 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 - **风险**：迁移期新旧双写导致观测翻倍（G5）→ 事件带 `v2` 标记区分；协议选型误判（D2）→ `auto` 兜底回退当前 `generate`
 - **回滚面**：每 Phase 独立提交，配置门控一键回退到老行为
 - **退休**：老路径移除后 `docs/architecture/l3-memory.md` / `l3a-central.md` 同步更新（同提交）
+
+## 10. 迁移切换 + 移除老路径（部署动作，非代码强翻）
+
+七缺口（G1–G7）已全部实现并验证（320+ tests + 压缩比基准 3.76x），新架构以配置门控方式与老路径共存（过渡态），默认值分毫未变——满足"不破坏现有行为"。
+
+"迁移切换 + 移除"是绞杀者迁移的终态部署动作，按 D4 parity 门控，不在 feature 分支强行翻转默认：
+
+1. **迁移切换（config flip，operator 执行）**
+   - `llm.cache.<provider>.protocol: stateful` — 对有 `generate_with_messages` 的 provider 切到有状态原生 messages
+   - `l3a.digest.enabled: true` — 执行层对话折叠默认走 card-indexed digest（替代 legacy 截断）
+   - `l3a.sensitive.action: redact|block` — 按泄露敏感度选脱敏/阻断（默认 `report` 不变）
+2. **dual-run parity 验证** — 同输入对比新旧路径的压缩比/敏感命中/摘要内容，确认等价后才翻默认
+3. **移除老路径（单独提交，parity 通过后）**
+   - `agent_loop._truncate_trail` 的 legacy `[HISTORY TRUNCATED]` 截断分支（digest ON 后成为死代码）
+   - `llm_providers` 各 provider 硬编码 `generate` 拼接（stateful 默认后由 `assembly.py` 装配工厂接管）
+4. **同步** — 移除后 `docs/architecture/l3-memory.md` / `l3a-central.md` 同提交更新
