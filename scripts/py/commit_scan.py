@@ -107,6 +107,66 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     return violations
 
 
+def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict | None = None) -> list[str]:
+    """Validate the Co-Authored-By trailer against the agents registry and
+    the live runtime detection.
+
+    The trailer must:
+      1. exist exactly once, on its own line, at the end of the message;
+      2. match `Co-Authored-By: <Agent> (<model>) <noreply@domain>`;
+      3. use a registered agent name (commits.yaml `agents`);
+      4. use a model the registered agent is allowed to run;
+      5. match the live runtime detection (detect_agent.py) when it reports
+         high confidence — an OpenAI/Anthropic run can never claim a deepseek
+         model, and a deepseek run can never claim gpt-4o. The detector reads
+         env + process-chain signals, not the agent's self-report.
+
+    Returns a list of violations (empty = OK). Never called for merge/revert
+    messages (git-generated, exempt).
+    """
+    policy = policy if policy is not None else _cached_policy()
+    violations: list[str] = []
+
+    trailers = re.findall(r"^Co-Authored-By:.*$", msg, flags=re.M)
+    if not trailers:
+        return ["missing Co-Authored-By trailer"]
+    if len(trailers) > 1:
+        return [f"exactly ONE Co-Authored-By trailer allowed (found {len(trailers)})"]
+    trailer = trailers[0].strip()
+
+    m = re.match(r"^Co-Authored-By: ([^:<>]+) \(([^()]+)\) <noreply@[a-z0-9.-]+>$", trailer)
+    if not m:
+        return ["Co-Authored-By must match: `Co-Authored-By: <Agent> (<model>) <noreply@domain>`"]
+    agent_name, model = m.group(1).strip(), m.group(2).strip()
+
+    agents = {a["name"].lower(): a for a in policy.get("agents", [])}
+    reg = agents.get(agent_name.lower())
+    if not reg:
+        known = ", ".join(sorted(agents)) or "<none registered>"
+        return [f"agent '{agent_name}' not registered — known agents: {known}"]
+    if model not in reg.get("models", []):
+        return [f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))})"]
+
+    # Live-runtime cross-check (high confidence only — never guess from a
+    # workspace dir or an empty signal set).
+    if detected and detected.get("confidence") == "high":
+        det_model = (detected.get("model") or "").strip().lower()
+        if det_model and det_model != model.lower():
+            violations.append(
+                f"model mismatch: trailer says '{model}' but the live session runs '{detected.get('model')}' "
+                f"(framework={detected.get('framework')}) — attribute the ACTUAL runner",
+            )
+        det_agent = (detected.get("agent") or "").strip().lower()
+        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode"):
+            # AtomCode/OpenCode are the project's established author aliases;
+            # the detector's framework name may differ (dsh vs the git alias).
+            violations.append(
+                f"agent mismatch: trailer says '{agent_name}' but the live session reports '{detected.get('agent')}' "
+                f"(framework={detected.get('framework')})",
+            )
+    return violations
+
+
 def body_advisories(body: str, policy: dict | None = None) -> list[str]:
     """Return advisory findings for a commit body (never blocks).
 
@@ -198,6 +258,11 @@ def main() -> int:
     parser.add_argument("--subject", help="single commit subject line to validate")
     parser.add_argument("--git-range", help="git range (base..head) to scan, e.g. origin/main..HEAD")
     parser.add_argument("--branch", default="", help="branch the commit(s) land on (branch-type policy)")
+    parser.add_argument(
+        "--msg",
+        help="full commit message: validate Co-Authored-By against the agents registry + live runtime detection",
+    )
+    parser.add_argument("--detected", help="optional JSON from scripts/py/detect_agent.py (defaults to live detection)")
     args = parser.parse_args()
 
     try:
@@ -217,6 +282,39 @@ def main() -> int:
                 for sha, a in advisories:
                     print(f"  {sha} ⚠ {a}")
             return 1 if findings else 0
+        if args.msg:
+            # Co-Authored-By truthfulness gate: compare the trailer the agent
+            # wrote against the agents registry + live runtime detection.
+            import json as _json
+
+            detected = None
+            if args.detected:
+                try:
+                    detected = _json.loads(args.detected)
+                except _json.JSONDecodeError:
+                    detected = None
+            if detected is None:
+                try:
+                    out = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    detected = _json.loads(out.stdout) if out.stdout.strip() else None
+                except Exception:
+                    detected = None
+            violations = validate_coauthored_by(args.msg, detected=detected)
+            if not violations:
+                print(
+                    "[commit-scan] OK — Co-Authored-By matches registry + runtime"
+                    + (f" (detected: {detected.get('agent')}/{detected.get('model')})" if detected else "")
+                )
+            else:
+                print("[commit-scan] VIOLATIONS:", file=sys.stderr)
+                for v in violations:
+                    print(f"  ✗ {v}", file=sys.stderr)
+            return 1 if violations else 0
         if not args.subject:
             parser.error("provide --subject or --git-range")
         violations = validate_subject(args.subject, branch=args.branch)

@@ -14,6 +14,16 @@ source of truth for the Conventional-Commits contract.
   The hook enforces: exactly one trailer (no multi-agent stacking), the
   `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
   Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
+- **Attribution is verified for TRUTH, not just shape** — `commit_scan.py`
+  compares the trailer against the agents registry (`config/discovery/
+  commits.yaml` `agents:`) AND the live runtime detection
+  (`scripts/py/detect_agent.py` reads env + process-chain, never the
+  agent's self-report). An OpenAI/Anthropic run can never claim a deepseek
+  model, and an unregistered agent name is rejected. Before writing a
+  trailer, the agent MUST check which framework/model actually runs this
+  session (`python scripts/py/detect_agent.py --json`) and name THAT.
+- **Subject format is normalized**: lowercase start, no markdown (`**`/`` ` ``/`_`),
+  no trailing period, ≤ 72 chars — plain text, never rendered markup.
 
 | Part | Requirement |
 |---|---|

@@ -28,6 +28,31 @@ types:
   - revert
   - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
+# Registered authoring agents for Co-Authored-By attribution. The commit-msg
+# gate compares the trailer the agent wrote against BOTH this registry and
+# the live runtime detection (scripts/py/detect_agent.py): the model name
+# must match what the detector reports (an OpenAI/Anthropic model can never
+# claim a deepseek run, and vice versa), and the agent name must be one of
+# these registered identities. Never attribute a run to a framework that did
+# not execute it — the detector reads env + process-chain signals, not the
+# agent's self-report.
+agents:
+  - name: AtomCode
+    models: [deepseek-v4-flash]
+    email: noreply@atomgit.com
+  - name: OpenCode
+    models: [deepseek-v4-flash]
+    email: noreply@opencode.ai
+  - name: Claude
+    models: [claude, claude-sonnet, claude-opus]
+    email: noreply@anthropic.com
+  - name: DeepSeek
+    models: [deepseek-v4-flash, deepseek-chat]
+    email: noreply@deepseek.com
+  - name: GPT
+    models: [gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini]
+    email: noreply@openai.com
+
 # Registered scopes. A `type(scope):` whose scope is NOT listed here is a
 # violation under `strict` mode (warned under `relaxed`). Keep this list in
 # sync with the subsystems registered in AGENTS.md / docs/architecture/.

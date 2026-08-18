@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = ROOT / ".githooks" / "commit-msg"
 
-COAUTH = "Co-Authored-By: Test Agent (test-model) <noreply@example.org>"
+COAUTH = "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
 
 
 def run_hook(message: str) -> int:

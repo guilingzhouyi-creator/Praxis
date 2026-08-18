@@ -187,9 +187,16 @@ Posture is a load-bearing security lever — never weaken it silently.
 Full spec + mainline gates: `docs/workflow/commits.md`. Load-bearing summary:
 
 - **Messages MUST be in English** (CJK rejected); subject = Conventional
-  Commits `type(scope): summary` ≤ 72 chars; body explains what/why;
-  exactly ONE `Co-Authored-By:` trailer last, preceded by a blank line
+  Commits `type(scope): summary` ≤ 72 chars, lowercase start, no markdown,
+  no trailing period; body explains what/why; exactly ONE `Co-Authored-By:`
+  trailer last, preceded by a blank line
   (`Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`).
+- **Attribution must be TRUE, not just well-formed**: the `Co-Authored-By`
+  trailer is cross-checked against the agents registry and the live runtime
+  detection (`scripts/py/detect_agent.py` — env + process-chain, never the
+  agent's self-report). An agent MUST run `detect_agent.py` first and name
+  the framework/model that actually executes the session — never attribute
+  a GPT/Claude run to deepseek, or vice versa.
 - **Commit-scan policy — single source of truth**: the type/scope whitelist
   lives ONCE in `config/discovery/commits.yaml`, consumed by every gate
   (`.githooks/commit-msg`, `verify-pr-merge.sh`, `generate_changelog.py`,
