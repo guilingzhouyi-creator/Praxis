@@ -1,6 +1,6 @@
 # Praxis 前端与内核多语言路线图
 
-> 状态：规划阶段（未动工）
+> 状态：进行中（M1 部分完成）
 > 关联决策：`docs/decisions/praxis-tech-stack-decision.md`（内核纯 Python）、`docs/decisions/praxis-mvp-decision.md`
 > 关联设计：`docs/design/praxis-load-adaptive-pool-design.md`、`docs/architecture/l5-user.md`、`docs/architecture/l2-shell.md`
 
@@ -56,14 +56,16 @@ Praxis 的 L2 采用"方言适配器 + 共享引擎"（`docs/architecture/l2-she
 
 ## 3. L2 抽象完整（Phase 1–6，纯 Python，留转化接口）
 
-现状：**语言无关契约的框架已就绪，但实现是 stub**。L4 路由已注册（`api_routes.py`），
-但 `api_handlers_agent.py` 的三个 handler 是空壳：
+现状：**语言无关契约框架已就绪，且 Phase 1–3 已接通（M1 部分完成）**。三个端点不再是 stub：
 
 ```
-POST /api/v2/shell                  → _shell_dispatch    → {"success": False, "error": "shell dispatch not available"}   ← stub
-GET  /api/v2/shell/autocomplete     → _shell_autocomplete → {"success": True, "suggestions": []}                          ← stub
-GET  /api/v2/shell/commands         → _shell_commands    → {"success": True, "commands": []}                              ← stub
+POST /api/v2/shell                  → _shell_dispatch    → l2.l2_shell.dispatch(text, session)
+GET  /api/v2/shell/autocomplete     → _shell_autocomplete → l2.l2_shell.completer.autocomplete(line)
+GET  /api/v2/shell/commands         → _shell_commands    → l1.kernel.commands.get_registry().list(category)
 ```
+
+仍待完成：Phase 4（会话收尾，移除 `state.py` deprecated shim）、Phase 5（底层边界文档标注转化位）、
+Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，与 `invoke_capability` 实码不符）。
 
 | Phase | 动作 | 落点 |
 |---|---|---|
@@ -169,8 +171,8 @@ l1_kernel_rs（模块级，非整体重写）
 ## 5. 统一里程碑
 
 ```
-M0  现网基线（当前）           — 快速核心套件全绿；契约框架已注册（stub）
-M1  L2 抽象完整               — Phase 1–3 接通 /api/v2/shell 三端点；TS/TUI 可作纯 HTTP 客户端
+M0  现网基线（已完成）         — 快速核心套件全绿；契约框架已注册
+M1  L2 抽象完整（部分完成）   — Phase 1–3 已接通 /api/v2/shell 三端点；剩余 Phase 4–6（会话收尾 + 文档同步）
 M2  会话收尾 + 文档            — Phase 4–6；l2-shell.md 契约面显式化；外围契约独立
 M3  Rust 下沉优先级判定       — 外围完成 §4.5 解耦；完成真实固定总量 L1 基准；据 P 值和锁/队列等待定"先迁移哪个热路径"
 M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Python 灰度共存，接口不变
@@ -196,6 +198,20 @@ M4  Rust 热路径下沉           — 经 port 适配器无侵入替换，Pytho
 | 契约 stub 必须接通 | 否则前端无法作为纯 HTTP 客户端走通，契约框架形同虚设 |
 | 会话状态迁移 | `state.py` deprecated shim 须移除，避免进程级全局态成为语言无关契约的漏洞 |
 
+## 7. 盲区与前置门
+
+本路线图不覆盖生产闭环、安全深化与可运维性。`docs/roadmaps/production-closure-roadmap.md`
+补齐以下前置门，并作为 M3/M4 与 TS 重写的硬前置：
+
+1. **P0 会话真值与恢复**：会话身份、`input_seq` 权威、durable JSON store、崩溃恢复、剩余执行旁路（B4/B6/B8/B9）。
+2. **P0 调度/执行引擎**：超时/取消真实生效，统一执行权威落地。
+3. **P1 安全与可观测性**：审计持久、VFS fail-closed、身份 keypair、备份/恢复、事件/metrics 收敛、provider 回滚。
+4. **P2 治理收敛**：配置中心、schema 迁移、CoT 隐私、测试韧性、多租户隔离。
+
+在这些前置门完成前，M3 的固定总量 Amdahl 证据与 M4 的 Rust 下沉只作**机制准备**，不得把未封口边界复制进 `l1_kernel_rs` 或 TS L2。
+
 ---
 
-**规划结束。** 下一步为 M1：接通 `/api/v2/shell` 三端点（纯 Python，符合现有架构）；Rust 下沉内核为后续既定方向，按缩放曲线确定迁移顺序。
+**规划结束。** 下一步为 M1 剩余项：完成 Phase 4–6（会话收尾 + `l2-shell.md` 契约面同步）。
+Rust 下沉内核仍为后续既定方向，但在 `production-closure-roadmap.md` 的 P0 生产闭环完成前，
+Rust 与 TS 都不得成为默认路径——先补齐会话真值、恢复语义与剩余执行旁路，再按缩放曲线确定迁移顺序。

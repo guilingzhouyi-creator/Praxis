@@ -1,6 +1,6 @@
 # Test Runner Slicing Plan — Full Analysis
 
-> Status: 方案（proposal，未实施）
+> Status: 已落地（`tests/runner.py` 已实现 SLICES + `--slice/--parallel/--list-slices`；剩余 `tests/l4/llm` 失败项与 CI 收口）
 > Scope: `tests/` 全库切片改造设计，覆盖 `tests/runner.py`
 > Date: 2026-08-16
 
@@ -97,7 +97,7 @@
 - 切片名与 `layer_quality.py` L1-L5 层一一对应 → 「质量扫描报 L3 违规 → `runner --slice l3-fast` 快速重跑」闭环
 - CI 主流程：`quality-all`（结构+性能门禁）→ `runner --parallel`（测试回归）
 
-## 3. 实施清单（待批准）
+## 3. 实施清单（多数已落地，剩余收口）
 
 1. 改造 `tests/runner.py`：SLICES 表 + `--slice/--parallel/--list-slices` + 兼容层
 2. 343 游离文件按层归位
