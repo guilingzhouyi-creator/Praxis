@@ -17,6 +17,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCAN = ROOT / "scripts" / "py" / "commit_scan.py"
 DETECT = ROOT / "scripts" / "py" / "detect_agent.py"
@@ -114,3 +116,28 @@ def test_detect_agent_emits_json() -> None:
     assert "agent" in data
     assert "model" in data
     assert "confidence" in data
+
+
+def test_detect_model_not_hardcoded(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The detected model must come from the live DSH settings, not a constant.
+
+    Point DSH_HOME at a scratch settings.yaml with a distinctive model and
+    assert detection reports it — a hardcoded deepseek-v4-flash would fail.
+    """
+    dsh_home = tmp_path / "dsh"
+    dsh_home.mkdir()
+    (dsh_home / "settings.yaml").write_text(
+        "agent-default-model:\n  provider: jiyuan\n  model: custom-model-9x\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DSH_HOME", str(dsh_home))
+    monkeypatch.setenv("DSH_SESSION_ID", "test-session")
+    res = subprocess.run(
+        [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    data = json.loads(res.stdout)
+    assert data["framework"] == "dsh"
+    assert data["model"] == "custom-model-9x"

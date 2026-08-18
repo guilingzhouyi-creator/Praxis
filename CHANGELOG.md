@@ -7,58 +7,11 @@
 
 ### 治理
 
-- **Governance (commit)**: Co-Authored-By attribution is now verified for TRUTH — trailer cross-checked against the agents registry (commits.yaml) and live runtime detection (detect_agent.py: env + process-chain, never the agent's self-report); unregistered agents and cross-framework model claims (GPT claiming deepseek) are rejected. Subject format normalized: lowercase start, no markdown, no trailing period.
-
-### 修复
-
-- **Fix (l3)**: clear mypy debt and layer-baseline drift
-- **Fix (skill)**: address code review findings on tier/scope/cadence
-- **Fix (skill)**: persist register to custom tier, protect it, add update API
-- **Fix (kernel)**: isolate audit persist tests from shared event store
-- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
-- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
-- **Fix (kernel)**: add busy_timeout to persist write connection
-- **Fix (api)**: coerce identity definition input to str
-- **Fix (cell)**: exclude disabled departments from lookup indexes
-- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
-- **Fix (l3)**: violation-monitor switch lands on the settings key
-- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
-- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
-- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
-- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
-- **Fix (memory)**: comply with truncation constants and layer-import allowlist
-- **Fix (judge)**: count only full-mode records as COMPLETE in stats
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
+- **Governance (commit)**: detected model is read LIVE from `~/.dsh/settings.yaml` (agent-default-model) — never hardcoded, so a deployment model bump propagates; provider-key / process-chain tiers report framework+agent only and never invent a model. Rejection messages carry step-by-step HOW TO FIX guidance; verify-local-merge.sh tells the agent how to accumulate to the threshold.
 
 ### 新增
 
+- **Feat (git)**: verify Co-Authored-By truth + normalize subject format
 - **Feat (judge)**: local-merge gate + gate completeness/efficiency fixes
 - **Feat (l3a)**: switch defaults to new architecture (digest on, stateful)
 - **Feat (llm)**: add provider assembly factory and protocol selection
@@ -125,6 +78,54 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
+
+### 修复
+
+- **Fix (l3)**: clear mypy debt and layer-baseline drift
+- **Fix (skill)**: address code review findings on tier/scope/cadence
+- **Fix (skill)**: persist register to custom tier, protect it, add update API
+- **Fix (kernel)**: isolate audit persist tests from shared event store
+- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
+- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
+- **Fix (kernel)**: add busy_timeout to persist write connection
+- **Fix (api)**: coerce identity definition input to str
+- **Fix (cell)**: exclude disabled departments from lookup indexes
+- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
+- **Fix (l3)**: violation-monitor switch lands on the settings key
+- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
+- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
+- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
+- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
+- **Fix (memory)**: comply with truncation constants and layer-import allowlist
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
 
 ### 变更
 

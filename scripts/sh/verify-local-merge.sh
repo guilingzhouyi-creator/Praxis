@@ -72,9 +72,14 @@ if [ "$RC" -eq 0 ]; then
 else
   echo ""
   echo "[local-merge] ❌ branch '$BRANCH' does NOT yet qualify for local main."
-  echo "[local-merge]    Keep accumulating on this worktree branch until the"
-  echo "[local-merge]    net code delta reaches the threshold (>= 1000)."
-  echo "[local-merge]    Waiver note: MERGE_GATE_SKIP=1 + MERGE_GATE_REASON is"
-  echo "[local-merge]    user-granted only; never self-award."
+  echo ""
+  echo "   HOW TO FIX (accumulate, do not force):"
+  echo "     1. stay on this worktree branch — keep committing real code"
+  echo "        (net delta target >= 1000; docs-only changes do not count)"
+  echo "     2. re-check: bash scripts/sh/verify-local-merge.sh"
+  echo "     3. once ✅: git switch main && git merge --no-ff $BRANCH"
+  echo "     4. then double-green + push: bash scripts/sh/push-both.sh main"
+  echo "   Waiver (user-granted ONLY, never self-award): MERGE_GATE_SKIP=1"
+  echo "   + MERGE_GATE_REASON=<why> — ask the user, do not bypass."
 fi
 exit "$RC"

@@ -105,10 +105,18 @@ if [ -f scripts/py/commit_scan.py ]; then
   if grep -q 'VIOLATIONS' /tmp/commit_cab.log; then
     echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
     grep '  ✗' /tmp/commit_cab.log >&2
+    echo "" >&2
+    echo "   HOW TO FIX (do not guess — read your actual runtime):" >&2
+    echo "     1. python scripts/py/detect_agent.py --json" >&2
+    echo "        → reports the framework/model that ACTUALLY runs this session" >&2
+    echo "     2. use THAT model name in the trailer; agent name must be" >&2
+    echo "        registered in config/discovery/commits.yaml (agents:)" >&2
+    echo "     3. correct form:" >&2
+    echo "        Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>" >&2
     DETECTED="$(python scripts/py/detect_agent.py --json 2>/dev/null || echo '')"
-    echo "   Live runtime: ${DETECTED:-<detection unavailable>}" >&2
-    echo "   Fix the trailer to name the ACTUAL authoring agent/model," >&2
-    echo "   or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass (not recommended)." >&2
+    echo "     4. (this session detects:) ${DETECTED:-<detection unavailable>}" >&2
+    echo "   Only if you are deliberately overriding attribution (manual/" >&2
+    echo "   historical commits): PRAXIS_SKIP_AUTHOR_CHECK=1." >&2
     exit 1
   fi
 else

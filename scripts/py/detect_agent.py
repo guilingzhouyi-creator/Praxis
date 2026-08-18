@@ -29,6 +29,27 @@ import sys
 from pathlib import Path
 
 
+def _dsh_default_model() -> str:
+    """Read the harness default model from ~/.dsh/settings.yaml (dynamic).
+
+    The model name is NOT hardcoded here — it changes with the deployment.
+    The DSH harness persists its agent-default-model (provider/model) in
+    settings.yaml; read it live so attribution always names the CURRENT
+    model, not a stale constant.
+    """
+    dsh_home = Path(os.environ.get("DSH_HOME", "")).expanduser() or Path.home() / ".dsh"
+    cfg = dsh_home / "settings.yaml"
+    if not cfg.is_file():
+        return ""
+    try:
+        import yaml
+
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+        return ((data.get("agent-default-model") or {}).get("model") or "").strip()
+    except Exception:
+        return ""
+
+
 def _parent_chain(max_depth: int = 6) -> list[str]:
     """Walk the parent-process chain, returning process command names."""
     names: list[str] = []
@@ -83,13 +104,19 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
     # 2. DSH harness — the DeepSeek Harness injects DSH_* on every session.
     if any(k.startswith("DSH_") for k in env):
         signals.append("env:DSH_*")
-        # DSH model family: deepseek. Agent identity is the harness user.
+        # Model is read LIVE from ~/.dsh/settings.yaml (agent-default-model)
+        # — never hardcoded, so a deployment model bump propagates.
+        model = _dsh_default_model()
+        if not model:
+            # Fall back to the provider key / parent chain below rather than
+            # guessing a stale name.
+            signals.append("env:DSH_*:no-model")
         return {
             "framework": "dsh",
             "agent": "DeepSeek",
-            "model": "deepseek-v4-flash",
+            "model": model,
             "email": "noreply@deepseek.com",
-            "confidence": "high",
+            "confidence": "high" if model else "medium",
             "signals": signals,
         }
 
@@ -105,23 +132,26 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
             "signals": signals,
         }
 
-    # 4. Provider keys — last-resort provider-level attribution.
-    provider_model = None
+    # 4. Provider keys — last-resort provider-level attribution. The provider
+    #    fixes the AGENT identity; the specific model is unknown from a bare
+    #    key (the session may use any model the provider offers), so model is
+    #    left empty and the agent must not invent one.
+    provider_agent = None
     if env.get("DEEPSEEK_API_KEY"):
-        provider_model = ("DeepSeek", "deepseek", "noreply@deepseek.com")
+        provider_agent = ("DeepSeek", "noreply@deepseek.com")
         signals.append("env:DEEPSEEK_API_KEY")
     elif env.get("ANTHROPIC_API_KEY"):
-        provider_model = ("Claude", "claude", "noreply@anthropic.com")
+        provider_agent = ("Claude", "noreply@anthropic.com")
         signals.append("env:ANTHROPIC_API_KEY")
     elif env.get("OPENAI_API_KEY"):
-        provider_model = ("OpenAI", "gpt", "noreply@openai.com")
+        provider_agent = ("OpenAI", "noreply@openai.com")
         signals.append("env:OPENAI_API_KEY")
-    if provider_model:
-        agent, model, email = provider_model
+    if provider_agent:
+        agent, email = provider_agent
         return {
             "framework": "provider-key",
             "agent": agent,
-            "model": model,
+            "model": "",
             "email": email,
             "confidence": "medium",
             "signals": signals,
@@ -130,14 +160,15 @@ def detect() -> dict:  # noqa: PLR0911 — each signal tier returns its own iden
     # 5. Parent-process chain — a live agent runner is authoritative.
     chain = _parent_chain()
     chain_lower = [c.lower() for c in chain]
-    for marker, agent, model, email in (
-        ("dsh", "DeepSeek", "deepseek-v4-flash", "noreply@deepseek.com"),
-        ("opencode", "OpenCode", "opencode-model", "noreply@opencode.dev"),
-        ("claude", "Claude", "claude", "noreply@anthropic.com"),
-        ("atomcode", "AtomCode", "atomcode-model", "noreply@atomgit.com"),
+    for marker, agent, email in (
+        ("dsh", "DeepSeek", "noreply@deepseek.com"),
+        ("opencode", "OpenCode", "noreply@opencode.dev"),
+        ("claude", "Claude", "noreply@anthropic.com"),
+        ("atomcode", "AtomCode", "noreply@atomgit.com"),
     ):
         if any(marker in c for c in chain_lower):
             signals.append(f"proc:{marker}")
+            model = _dsh_default_model() if marker == "dsh" else ""
             return {
                 "framework": marker,
                 "agent": agent,
