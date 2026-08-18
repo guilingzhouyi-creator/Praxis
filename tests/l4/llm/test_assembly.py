@@ -40,10 +40,10 @@ def test_protocol_registry_set_and_get():
         reset_assembly()
 
 
-def test_cache_strategy_protocol_default_stateless():
+def test_cache_strategy_protocol_default_stateful():
     from l3.config.cache_strategy import ConfigCacheStrategy
 
-    assert ConfigCacheStrategy("openai").protocol == "stateless"
+    assert ConfigCacheStrategy("openai").protocol == "stateful"
 
 
 def test_engine_protocol_resolution_registry_first():
@@ -54,8 +54,8 @@ def test_engine_protocol_resolution_registry_first():
     try:
         engine = LLMEngine()
         engine.config = engine.config.__class__(provider="openai")
-        assert engine._get_protocol() == "stateless"  # config default
-        set_protocol("openai", "stateful")
-        assert engine._get_protocol() == "stateful"  # registry override wins
+        assert engine._get_protocol() == "stateful"  # config default
+        set_protocol("openai", "stateless")
+        assert engine._get_protocol() == "stateless"  # registry override wins
     finally:
         reset_assembly()

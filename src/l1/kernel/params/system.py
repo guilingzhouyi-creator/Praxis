@@ -201,10 +201,10 @@ MEMORY_FILTER_FINE_GRAINED_DEFAULT: Final[bool] = False
 # ── Conversation digest cache (Phase 3.1, B1) ─────────────────────────
 # Card-indexed summary buffer for folded conversation spans. Operator
 # switches (API + L2 Shell), never code-embedded:
-#   enabled   — master switch (off = folded spans are dropped, backward
-#               compatible with the plain truncation behavior)
+#   enabled   — master switch (on = folded spans are condensed into the
+#               card-indexed digest; off = legacy plain truncation)
 #   max_chars — per-digest character cap (min 64)
-DIGEST_ENABLED_DEFAULT: Final[bool] = False
+DIGEST_ENABLED_DEFAULT: Final[bool] = True
 DIGEST_MAX_CHARS_DEFAULT: Final[int] = 400
 # ── Tool-result offload cache (Phase 3.1, B2) ─────────────────────────
 # Structured per-Cell unloading of oversized tool results: the full payload

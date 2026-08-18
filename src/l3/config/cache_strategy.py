@@ -50,7 +50,7 @@ def load_cache_config(cfg: dict) -> None:
     d.setdefault("optimize_prompt", True)
     d.setdefault("forward_user_id", False)
     d.setdefault("anthropic_format", False)
-    d.setdefault("protocol", "stateless")
+    d.setdefault("protocol", "stateful")
 
 
 # ── Config-driven strategy (covers all built-in providers) ──
@@ -74,7 +74,7 @@ class ConfigCacheStrategy:
     @property
     def protocol(self) -> str:
         """Return the configured wire protocol (stateless | stateful | auto)."""
-        return str(self._opts.get("protocol", "stateless"))
+        return str(self._opts.get("protocol", "stateful"))
 
     def optimize(self, prompt: str, system: str, user_id: str = "") -> tuple[str, str, dict[str, Any]]:
         """Optimize prompt/system per provider flags; return updated prompt, system, and extra options."""

@@ -250,9 +250,12 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         # assembly factory (assemble_messages) + native message-list call;
         # stateless (default) keeps the historical per-provider splicing.
         if self._get_protocol() == "stateful" and hasattr(self._provider, "generate_with_messages"):
+            from l1.kernel.prompts import get_prompt as _gp
+
             from .assembly import assemble_messages
 
-            messages = assemble_messages(self.config.provider, prompt, system)
+            fallback = str(_gp("llm.fallback_system", "You are a helpful assistant."))
+            messages = assemble_messages(self.config.provider, prompt, system, fallback_system=fallback)
             result = self._provider.generate_with_messages(
                 messages,
                 max_tokens=mt,

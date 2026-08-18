@@ -44,7 +44,7 @@ def test_digest_switch_set_persists_and_reset_clears():
         assert get_settings().get("l3a.digest.enabled") is True
         assert get_settings().get("l3a.digest.max_chars") == 777
         reset_digest()
-        assert digest_status()["enabled"] is False
+        assert digest_status()["enabled"] is True
         assert digest_status()["max_chars"] == 400
     finally:
         reset_digest()
