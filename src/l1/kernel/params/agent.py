@@ -671,6 +671,14 @@ R4_CARD_TAG_MAX: Final[int] = 8  # max card-derived tags appended to a retrieval
 R4_CURATION_ENABLED: Final[bool] = True  # evaluate evolved skills by contribution, retire under-performers
 R4_CONTRIB_MIN_TRIALS: Final[int] = 5  # minimum injections before a contribution verdict counts
 R4_CONTRIB_MIN_RATIO: Final[float] = 0.1  # useful/injected below this → retire (with enough trials)
+# Contribution scoring precision: Wilson lower bound (confidence interval
+# floor) replaces the raw useful/injected ratio so a few small samples do
+# not flip the verdict; time decay discounts stale wins; per-dimension
+# sub-scores split by tool × card nature when enabled.
+R4_CONTRIB_WILSON_Z: Final[float] = 1.96  # 95% confidence for the Wilson lower bound
+R4_CONTRIB_DECAY_HALF_LIFE: Final[float] = 7 * 24 * 3600.0  # seconds; a win halves its weight after 7d
+R4_CONTRIB_PER_DIMENSION: Final[bool] = True  # compute sub-scores by tool × card_nature
+R4_CONTRIB_SUB_MIN_TRIALS: Final[int] = 3  # minimum trials before a dimension sub-score counts
 
 # ── CardBuilder default modes ──
 CARD_BUILDER_MODES: Final[dict[str, str]] = {

@@ -14,8 +14,12 @@ from collections.abc import Callable
 from typing import Any
 
 from l1.kernel.params.agent import (
+    R4_CONTRIB_DECAY_HALF_LIFE,
     R4_CONTRIB_MIN_RATIO,
     R4_CONTRIB_MIN_TRIALS,
+    R4_CONTRIB_PER_DIMENSION,
+    R4_CONTRIB_SUB_MIN_TRIALS,
+    R4_CONTRIB_WILSON_Z,
     R4_CURATION_ENABLED,
     R4_EVOLVED_SKILLS_DEFAULT,
     REP_TASK_FAILURE,
@@ -31,6 +35,33 @@ from l1.kernel.params.system import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _wilson_lower_bound(useful: int, injected: int, z: float = R4_CONTRIB_WILSON_Z) -> float:
+    """Wilson score lower bound — conservative success-rate estimate.
+
+    ``(p + z²/2n − z·sqrt(p(1−p)/n + z²/4n²)) / (1 + z²/n)``. For zero or
+    one observation the bound stays near 0 instead of flipping to 0.0/1.0,
+    so a single failure cannot retire a young skill and a single success
+    cannot save it.
+    """
+    if injected <= 0:
+        return 0.0
+    p = useful / injected
+    z2 = z * z
+    denom = 1.0 + z2 / injected
+    center = (p + z2 / (2 * injected)) / denom
+    margin = z * ((p * (1 - p) / injected + z2 / (4 * injected * injected)) ** 0.5) / denom
+    return max(0.0, min(1.0, center - margin))
+
+
+def _decay_weight(age_seconds: float, half_life: float = R4_CONTRIB_DECAY_HALF_LIFE) -> float:
+    """Exponential half-life decay — a win halves its weight after half_life."""
+    if age_seconds <= 0:
+        return 1.0
+    if half_life <= 0:
+        return 1.0
+    return 0.5 ** (age_seconds / half_life)
 
 
 class SkillLifecycleMixin:
@@ -309,6 +340,30 @@ class SkillLifecycleMixin:
                                 )
         return report
 
+    def _dimension_sub_scores(self, skill: dict) -> dict[str, float]:
+        """Per-dimension sub-scores (tool:<name> / card:<nature>).
+
+        Each dimension's share of all dimension bumps gets its own Wilson
+        bound × decay; dimensions below ``R4_CONTRIB_SUB_MIN_TRIALS`` are
+        excluded (too little evidence to judge). Empty when per-dimension
+        scoring is disabled or no dimension has been recorded.
+        """
+        if not R4_CONTRIB_PER_DIMENSION:
+            return {}
+        dims = skill.get("usage_by_dimension") or {}
+        total_dim = sum(int(v) or 0 for v in dims.values())
+        if total_dim <= 0:
+            return {}
+        last_used = skill.get("last_used", 0.0) or 0.0
+        loaded_at = skill.get("loaded_at", 0.0) or 0.0
+        age = (time.time() - last_used) if last_used > 0 else (time.time() - loaded_at)
+        sub: dict[str, float] = {}
+        for dim_key, dim_count in dims.items():
+            dim_count = int(dim_count) or 0
+            if dim_count >= R4_CONTRIB_SUB_MIN_TRIALS:
+                sub[dim_key] = _wilson_lower_bound(dim_count, total_dim) * _decay_weight(age)
+        return sub
+
     def _curate_skills(self) -> int:
         """Evaluate evolved skills by contribution and enforce the library cap.
 
@@ -339,13 +394,21 @@ class SkillLifecycleMixin:
                 continue
             useful = s.get("useful_count", 0) or 0
             injected = s.get("inject_count", 0) or 0
-            contrib = useful / max(injected, 1)
+            # Precision: Wilson lower bound (confidence floor) replaces the
+            # raw useful/injected ratio; time decay discounts stale wins so
+            # a skill's score reflects recent usefulness, not lifetime wins.
+            last_used = s.get("last_used", 0.0) or 0.0
+            loaded_at = s.get("loaded_at", 0.0) or 0.0
+            age = (time.time() - last_used) if last_used > 0 else (time.time() - loaded_at)
+            contrib = _wilson_lower_bound(useful, injected) * _decay_weight(age)
+            contrib_by_dimension = self._dimension_sub_scores(s)
             evolved.append(
                 {
                     "name": s["name"],
                     "useful": useful,
                     "injected": injected,
                     "contrib": contrib,
+                    "contrib_by_dimension": contrib_by_dimension,
                     "record": s,
                 }
             )
