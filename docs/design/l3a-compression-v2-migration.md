@@ -1,6 +1,6 @@
 # L3A 上下文压缩子系统 v2 迁移计划（3.1 补充缺口）
 
-> 状态：**G1–G7 全落地**（Phase 1/2/5 完成，7 提交）；Phase 3/4 迁移切换+移除为部署动作（见 §10）
+> 状态：**G1–G7 全落地 + Phase 3 迁移切换完成**（digest 默认 on / protocol 默认 stateful，8 提交）；Phase 4 移除老路径保留为安全降级（见 §10）
 > 分支：`feature/l3a-compression-migration`（worktree `/home/guiling/dev/praxis-compression`）
 > 关联：`docs/architecture/l3-memory.md`、`docs/architecture/l3a-central.md`、`docs/architecture/perf-baseline.md`
 
@@ -67,7 +67,7 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 
 ## 5. Compatibility boundary（兼容边界）
 
-- 默认开关**不变**：digest off / offload on / sensitive on / recursion 0(off) / breaker on
+- 默认开关（迁移切换后）：digest **on** / offload on / sensitive on（action=report）/ recursion 0(off) / breaker on / protocol **stateful**
 - 老路径在 Phase 3 验证前**不动**；新路径经配置门控引入，默认走老行为
 - API（`/api/v2/memory/{digest,tool-result,sensitive,compression-guard}`）与 L2（`/memory *`）开关面**不变**
 - 导入方向不变（L3→L2→L1，测试 `test_layer_imports.py` 守护）
@@ -131,9 +131,7 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 
 ## 10. 迁移切换 + 移除老路径（部署动作，非代码强翻）
 
-七缺口（G1–G7）已全部实现并验证（320+ tests + 压缩比基准 3.76x），新架构以配置门控方式与老路径共存（过渡态），默认值分毫未变——满足"不破坏现有行为"。
-
-"迁移切换 + 移除"是绞杀者迁移的终态部署动作，按 D4 parity 门控，不在 feature 分支强行翻转默认：
+七缺口（G1–G7）已全部实现并验证（320+ tests + 压缩比基准 3.76x）。**迁移切换已在 feature 分支完成**（`3a22c02`）：digest 默认 ON、protocol 默认 stateful，均经 340 tests 验证。剩余"移除老路径"按 D4 parity 门控，保留为安全降级路径、不作字面删除（否则破坏"digest off / protocol stateless"显式配置）：
 
 1. **迁移切换（config flip，operator 执行）**
    - `llm.cache.<provider>.protocol: stateful` — 对有 `generate_with_messages` 的 provider 切到有状态原生 messages
