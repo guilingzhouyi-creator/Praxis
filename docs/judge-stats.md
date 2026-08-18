@@ -1,8 +1,8 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 131 | **COMPLETE**: 8 (6%) | **PARTIAL**: 18 (14%, fast mode — checks skipped) | **INCOMPLETE**: 105 (80%, machine 'not done')
-**Mode split**: full 34 / fast 97 (fast = at least one check skipped)
-**Duration** (full runs): avg 502s / P95 1015s (34 runs) — fast runs: avg 28s / P95 119s (97 runs)
+**Runs**: 135 | **COMPLETE**: 9 (7%) | **PARTIAL**: 18 (13%, fast mode — checks skipped) | **INCOMPLETE**: 108 (80%, machine 'not done')
+**Mode split**: full 37 / fast 98 (fast = at least one check skipped)
+**Duration** (full runs): avg 511s / P95 1015s (37 runs) — fast runs: avg 27s / P95 119s (98 runs)
 **Longest INCOMPLETE streak**: 29 consecutive
 
 | Date | Runs | Complete | Rate |
@@ -11,12 +11,12 @@
 | 2026-08-15 | 10 | 0 | 0% |
 | 2026-08-16 | 38 | 5 | 13% |
 | 2026-08-17 | 45 | 0 | 0% |
-| 2026-08-18 | 17 | 3 | 18% |
+| 2026-08-18 | 21 | 4 | 19% |
 
 **Failures by check** (most frequent evidence gaps):
-- `changelog`: 90 (86% of incomplete)
-- `delta`: 50 (48% of incomplete)
-- `docs`: 35 (33% of incomplete)
+- `changelog`: 93 (86% of incomplete)
+- `delta`: 50 (46% of incomplete)
+- `docs`: 36 (33% of incomplete)
 - `lint`: 32 (30% of incomplete)
 - `singleton`: 15 (14% of incomplete)
 - `tests`: 15 (14% of incomplete)
@@ -27,13 +27,14 @@
 - `audit`: 5 (5% of incomplete)
 
 **Completion rate by branch** (weak-link detection):
-- `main`: 4/92 (4%)
+- `main`: 4/93 (4%)
 - `feature/test-matrix-prebuild`: 0/7 (0%)
 - `feature/root-kernel-preflight`: 2/5 (40%)
 - `feature/perf-hotpath`: 1/4 (25%)
 - `feature/judge-verdict-mode`: 1/4 (25%)
 - `feature/test-runner-slicing`: 0/4 (0%)
 - `feature/l3a-fidelity`: 0/4 (0%)
+- `feature/l3a-compression-migration`: 1/3 (33%)
 - `fix/runner-hang`: 0/2 (0%)
 - `feature/test-opt`: 0/2 (0%)
 - `feature/test-opt-sweep`: 0/2 (0%)
@@ -42,30 +43,30 @@
 - `feature/ci-bench-smoke`: 0/1 (0%)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 123/128 (96%)
-- `changelog`: 39/129 (30%)
-- `complex`: 117/128 (91%)
-- `coverage`: 22/34 (65%)
-- `cycle`: 117/128 (91%)
-- `delta`: 78/128 (61%)
-- `docs`: 96/131 (73%)
-- `index`: 117/128 (91%)
-- `lint`: 99/131 (76%)
-- `singleton`: 113/128 (88%)
-- `tests`: 21/36 (58%)
+- `audit`: 127/132 (96%)
+- `changelog`: 40/133 (30%)
+- `complex`: 121/132 (92%)
+- `coverage`: 25/37 (68%)
+- `cycle`: 121/132 (92%)
+- `delta`: 82/132 (62%)
+- `docs`: 99/135 (73%)
+- `index`: 121/132 (92%)
+- `lint`: 103/135 (76%)
+- `singleton`: 117/132 (89%)
+- `tests`: 24/39 (62%)
 
 **Failure pairs** (checks failing together):
 - `changelog + delta`: 45
-- `changelog + docs`: 28
+- `changelog + docs`: 29
 - `changelog + lint`: 27
 - `docs + lint`: 18
 - `delta + lint`: 17
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
-- `coverage_pct`: 68.0 / 64.32 / 0.0 / 68.0
-- `mega_funcs`: 2.0 / 18.21 / 0.0 / 211.0
-- `net_delta`: 0.0 / 305.89 / -4.0 / 3828.0
+- `coverage_pct`: 67.0 / 64.58 / 0.0 / 68.0
+- `mega_funcs`: 2.0 / 17.66 / 0.0 / 211.0
+- `net_delta`: 1009.0 / 316.55 / -4.0 / 3828.0
 - `ruff_errors`: 2.0 / 2.0 / 2.0 / 2.0
 - `tests_failed`: 1.0 / 1.09 / 1.0 / 2.0
-- `tests_passed`: 4809.0 / 4700.13 / 4583.0 / 4809.0
+- `tests_passed`: 4799.0 / 4708.85 / 4583.0 / 4809.0
