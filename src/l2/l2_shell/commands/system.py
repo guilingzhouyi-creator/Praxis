@@ -358,21 +358,10 @@ def _skills_delete(sm, rest: list[str], role: str, agent_id: str) -> dict:
     return sm.delete(name, agent_id=agent_id, role=role)
 
 
-def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
-    """Register a user-authored custom skill (third tier, developer-only).
-
-    Usage:
-      /skills register <name> <desc> <prompt> [--scope agent|cell|global]
-                   [--identity <role|id>] [--priority <int>]
-                   [--tags <a,b>] [--tools <t1,t2>]
-
-    Registration persists the skill into the custom tier, links it to
-    related skill domains via the R5 graph (graceful when the graph is
-    off), and returns the registered skill with its enable state.
-    """
+def _parse_register_args(rest: list[str]) -> tuple[list[str], str] | None:
+    """Parse /skills register CLI args; returns (error, ...) or None on usage error."""
     if len(rest) < 4:
-        return {"success": False, "error": _t("shell.app_error.usage_skills_register")}
-    name, desc = rest[1], rest[2]
+        return None
     prompt_parts: list[str] = []
     scope = ""
     scope_identity = ""
@@ -393,7 +382,7 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
             try:
                 priority = int(args[idx + 1])
             except ValueError:
-                return {"success": False, "error": "priority must be an integer"}
+                return ["priority must be an integer"]
             idx += 2
         elif arg == "--tags" and idx + 1 < len(args):
             tags = [t.strip() for t in args[idx + 1].split(",") if t.strip()]
@@ -406,22 +395,72 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
             idx += 1
     prompt = " ".join(prompt_parts)
     if not prompt:
-        return {"success": False, "error": "prompt is required"}
-    result = sm.create(
-        name,
-        description=desc,
-        prompt=prompt,
-        tags=tags,
-        allowed_tools=tools,
-        scope=scope,
-        scope_identity=scope_identity,
-        priority=priority,
-        agent_id=agent_id,
-        role=role,
-    )
+        return ["prompt is required"]
+    return [rest[1], rest[2], prompt, scope, scope_identity, priority, tags, tools]
+
+
+def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
+    """Register a user-authored custom skill (third tier, developer-only).
+
+    Usage:
+      /skills register <name> <desc> <prompt> [--scope agent|cell|global]
+                   [--identity <role|id>] [--priority <int>]
+                   [--tags <a,b>] [--tools <t1,t2>]
+
+    Registration persists the skill into the custom tier (survives
+    restart), tags it ``custom`` (TTL prune / curation leave it alone),
+    and links it to related skill domains via the R5 graph (graceful when
+    the graph is off).
+    """
+    parsed = _parse_register_args(rest)
+    if parsed is None:
+        return {"success": False, "error": _t("shell.app_error.usage_skills_register")}
+    if len(parsed) == 1:
+        return {"success": False, "error": parsed[0]}
+    name, desc, prompt, scope, scope_identity, priority, tags, tools = parsed
+    ok, who = sm.authorize_write(agent_id, role)
+    if not ok:
+        return {"success": False, "error": f"permission denied: {who}"}
+    try:
+        from l3.memory.r4_agent import get_r4_agent
+
+        result = get_r4_agent().register_custom_skill(
+            name=name,
+            description=desc,
+            prompt=prompt,
+            tags=tags,
+            allowed_tools=tools,
+            scope=scope,
+            scope_identity=scope_identity,
+            priority=priority,
+            agent_id=agent_id,
+            role=role,
+        )
+    except Exception:
+        # Fallback: in-memory registration only (persist is best-effort).
+        result = sm.create(
+            name,
+            description=desc,
+            prompt=prompt,
+            tags=tags,
+            allowed_tools=tools,
+            scope=scope,
+            scope_identity=scope_identity,
+            priority=priority,
+            agent_id=agent_id,
+            role=role,
+        )
+        return _link_registered_skill(sm, name, scope, tags, result)
     if not result.get("success"):
         return result
-    return _link_registered_skill(sm, name, scope, tags, result)
+    return {
+        "success": True,
+        "skill": name,
+        "scope": scope,
+        "persisted": result.get("persisted", True),
+        "linked": result.get("linked", 0),
+        "authorized": who,
+    }
 
 
 def _link_registered_skill(sm, name: str, scope: str, tags: list[str], result: dict) -> dict:

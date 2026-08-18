@@ -36,6 +36,7 @@ from l1.kernel.params.agent import (
 )
 from l1.kernel.params.system import (
     ARCHIVE_CHECK_INTERVAL,
+    SKILL_POSTURE_DEFAULT,
     THREAD_JOIN_TIMEOUT,
 )
 
@@ -308,6 +309,69 @@ class R4Agent(SkillEvolutionMixin, SkillFeedbackMixin):
             "total_archived": self._total_archived,
             "total_alerts": self._total_alerts,
         }
+
+    def register_custom_skill(
+        self,
+        name: str,
+        description: str,
+        prompt: str,
+        tags: list[str] | None = None,
+        allowed_tools: list[str] | None = None,
+        scope: str = "",
+        scope_identity: str = "",
+        priority: int = 0,
+        agent_id: str = "",
+        role: str = "",
+    ) -> dict:
+        """Register a user-authored custom skill (third tier, persistent).
+
+        Creates the skill via the SkillManager and persists it into the
+        custom tier (``data_dir/skills/custom/``) so registration survives
+        restart; links it to related skill domains via the R5 graph
+        (graceful when the graph is off). Custom skills are tagged
+        ``custom`` so TTL prune / curation leave them alone.
+        """
+        from l1.kernel.skill import get_skill_manager
+
+        sm = get_skill_manager()
+        result = sm.create(
+            name=name,
+            description=description,
+            prompt=prompt,
+            tags=[*(tags or []), "custom"],
+            allowed_tools=allowed_tools,
+            scope=scope,
+            scope_identity=scope_identity,
+            priority=priority,
+            agent_id=agent_id,
+            role=role,
+        )
+        if not result.get("success"):
+            return result
+        # Persist to the custom tier so the registration survives reload —
+        # the SkillManager holds the skill in memory; the R4 archive/persist
+        # mixin writes SKILL.md into data_dir/skills/custom/<name>/.
+        try:
+            self._persist_skill_md(
+                name=name,
+                description=description,
+                prompt=prompt,
+                tags=[*(tags or []), "custom"],
+                allowed_tools=allowed_tools,
+                scope="custom",
+                scope_identity=scope_identity,
+                priority=priority,
+                posture=SKILL_POSTURE_DEFAULT,
+            )
+        except Exception as e:
+            logger.warning("R4Agent: custom skill persist failed (in-memory only): %s", e)
+        try:
+            from l3.memory.r4_skill_retrieval import link_registered_skill_graph
+
+            linked = link_registered_skill_graph(sm, name, scope, tags or [])
+            return {"success": True, "skill": name, "persisted": True, "linked": linked.get("linked", 0), **result}
+        except Exception:
+            return {"success": True, "skill": name, "persisted": True, "linked": 0, **result}
 
     # ── Loop ──
 

@@ -60,8 +60,8 @@ class SkillLifecycleMixin:
         pruned = 0
         for s in sm.list_skills(tags=["evolved"], sort_by="loaded_at"):
             tags = s.get("tags", [])
-            # Skip lean cases and built-in skills
-            if "lean_case" in tags or "builtin" in tags:
+            # Skip lean cases, built-in and user-custom skills
+            if "lean_case" in tags or "builtin" in tags or "custom" in tags:
                 continue
             name = s["name"]
             loaded_at = s.get("loaded_at", 0.0)
@@ -335,7 +335,7 @@ class SkillLifecycleMixin:
         evolved: list[dict] = []
         for s in sm.list_skills(tags=["evolved"], sort_by="loaded_at"):
             tags = s.get("tags", [])
-            if "lean_case" in tags or "builtin" in tags:
+            if "lean_case" in tags or "builtin" in tags or "custom" in tags:
                 continue
             useful = s.get("useful_count", 0) or 0
             injected = s.get("inject_count", 0) or 0
