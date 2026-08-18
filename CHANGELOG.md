@@ -8,6 +8,8 @@
 ### 文档
 
 - **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh L2 shell line counts after terminal format fix
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (stats)**: refresh judge dashboard
