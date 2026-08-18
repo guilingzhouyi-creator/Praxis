@@ -222,6 +222,10 @@ TOOL_RESULT_READBACK_MAX_CHARS: Final[int] = 12_000
 # keys, bearer tokens, private keys, IP literals). Operator switch
 # (API + L2 Shell); default ON — a baseline guard on the compression path.
 SENSITIVE_DETECT_ENABLED_DEFAULT: Final[bool] = True
+# Sensitive-info action policy (3.1, G6): report | redact | block. Default
+# report keeps the historical report-only behavior; redact masks hits in the
+# folded text; block refuses the fold when hits are present.
+SENSITIVE_DETECT_ACTION_DEFAULT: Final[str] = "report"
 # ── Recursive-compression threshold + circuit breaker (Phase 3.1, B6) ──
 # Recursive compression is DISABLED by default (threshold 0 = off): when
 # enabled and a session's compression depth reaches the threshold, the

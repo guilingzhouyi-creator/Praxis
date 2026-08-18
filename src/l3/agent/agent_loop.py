@@ -322,15 +322,20 @@ class AgentLoop(AgentLoopGuardMixin, AgentLoopContextMixin, AgentLoopRunMixin):
                 # (session_compress already scans its own fold).
                 if digest:
                     try:
-                        from l3.agent.sensitive_detect import scan_text
+                        from l3.agent.sensitive_detect import redact_text, scan_text, sensitive_action
 
+                        action = sensitive_action()
                         hits = scan_text(digest)
                         if hits:
                             logger.warning(
                                 "agent_loop: sensitive content in digest span (%s) — %s",
                                 card_idx,
-                                ", ".join(h.get("type", "?") for h in hits),
+                                ", ".join(h.get("kind", "?") for h in hits),
                             )
+                            if action == "block":
+                                digest = ""  # refuse to cache the digest
+                            elif action == "redact":
+                                digest = redact_text(digest)
                     except Exception:
                         logger.debug("agent_loop: digest sensitive scan skipped", exc_info=True)
                 summary = digest or "[HISTORY TRUNCATED] (digest buffer unavailable)"

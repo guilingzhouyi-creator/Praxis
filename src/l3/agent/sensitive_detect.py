@@ -21,16 +21,17 @@ import re
 import threading
 from typing import Any
 
-from l1.kernel.params.system import SENSITIVE_DETECT_ENABLED_DEFAULT
+from l1.kernel.params.system import SENSITIVE_DETECT_ACTION_DEFAULT, SENSITIVE_DETECT_ENABLED_DEFAULT
 
 logger = logging.getLogger(__name__)
 
-_state: dict[str, Any] = {"enabled": SENSITIVE_DETECT_ENABLED_DEFAULT}
+_state: dict[str, Any] = {"enabled": SENSITIVE_DETECT_ENABLED_DEFAULT, "action": SENSITIVE_DETECT_ACTION_DEFAULT}
 _hydrated = False
 _lock = threading.RLock()
 
-# Config-file driven operator switch (l1.kernel.settings → SettingsCenter).
+# Config-file driven operator switches (l1.kernel.settings → SettingsCenter).
 _SWITCH_ENABLED = "l3a.sensitive.enabled"
+_SWITCH_ACTION = "l3a.sensitive.action"
 
 
 def _hydrate() -> None:
@@ -45,19 +46,24 @@ def _hydrate() -> None:
             from l1.kernel.settings import get_settings
 
             _state["enabled"] = bool(get_settings().get(_SWITCH_ENABLED, SENSITIVE_DETECT_ENABLED_DEFAULT))
+            _state["action"] = str(get_settings().get(_SWITCH_ACTION, SENSITIVE_DETECT_ACTION_DEFAULT))
         except Exception:
             logger.debug("sensitive_detect: settings hydrate skipped", exc_info=True)
         _hydrated = True
 
 
-def _persist(enabled: bool | None = None) -> None:
-    """Persist the switch override to SettingsCenter (best-effort)."""
-    if enabled is None:
+def _persist(enabled: bool | None = None, action: str | None = None) -> None:
+    """Persist switch overrides to SettingsCenter (best-effort)."""
+    if enabled is None and action is None:
         return
     try:
         from l1.kernel.settings import get_settings
 
-        get_settings().set(_SWITCH_ENABLED, bool(enabled))
+        s = get_settings()
+        if enabled is not None:
+            s.set(_SWITCH_ENABLED, bool(enabled))
+        if action is not None:
+            s.set(_SWITCH_ACTION, str(action))
     except Exception:
         logger.debug("sensitive_detect: settings persist skipped", exc_info=True)
 
@@ -73,40 +79,49 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 
 def sensitive_status() -> dict:
-    """Return the sensitive-detection switch state."""
+    """Return the sensitive-detection switch + action state."""
     _hydrate()
     with _lock:
-        return {"enabled": bool(_state["enabled"])}
+        return {"enabled": bool(_state["enabled"]), "action": str(_state["action"])}
 
 
-def set_sensitive_switches(enabled: bool | None = None) -> dict:
-    """Set the sensitive-detection operator switch.
+def set_sensitive_switches(enabled: bool | None = None, action: str | None = None) -> dict:
+    """Set the sensitive-detection operator switch + action policy.
 
     Args:
         enabled: master switch (None = keep current).
+        action: policy when hits are found — report | redact | block
+            (None = keep current).
 
     Returns:
         dict with success flag and the effective switch.
     """
     _hydrate()
     final_enabled = bool(enabled) if enabled is not None else None
+    final_action = str(action) if action is not None else None
+    if final_action is not None and final_action not in ("report", "redact", "block"):
+        return {"success": False, "error": "action must be one of: report, redact, block", **sensitive_status()}
     with _lock:
         if final_enabled is not None:
             _state["enabled"] = final_enabled
-    _persist(enabled=final_enabled)
+        if final_action is not None:
+            _state["action"] = final_action
+    _persist(enabled=final_enabled, action=final_action)
     return {"success": True, **sensitive_status()}
 
 
 def reset_sensitive() -> None:
-    """Reset the sensitive-detection switch (tests / lifecycle)."""
+    """Reset the sensitive-detection switch + action (tests / lifecycle)."""
     global _hydrated
     with _lock:
         _state["enabled"] = SENSITIVE_DETECT_ENABLED_DEFAULT
+        _state["action"] = SENSITIVE_DETECT_ACTION_DEFAULT
         _hydrated = False
     try:
         from l1.kernel.settings import get_settings
 
         get_settings().reset(_SWITCH_ENABLED)
+        get_settings().reset(_SWITCH_ACTION)
     except Exception:
         logger.debug("sensitive_detect: settings reset skipped", exc_info=True)
 
@@ -138,3 +153,32 @@ def scan_text(text: str) -> list[dict[str, str]]:
     except Exception as e:  # pragma: no cover - defensive at the boundary
         logger.debug("sensitive_detect: scan skipped: %s", e)
         return []
+
+
+def sensitive_action() -> str:
+    """Return the current sensitive-info action policy (report/redact/block)."""
+    _hydrate()
+    with _lock:
+        return str(_state["action"])
+
+
+def redact_text(text: str) -> str:
+    """Mask sensitive matches in text, returning the redacted string.
+
+    Read-only on the switch state; a disabled scanner or missing text
+    returns the input unchanged. Masks ALL matches (not the 16-hit report
+    cap) so no secret survives a redact pass.
+    """
+    _hydrate()
+    with _lock:
+        enabled = bool(_state["enabled"])
+    if not enabled or not text:
+        return str(text)
+    redacted = str(text)
+    try:
+        for kind, pattern in _PATTERNS:
+            redacted = pattern.sub(lambda m, k=kind: f"[REDACTED:{k}]", redacted)
+        return redacted
+    except Exception as e:  # pragma: no cover - defensive at the boundary
+        logger.debug("sensitive_detect: redact skipped: %s", e)
+        return str(text)

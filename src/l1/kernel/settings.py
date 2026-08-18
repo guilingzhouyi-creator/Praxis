@@ -19,6 +19,7 @@ from l1.kernel.params.system import (
     COMPRESSION_RECURSION_THRESHOLD_DEFAULT,
     DIGEST_ENABLED_DEFAULT,
     DIGEST_MAX_CHARS_DEFAULT,
+    SENSITIVE_DETECT_ACTION_DEFAULT,
     SENSITIVE_DETECT_ENABLED_DEFAULT,
     TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT,
     TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT,
@@ -71,6 +72,7 @@ DEFAULTS: dict[str, Any] = {
     "l3a.tool_result.enabled": TOOL_RESULT_OFFLOAD_ENABLED_DEFAULT,
     "l3a.tool_result.max_chars": TOOL_RESULT_OFFLOAD_MAX_CHARS_DEFAULT,
     "l3a.sensitive.enabled": SENSITIVE_DETECT_ENABLED_DEFAULT,
+    "l3a.sensitive.action": SENSITIVE_DETECT_ACTION_DEFAULT,
     "l3a.compression_guard.recursion_threshold": COMPRESSION_RECURSION_THRESHOLD_DEFAULT,
     "l3a.compression_guard.breaker_enabled": COMPRESSION_BREAKER_ENABLED_DEFAULT,
     # CI review (card-triggered automation) — mirrors praxis.yaml `ci:` section.
