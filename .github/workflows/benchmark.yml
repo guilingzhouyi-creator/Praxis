@@ -199,3 +199,34 @@ jobs:
           git add tests/benchmarks/bench_platform_baseline.json
           git commit -m "chore(bench): update platform baseline [skip ci]" || echo "baseline unchanged"
           echo "platform baseline committed locally on GitHub; sync to origin via a signed commit."
+
+  bench-extra:
+    # Smoke gate for the unowned benchmark scripts (L2 protocol, R4 candidate
+    # store, kernel scaling, security toolchain): none carries a test_ prefix
+    # (pytest never collects them) and the regression jobs above only run
+    # bench_card + bench_platform, so an API break would rot silently with
+    # main staying green. This job proves they still run (exit 0) on a
+    # reduced work set; there are no baselines and no regression gates here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[test]"
+        timeout-minutes: 5
+      - name: L2 protocol benchmark (smoke)
+        run: python tests/benchmarks/bench_l2_protocol.py --iterations 200
+        timeout-minutes: 5
+      - name: R4 candidate store benchmark (smoke)
+        run: python tests/benchmarks/bench_r4_candidate_store.py --records 500 --rounds 1
+        timeout-minutes: 5
+      - name: Kernel scaling benchmark (smoke)
+        run: python tests/benchmarks/bench_scale.py --mode amdahl --agents 1,2 --rounds 1
+        timeout-minutes: 5
+      - name: Security toolchain benchmark (smoke)
+        run: python tests/benchmarks/bench_security_toolchain.py --iterations 20 --rounds 1
+        timeout-minutes: 5
