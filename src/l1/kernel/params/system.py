@@ -276,6 +276,28 @@ ENGINEERING_DEBUG_INPUT_ENABLED_DEFAULT: Final[bool] = False
 ENGINEERING_DEBUG_INPUT_CONTENT_DEFAULT: Final[bool] = False
 ENGINEERING_DEBUG_MARKER_RECHECK_INTERVAL: Final[float] = 2.0
 ENGINEERING_DEBUG_PROMPT_MAX_CHARS: Final[int] = 12000
+# Component logger prefixes raised to DEBUG while verbose engineering debug
+# is active (the root logger level is switched too). Data-driven: adding a
+# component here (or via praxis.yaml settings) extends the linkage without
+# touching code. Restored to their prior levels on mode exit.
+ENGINEERING_DEBUG_LOGGING_COMPONENTS: Final[tuple[str, ...]] = (
+    "l3.cell.peers.l3a",
+    "l3.agent",
+    "l3.tool_system",
+    "l3.config",
+    "l4.llm",
+    "l1.kernel",
+)
+# ── Prefix-cache dynamic adaptation (3.1, P1-3) ────────────────────────
+# Runtime provider-probe capability keys understood by the cache-strategy
+# refresh loop: a probe reporting one of these keys refreshes the
+# per-provider strategy idempotently (fingerprint-compared) without any
+# Python code change. Pure data contract — TS-equivalent portable.
+CACHE_CAP_PREFIX_CACHE: Final[str] = "supports_prefix_cache"
+CACHE_CAP_STATEFUL: Final[str] = "supports_stateful"
+CACHE_CAP_USER_ID: Final[str] = "supports_user_id"
+# Master switch for the runtime refresh loop (off = boot-time YAML only).
+CACHE_STRATEGY_REFRESH_ENABLED_DEFAULT: Final[bool] = True
 # ── Memory re-refine (Phase 3, M2 "burn-back"/re-refine) ─────────────────
 # Edge-quality entries dropped by clean() are burned back into the pipeline
 # (re-refined) instead of lost: a small boost is applied on re-score so

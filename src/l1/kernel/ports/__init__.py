@@ -41,6 +41,7 @@ from l1.kernel.ports.service import (
     AuthPort,
     FilesystemPort,
     InputActivityPort,
+    InputSourcePort,
     RpcServerPort,
     WebSocketPort,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "FsStoragePort",
     "InputActivityPort",
     "InputActivitySnapshot",
+    "InputSourcePort",
     "KernelSchedulerPort",
     "LockPort",
     "Message",

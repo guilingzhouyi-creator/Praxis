@@ -144,3 +144,55 @@ def test_refresh_rechecks_marker_within_cache_window(tmp_path):
 def test_ports_reset_is_available_for_new_input_boundary():
     """The shared port registry remains resettable after the new contract."""
     reset_ports()
+
+
+def test_verbose_logging_raises_root_and_components(tmp_path):
+    """P2-1: on→root + component loggers DEBUG; off→prior levels restored."""
+    import logging
+
+    from l1.kernel.params.system import ENGINEERING_DEBUG_LOGGING_COMPONENTS
+    from l3.config.settings_center import get_center
+    from l3.tool_system.engineering_debug import get_engineering_debug, reset_engineering_debug
+
+    _configure_marker(tmp_path, present=True)
+    center = get_center()
+    center.set_l2("engineering_debug.verbose_logging", True)
+    mgr = get_engineering_debug()
+    prev_root = logging.getLogger().level
+    try:
+        assert mgr.status()["engineering"] is True
+        assert logging.getLogger().level == logging.DEBUG
+        assert mgr.status()["logging"]["level"] == "DEBUG"
+        for prefix in ENGINEERING_DEBUG_LOGGING_COMPONENTS:
+            assert logging.getLogger(prefix).level == logging.DEBUG
+
+        center.set_l2("engineering_debug.mode", "off")
+        assert mgr.refresh()["engineering"] is False
+        assert logging.getLogger().level == prev_root
+        assert mgr.status()["logging"]["level"] == "configured"
+        for prefix in ENGINEERING_DEBUG_LOGGING_COMPONENTS:
+            assert logging.getLogger(prefix).level != logging.DEBUG
+    finally:
+        reset_engineering_debug()
+        logging.getLogger().setLevel(prev_root)
+
+
+def test_verbose_logging_off_keeps_production_level(tmp_path):
+    """Without verbose logging, the root logger level is untouched."""
+    import logging
+
+    from l3.config.settings_center import get_center
+    from l3.tool_system.engineering_debug import get_engineering_debug, reset_engineering_debug
+
+    _configure_marker(tmp_path, present=True)
+    center = get_center()
+    center.set_l2("engineering_debug.verbose_logging", False)
+    mgr = get_engineering_debug()
+    prev_root = logging.getLogger().level
+    try:
+        assert mgr.status()["engineering"] is True
+        assert logging.getLogger().level == prev_root
+        assert mgr.status()["logging"]["level"] == "configured"
+    finally:
+        reset_engineering_debug()
+        logging.getLogger().setLevel(prev_root)

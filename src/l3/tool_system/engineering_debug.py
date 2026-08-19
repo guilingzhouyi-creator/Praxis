@@ -10,6 +10,7 @@ from typing import Any
 
 from l1.kernel.params.system import (
     ENGINEERING_DEBUG_INPUT_ENABLED_DEFAULT,
+    ENGINEERING_DEBUG_LOGGING_COMPONENTS,
     ENGINEERING_DEBUG_MARKER_FILE_DEFAULT,
     ENGINEERING_DEBUG_MARKER_RECHECK_INTERVAL,
     ENGINEERING_DEBUG_MARKER_REQUIRED_DEFAULT,
@@ -52,6 +53,7 @@ class EngineeringDebugManager:
         self._effective_mode = PRODUCTION_MODE
         self._previous_root_level: int | None = None
         self._debug_logging = False
+        self._component_levels: dict[str, int] = {}
         self._prompt_overrides_loaded = False
         self._prompt_baseline: dict[str, str | None] = {}
         self._effects_signature: tuple[bool, bool, bool] | None = None
@@ -137,6 +139,39 @@ class EngineeringDebugManager:
         if previous != effective:
             self._emit_transition(previous, effective, requested, present, str(path))
 
+    def _apply_logging(self, target_debug: bool) -> None:
+        """Set or restore root + component logger levels for verbose debug.
+
+        P2-1: on → the root logger AND every component in
+        ENGINEERING_DEBUG_LOGGING_COMPONENTS (data-driven, params/system.py)
+        are raised to DEBUG; off → their previous levels are restored.
+        Captured levels are stored on the way in so restoration is exact.
+        """
+        with self._lock:
+            if target_debug and not self._debug_logging:
+                root = logging.getLogger()
+                self._previous_root_level = root.level
+                root.setLevel(logging.DEBUG)
+                for prefix in ENGINEERING_DEBUG_LOGGING_COMPONENTS:
+                    component = logging.getLogger(prefix)
+                    self._component_levels.setdefault(prefix, component.level)
+                    component.setLevel(logging.DEBUG)
+                self._debug_logging = True
+                logger.info(
+                    "engineering_debug: verbose logging on — root + %d components at DEBUG",
+                    len(self._component_levels),
+                )
+            elif not target_debug and self._debug_logging:
+                root = logging.getLogger()
+                if self._previous_root_level is not None:
+                    root.setLevel(self._previous_root_level)
+                self._previous_root_level = None
+                for prefix, level in self._component_levels.items():
+                    logging.getLogger(prefix).setLevel(level)
+                self._component_levels.clear()
+                self._debug_logging = False
+                logger.info("engineering_debug: verbose logging off — production levels restored")
+
     def _apply_effects(self, enabled: bool) -> None:
         """Apply debug-only observability switches without touching execution gates."""
         verbose = _coerce_bool(
@@ -157,17 +192,7 @@ class EngineeringDebugManager:
             if signature == self._effects_signature:
                 return
             self._effects_signature = signature
-            if target_debug and not self._debug_logging:
-                root = logging.getLogger()
-                self._previous_root_level = root.level
-                root.setLevel(logging.DEBUG)
-                self._debug_logging = True
-            elif not target_debug and self._debug_logging:
-                root = logging.getLogger()
-                if self._previous_root_level is not None:
-                    root.setLevel(self._previous_root_level)
-                self._previous_root_level = None
-                self._debug_logging = False
+            self._apply_logging(target_debug)
         try:
             from l3.agent.prompt_monitor import set_prompt_monitor
 
@@ -189,6 +214,7 @@ class EngineeringDebugManager:
             "requested": requested,
             "marker_present": marker,
             "marker_path": path,
+            "log_level": "DEBUG" if self._debug_logging else "configured",
             "source": "engineering_debug",
         }
         try:
@@ -281,7 +307,11 @@ class EngineeringDebugManager:
                 self._setting("engineering_debug.marker_required", ENGINEERING_DEBUG_MARKER_REQUIRED_DEFAULT),
                 ENGINEERING_DEBUG_MARKER_REQUIRED_DEFAULT,
             ),
-            "logging": {"verbose": debug_logging, "level": "DEBUG" if debug_logging else "configured"},
+            "logging": {
+                "verbose": debug_logging,
+                "level": "DEBUG" if debug_logging else "configured",
+                "components": len(self._component_levels) if debug_logging else 0,
+            },
             "prompt_monitor": prompt_monitor,
             "input_monitor": {
                 "enabled": current == ENGINEERING_MODE

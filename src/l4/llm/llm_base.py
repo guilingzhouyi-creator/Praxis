@@ -69,6 +69,23 @@ class LLMProvider(ABC):
     ) -> dict:
         """Generate a response from the LLM. Must be implemented by subclasses."""
 
+    def generate_with_messages(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        max_tokens: int = LLM_PROVIDER_MAX_TOKENS,
+        user_id: str = "",
+        cache_retention: float = 0,
+    ) -> dict:
+        """Generate from a full message list (stateful wire protocol).
+
+        Optional capability — providers that do not implement message-list
+        generation leave this default, which raises NotImplementedError so
+        the engine's ``hasattr`` capability check degrades to the stateless
+        wire path. Override to enable the stateful protocol for a provider.
+        """
+        raise NotImplementedError("generate_with_messages not supported by this provider")
+
     def embed(self, texts: list[str]) -> dict:
         """Embed a list of texts into vectors.
 

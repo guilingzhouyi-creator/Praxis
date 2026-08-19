@@ -160,6 +160,45 @@ def prompt_monitor_stats() -> dict:
     }
 
 
+def _prompt_records(limit: int = 0) -> list:
+    """Return recent prompt_metrics RC records for RecordCenter query/export.
+
+    P2-3: the RC ``prompt_metrics`` events are the durable store; RecordCenter
+    folds them into unified query/export via the registered ``prompt`` source.
+    """
+    try:
+        from l3.bus.reference_channel import get_rc
+
+        return list(get_rc().export(event_type="prompt_metrics", limit=limit))
+    except Exception:
+        return []
+
+
+def register_prompt_source() -> dict:
+    """Register the ``prompt`` record source with the RecordCenter (idempotent).
+
+    Makes RecordCenter stats()/export()/query() cover the prompt monitor:
+    stats_fn reports the live per-key aggregates, query/export_fn recall the
+    RC prompt_metrics trail. Best-effort, never raises.
+
+    Returns:
+        dict with success flag.
+    """
+    try:
+        from l3.services.record_center import get_record_center
+
+        get_record_center().register_source(
+            "prompt",
+            query_fn=_prompt_records,
+            stats_fn=prompt_monitor_stats,
+            export_fn=_prompt_records,
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.debug("prompt_monitor: record source register skipped: %s", e)
+        return {"success": False, "error": str(e)}
+
+
 def emit_prompt_metrics() -> dict:
     """Emit the current metrics snapshot to the reference channel (RC).
 

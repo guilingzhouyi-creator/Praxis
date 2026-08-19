@@ -31,6 +31,34 @@ class InputActivityPort(ABC):
         """Return the latest privacy-preserving activity aggregate."""
 
 
+class InputSourcePort(ABC):
+    """Per-device privacy-preserving input source (keyboard / pointer).
+
+    Contract: observe only aggregate activity, never raw key or pointer
+    content. Platform stubs (KeyboardInputPort / MouseInputPort) report
+    unsupported until the platform hook (§8) is filled — the port shape is
+    the stable seam, pure interface logic, TS-equivalent portable.
+    """
+
+    name: str = ""
+
+    @abstractmethod
+    def start(self) -> bool:
+        """Start observing this device; return True when supported."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop observing this device and release platform resources."""
+
+    @abstractmethod
+    def active(self) -> bool:
+        """Return whether the device reported recent activity."""
+
+    @abstractmethod
+    def last_activity(self) -> float:
+        """Return the last observed activity timestamp (0.0 when none)."""
+
+
 # ── Auth Port ──
 
 
