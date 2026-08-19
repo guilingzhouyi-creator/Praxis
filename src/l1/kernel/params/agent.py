@@ -831,6 +831,13 @@ R4_DISTILL_SUB_SAMPLING: Final[bool] = True
 R4_LEAN_KNOWLEDGE_MAX: Final[int] = 500  # structured knowledge field truncation (chars)
 R4_CARD_SKILL_SIGNAL_MAX: Final[int] = 32  # max skills tracked per card for preference signal
 R4_RULE_MIN_PREFERRED: Final[float] = 0.3  # rule weight below this → deprecated on next distill
+# DPO preference smoothing: exponential moving average weight — a single
+# card failure moves preferred by alpha·delta instead of the full delta,
+# so long-running rule weights are not flipped by one noisy outcome.
+R4_DPO_SMOOTH_ALPHA: Final[float] = 0.3
+# Retrieval priority weighting: priority contributes this fraction of the
+# tfidf score range to ranking (priority 0..N scales within [0, weight]).
+R4_RETRIEVAL_PRIORITY_WEIGHT: Final[float] = 0.1
 R4_REDISTILL_COOLDOWN: Final[float] = 3600.0  # min gap between targeted re-distills per tool (s)
 R4_DISTILL_SAMPLES: Final[int] = 2  # candidate samples per distillation (1-3, configurable)
 R4_CLUSTER_SIMILARITY: Final[float] = 0.6  # shingle Jaccard above this merges failure clusters

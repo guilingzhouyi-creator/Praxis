@@ -21,6 +21,7 @@ from l1.kernel.params.agent import (
     R4_CONTRIB_SUB_MIN_TRIALS,
     R4_CONTRIB_WILSON_Z,
     R4_CURATION_ENABLED,
+    R4_DPO_SMOOTH_ALPHA,
     R4_EVOLVED_SKILLS_DEFAULT,
     REP_TASK_FAILURE,
     REP_TASK_SUCCESS,
@@ -188,7 +189,11 @@ class SkillLifecycleMixin:
                 rule_text = meta.get("rule", "")
                 if not rule_text:
                     continue
-                preferred = float(meta.get("preferred", 1.0)) + delta
+                # EMA smoothing: a single card outcome moves preferred by
+                # alpha·delta (not the full delta), so long-running rule
+                # weights are not flipped by one noisy failure.
+                old_preferred = float(meta.get("preferred", 1.0))
+                preferred = old_preferred + R4_DPO_SMOOTH_ALPHA * delta
                 meta["preferred"] = round(max(0.0, min(1.0, preferred)), 3)
                 if success:
                     meta["verified"] = int(meta.get("verified", 0)) + 1

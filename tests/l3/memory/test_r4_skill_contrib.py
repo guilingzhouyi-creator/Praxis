@@ -74,3 +74,45 @@ def test_dimension_bump_and_sub_scores():
     assert "tool:write_file" not in sub
     assert 0.0 <= sub["tool:read_file"] <= 1.0
     sm.delete("contrib-dim-test", agent_id="dev", role="l3")
+
+
+def test_dpo_smoothing_does_not_flip_on_one_failure():
+    """EMA smoothing: one failure moves preferred by alpha·delta, not delta."""
+    from l1.kernel.params.agent import R4_DPO_SMOOTH_ALPHA, REP_TASK_FAILURE
+    from l1.kernel.skill import get_skill_manager
+    from l3.memory.r4_skill_lifecycle import SkillLifecycleMixin
+
+    sm = get_skill_manager()
+    created = sm.create(
+        "dpo-smooth-test",
+        description="Use when testing DPO smoothing",
+        prompt="body",
+        rules=[{"rule": "DO use x", "preferred": 1.0, "verified": 5, "hit": 0}],
+        tags=["evolved"],
+        agent_id="dev",
+        role="l3",
+    )
+    assert created.get("success"), created
+    SkillLifecycleMixin().record_card_skill_signal(["dpo-smooth-test"], success=False)
+    rec = sm.get("dpo-smooth-test")
+    preferred = rec["rules"][0]["preferred"]
+    expected = round(1.0 + R4_DPO_SMOOTH_ALPHA * REP_TASK_FAILURE, 3)
+    assert abs(preferred - expected) < 0.001, f"preferred={preferred} expected={expected}"
+    # A full-delta failure would have dropped below expected; the smooth
+    # update keeps the long-running rule weight mostly intact.
+    assert preferred > 0.9
+    sm.delete("dpo-smooth-test", agent_id="dev", role="l3")
+
+
+def test_retrieval_priority_weighting():
+    """Higher-priority skills surface first on equal relevance."""
+    from l3.memory.skill_retriever import get_retriever
+
+    retriever = get_retriever()
+    candidates = [
+        {"name": "low", "description": "identical text", "prompt": "body", "priority": 0},
+        {"name": "high", "description": "identical text", "prompt": "body", "priority": 5},
+    ]
+    ranked = retriever.rank("identical text", candidates, limit=2, min_score=0.0)
+    names = [c["name"] for c in ranked]
+    assert names[0] == "high", names

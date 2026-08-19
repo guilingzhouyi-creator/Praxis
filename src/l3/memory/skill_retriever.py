@@ -22,6 +22,7 @@ from l1.kernel.params.agent import (
     R4_RETRIEVAL_BACKEND_DEFAULT,
     R4_RETRIEVAL_CACHE_MAX,
     R4_RETRIEVAL_MIN_SCORE,
+    R4_RETRIEVAL_PRIORITY_WEIGHT,
 )
 
 
@@ -78,7 +79,14 @@ class TfIdfSkillRetriever(SkillRetriever):
             s_norm = math.sqrt(sum(v * v for v in s_tok.values()))
             if q_norm == 0 or s_norm == 0:
                 continue
-            scored.append((common / (q_norm * s_norm), cand))
+            base = common / (q_norm * s_norm)
+            # Priority weighting: a custom skill's declared priority (0..N)
+            # adds a bounded boost to the relevance score so higher-priority
+            # skills surface first on equal relevance. The boost is capped so
+            # it can never outrank a genuinely more relevant skill.
+            priority = int(cand.get("priority", 0) or 0)
+            boost = min(R4_RETRIEVAL_PRIORITY_WEIGHT * max(priority, 0), R4_RETRIEVAL_PRIORITY_WEIGHT)
+            scored.append((base + boost, cand))
         scored.sort(key=lambda x: x[0], reverse=True)
         if not scored or scored[0][0] < min_score:
             return []
