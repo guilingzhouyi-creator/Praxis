@@ -422,6 +422,7 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             "source": "evolved",
             "loaded_at": __import__("time").time(),
             "useful_count": 0,
+            "usage_by_dimension": {},
             "layer": layer if layer in ("exec", "decision") else "",
             "binding": self._normalize_binding(binding),
             "status": status if status in SKILL_STATUS_VALID else "",
@@ -465,12 +466,15 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             self._emit_mutated("update", name, agent_id, who)
             return {"success": True, "skill": name, "authorized": who}
 
-    def bump_usage(self, name: str, key: str = "useful_count") -> dict:
+    def bump_usage(self, name: str, key: str = "useful_count", dimension: str = "") -> dict:
         """Atomically increment a usage counter on a skill.
 
         Performs the read-modify-write under a single lock acquisition so
         concurrent callers (e.g. parallel ``use_skill`` invocations) never
         lose an increment.  Usage bookkeeping requires no write clearance.
+        ``dimension`` (e.g. ``"tool:read_file"`` or ``"card:code"``) also
+        bumps the per-dimension sub-counter used for fine-grained
+        contribution scoring (§ contrib precision).
         """
         with self._lock:
             if name not in self._skills:
@@ -478,6 +482,9 @@ class SkillManager(SkillPolicyMixin, SkillGuidanceMixin, SkillPersistMixin, Skil
             current = self._skills[name].get(key, 0) or 0
             self._skills[name][key] = current + 1
             self._skills[name]["last_used"] = time.time()
+            if dimension:
+                dims = self._skills[name].setdefault("usage_by_dimension", {})
+                dims[dimension] = int(dims.get(dimension, 0) or 0) + 1
         self._emit_usage_feedback(name)
         return {"success": True, "skill": name, key: current + 1}
 

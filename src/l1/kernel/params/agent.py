@@ -671,6 +671,14 @@ R4_CARD_TAG_MAX: Final[int] = 8  # max card-derived tags appended to a retrieval
 R4_CURATION_ENABLED: Final[bool] = True  # evaluate evolved skills by contribution, retire under-performers
 R4_CONTRIB_MIN_TRIALS: Final[int] = 5  # minimum injections before a contribution verdict counts
 R4_CONTRIB_MIN_RATIO: Final[float] = 0.1  # useful/injected below this → retire (with enough trials)
+# Contribution scoring precision: Wilson lower bound (confidence interval
+# floor) replaces the raw useful/injected ratio so a few small samples do
+# not flip the verdict; time decay discounts stale wins; per-dimension
+# sub-scores split by tool × card nature when enabled.
+R4_CONTRIB_WILSON_Z: Final[float] = 1.96  # 95% confidence for the Wilson lower bound
+R4_CONTRIB_DECAY_HALF_LIFE: Final[float] = 7 * 24 * 3600.0  # seconds; a win halves its weight after 7d
+R4_CONTRIB_PER_DIMENSION: Final[bool] = True  # compute sub-scores by tool × card_nature
+R4_CONTRIB_SUB_MIN_TRIALS: Final[int] = 3  # minimum trials before a dimension sub-score counts
 
 # ── CardBuilder default modes ──
 CARD_BUILDER_MODES: Final[dict[str, str]] = {
@@ -823,6 +831,13 @@ R4_DISTILL_SUB_SAMPLING: Final[bool] = True
 R4_LEAN_KNOWLEDGE_MAX: Final[int] = 500  # structured knowledge field truncation (chars)
 R4_CARD_SKILL_SIGNAL_MAX: Final[int] = 32  # max skills tracked per card for preference signal
 R4_RULE_MIN_PREFERRED: Final[float] = 0.3  # rule weight below this → deprecated on next distill
+# DPO preference smoothing: exponential moving average weight — a single
+# card failure moves preferred by alpha·delta instead of the full delta,
+# so long-running rule weights are not flipped by one noisy outcome.
+R4_DPO_SMOOTH_ALPHA: Final[float] = 0.3
+# Retrieval priority weighting: priority contributes this fraction of the
+# tfidf score range to ranking (priority 0..N scales within [0, weight]).
+R4_RETRIEVAL_PRIORITY_WEIGHT: Final[float] = 0.1
 R4_REDISTILL_COOLDOWN: Final[float] = 3600.0  # min gap between targeted re-distills per tool (s)
 R4_DISTILL_SAMPLES: Final[int] = 2  # candidate samples per distillation (1-3, configurable)
 R4_CLUSTER_SIMILARITY: Final[float] = 0.6  # shingle Jaccard above this merges failure clusters
