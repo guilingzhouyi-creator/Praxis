@@ -155,6 +155,11 @@ def refresh_strategy(provider_name: str, probe: dict) -> dict:
     fingerprint = _probe_fingerprint(probe)
     if not fingerprint:
         return {"success": True, "applied": False, "reason": "probe has no capability keys"}
+    # Lock-free steady state: the unchanged-fingerprint fast path (every
+    # generate() call) reads the applied-fingerprint dict without the lock;
+    # only an actual capability change takes the lock to apply the merge.
+    if _probe_applied.get(name) == fingerprint:
+        return {"success": True, "applied": False, "reason": "unchanged"}
     with _probe_lock:
         if _probe_applied.get(name) == fingerprint:
             return {"success": True, "applied": False, "reason": "unchanged"}

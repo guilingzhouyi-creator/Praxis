@@ -9,6 +9,7 @@ optimizer. The module-level singleton and convenience API (``think`` /
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from typing import Any, cast
@@ -29,6 +30,7 @@ from l1.kernel.params.system import CONTEXT_TRAIL_TRUNC, HASH_TRUNC_SHORT
 from l1.kernel.params.system import TOOL_SEARCH_MAX_RESULTS as _TOOL_SEARCH_MAX_RESULTS
 from l1.kernel.params.system import TOOL_SEARCH_MIN_COUNT as _TOOL_SEARCH_MIN_COUNT
 from l1.kernel.params.tool import TOOL_HANDLER_TIMEOUT as _TOOL_HANDLER_TIMEOUT
+from l1.kernel.prompts import get_prompt as _gp
 
 # Resolve tool config at module level (lazy-safe: discovery may not be ready at import)
 _LLM_TOOL_TIMEOUT = get_tool_config("handler_timeout", _TOOL_HANDLER_TIMEOUT) or _TOOL_HANDLER_TIMEOUT
@@ -36,6 +38,7 @@ _LLM_TOOL_TIMEOUT = get_tool_config("handler_timeout", _TOOL_HANDLER_TIMEOUT) or
 # Base types extracted to llm_base.py (mid-file imports avoid circularity)
 from l3.tool_system.tool_spec import ToolSpec  # noqa: E402, I001
 
+from .assembly import assemble_messages, get_protocol  # noqa: E402, I001
 from .llm_base import (  # noqa: E402, I001
     LLMConfig,
     LLMProvider,
@@ -74,31 +77,29 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
 
         return get_strategy(self.config.provider)
 
-    def _get_protocol(self) -> str:
+    def _get_protocol(self, supports_stateful: bool | None = None) -> str:
         """Resolve the wire protocol (runtime registry > config > stateless default).
 
         ``auto`` is resolved by probing the active provider for native
         message-list support (``generate_with_messages``) via the pure
         ``resolve_protocol`` decision function — TS-equivalent portable.
+        ``supports_stateful`` may be passed in from the caller to avoid a
+        duplicate capability check on the hot path.
         """
         protocol = ""
-        try:
-            from .assembly import get_protocol
-
+        with contextlib.suppress(Exception):
             protocol = get_protocol(self.config.provider) or ""
-        except Exception:
-            pass
         if not protocol:
-            try:
+            with contextlib.suppress(Exception):
                 strategy = self._get_strategy()
                 candidate = getattr(strategy, "protocol", None)
                 if candidate in ("stateless", "stateful", "auto"):
                     protocol = str(candidate)
-            except Exception:
-                pass
         if not protocol:
             protocol = "stateless"
-        return resolve_protocol(protocol, self._provider_supports_stateful())
+        if supports_stateful is None:
+            supports_stateful = self._provider_supports_stateful()
+        return resolve_protocol(protocol, supports_stateful)
 
     def _provider_supports_stateful(self) -> bool:
         """Return whether the active provider implements message-list generation."""
@@ -110,13 +111,15 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         Runtime capability set → strategy refresh loop (3.1, P1-3): the
         provider's static ``capabilities`` set is mapped onto the CACHE_CAP_*
         keys by the pure ``normalize_probe`` resolver; repeated refreshes with
-        the same fingerprint are no-ops. Cheap (no network probe) and never
-        raises.
+        the same fingerprint are no-ops. Cheap (no network probe, no lock in
+        the steady state) and never raises.
         """
+        caps = getattr(self._provider, "capabilities", None)
+        if not caps:
+            return
         try:
             from l3.config.cache_strategy import refresh_strategy
 
-            caps = set(getattr(self._provider, "capabilities", set()) or ())
             refresh_strategy(self.config.provider, {"supports": caps})
         except Exception:
             logger.debug("llm: cache strategy refresh skipped")
@@ -256,6 +259,11 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
 
         mt = max_tokens or self.config.max_tokens
 
+        # P1-3: runtime provider-capability → cache-strategy refresh (idempotent).
+        # Runs before strategy/protocol resolution so this very call already
+        # benefits from the capability-merged flags (no-lock steady state).
+        self._maybe_refresh_cache_strategy()
+
         # Pre-call hooks
         hook_kwargs = {"prompt": prompt, "system": system, "max_tokens": mt, "user_id": user_id}
         for hook in _LLM_HOOKS.get("pre", []):
@@ -279,12 +287,9 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         # stateless (default) keeps the historical per-provider splicing.
         # P1-2: a provider without native message-list support degrades to
         # the stateless wire path with the reason surfaced on the result.
-        protocol = self._get_protocol()
-        if protocol == "stateful" and self._provider_supports_stateful():
-            from l1.kernel.prompts import get_prompt as _gp
-
-            from .assembly import assemble_messages
-
+        supports_stateful = self._provider_supports_stateful()
+        protocol = self._get_protocol(supports_stateful)
+        if protocol == "stateful" and supports_stateful:
             fallback = str(_gp("llm.fallback_system", "You are a helpful assistant."))
             messages = assemble_messages(self.config.provider, prompt, system, fallback_system=fallback)
             result = self._provider.generate_with_messages(
@@ -312,9 +317,6 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
             if protocol == "stateful":
                 result["protocol_degraded"] = True
                 result["protocol_degrade_reason"] = "provider lacks generate_with_messages"
-
-        # P1-3: runtime provider-probe → cache-strategy refresh (idempotent).
-        self._maybe_refresh_cache_strategy()
 
         # Post-call hooks
         for hook in _LLM_HOOKS.get("post", []):
