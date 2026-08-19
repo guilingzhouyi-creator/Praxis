@@ -1,60 +1,33 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Thin Claude-Code-facing pointer to the full governance index (`AGENTS.md`).
+**Before touching any subsystem, read the relevant AGENTS.md section and the doc it links.**
 
 ## AGENTS.md is the source of truth
 
-`AGENTS.md` carries the full, load-bearing rule set — conventions, security
-posture, memory/skill systems, commit/branch/merge gates, contract versioning
-— plus a **doc index** pointing at the detailed specs. **This file is only a
-thin Claude-Code-facing pointer; it does not restate those rules.** Before
-touching a subsystem, read the relevant `AGENTS.md` section and the doc it
-links (`docs/architecture/*.md`, `docs/workflow/*.md`,
-`docs/project-structure.md`).
+`AGENTS.md` carries the full load-bearing rule set + a doc index pointing at
+`docs/architecture/*.md`, `docs/workflow/*.md`, `docs/project-structure.md`.
+**This file does not restate those rules.**
 
 ## Orientation
 
-Praxis is **not a game** — it is a five-layer Agent OS (Python 3.11+) that maps
-OS concepts onto LLM agents. Two overloaded terms:
-- **Card** = the unit of work (process control block): `submit → approve →
-  execute → complete`.
-- **Cell** = the scheduling unit (CPU core): holds N `AgentTerminal` thread
-  pools, routes Cards by territory.
-
-Layers (`src/`): **L5** user CLI → **L4** bridge (API `/api/v2/`, LLM, sandbox,
-MCP) → **L3** cell (agents, 4-ring memory, cards, tool pipeline) → **L2** shell
-(commands via `config/commands.yaml` + `_cmd_*` modules, protocol v1 wire
-contract, i18n) → **L1** kernel (constitution, gatechain, VFS, `params/`,
-`ports/`). Import direction is enforced (L5→…→L1, never upward) by
-`tests/infra/test_layer_imports.py`.
+Praxis is a five-layer Agent OS (Python 3.11+): L5 CLI → L4 Bridge → L3 Cell → L2 Shell → L1 Kernel.
+Card = unit of work. Cell = scheduling unit. Import direction enforced downward.
 
 ## Commands
 
-Run inside **WSL** with the repo venv — a Windows `python.exe` lacks
-xdist/mypy and is not valid. `source .venv/bin/activate` or prefix
-`.venv/bin/python`. Full lists: AGENTS.md "Test commands" / "Lint / format /
-typecheck"; quickstart: `pip install -e ".[test]"`, `python src/main.py
-boot|health|status`, `python tests/runner.py --batch 1|2`, `make test|lint|
-typecheck`.
+Run inside WSL with the repo venv (`.venv/bin/python`). Quickstart:
+`pip install -e ".[test]"` → `python src/main.py boot|health|status` → `python -m pytest tests/ -x -q`.
+Full lists: AGENTS.md "Test commands" / "Lint / format / typecheck".
 
-## Before changing code — mandatory gates (full text in `docs/workflow/`)
+## Before changing code — mandatory gates
 
-- **Worktree gate** (`code-of-conduct.md`): never edit
-  `src/ tests/ config/ scripts/ docs/` on the main tree — build in a worktree;
-  a worktree has no venv of its own (target the main tree's `.venv`).
-- **Two gate waivers, each user-granted, never self-awarded, never conflated**:
-  (1) **Main-tree modification waiver** (edit on main, waives WHERE);
-  (2) **Branch pre-merge waiver** (`MERGE_GATE_SKIP=1` + `MERGE_GATE_REASON`,
-  merge before net-delta gate, waives WHEN). Neither permits pushing alone.
-- **Key conventions**: magic numbers → `params/`; prompts are data
-  (`prompts.py`, not inlined `system=`); English-only comments.
-- **Commit / branch / merge** (`commits.md` + `branching.md`):
-  Conventional Commits + exactly one `Co-Authored-By` trailer; dual-remote
-  `push-both.sh` (origin first); the mainline net-delta gate;
-  `verify-completion.sh` decides "done".
+See `docs/workflow/code-of-conduct.md` for full text. Key rules:
+- **Worktree gate**: never edit `src/ tests/ config/ scripts/ docs/` on main tree
+- **Two waivers** (user-granted, never self-awarded): main-tree modification (WHERE) and branch pre-merge (WHEN)
+- **Key conventions**: magic numbers → `params/`; prompts are data; English-only comments
+- **Commit / branch / merge**: Conventional Commits + Co-Authored-By; dual-remote push; verify-completion.sh decides "done"
 
 ## LLM config
 
-Default `ollama` / `codellama:7b` at `localhost:11434`; override via
-`config/praxis.yaml` or env (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`,
-`ANTHROPIC_API_KEY`, `OLLAMA_URL`).
+Default: `ollama` / `codellama:7b` at `localhost:11434`. Override via `config/praxis.yaml` or env vars.
