@@ -38,8 +38,11 @@ def _measure_attack(tool_name: str):
     """Decorate one attack tool with duration and outcome metrics."""
 
     def decorate(fn):
+        """Wrap fn with attack duration/outcome measurement."""
+
         @functools.wraps(fn)
         def measured(args: dict, agent_id: str) -> dict:
+            """Measured call of the wrapped attack tool."""
             started = time.perf_counter()
             result: dict = {}
             try:

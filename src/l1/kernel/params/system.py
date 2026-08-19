@@ -447,6 +447,7 @@ SHELL_AUTOCOMPLETE_DISPLAY_LIMIT: Final[int] = 15  # commands shown in help
 TOOL_RESULT_DISPLAY_LIMIT: Final[int] = 5
 # Max lean-case entries shown in /skills output
 SKILL_LEAN_CASES_LIMIT: Final[int] = 20
+SKILL_LIST_SCAN_LIMIT: Final[int] = 20  # max skills listed as graph seeds / linkage candidates
 SKILL_LIST_DISPLAY_LIMIT: Final[int] = 30  # max skills shown in /skills list
 SKILL_WRITE_MIN_RING: Final[int] = 3  # minimum ring clearance to create/update/delete skills
 SKILL_WRITE_ROLES: Final[tuple[str, ...]] = ("l3", "reviewer", "deployer")

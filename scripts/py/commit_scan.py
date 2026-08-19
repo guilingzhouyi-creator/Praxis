@@ -32,6 +32,18 @@ _POLICY_PATH = ROOT / "config" / "discovery" / "commits.yaml"
 _SUBJECT_RE = re.compile(r"^([a-z]+)(?:\(([^)]+)\))?!?:[ \t]*(.*)$", re.DOTALL)
 _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 
+# Type-content consistency rules: a commit type must match the actual diff.
+# These are heuristic checks (not absolute) — a `feat` that only touches docs
+# is suspicious; a `docs` that touches src/ may be legitimate (docstrings).
+_TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
+    "feat": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
+    "fix": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
+    "refactor": {"must_include": ["src/"]},
+    "perf": {"must_include": ["src/"]},
+    "test": {"must_include": ["tests/"]},
+    "ci": {"must_include": [".github/"]},
+}
+
 
 def load_policy() -> dict:
     """Load the commit policy from config/discovery/commits.yaml."""
@@ -107,6 +119,124 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     return violations
 
 
+def validate_type_content(commit_type: str, changed_files: list[str]) -> list[str]:
+    """Validate that the commit type is consistent with the changed files.
+
+    A `feat` that does not touch `src/` is suspicious (new features should
+    add code). A `fix` that does not touch `src/` is suspicious (bug fixes
+    touch code). These are heuristic checks, not absolute — they surface
+    inconsistencies that the agent should explain, not block the gate.
+    """
+    rule = _TYPE_CONTENT_RULES.get(commit_type)
+    if not rule:
+        return []
+    prefixes = rule.get("must_include", [])
+    if not prefixes:
+        return []
+    # At least one of the allowed prefixes must match a changed file.
+    if not any(any(f.startswith(p) for f in changed_files) for p in prefixes):
+        return [
+            f"type '{commit_type}' does not match any changed file — expected one of: {prefixes}",
+        ]
+    return []
+
+
+def validate_scope_content(commit_scope: str, changed_files: list[str], policy: dict | None = None) -> list[str]:
+    """Validate that the commit scope is consistent with the changed files.
+
+    A `feat(kernel)` that does not touch `src/l1/kernel/` is suspicious.
+    The scope-to-directory mapping lives in commits.yaml `scope_dirs`.
+    This is a heuristic advisory, not a hard gate — cross-cutting changes
+    may legitimately span directories.
+    """
+    if not commit_scope or not changed_files:
+        return []
+    policy = policy if policy is not None else _cached_policy()
+    scope_dirs = policy.get("scope_dirs", {})
+    expected_dir = scope_dirs.get(commit_scope)
+    if not expected_dir:
+        return []  # unknown scope — no mapping to check
+    if not any(f.startswith(expected_dir) for f in changed_files):
+        return [
+            f"scope '{commit_scope}' expects files under {expected_dir} but none found",
+        ]
+    return []
+
+
+def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict | None = None) -> list[str]:
+    """Validate the Co-Authored-By trailer against the agents registry and
+    the live runtime detection.
+
+    The trailer must:
+      1. exist exactly once, on its own line, at the end of the message;
+      2. match `Co-Authored-By: <Agent> (<model>) <noreply@domain>`;
+      3. use a registered agent name (commits.yaml `agents`);
+      4. use a model the registered agent is allowed to run;
+      5. match the live runtime detection (detect_agent.py) when it reports
+         high confidence — an OpenAI/Anthropic run can never claim a deepseek
+         model, and a deepseek run can never claim gpt-4o. The detector reads
+         env + process-chain signals, not the agent's self-report.
+
+    Returns a list of violations (empty = OK). Never called for merge/revert
+    messages (git-generated, exempt).
+    """
+    policy = policy if policy is not None else _cached_policy()
+    violations: list[str] = []
+
+    trailers = re.findall(r"^Co-Authored-By:.*$", msg, flags=re.M)
+    if not trailers:
+        return ["missing Co-Authored-By trailer"]
+    if len(trailers) > 1:
+        return [f"exactly ONE Co-Authored-By trailer allowed (found {len(trailers)})"]
+    trailer = trailers[0].strip()
+
+    m = re.match(r"^Co-Authored-By: ([^:<>]+) \(([^()]+)\) <noreply@[a-z0-9.-]+>$", trailer)
+    if not m:
+        return ["Co-Authored-By must match: `Co-Authored-By: <Agent> (<model>) <noreply@domain>`"]
+    agent_name, model = m.group(1).strip(), m.group(2).strip()
+
+    agents = {a["name"].lower(): a for a in policy.get("agents", [])}
+    reg = agents.get(agent_name.lower())
+    if not reg:
+        known = ", ".join(sorted(agents)) or "<none registered>"
+        return [f"agent '{agent_name}' not registered — known agents: {known}"]
+    if model not in reg.get("models", []):
+        return [f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))})"]
+
+    # Live-runtime cross-check against EXECUTION EVIDENCE.
+    #   - evidence A (session log, confidence high): the model is PROVEN — a
+    #     mismatch is a hard violation (impersonation cannot slip through).
+    #   - evidence C/D (config/weak, confidence low/none): the model is NOT
+    #     execution-verified — claiming a specific model is an unverifiable
+    #     assertion, so it is rejected too. Only evidence B (operator pin)
+    #     with an explicit model is trusted as a deliberate override.
+    if detected:
+        det_conf = detected.get("confidence")
+        det_model = (detected.get("model") or "").strip().lower()
+        det_agent = (detected.get("agent") or "").strip().lower()
+        if det_conf == "high" and det_model:
+            if det_model != model.lower():
+                violations.append(
+                    f"model mismatch: trailer says '{model}' but the session log proves '{detected.get('model')}' "
+                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — attribute the ACTUAL runner",
+                )
+        elif det_conf == "low" or det_conf == "none":
+            # No execution evidence — a specific model claim cannot be proven.
+            violations.append(
+                f"unverifiable model claim: '{model}' cannot be confirmed by execution evidence "
+                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — run the session "
+                "inside a framework whose log records the model, or use an operator pin (PRAXIS_AUTHOR/PRAXIS_MODEL)",
+            )
+        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode"):
+            # AtomCode/OpenCode are the project's established author aliases;
+            # the detector's framework name may differ (dsh vs the git alias).
+            violations.append(
+                f"agent mismatch: trailer says '{agent_name}' but the live session reports '{detected.get('agent')}' "
+                f"(framework={detected.get('framework')})",
+            )
+    return violations
+
+
 def body_advisories(body: str, policy: dict | None = None) -> list[str]:
     """Return advisory findings for a commit body (never blocks).
 
@@ -139,8 +269,13 @@ def _cached_policy() -> dict:
     return _cached
 
 
-def scan_range(rev_range: str, branch: str = "", policy: dict | None = None) -> list[tuple[str, str]]:
+def scan_range(
+    rev_range: str, branch: str = "", policy: dict | None = None, check_content: bool = False
+) -> list[tuple[str, str]]:
     """Validate every non-merge subject in a git range.
+
+    When check_content=True, also validates that each commit's type matches
+    its changed files (e.g. feat must touch src/, test must touch tests/).
 
     Returns a list of (commit_short_sha, violation) for every violating
     commit; empty list = the whole range is clean. Merge/Revert subjects
@@ -160,6 +295,21 @@ def scan_range(rev_range: str, branch: str = "", policy: dict | None = None) -> 
             continue
         for v in validate_subject(subject, branch=branch, policy=policy):
             findings.append((sha, v))
+        if check_content:
+            parsed = parse_subject(subject)
+            if parsed:
+                ctype = parsed[0]
+                files_out = subprocess.run(
+                    ["git", "diff", "--name-only", f"{sha}^", f"{sha}"],
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+                changed = [f for f in files_out.stdout.splitlines() if f]
+                for v in validate_type_content(ctype, changed):
+                    findings.append((sha, v))
+                # scope-content is advisory (non-blocking) — scopes are
+                # inherently cross-cutting and may span multiple directories.
     return findings
 
 
@@ -198,11 +348,21 @@ def main() -> int:
     parser.add_argument("--subject", help="single commit subject line to validate")
     parser.add_argument("--git-range", help="git range (base..head) to scan, e.g. origin/main..HEAD")
     parser.add_argument("--branch", default="", help="branch the commit(s) land on (branch-type policy)")
+    parser.add_argument(
+        "--msg",
+        help="full commit message: validate Co-Authored-By against the agents registry + live runtime detection",
+    )
+    parser.add_argument("--detected", help="optional JSON from scripts/py/detect_agent.py (defaults to live detection)")
+    parser.add_argument(
+        "--check-content",
+        action="store_true",
+        help="validate type-diff consistency (feat must touch src/, test must touch tests/, etc.)",
+    )
     args = parser.parse_args()
 
     try:
         if args.git_range:
-            findings = scan_range(args.git_range, branch=args.branch)
+            findings = scan_range(args.git_range, branch=args.branch, check_content=args.check_content)
             if not findings:
                 print("[commit-scan] OK — all subjects in range clean")
             else:
@@ -217,6 +377,39 @@ def main() -> int:
                 for sha, a in advisories:
                     print(f"  {sha} ⚠ {a}")
             return 1 if findings else 0
+        if args.msg:
+            # Co-Authored-By truthfulness gate: compare the trailer the agent
+            # wrote against the agents registry + live runtime detection.
+            import json as _json
+
+            detected = None
+            if args.detected:
+                try:
+                    detected = _json.loads(args.detected)
+                except _json.JSONDecodeError:
+                    detected = None
+            if detected is None:
+                try:
+                    out = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    detected = _json.loads(out.stdout) if out.stdout.strip() else None
+                except Exception:
+                    detected = None
+            violations = validate_coauthored_by(args.msg, detected=detected)
+            if not violations:
+                print(
+                    "[commit-scan] OK — Co-Authored-By matches registry + runtime"
+                    + (f" (detected: {detected.get('agent')}/{detected.get('model')})" if detected else "")
+                )
+            else:
+                print("[commit-scan] VIOLATIONS:", file=sys.stderr)
+                for v in violations:
+                    print(f"  ✗ {v}", file=sys.stderr)
+            return 1 if violations else 0
         if not args.subject:
             parser.error("provide --subject or --git-range")
         violations = validate_subject(args.subject, branch=args.branch)

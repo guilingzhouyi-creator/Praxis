@@ -18,7 +18,7 @@ from l1.kernel.params.agent import (
     R4_RETRIEVAL_ENABLED,
     R4_RETRIEVAL_MIN_SCORE,
 )
-from l1.kernel.params.system import SKILL_POSTURE_DEFAULT
+from l1.kernel.params.system import SKILL_LIST_SCAN_LIMIT, SKILL_POSTURE_DEFAULT
 
 
 def _system_permits_posture(skill_posture: str) -> bool:
@@ -56,7 +56,7 @@ def link_registered_skill_graph(sm, name: str, scope: str, tags: list[str]) -> d
         graph = get_graph()
         if graph is None or not getattr(graph, "enabled", False):
             return {"success": True, "skill": name, "scope": scope, "linked": 0}
-        for candidate in sm.list_skills(tags=tags, limit=20, include_prompt=False):
+        for candidate in sm.list_skills(tags=tags, limit=SKILL_LIST_SCAN_LIMIT, include_prompt=False):
             if candidate["name"] == name:
                 continue
             edge = graph.add_semantic_edge(name, candidate["name"], "related", weight=0.8, created_by="register")

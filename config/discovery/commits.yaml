@@ -28,6 +28,56 @@ types:
   - revert
   - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
+# Scope-to-directory mapping for type-content consistency checks. When a
+# commit uses a scope, its changed files should at least touch the
+# corresponding directory — e.g. a `feat(kernel)` that does not touch
+# src/l1/kernel/ is flagged as suspicious. This is a heuristic advisory,
+# not a hard gate (cross-cutting changes may legitimately span directories).
+scope_dirs:
+  kernel: src/l1/kernel/
+  l2: src/l2/
+  l3: src/l3/
+  l3a: src/l3/cell/peers/l3a/
+  l4: src/l4/
+  api: src/l4/api/
+  llm: src/l4/llm/
+  sandbox: src/l4/sandbox/
+  l5: src/l5/
+  cli: src/l5/
+  docs: docs/
+  tests: tests/
+  scripts: scripts/
+  config: config/
+  ci: .github/
+  judge: docs/
+  git: scripts/
+  hooks: .githooks/
+
+# Registered authoring agents for Co-Authored-By attribution. The commit-msg
+# gate compares the trailer the agent wrote against BOTH this registry and
+# the live runtime detection (scripts/py/detect_agent.py): the model name
+# must match what the detector reports (an OpenAI/Anthropic model can never
+# claim a deepseek run, and vice versa), and the agent name must be one of
+# these registered identities. Never attribute a run to a framework that did
+# not execute it — the detector reads env + process-chain signals, not the
+# agent's self-report.
+agents:
+  - name: AtomCode
+    models: [deepseek-v4-flash]
+    email: noreply@atomgit.com
+  - name: OpenCode
+    models: [deepseek-v4-flash]
+    email: noreply@opencode.ai
+  - name: Claude
+    models: [claude, claude-sonnet, claude-opus]
+    email: noreply@anthropic.com
+  - name: DeepSeek
+    models: [deepseek-v4-flash, deepseek-chat]
+    email: noreply@deepseek.com
+  - name: GPT
+    models: [gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini]
+    email: noreply@openai.com
+
 # Registered scopes. A `type(scope):` whose scope is NOT listed here is a
 # violation under `strict` mode (warned under `relaxed`). Keep this list in
 # sync with the subsystems registered in AGENTS.md / docs/architecture/.

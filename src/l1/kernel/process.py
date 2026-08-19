@@ -393,6 +393,7 @@ class ProcessTable:
             pcb = self._processes.get(pid) if pid else None
             if not pcb:
                 return False
+            assert pid is not None  # pcb resolved via pid — both exist together
             pcb.cancelled = True
             pcb.cancel_reason = reason
             if pcb.state is not ProcessState.STOPPED:

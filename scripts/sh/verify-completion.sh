@@ -110,13 +110,45 @@ pass() { echo "  ✓ $1"; }
 echo "[judge] CompletionJudge — machine verdict on 'done'"
 echo "[judge] checks: tests=${RUN_TESTS} coverage=${RUN_COVERAGE} delta=${RUN_DELTA} docs=${RUN_DOCS} lint=${RUN_LINT}"
 
-# ── 1. Tests ─────────────────────────────────────────────────────────────
-if [ "$RUN_TESTS" = "1" ]; then
-  echo "[judge] ── 1. Full test suite ──"
+# ── 1+2. Tests + Coverage (single full-suite run) ──────────────────────
+# One pytest invocation with --cov yields BOTH dimensions — running the
+# full suite twice (once plain, once with coverage) roughly halves the
+# wall time of a full-mode judge run (evidence: full runs take ~10 min).
+# When either check is skipped individually (--skip=tests or --skip=coverage)
+# the other still runs its own dedicated invocation below.
+RUN_TOGETHER=0
+if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ]; then
+  RUN_TOGETHER=1
+  echo "[judge] ── 1+2. Full test suite + coverage (single run) ──"
   # Bound the xdist worker count: `-n auto` spawns one worker per CPU core,
   # which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
   # thrashes memory and hangs the suite. Default 4 workers; operators may
   # override with JUDGE_PYTEST_N (0 = single process, safest).
+  JUDGE_N="${JUDGE_PYTEST_N:-4}"
+  THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
+  THRESH="${THRESH:-60}"
+  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
+    S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
+    S_COVERAGE=1; pass "coverage >= $THRESH%"
+  else
+    # The combined run failed — tests, coverage, or both. Surface the gap.
+    S_TESTS=2; S_COVERAGE=2
+    tail -5 /tmp/judge_cov.log >&2
+    if grep -qE '^TOTAL' /tmp/judge_cov.log; then
+      grep -E 'TOTAL|fail_under' /tmp/judge_cov.log | tail -2 >&2
+      fail "coverage below $THRESH% (and/or test failures above)"
+    else
+      fail "test suite has failures (see /tmp/judge_cov.log)"
+    fi
+  fi
+  M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
+  M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
+  M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
+fi
+
+# ── 1. Tests (standalone — coverage skipped) ────────────────────────────
+if [ "$RUN_TESTS" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
+  echo "[judge] ── 1. Full test suite (standalone) ──"
   JUDGE_N="${JUDGE_PYTEST_N:-4}"
   if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" > /tmp/judge_tests.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1))"
@@ -128,9 +160,9 @@ if [ "$RUN_TESTS" = "1" ]; then
   M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
 fi
 
-# ── 2. Coverage ──────────────────────────────────────────────────────────
-if [ "$RUN_COVERAGE" = "1" ]; then
-  echo "[judge] ── 2. Coverage (fail-under) ──"
+# ── 2. Coverage (standalone — tests skipped) ────────────────────────────
+if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
+  echo "[judge] ── 2. Coverage (standalone, fail-under) ──"
   THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
   THRESH="${THRESH:-60}"
   JUDGE_N="${JUDGE_PYTEST_N:-4}"
@@ -174,27 +206,40 @@ if [ "$RUN_DOCS" = "1" ]; then
   fi
 fi
 
-# ── 5. Lint + type ───────────────────────────────────────────────────────
+# ── 5. Lint + type (ruff + mypy) ────────────────────────────────────────
+# The 11-dimension contract says "ruff + mypy clean"; mypy MUST actually
+# run here, not only in CI (local/CI verdicts must agree). mypy unavailable
+# is a hard gap (INCOMPLETE), mirroring how a missing verifier can never
+# pass the gate.
 if [ "$RUN_LINT" = "1" ]; then
   echo "[judge] ── 5. ruff + mypy ──"
   LINT_OK=1
   if [ -f pyproject.toml ]; then
     ruff check src/ tests/ > /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     ruff format --check src/ tests/ >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
-    if [ "$LINT_OK" = "1" ]; then
-      S_LINT=1; pass "ruff clean"
+    if command -v mypy >/dev/null 2>&1; then
+      mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     else
-      S_LINT=2; tail -3 /tmp/judge_ruff.log >&2; fail "ruff issues"
+      echo "mypy not installed — type check cannot run" >> /tmp/judge_ruff.log
+      LINT_OK=0
+    fi
+    if [ "$LINT_OK" = "1" ]; then
+      S_LINT=1; pass "ruff + mypy clean"
+    else
+      S_LINT=2; tail -5 /tmp/judge_ruff.log >&2; fail "ruff/mypy issues"
     fi
     M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
 # ── 6. Dependency CVEs (pip-audit) ───────────────────────────────────────
+# Dependency CVE scanning is a security red line: a missing verifier is an
+# evidence gap (INCOMPLETE), never a pass — "tool absent" cannot certify
+# "no known vulnerabilities".
 if [ "$RUN_AUDIT" = "1" ]; then
   echo "[judge] ── 6. Dependency vulnerabilities (pip-audit) ──"
   if ! command -v pip-audit >/dev/null 2>&1; then
-    S_AUDIT=1; pass "pip-audit not installed — skipped"
+    S_AUDIT=2; fail "pip-audit not installed — dependency CVE check cannot run"
   elif pip-audit --progress-spinner off > /tmp/judge_audit.log 2>&1; then
     S_AUDIT=1; pass "no known vulnerable dependencies"
     M_AUDIT_VULNS=0

@@ -108,7 +108,7 @@ def _classify(text: str) -> str:
     scores: dict[str, int] = {}
     for identity, markers in _CONTENT_MARKERS.items():
         scores[identity] = sum(1 for m in markers if m in low)
-    best = max(scores, key=scores.get)
+    best = max(scores, key=lambda k: scores[k])
     return best if scores[best] > 0 else ""
 
 

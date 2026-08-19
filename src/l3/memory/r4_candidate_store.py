@@ -54,6 +54,7 @@ def normalize_binding(
     record = record if isinstance(record, dict) else {}
 
     def values(key: str, fallback: str = "") -> list[str]:
+        """Read a normalized list value from the source mapping."""
         raw = source.get(key)
         if raw is None:
             raw = fallback

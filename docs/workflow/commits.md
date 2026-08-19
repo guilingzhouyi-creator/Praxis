@@ -14,6 +14,28 @@ source of truth for the Conventional-Commits contract.
   The hook enforces: exactly one trailer (no multi-agent stacking), the
   `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
   Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
+- **Attribution is verified for TRUTH, not just shape** — `commit_scan.py`
+  compares the trailer against the agents registry (`config/discovery/
+  commits.yaml` `agents:`) AND the live runtime detection
+  (`scripts/py/detect_agent.py`). The detector trusts EXECUTION EVIDENCE,
+  never the agent's self-report and never a config file alone:
+  - **DSH sessions**: the harness session log (`$DSH_SESSION_JSONL`)
+    records the real `(provider, model)` route of every LLM call — written
+    by the harness, uneditable by the agent inside the session. This is
+    the strongest evidence and wins over any config.
+  - **Config declaration** (`~/.dsh/settings.yaml`) is only a
+    LOW-confidence fallback: what the deployment configures is NOT proof
+    of what this commit ran.
+  - **Other frameworks** (OpenCode/Claude/AtomCode) are identified by
+    env/process-chain, but without their own session evidence the model is
+    unknown — a specific model claim is rejected as unverifiable.
+  - An operator pin (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`) is a deliberate,
+    trusted override, still not execution proof.
+  Before writing a trailer, the agent MUST run
+  `python scripts/py/detect_agent.py --json` and name the evidence-backed
+  framework/model — do not read settings.yaml and paste its model.
+- **Subject format is normalized**: lowercase start, no markdown (`**`/`` ` ``/`_`),
+  no trailing period, ≤ 72 chars — plain text, never rendered markup.
 
 | Part | Requirement |
 |---|---|

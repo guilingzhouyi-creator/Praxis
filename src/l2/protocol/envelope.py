@@ -201,5 +201,5 @@ class SessionCursor:
         self.attached = True
 
     def detach(self) -> None:
-        """Unbind the view."""
+        """Unbind the view from its session (marks it unattached)."""
         self.attached = False

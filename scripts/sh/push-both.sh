@@ -129,6 +129,22 @@ fi
 
 FAIL=0
 
+# ── Commit audit (main branch only) — catch --no-verify bypasses ─────────
+if [ "$BRANCH" = "main" ]; then
+  echo "[push-both] ── commit audit (origin/main..main) ──────────────────────"
+  AHEAD=$(git rev-list --count "origin/main..main" 2>/dev/null || echo 0)
+  if [ "$AHEAD" -gt 0 ] && [ -f scripts/py/commit_scan.py ]; then
+    if ! python scripts/py/commit_scan.py --git-range origin/main..main --check-content >/tmp/pushboth_commit_scan.log 2>&1; then
+      echo "[push-both] ❌ commit audit FAILED — push aborted." >&2
+      cat /tmp/pushboth_commit_scan.log >&2
+      echo "[push-both]    Fix violations before pushing, or use --no-verify locally" >&2
+      echo "[push-both]    (but remember: the mainline gate protects the canonical tree)." >&2
+      exit 1
+    fi
+    echo "[push-both] ✅ commit audit passed (${AHEAD} commit(s) checked)"
+  fi
+fi
+
 # ── Push-safety pre-check (dual-push reliability) ────────────────────────
 # Before pushing, surface how many local commits are NOT yet on origin —
 # a silent skip here is the #1 cause of the "local != origin" drift that

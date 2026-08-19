@@ -358,10 +358,19 @@ def _skills_delete(sm, rest: list[str], role: str, agent_id: str) -> dict:
     return sm.delete(name, agent_id=agent_id, role=role)
 
 
-def _parse_register_args(rest: list[str]) -> tuple[list[str], str] | None:
-    """Parse /skills register CLI args; returns (error, ...) or None on usage error."""
+# 8-tuple success shape: (name, desc, prompt, scope, scope_identity, priority, tags, tools)
+_RegisterParse = tuple[str, str, str, str, str, int, list[str], list[str] | None]
+
+
+def _parse_register_args(rest: list[str]) -> tuple[_RegisterParse | None, str | None]:
+    """Parse /skills register CLI args.
+
+    Returns (None, error_message) on usage error, or (8-tuple, None) on
+    success — an explicit pair so callers can narrow without mypy losing
+    the tuple shape.
+    """
     if len(rest) < 4:
-        return None
+        return None, _t("shell.app_error.usage_skills_register")
     prompt_parts: list[str] = []
     scope = ""
     scope_identity = ""
@@ -382,7 +391,7 @@ def _parse_register_args(rest: list[str]) -> tuple[list[str], str] | None:
             try:
                 priority = int(args[idx + 1])
             except ValueError:
-                return ["priority must be an integer"]
+                return None, "priority must be an integer"
             idx += 2
         elif arg == "--tags" and idx + 1 < len(args):
             tags = [t.strip() for t in args[idx + 1].split(",") if t.strip()]
@@ -395,8 +404,8 @@ def _parse_register_args(rest: list[str]) -> tuple[list[str], str] | None:
             idx += 1
     prompt = " ".join(prompt_parts)
     if not prompt:
-        return ["prompt is required"]
-    return [rest[1], rest[2], prompt, scope, scope_identity, priority, tags, tools]
+        return None, "prompt is required"
+    return (rest[1], rest[2], prompt, scope, scope_identity, priority, tags, tools), None
 
 
 def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
@@ -412,11 +421,9 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
     and links it to related skill domains via the R5 graph (graceful when
     the graph is off).
     """
-    parsed = _parse_register_args(rest)
+    parsed, parse_err = _parse_register_args(rest)
     if parsed is None:
-        return {"success": False, "error": _t("shell.app_error.usage_skills_register")}
-    if len(parsed) == 1:
-        return {"success": False, "error": parsed[0]}
+        return {"success": False, "error": parse_err or _t("shell.app_error.usage_skills_register")}
     name, desc, prompt, scope, scope_identity, priority, tags, tools = parsed
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:

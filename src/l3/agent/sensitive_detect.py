@@ -177,7 +177,7 @@ def redact_text(text: str) -> str:
     redacted = str(text)
     try:
         for kind, pattern in _PATTERNS:
-            redacted = pattern.sub(lambda m, k=kind: f"[REDACTED:{k}]", redacted)
+            redacted = pattern.sub(lambda m, k=kind: f"[REDACTED:{k}]", redacted)  # type: ignore[misc]  # re.Pattern.sub repl lambda with default
         return redacted
     except Exception as e:  # pragma: no cover - defensive at the boundary
         logger.debug("sensitive_detect: redact skipped: %s", e)

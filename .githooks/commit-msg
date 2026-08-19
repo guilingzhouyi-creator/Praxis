@@ -60,6 +60,19 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
       echo "   then push BOTH remotes via bash scripts/sh/push-both.sh main." >&2
     fi
   fi
+  # If the merge message has a custom body (not just the auto-generated line),
+  # it should follow Conventional Commits format for traceability.
+  if printf '%s' "$msg" | grep -qE '^[A-Za-z]+\('; then
+    # Custom merge message — validate subject format.
+    MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
+    if [ -f scripts/py/commit_scan.py ]; then
+      python scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+      if grep -q 'VIOLATIONS' /tmp/merge_scan.log; then
+        echo "⚠️  Merge subject should follow Conventional Commits: type(scope): description" >&2
+        grep '  ✗' /tmp/merge_scan.log >&2
+      fi
+    fi
+  fi
   exit 0
 fi
 
@@ -70,29 +83,70 @@ if printf '%s' "$msg" | grep -qP '[\x{4e00}-\x{9fa5}]'; then
   exit 1
 fi
 
-# 2. Co-Authored-By attribution required — exactly one, well-formed
-#    Pattern: Co-Authored-By: <Agent> (<model>) <noreply@domain>
-#    - exactly ONE trailer (no stacking multiple agents on one commit)
-#    - a real name + parenthesized model + noreply email (no bare names)
-CAB_COUNT=$(printf '%s' "$msg" | grep -c "Co-Authored-By:")
-if [ "$CAB_COUNT" -lt 1 ]; then
-  echo "❌ Commit must include a Co-Authored-By trailer for attribution." >&2
-  echo "   Example: Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >&2
+# 1b. Format normalization (layout/typography) — commit messages are plain
+#     text, never rendered markdown:
+#     - no **bold** / *italic* / backtick code spans in the subject
+#     - subject starts lowercase (Conventional-Commits summary style)
+#     - no trailing period on the subject line
+#     - Co-Authored-By is the LAST line, preceded by a blank line
+first_line=$(printf '%s' "$msg" | head -n 1)
+if printf '%s' "$first_line" | grep -qE '(\*\*|`|_[a-zA-Z0-9]+_)'; then
+  echo "❌ Subject must be plain text — no markdown (**bold**, \`code\`, _italics_)." >&2
+  echo "   Remove formatting from the subject line." >&2
   echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
   exit 1
 fi
-if [ "$CAB_COUNT" -gt 1 ]; then
-  echo "❌ Exactly ONE Co-Authored-By trailer is allowed (found $CAB_COUNT)." >&2
-  echo "   Stacking multiple agents on one commit inflates attribution —" >&2
-  echo "   split the work across commits or pick the primary authoring agent." >&2
+if printf '%s' "$first_line" | grep -qE '^[A-Z]'; then
+  echo "❌ Subject must start lowercase (Conventional-Commits style):" >&2
+  echo "   'fix(l3): clear...' not 'Fix(l3): clear...'" >&2
   echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
   exit 1
 fi
-if ! printf '%s' "$msg" | grep -qE '^Co-Authored-By: [^:<>]+ \([^()]+\) <noreply@[a-z0-9.-]+>$'; then
-  echo "❌ Co-Authored-By must match: \`Co-Authored-By: <Agent> (<model>) <noreply@domain>\`" >&2
-  echo "   Example: Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>" >&2
+if printf '%s' "$first_line" | grep -qE '\.$'; then
+  echo "❌ Subject must not end with a period (Conventional-Commits style)." >&2
   echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
   exit 1
+fi
+
+# 2. Co-Authored-By attribution — exactly one, well-formed, and TRUE.
+#    The trailer must match BOTH the agents registry (commits.yaml) and the
+#    live runtime detection (detect_agent.py reads env + process-chain, NOT
+#    the agent's self-report). A GPT run can never claim deepseek-v4-flash,
+#    and vice versa — attribution reflects who ACTUALLY executed the work.
+if [ -f scripts/py/commit_scan.py ]; then
+  python scripts/py/commit_scan.py --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
+  if grep -q 'VIOLATIONS' /tmp/commit_cab.log; then
+    echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
+    grep '  ✗' /tmp/commit_cab.log >&2
+    echo "" >&2
+    echo "   HOW TO FIX (do not guess — read your actual runtime):" >&2
+    echo "     1. python scripts/py/detect_agent.py --json" >&2
+    echo "        → reports the framework/model that ACTUALLY runs this session" >&2
+    echo "     2. use THAT model name in the trailer; agent name must be" >&2
+    echo "        registered in config/discovery/commits.yaml (agents:)" >&2
+    echo "     3. correct form:" >&2
+    echo "        Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>" >&2
+    DETECTED="$(python scripts/py/detect_agent.py --json 2>/dev/null || echo '')"
+    echo "     4. (this session detects:) ${DETECTED:-<detection unavailable>}" >&2
+    echo "   Only if you are deliberately overriding attribution (manual/" >&2
+    echo "   historical commits): PRAXIS_SKIP_AUTHOR_CHECK=1." >&2
+    exit 1
+  fi
+else
+  # No commit_scan.py (scratch repo) — legacy inline format guard.
+  CAB_COUNT=$(printf '%s' "$msg" | grep -c "Co-Authored-By:")
+  if [ "$CAB_COUNT" -lt 1 ]; then
+    echo "❌ Commit must include a Co-Authored-By trailer for attribution." >&2
+    exit 1
+  fi
+  if [ "$CAB_COUNT" -gt 1 ]; then
+    echo "❌ Exactly ONE Co-Authored-By trailer is allowed (found $CAB_COUNT)." >&2
+    exit 1
+  fi
+  if ! printf '%s' "$msg" | grep -qE '^Co-Authored-By: [^:<>]+ \([^()]+\) <noreply@[a-z0-9.-]+>$'; then
+    echo "❌ Co-Authored-By must match: \`Co-Authored-By: <Agent> (<model>) <noreply@domain>\`" >&2
+    exit 1
+  fi
 fi
 
 # 3. Conventional-commits type(scope): summary — also the CHANGELOG
