@@ -32,6 +32,13 @@ from l1.kernel.params.system import LLM_DEFAULT_CONTEXT_WINDOW, LOG_TRUNC_60, LO
 from l1.kernel.prompts import get_prompt as _gp
 
 from .http_pool import http_post
+from .llm_base import (
+    CAP_GENERATE_WITH_MESSAGES,
+    CAP_MAX_TOKENS,
+    CAP_PREFIX_CACHE,
+    CAP_TEMPERATURE,
+    CAP_USER_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +108,17 @@ class OpenAIProvider(_ProviderHelperMixin):
     @property
     def capabilities(self) -> set[str]:
         """The set of optional capabilities this provider supports."""
-        return {"max_tokens", "temperature", "reasoning_effort", "context_window", "tool_use", "streaming"}
+        return {
+            CAP_MAX_TOKENS,
+            CAP_TEMPERATURE,
+            CAP_GENERATE_WITH_MESSAGES,
+            CAP_PREFIX_CACHE,
+            CAP_USER_ID,
+            "reasoning_effort",
+            "context_window",
+            "tool_use",
+            "streaming",
+        }
 
     def probe(self) -> dict:
         """Probe optional capabilities and return context window and model."""
@@ -296,7 +313,16 @@ class AnthropicProvider(_ProviderHelperMixin):
     @property
     def capabilities(self) -> set[str]:
         """The set of optional capabilities this provider supports."""
-        return {"max_tokens", "temperature", "thinking_budget", "context_window", "tool_use", "vision"}
+        return {
+            CAP_MAX_TOKENS,
+            CAP_TEMPERATURE,
+            CAP_PREFIX_CACHE,
+            CAP_USER_ID,
+            "thinking_budget",
+            "context_window",
+            "tool_use",
+            "vision",
+        }
 
     def probe(self) -> dict:
         """Probe optional capabilities and return context window and model."""

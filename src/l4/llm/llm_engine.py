@@ -105,17 +105,19 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         return bool(hasattr(self._provider, "generate_with_messages"))
 
     def _maybe_refresh_cache_strategy(self) -> None:
-        """Refresh the prefix-cache strategy from the provider probe (idempotent).
+        """Refresh the prefix-cache strategy from the provider capabilities.
 
-        Runtime capability probe → strategy refresh loop (3.1, P1-3): the
-        provider probe's CACHE_CAP_* keys are merged into the per-provider
-        strategy by ``refresh_strategy``; repeated probes with the same
-        fingerprint are no-ops. Never raises.
+        Runtime capability set → strategy refresh loop (3.1, P1-3): the
+        provider's static ``capabilities`` set is mapped onto the CACHE_CAP_*
+        keys by the pure ``normalize_probe`` resolver; repeated refreshes with
+        the same fingerprint are no-ops. Cheap (no network probe) and never
+        raises.
         """
         try:
             from l3.config.cache_strategy import refresh_strategy
 
-            refresh_strategy(self.config.provider, self._provider.probe())
+            caps = set(getattr(self._provider, "capabilities", set()) or ())
+            refresh_strategy(self.config.provider, {"supports": caps})
         except Exception:
             logger.debug("llm: cache strategy refresh skipped")
 

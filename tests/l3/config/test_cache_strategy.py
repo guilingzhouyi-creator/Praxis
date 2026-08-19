@@ -44,17 +44,31 @@ class TestResolveCacheFlags:
         merged = resolve_cache_flags({}, {"something_else": True})
         assert merged == {}
 
+    def test_normalize_probe_folds_supports_membership(self):
+        """A supports set maps onto the CACHE_CAP_* vocabulary."""
+        from l1.kernel.params.system import CACHE_CAP_PREFIX_CACHE, CACHE_CAP_STATEFUL, CACHE_CAP_USER_ID
+        from l3.config.cache_strategy import normalize_probe, resolve_cache_flags
+
+        normalized = normalize_probe({"supports": ["generate_with_messages", "prefix_cache", "user_id"]})
+        assert normalized[CACHE_CAP_STATEFUL] is True
+        assert normalized[CACHE_CAP_PREFIX_CACHE] is True
+        assert normalized[CACHE_CAP_USER_ID] is True
+
+        merged = resolve_cache_flags({}, normalized)
+        assert merged["protocol"] == "stateful"
+        assert merged["optimize_prompt"] is True
+        assert merged["forward_user_id"] is True
+
 
 class TestRefreshStrategy:
     def test_refresh_applies_once_and_is_idempotent(self):
         """Repeated probes with the same fingerprint cause no churn."""
-        from l1.kernel.params.system import CACHE_CAP_STATEFUL
         from l3.config import cache_strategy as cs
 
         cs.reset_cache_strategy()
         try:
             cs.load_cache_config({"defaults": {"refresh_enabled": True}})
-            probe = {CACHE_CAP_STATEFUL: True}
+            probe = {"supports": ["generate_with_messages"]}
             first = cs.refresh_strategy("openai", probe)
             assert first["applied"] is True
             assert first["opts"]["protocol"] == "stateful"
@@ -93,15 +107,14 @@ class TestRefreshStrategy:
 
     def test_refresh_changes_fingerprint_applies_again(self):
         """A changed probe fingerprint refreshes the strategy."""
-        from l1.kernel.params.system import CACHE_CAP_PREFIX_CACHE, CACHE_CAP_STATEFUL
         from l3.config import cache_strategy as cs
 
         cs.reset_cache_strategy()
         try:
             cs.load_cache_config({"defaults": {"refresh_enabled": True}})
-            assert cs.refresh_strategy("deepseek", {CACHE_CAP_STATEFUL: True})["applied"] is True
-            r = cs.refresh_strategy("deepseek", {CACHE_CAP_STATEFUL: True, CACHE_CAP_PREFIX_CACHE: False})
+            assert cs.refresh_strategy("deepseek", {"supports": ["generate_with_messages"]})["applied"] is True
+            r = cs.refresh_strategy("deepseek", {"supports": ["generate_with_messages", "prefix_cache"]})
             assert r["applied"] is True
-            assert r["opts"]["optimize_prompt"] is False
+            assert r["opts"]["optimize_prompt"] is True
         finally:
             cs.reset_cache_strategy()

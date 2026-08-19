@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 CAP_MAX_TOKENS = "max_tokens"
 CAP_TEMPERATURE = "temperature"
 
+# Optional capability strings a provider may advertise in ``capabilities``.
+# The cache-strategy refresh loop maps them onto the CACHE_CAP_* keys in
+# params/system.py — pure data contract, TS-equivalent portable.
+CAP_GENERATE_WITH_MESSAGES = "generate_with_messages"
+CAP_PREFIX_CACHE = "prefix_cache"
+CAP_USER_ID = "user_id"
+
 _BASE_CAPABILITIES = {CAP_MAX_TOKENS, CAP_TEMPERATURE}
 
 

@@ -21,6 +21,11 @@ class _StatelessProvider:
     name = "mock"
     model = "mock"
 
+    @property
+    def capabilities(self):
+        """Advertise only basic generation capabilities."""
+        return {"max_tokens", "temperature"}
+
     def generate(
         self, prompt: str, system: str = "", max_tokens: int = 0, user_id: str = "", cache_retention: str = "", **kw
     ) -> dict:
@@ -37,6 +42,11 @@ class _StatefulProvider(_StatelessProvider):
 
     name = "openai"
     model = "gpt-4o"
+
+    @property
+    def capabilities(self):
+        """Advertise message-list generation, user_id and prefix caching."""
+        return {"max_tokens", "temperature", "generate_with_messages", "user_id", "prefix_cache"}
 
     def generate_with_messages(self, messages, max_tokens=0, user_id="", cache_retention=0):
         """Native message-list generation path."""

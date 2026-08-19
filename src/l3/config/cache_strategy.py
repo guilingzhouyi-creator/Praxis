@@ -73,6 +73,27 @@ def load_cache_config(cfg: dict) -> None:
 # ── Pure capability→flag resolver (TS-equivalent portable) ──
 
 
+def normalize_probe(probe: dict) -> dict:
+    """Fold a provider probe into the CACHE_CAP_* capability vocabulary.
+
+    Pure logic — TS-equivalent portable. A probe may carry explicit
+    CACHE_CAP_* keys (params/system.py) or a ``supports`` set of capability
+    strings (e.g. ``generate_with_messages`` / ``prefix_cache`` / ``user_id``);
+    both are folded into a normalized dict with only the CACHE_CAP_* keys.
+    """
+    out = {
+        key: bool(probe[key]) for key in (CACHE_CAP_PREFIX_CACHE, CACHE_CAP_STATEFUL, CACHE_CAP_USER_ID) if key in probe
+    }
+    supports = set(probe.get("supports") or ())
+    if "prefix_cache" in supports:
+        out.setdefault(CACHE_CAP_PREFIX_CACHE, True)
+    if "generate_with_messages" in supports:
+        out.setdefault(CACHE_CAP_STATEFUL, True)
+    if "user_id" in supports:
+        out.setdefault(CACHE_CAP_USER_ID, True)
+    return out
+
+
 def resolve_cache_flags(config: dict, probe: dict) -> dict:
     """Merge provider capability probe keys into cache strategy options.
 
@@ -83,12 +104,13 @@ def resolve_cache_flags(config: dict, probe: dict) -> dict:
     Returns a new dict without mutating *config*.
     """
     out = dict(config)
-    if CACHE_CAP_PREFIX_CACHE in probe and "optimize_prompt" not in config:
-        out["optimize_prompt"] = bool(probe[CACHE_CAP_PREFIX_CACHE])
-    if CACHE_CAP_STATEFUL in probe and "protocol" not in config:
-        out["protocol"] = "stateful" if bool(probe[CACHE_CAP_STATEFUL]) else "stateless"
-    if CACHE_CAP_USER_ID in probe and "forward_user_id" not in config:
-        out["forward_user_id"] = bool(probe[CACHE_CAP_USER_ID])
+    for key, supported in normalize_probe(probe).items():
+        if key == CACHE_CAP_STATEFUL and "protocol" not in config:
+            out["protocol"] = "stateful" if supported else "stateless"
+        elif key == CACHE_CAP_PREFIX_CACHE and "optimize_prompt" not in config:
+            out["optimize_prompt"] = bool(supported)
+        elif key == CACHE_CAP_USER_ID and "forward_user_id" not in config:
+            out["forward_user_id"] = bool(supported)
     return out
 
 
@@ -107,11 +129,7 @@ def _probe_refresh_enabled() -> bool:
 
 def _probe_fingerprint(probe: dict) -> str:
     """Build a stable fingerprint from the known capability keys in a probe."""
-    relevant = sorted(
-        (str(key), str(bool(probe[key])))
-        for key in (CACHE_CAP_PREFIX_CACHE, CACHE_CAP_STATEFUL, CACHE_CAP_USER_ID)
-        if key in probe
-    )
+    relevant = sorted((str(key), str(value)) for key, value in normalize_probe(probe).items())
     return "|".join(f"{k}={v}" for k, v in relevant)
 
 
