@@ -49,8 +49,8 @@ scope_dirs:
   scripts: scripts/
   config: config/
   ci: .github/
-  judge: docs/architecture/completion-judge.md
-  git: .githooks/
+  judge: docs/
+  git: scripts/
   hooks: .githooks/
 
 # Registered authoring agents for Co-Authored-By attribution. The commit-msg

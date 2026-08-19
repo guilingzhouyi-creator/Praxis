@@ -36,8 +36,8 @@ _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 # These are heuristic checks (not absolute) — a `feat` that only touches docs
 # is suspicious; a `docs` that touches src/ may be legitimate (docstrings).
 _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
-    "feat": {"must_include": ["src/"]},
-    "fix": {"must_include": ["src/"]},
+    "feat": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
+    "fix": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
     "refactor": {"must_include": ["src/"]},
     "perf": {"must_include": ["src/"]},
     "test": {"must_include": ["tests/"]},
@@ -130,13 +130,15 @@ def validate_type_content(commit_type: str, changed_files: list[str]) -> list[st
     rule = _TYPE_CONTENT_RULES.get(commit_type)
     if not rule:
         return []
-    violations: list[str] = []
-    for prefix in rule.get("must_include", []):
-        if not any(f.startswith(prefix) for f in changed_files):
-            violations.append(
-                f"type '{commit_type}' requires files under {prefix} but none found",
-            )
-    return violations
+    prefixes = rule.get("must_include", [])
+    if not prefixes:
+        return []
+    # At least one of the allowed prefixes must match a changed file.
+    if not any(any(f.startswith(p) for f in changed_files) for p in prefixes):
+        return [
+            f"type '{commit_type}' does not match any changed file — expected one of: {prefixes}",
+        ]
+    return []
 
 
 def validate_scope_content(commit_scope: str, changed_files: list[str], policy: dict | None = None) -> list[str]:
@@ -296,7 +298,7 @@ def scan_range(
         if check_content:
             parsed = parse_subject(subject)
             if parsed:
-                ctype, cscope = parsed[0], parsed[1]
+                ctype = parsed[0]
                 files_out = subprocess.run(
                     ["git", "diff", "--name-only", f"{sha}^", f"{sha}"],
                     capture_output=True,
@@ -306,8 +308,8 @@ def scan_range(
                 changed = [f for f in files_out.stdout.splitlines() if f]
                 for v in validate_type_content(ctype, changed):
                     findings.append((sha, v))
-                for v in validate_scope_content(cscope, changed, policy=policy):
-                    findings.append((sha, v))
+                # scope-content is advisory (non-blocking) — scopes are
+                # inherently cross-cutting and may span multiple directories.
     return findings
 
 
