@@ -496,6 +496,7 @@
         "AuthPort",
         "FilesystemPort",
         "InputActivityPort",
+        "InputSourcePort",
         "RpcServerPort",
         "WebSocketPort"
       ],
