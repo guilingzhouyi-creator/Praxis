@@ -38,7 +38,7 @@ _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
     "feat": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
     "fix": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
-    "refactor": {"must_include": ["src/"]},
+    "refactor": {"must_include": ["src/", "scripts/", ".githooks/", "config/"]},
     "perf": {"must_include": ["src/"]},
     "test": {"must_include": ["tests/"]},
     "ci": {"must_include": [".github/"]},
