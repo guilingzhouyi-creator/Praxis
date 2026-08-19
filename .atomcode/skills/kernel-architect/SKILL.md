@@ -17,7 +17,7 @@ Architecture guide for the L1 kernel (`src/l1/kernel/`, ~58 files, 17k lines). T
 - **Lifecycle**: `os.py` (boot/shutdown/restart/watchdog), `lifecycle.py`
 - **Communication**: `ipc.py`, `net.py`, `net_transport.py` (TLS), `channel_ring.py`, `bus.py`
 - **Config surface**: `params/` (1,119 compile-time constants, 9 modules), `settings.py` (DEFAULTS registry), `paths.py`, `prompts.py` (prompt registry — prompt templates are data, not params), `discovery.py`, `platform.py` (OS abstractions)
-- **Ports**: `ports/` — 15 `*Port(ABC)` abstractions (core/service/storage/lock/types/registry packages), adapters self-register via `register_port(name, svc)`, consumers resolve via `get_port(name)` (duck-typed)
+- **Ports**: `ports/` — 16 `*Port(ABC)` abstractions (core/service/storage/lock/types/registry packages), adapters self-register via `register_port(name, svc)`, consumers resolve via `get_port(name)` (duck-typed)
 
 ## Core Conventions
 

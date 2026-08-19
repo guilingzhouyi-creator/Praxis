@@ -81,3 +81,29 @@ def test_monitored_get_prompt_counts_usage():
         assert prompt_monitor_stats()["per_prompt"]["agent_loop.system.default"]["used"] == 1
     finally:
         reset_prompt_monitor()
+
+
+def test_register_prompt_source_covers_record_center():
+    """P2-3: the prompt record source folds into RecordCenter stats/export."""
+    from l3.agent import prompt_monitor
+    from l3.services.record_center import get_record_center, reset_record_center
+
+    reset_record_center()
+    reset_prompt_monitor()
+    try:
+        set_prompt_monitor(enabled=True)
+        prompt_monitor.record_prompt_usage("agent_loop.system")
+        r = prompt_monitor.register_prompt_source()
+        assert r["success"] is True
+
+        rc = get_record_center()
+        stats = rc.stats()
+        assert "prompt" in stats
+        assert stats["prompt"]["tracked_keys"] == 1
+
+        export = rc.export(sources=["prompt"])
+        assert export["success"] is True
+        assert export["total"] >= 0
+    finally:
+        reset_prompt_monitor()
+        reset_record_center()

@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 CAP_MAX_TOKENS = "max_tokens"
 CAP_TEMPERATURE = "temperature"
 
+# Optional capability strings a provider may advertise in ``capabilities``.
+# The cache-strategy refresh loop maps them onto the CACHE_CAP_* keys in
+# params/system.py — pure data contract, TS-equivalent portable.
+CAP_GENERATE_WITH_MESSAGES = "generate_with_messages"
+CAP_PREFIX_CACHE = "prefix_cache"
+CAP_USER_ID = "user_id"
+
 _BASE_CAPABILITIES = {CAP_MAX_TOKENS, CAP_TEMPERATURE}
 
 
@@ -68,6 +75,23 @@ class LLMProvider(ABC):
         self, prompt: str, system: str = "", max_tokens: int = LLM_PROVIDER_MAX_TOKENS, user_id: str = "", **kwargs
     ) -> dict:
         """Generate a response from the LLM. Must be implemented by subclasses."""
+
+    def generate_with_messages(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        max_tokens: int = LLM_PROVIDER_MAX_TOKENS,
+        user_id: str = "",
+        cache_retention: float = 0,
+    ) -> dict:
+        """Generate from a full message list (stateful wire protocol).
+
+        Optional capability — providers that do not implement message-list
+        generation leave this default, which raises NotImplementedError so
+        the engine's ``hasattr`` capability check degrades to the stateless
+        wire path. Override to enable the stateful protocol for a provider.
+        """
+        raise NotImplementedError("generate_with_messages not supported by this provider")
 
     def embed(self, texts: list[str]) -> dict:
         """Embed a list of texts into vectors.

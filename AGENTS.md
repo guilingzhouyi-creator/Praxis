@@ -47,7 +47,7 @@ src/l3/cell/peers/l3a/ — L3A orchestration daemon: session system, subagent po
 src/l3/cell/peers/l3.py — CentralController (L3A+L3B+CardRegistry)
 src/l2/ — Shell family: shells/ dialect adapters, l2_shell engine, protocol v1 wire contract
 src/l1/kernel/ — Kernel primitives: sync, event, constitution, allocator, gatechain, VFS, IPC, params/
-src/l1/kernel/ports/ — 15 *Port(ABC) abstractions
+src/l1/kernel/ports/ — 16 *Port(ABC) abstractions
 ```
 
 ### Import rules (enforced by `tests/infra/test_layer_imports.py`)

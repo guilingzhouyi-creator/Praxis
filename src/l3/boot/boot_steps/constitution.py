@@ -186,6 +186,15 @@ def _load_constitution() -> dict:
         except Exception as e:
             logger.debug("boot: record_center memory source register skipped: %s", e)
 
+        # 3.2 P2-3: system-prompt bypass-monitor record source — RC stats/
+        # export/query cover prompt usage/success/failure aggregates.
+        try:
+            from l3.agent.prompt_monitor import register_prompt_source
+
+            register_prompt_source()
+        except Exception as e:
+            logger.debug("boot: record_center prompt source register skipped: %s", e)
+
         # Auto-trigger territory discussion if constitution is blank
         if result.get("assembly_mode"):
             try:
