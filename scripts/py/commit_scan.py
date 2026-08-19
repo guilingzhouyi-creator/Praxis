@@ -32,6 +32,18 @@ _POLICY_PATH = ROOT / "config" / "discovery" / "commits.yaml"
 _SUBJECT_RE = re.compile(r"^([a-z]+)(?:\(([^)]+)\))?!?:[ \t]*(.*)$", re.DOTALL)
 _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 
+# Type-content consistency rules: a commit type must match the actual diff.
+# These are heuristic checks (not absolute) — a `feat` that only touches docs
+# is suspicious; a `docs` that touches src/ may be legitimate (docstrings).
+_TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
+    "feat": {"must_include": ["src/"]},
+    "fix": {"must_include": ["src/"]},
+    "refactor": {"must_include": ["src/"]},
+    "perf": {"must_include": ["src/"]},
+    "test": {"must_include": ["tests/"]},
+    "ci": {"must_include": [".github/"]},
+}
+
 
 def load_policy() -> dict:
     """Load the commit policy from config/discovery/commits.yaml."""
@@ -105,6 +117,48 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
                 violations.append(f"branch '{branch}' allows only types {allowed}, got '{ctype}'")
 
     return violations
+
+
+def validate_type_content(commit_type: str, changed_files: list[str]) -> list[str]:
+    """Validate that the commit type is consistent with the changed files.
+
+    A `feat` that does not touch `src/` is suspicious (new features should
+    add code). A `fix` that does not touch `src/` is suspicious (bug fixes
+    touch code). These are heuristic checks, not absolute — they surface
+    inconsistencies that the agent should explain, not block the gate.
+    """
+    rule = _TYPE_CONTENT_RULES.get(commit_type)
+    if not rule:
+        return []
+    violations: list[str] = []
+    for prefix in rule.get("must_include", []):
+        if not any(f.startswith(prefix) for f in changed_files):
+            violations.append(
+                f"type '{commit_type}' requires files under {prefix} but none found",
+            )
+    return violations
+
+
+def validate_scope_content(commit_scope: str, changed_files: list[str], policy: dict | None = None) -> list[str]:
+    """Validate that the commit scope is consistent with the changed files.
+
+    A `feat(kernel)` that does not touch `src/l1/kernel/` is suspicious.
+    The scope-to-directory mapping lives in commits.yaml `scope_dirs`.
+    This is a heuristic advisory, not a hard gate — cross-cutting changes
+    may legitimately span directories.
+    """
+    if not commit_scope or not changed_files:
+        return []
+    policy = policy if policy is not None else _cached_policy()
+    scope_dirs = policy.get("scope_dirs", {})
+    expected_dir = scope_dirs.get(commit_scope)
+    if not expected_dir:
+        return []  # unknown scope — no mapping to check
+    if not any(f.startswith(expected_dir) for f in changed_files):
+        return [
+            f"scope '{commit_scope}' expects files under {expected_dir} but none found",
+        ]
+    return []
 
 
 def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict | None = None) -> list[str]:
@@ -213,8 +267,13 @@ def _cached_policy() -> dict:
     return _cached
 
 
-def scan_range(rev_range: str, branch: str = "", policy: dict | None = None) -> list[tuple[str, str]]:
+def scan_range(
+    rev_range: str, branch: str = "", policy: dict | None = None, check_content: bool = False
+) -> list[tuple[str, str]]:
     """Validate every non-merge subject in a git range.
+
+    When check_content=True, also validates that each commit's type matches
+    its changed files (e.g. feat must touch src/, test must touch tests/).
 
     Returns a list of (commit_short_sha, violation) for every violating
     commit; empty list = the whole range is clean. Merge/Revert subjects
@@ -234,6 +293,21 @@ def scan_range(rev_range: str, branch: str = "", policy: dict | None = None) -> 
             continue
         for v in validate_subject(subject, branch=branch, policy=policy):
             findings.append((sha, v))
+        if check_content:
+            parsed = parse_subject(subject)
+            if parsed:
+                ctype, cscope = parsed[0], parsed[1]
+                files_out = subprocess.run(
+                    ["git", "diff", "--name-only", f"{sha}^", f"{sha}"],
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+                changed = [f for f in files_out.stdout.splitlines() if f]
+                for v in validate_type_content(ctype, changed):
+                    findings.append((sha, v))
+                for v in validate_scope_content(cscope, changed, policy=policy):
+                    findings.append((sha, v))
     return findings
 
 
@@ -277,11 +351,16 @@ def main() -> int:
         help="full commit message: validate Co-Authored-By against the agents registry + live runtime detection",
     )
     parser.add_argument("--detected", help="optional JSON from scripts/py/detect_agent.py (defaults to live detection)")
+    parser.add_argument(
+        "--check-content",
+        action="store_true",
+        help="validate type-diff consistency (feat must touch src/, test must touch tests/, etc.)",
+    )
     args = parser.parse_args()
 
     try:
         if args.git_range:
-            findings = scan_range(args.git_range, branch=args.branch)
+            findings = scan_range(args.git_range, branch=args.branch, check_content=args.check_content)
             if not findings:
                 print("[commit-scan] OK — all subjects in range clean")
             else:

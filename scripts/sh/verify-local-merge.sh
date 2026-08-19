@@ -54,6 +54,20 @@ if [ "$BRANCH" = "main" ]; then
 fi
 
 echo "[local-merge] branch: $BRANCH (target: local main)"
+
+# ── Commit audit — every commit on the branch must pass commit_scan ──────
+SCAN="scripts/py/commit_scan.py"
+if [ -f "$SCAN" ]; then
+  echo "[local-merge] ── commit audit (main..$BRANCH) ──"
+  if ! python "$SCAN" --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then
+    echo "[local-merge] ❌ commit audit FAILED — branch has violations." >&2
+    cat /tmp/local_merge_scan.log >&2
+    echo "[local-merge]    Fix the commits before merging, or use MERGE_GATE_SKIP=1 waiver." >&2
+    exit 1
+  fi
+  echo "[local-merge] ✅ commit audit passed"
+fi
+
 echo "[local-merge] running the mainline merge gate with MAIN_BASE=main (local, not origin/main)..."
 
 GATE="scripts/sh/verify-main-merge-gate.sh"

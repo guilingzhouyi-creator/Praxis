@@ -60,6 +60,19 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
       echo "   then push BOTH remotes via bash scripts/sh/push-both.sh main." >&2
     fi
   fi
+  # If the merge message has a custom body (not just the auto-generated line),
+  # it should follow Conventional Commits format for traceability.
+  if printf '%s' "$msg" | grep -qE '^[A-Za-z]+\('; then
+    # Custom merge message — validate subject format.
+    MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
+    if [ -f scripts/py/commit_scan.py ]; then
+      python scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+      if grep -q 'VIOLATIONS' /tmp/merge_scan.log; then
+        echo "⚠️  Merge subject should follow Conventional Commits: type(scope): description" >&2
+        grep '  ✗' /tmp/merge_scan.log >&2
+      fi
+    fi
+  fi
   exit 0
 fi
 
