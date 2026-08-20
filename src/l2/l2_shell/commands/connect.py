@@ -72,23 +72,23 @@ def _cmd_agents(args: list[str], session=None) -> dict:
 
 
 def _cmd_connect(args: list[str], session=None) -> dict:
-    from l3.agent_terminal import get_terminals
+    from l2.bridge import terminals
 
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_connect")}
     from l1.kernel.params.agent import DEFAULT_CELL_ID
-    from l3.cell import get_cell
+    from l2.bridge import cell as _get_cell
 
     from ..state import get_state
 
     agent_id = args[0]
-    terms = get_terminals()
+    terms = terminals()
     if agent_id not in terms:
         return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
     state = session if session is not None else get_state()
     cell_id = DEFAULT_CELL_ID
     try:
-        cell = get_cell(cell_id)
+        cell = _get_cell(cell_id)
         r = cell.send_direct_message(agent_id, "")
         if not r.get("success"):
             return {"success": False, "error": r.get("error", "connect failed")}
@@ -105,9 +105,9 @@ def _cmd_disconnect(args: list[str], session=None) -> dict:
     if not state.is_direct():
         return {"success": False, "error": _t("shell.app_error.no_active_session")}
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         cell.close_direct_session(state.agent_id)
     except Exception as e:
         logger.warning("connect: close_direct_session failed: %s", e)

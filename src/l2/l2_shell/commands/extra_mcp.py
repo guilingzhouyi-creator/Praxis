@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from l2.bridge import capture
 from l2.i18n import t as _t
-from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)
 

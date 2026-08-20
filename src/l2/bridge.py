@@ -455,3 +455,53 @@ def violation_monitor_reset() -> None:
     from l3.cell.violation_monitor import reset_violation_monitor as _fn
 
     _fn()
+
+
+# ── coordinator / htn / l3a / tool-config domains ──
+def coordinator() -> Any:
+    """Return the central coordinator (L3A intent path)."""
+    from l3.cell.peers.l3 import get_coordinator
+
+    return get_coordinator()
+
+
+def htn_a() -> Any:
+    """Return the HTN planner instance."""
+    from l3.bus.htn_a import get_htn_a
+
+    return get_htn_a()
+
+
+def cells() -> dict:
+    """Return the cell registry keyed by id."""
+    from l3.cell import get_cells
+
+    return get_cells()
+
+
+def llm_engine() -> Any:
+    """Return the LLM engine adapter."""
+    from l3.services.adapter_bridge import get_llm_engine
+
+    return get_llm_engine()
+
+
+def secretary() -> Any:
+    """Return the L3A secretary instance."""
+    from l3.cell.peers.l3a.secretary import get_secretary
+
+    return get_secretary()
+
+
+def reset_secretary() -> None:
+    """Reset the L3A secretary."""
+    from l3.cell.peers.l3a.secretary import reset_secretary as _fn
+
+    _fn()
+
+
+def tool_config() -> Any:
+    """Return the tool-config class (completions/help metadata)."""
+    from l3.tool_system.tool_config import ToolConfig
+
+    return ToolConfig

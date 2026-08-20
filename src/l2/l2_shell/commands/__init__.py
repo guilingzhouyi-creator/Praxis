@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable
 
 from l1.kernel.commands import get_registry
-from l3.error_bus import capture
+from l2.bridge import capture
 
 logger = logging.getLogger(__name__)
 

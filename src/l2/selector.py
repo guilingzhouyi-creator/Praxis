@@ -25,8 +25,8 @@ from l1.kernel.params.agent import (
     INJECTION_REVIEW_REWARD,
 )
 from l1.kernel.params.system import TLB_DEFAULT_RING
+from l2.bridge import capture
 from l2.i18n import t as _t
-from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +101,9 @@ def preselect() -> dict:
     cell_ids: list[str] = []
 
     try:
-        from l3.cell import get_cells
+        from l2.bridge import cells as _get_cells
 
-        cells = get_cells()
+        cells = _get_cells()
     except Exception as e:
         logger.warning("preselect: get_cells failed: %s", e)
         return {"agents": [], "cells": [], "total": 0, "error": _t("shell.app_error.cell_service_unavailable")}
@@ -201,9 +201,9 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
 
     # 1. Cell liveness
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(cell_id)
+        cell = _get_cell(cell_id)
         liveness = cell.liveness()
         if liveness.get("overall") == "unreachable":
             return {"allowed": False, "reason": "cell_unreachable", "injection_risk": 0.0}
@@ -251,9 +251,9 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
 
 def _select_by_id(agent_id: str) -> dict:
     """Find an agent by ID across all Cells.  Returns {"success", "cell_id", "agent_id"}."""
-    from l3.cell import get_cells
+    from l2.bridge import cells as _get_cells
 
-    for cell_id, cell in get_cells().items():
+    for cell_id, cell in _get_cells().items():
         try:
             r = cell.agent_reachable(agent_id)
             if r.get("reachable"):
@@ -275,10 +275,10 @@ def _select_by_id(agent_id: str) -> dict:
 
 
 def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
-    from l3.cell import get_cell
+    from l2.bridge import cell as _get_cell
 
     try:
-        cell = get_cell(cell_id)
+        cell = _get_cell(cell_id)
         liveness = cell.liveness()
         for aid, info in liveness.get("agents", {}).items():
             if info.get("role", info.get("status", "")).lower() == role.lower():
@@ -293,7 +293,7 @@ def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
 
 def _select_best(role: str, domain: str) -> dict:
     global _role_index, _role_index_stale
-    from l3.cell import get_cells
+    from l2.bridge import cells as _get_cells
 
     best = None
     best_score = -1
@@ -306,7 +306,7 @@ def _select_best(role: str, domain: str) -> dict:
             candidates = _role_index.get(role_lower, []) if not stale else []
         if stale:
             try:
-                _rebuild_role_index(get_cells())
+                _rebuild_role_index(_get_cells())
             except Exception as e:
                 logger.warning("_rebuild_role_index failed: %s", e)
                 capture("_rebuild_role_index failed", error_code="E_PRESELECT", component="l2")
@@ -317,7 +317,7 @@ def _select_best(role: str, domain: str) -> dict:
 
     if not candidates:
         # Fallback: scan all cells × agents (O(C×A))
-        for cell_id, cell in get_cells().items():
+        for cell_id, cell in _get_cells().items():
             lv = cell.liveness()
             agents_data = lv.get("agents", {})
             cell_territory = getattr(cell, "territory", [])
@@ -339,7 +339,7 @@ def _select_best(role: str, domain: str) -> dict:
         for cell_id, aid in candidates:
             if cell_id not in cell_cache:
                 try:
-                    cell = get_cells().get(cell_id)
+                    cell = _get_cells().get(cell_id)
                     cell_cache[cell_id] = getattr(cell, "territory", []) if cell else []
                 except Exception as e:
                     logger.warning("cell_cache territory for %s: %s", cell_id, e)

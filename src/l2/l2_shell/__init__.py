@@ -181,9 +181,9 @@ def _direct_message(state: ShellState, text: str) -> dict:
     Passes the response through ``guard_output``.
     """
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         r = cell.send_direct_message(state.agent_id, text)
         if not r.get("success"):
             _auto_disconnect(state, r.get("error", "send_failed"))
@@ -208,9 +208,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
         return
     logger.warning("auto-disconnect from %s: %s", state.agent_id, reason)
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         cell.close_direct_session(state.agent_id)
     except Exception:
         logger.warning("auto-disconnect: close_direct_session failed for %s", state.agent_id)
@@ -226,9 +226,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
 def _l3a_intent(text: str) -> dict:
     """Send a natural-language intent to the L3 coordinator for processing."""
     try:
-        from l3.cell.peers.l3 import get_coordinator
+        from l2.bridge import coordinator
 
-        coord = get_coordinator()
+        coord = coordinator()
         return coord.process_intent(text)
     except Exception as e:
         return {"success": False, "error": str(e)}

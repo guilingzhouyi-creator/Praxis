@@ -14,13 +14,13 @@ def _cmd_l3ac(args: list[str], session=None) -> dict:
     """Manage the L3A-C secretary: status | contribute | reset."""
     sub = args[0] if args else "status"
     if sub == "reset":
-        from l3.cell.peers.l3a.secretary import reset_secretary
+        from l2.bridge import reset_secretary
 
         reset_secretary()
         return {"success": True, "note": "secretary reset"}
-    from l3.cell.peers.l3a.secretary import get_secretary
+    from l2.bridge import secretary
 
-    sec = get_secretary()
+    sec = secretary()
     if sub == "status":
         return {"success": True, "secretary": sec.status()}
     if sub == "contribute":

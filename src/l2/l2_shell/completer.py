@@ -90,9 +90,9 @@ def _complete_agent(partial: str, cmd_name: str = "") -> list[dict]:
     state = get_state()
     results = []
     try:
-        from l3.agent_terminal import get_terminals
+        from l2.bridge import terminals
 
-        agents = list(get_terminals().keys())
+        agents = list(terminals().keys())
     except Exception:
         logger.warning("completer: get_terminals failed, falling back to state agent_id")
         agents = [state.agent_id] if state.agent_id else []
