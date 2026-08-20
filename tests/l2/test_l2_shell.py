@@ -529,6 +529,38 @@ class TestDispatchDirectMode:
         r = dispatch("hello agent")
         assert isinstance(r, dict)
 
+    def test_history_records_dispatched_lines(self):
+        """dispatch records / commands and intents; /history reads them back."""
+        from l2.l2_shell import dispatch, get_state, reset_state
+
+        reset_state()
+        state = get_state()
+        dispatch("/lang", state)
+        dispatch("/lang", state)
+        out = dispatch("/history", state)
+        assert out["success"] is True
+        texts = [e["text"] for e in out["history"]]
+        assert texts == ["/lang", "/lang", "/history"]
+        kinds = [e["kind"] for e in out["history"]]
+        assert kinds == ["command", "command", "command"]
+
+    def test_history_kind_classification(self):
+        """Intent/pipeline lines are classified and bounded by the default limit."""
+        from l2.l2_shell import _history_kind, dispatch, get_state, reset_state
+
+        assert _history_kind("/status") == "command"
+        assert _history_kind("/status x") == "command"
+        assert _history_kind("a | b") == "pipeline"
+        assert _history_kind("free text") == "intent"
+        reset_state()
+        state = get_state()
+        dispatch("/lang", state)
+        dispatch("some intent", state)
+        out = dispatch("/history 2", state)
+        assert len(out["history"]) == 2
+        assert out["history"][0]["text"] == "some intent"
+        assert out["history"][0]["kind"] == "intent"
+
 
 # ═══════════════════════════════════════════════════════════════
 # autocomplete — arg completion paths

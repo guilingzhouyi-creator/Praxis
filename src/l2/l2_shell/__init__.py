@@ -124,6 +124,16 @@ def _command_names() -> list[str]:
     return _COMMAND_NAMES_CACHE
 
 
+def _history_kind(text: str) -> str:
+    """Classify an input line for the session history (command/pipeline/intent)."""
+    stripped = text.lstrip()
+    if stripped.startswith("/"):
+        return "command"
+    if "|" in text:
+        return "pipeline"
+    return "intent"
+
+
 def dispatch(text: str, session: ShellSession | None = None) -> dict:
     """Route user input to the active shell mode.
 
@@ -137,12 +147,14 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
     the deprecated process-global shell state is used for backward
     compatibility.
     """
+    state = session if session is not None else get_state()
+    if text and text.strip():
+        state.record(text, _history_kind(text))
+
     if "|" in text:
         segments = [s.strip() for s in text.split("|")]
         if len(segments) >= 2:
             return _pipeline(segments)
-
-    state = session if session is not None else get_state()
 
     if text.startswith("/"):
         parts = shlex.split(text)

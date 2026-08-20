@@ -653,7 +653,9 @@ def _cmd_history(args: list[str], session=None) -> dict:
     from l1.kernel.params.system import SHELL_HISTORY_DEFAULT_LIMIT
 
     limit = int(args[0]) if args and args[0].isdigit() else SHELL_HISTORY_DEFAULT_LIMIT
-    return {"success": True, "history": [], "limit": limit}
+    if session is None:
+        return {"success": True, "history": [], "limit": limit}
+    return {"success": True, "history": session.history(limit), "limit": limit}
 
 
 def _cmd_lang(args: list[str], session=None) -> dict:
