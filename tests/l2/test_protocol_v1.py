@@ -130,6 +130,17 @@ class TestOutbox:
         assert [m["seq"] for m in box.unacked()] == [2, 3, 4]
         assert OUTBOX_MAXLEN >= 3
 
+    def test_ack_is_non_destructive_across_views(self) -> None:
+        """One view acking never erases messages another view must replay."""
+        box = Outbox()
+        box.append(make_message("s", 1, KIND_RESULT, {"success": True}))
+        box.append(make_message("s", 2, KIND_RESULT, {"success": True}))
+        box.ack(1)
+        # The advancing view sees only its future; a lagging view still
+        # replays the full window from its own cursor.
+        assert [m["seq"] for m in box.unacked()] == [2]
+        assert [m["seq"] for m in box.unacked(0)] == [1, 2]
+
 
 class TestSessionCursor:
     """Per-view attachment + acknowledged position."""
@@ -142,6 +153,14 @@ class TestSessionCursor:
         assert cur.attached and cur.session_id == "s-9"
         cur.detach()
         assert not cur.attached
+
+    def test_ack_advances_only_this_view(self) -> None:
+        """A view's ack position is independent of other views."""
+        cur = SessionCursor(view_id="view-a")
+        cur.ack(5)
+        assert cur.last_acked == 5
+        cur.ack(3)
+        assert cur.last_acked == 5
 
 
 class TestSchema:

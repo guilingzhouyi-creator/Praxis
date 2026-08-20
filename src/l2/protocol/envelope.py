@@ -158,7 +158,14 @@ def decode_message(line: str) -> tuple[dict[str, Any] | None, str | None]:
 
 @dataclass
 class Outbox:
-    """Bounded per-session replay window; unacked messages survive recovery."""
+    """Bounded per-session replay window; unacked messages survive recovery.
+
+    The window is shared by every view attached to the session. ``ack`` is
+    non-destructive: it only advances the acknowledged cursor, so one view
+    acknowledging a sequence never erases messages another view still needs
+    to replay. Messages beyond ``maxlen`` are evicted oldest-first, which is
+    the hard bound any view must tolerate.
+    """
 
     maxlen: int = OUTBOX_MAXLEN
     _items: deque[dict[str, Any]] = field(default_factory=deque)
@@ -171,14 +178,13 @@ class Outbox:
             self._items.popleft()
 
     def ack(self, seq: int) -> None:
-        """Advance the acknowledged cursor, dropping covered messages."""
-        while self._items and self._items[0]["seq"] <= seq:
-            self._items.popleft()
+        """Advance the acknowledged cursor without dropping retained messages."""
         self._last_acked = max(self._last_acked, seq)
 
-    def unacked(self) -> list[dict[str, Any]]:
-        """Return the replay window (messages after the last ack)."""
-        return list(self._items)
+    def unacked(self, after_seq: int | None = None) -> list[dict[str, Any]]:
+        """Return the replay window for one view cursor (messages after it)."""
+        after = self._last_acked if after_seq is None else after_seq
+        return [msg for msg in self._items if msg["seq"] > after]
 
     @property
     def last_acked(self) -> int:
@@ -203,3 +209,7 @@ class SessionCursor:
     def detach(self) -> None:
         """Unbind the view from its session (marks it unattached)."""
         self.attached = False
+
+    def ack(self, seq: int) -> None:
+        """Advance this view's acknowledged position."""
+        self.last_acked = max(self.last_acked, seq)

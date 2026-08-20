@@ -127,6 +127,13 @@ class ProtocolHost:
             return None
         return dataclasses.asdict(cursor)
 
+    def session_state(self, session_id: str) -> dict[str, Any]:
+        """Return the protocol-shaped session snapshot consumed by projections."""
+        return {
+            "identity": self.session_identity(session_id),
+            "events": self._get_outbox(session_id).unacked(),
+        }
+
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
         msg, err = decode_message(line)
@@ -162,7 +169,12 @@ class ProtocolHost:
         elif kind == KIND_CONTROL:
             out.extend(self._handle_control(payload, session_id, trace_id))
         elif kind == KIND_ACK:
-            self._get_outbox(session_id).ack(payload["ack_seq"])
+            # Per-view acknowledgement: the view cursor advances while the
+            # shared outbox retains messages for views that are behind.
+            view_id = str(payload.get("view_id", session_id))
+            cursor = self._cursors.get(view_id)
+            if cursor is not None:
+                cursor.ack(payload["ack_seq"])
             return []
         else:
             out.append(
@@ -195,17 +207,26 @@ class ProtocolHost:
                 )
             ]
         if op == CONTROL_ACK:
-            self._get_outbox(target).ack(payload.get("last_acked", -1))
+            cursor = self._cursors.get(view_id)
+            if cursor is not None:
+                cursor.ack(payload.get("last_acked", -1))
             return []
         if op in (CONTROL_RESUME, CONTROL_RECOVERY):
             self._get_session(target)
             outbox = self._get_outbox(target)
-            outbox.ack(payload.get("last_acked", -1))
-            replay = outbox.unacked()
+            cursor = self._cursors.get(view_id)
+            if cursor is not None:
+                cursor.ack(payload.get("last_acked", -1))
+                replay = outbox.unacked(cursor.last_acked)
+            else:
+                replay = outbox.unacked(payload.get("last_acked", -1))
             return [
                 self._emit(
                     KIND_EVENT,
-                    {"name": "session.recovered", "data": {"session_id": target, "replay": replay}},
+                    {
+                        "name": "session.recovered",
+                        "data": {"session_id": target, "view_id": view_id, "replay": replay},
+                    },
                     target,
                     trace_id,
                 )

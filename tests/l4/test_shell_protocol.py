@@ -97,3 +97,20 @@ def test_multiple_views_share_session_with_independent_cursors():
     assert host.view_cursor("view-b")["attached"] is True
     # A single-view transport (no view_id) defaults to the session id.
     assert host.view_cursor("s-multi") is None
+
+
+def test_recovery_replays_per_view_cursor():
+    reset_protocol_host()
+    host = get_protocol_host()
+    host._get_session("s-rep")
+    # Two outbound events land in the shared session outbox.
+    host._emit(KIND_EVENT, {"name": "e1"}, "s-rep")
+    host._emit(KIND_EVENT, {"name": "e2"}, "s-rep")
+    host.attach_view("v-a", "s-rep")
+    host.attach_view("v-b", "s-rep")
+    # v-a acknowledges the first event; v-b stays behind.
+    host._cursors["v-a"].ack(1)
+    replay_b = host._get_outbox("s-rep").unacked(host._cursors["v-b"].last_acked)
+    assert len(replay_b) == 2  # v-b still replays both events
+    replay_a = host._get_outbox("s-rep").unacked(host._cursors["v-a"].last_acked)
+    assert [message["seq"] for message in replay_a] == [2]
