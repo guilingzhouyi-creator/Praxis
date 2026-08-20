@@ -7,7 +7,7 @@ semantics as the TS bridge.
 
 from __future__ import annotations
 
-from l2.protocol import KIND_ACK, KIND_COMMAND, KIND_INTENT, KIND_RESULT, make_message
+from l2.protocol import KIND_ACK, KIND_COMMAND, KIND_CONTROL, KIND_EVENT, KIND_INTENT, KIND_RESULT, make_message
 from l2.protocol.host import get_protocol_host, reset_protocol_host
 from l4.api_handlers.api_handlers_agent import _shell_dispatch
 
@@ -60,3 +60,16 @@ def test_web_mode_reuses_host_session_pool():
     _shell_dispatch(make_message("s-pool", 2, KIND_INTENT, {"text": "status"}))
     assert "s-pool" in host._sessions
     assert len(host._sessions) == 1
+
+
+def test_attach_emits_session_identity_snapshot():
+    reset_protocol_host()
+    msg = make_message("s-attach", 1, KIND_CONTROL, {"op": "attach", "session_id": "s-attach"})
+    out = _shell_dispatch(msg)
+    event = next(env for env in out["envelopes"] if env["kind"] == KIND_EVENT)
+    assert event["payload"]["name"] == "session.attached"
+    identity = event["payload"]["data"]
+    assert identity["session_id"] == "s-attach"
+    # The SessionIdentity wire record is fully present (TS-mirrored shape).
+    for field in ("terminal_id", "process_id", "user_id", "role", "cell_id", "memory_scope"):
+        assert field in identity

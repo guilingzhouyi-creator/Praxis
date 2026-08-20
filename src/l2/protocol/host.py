@@ -9,6 +9,7 @@ engine modification, no behavior change, purely additive transport.
 
 from __future__ import annotations
 
+import dataclasses
 import shlex
 import sys
 from typing import Any, TextIO
@@ -31,6 +32,7 @@ from l2.protocol.envelope import (
     make_message,
     validate_message,
 )
+from l2.protocol.records import SessionIdentity
 
 
 def _dispatch_text(text: str, session) -> dict:
@@ -48,6 +50,7 @@ class ProtocolHost:
 
     def __init__(self) -> None:
         self._sessions: dict[str, object] = {}
+        self._identities: dict[str, SessionIdentity] = {}
         self._outboxes: dict[str, Outbox] = {}
         self._seqs: dict[str, int] = {}
 
@@ -75,7 +78,23 @@ class ProtocolHost:
             from l2.shells.session import ShellSession
 
             self._sessions[session_id] = ShellSession(shell="protocol", session_id=session_id)
+            self._identities[session_id] = SessionIdentity(
+                session_id=session_id,
+                terminal_id="",
+                process_id="",
+            )
         return self._sessions[session_id]
+
+    def session_identity(self, session_id: str) -> dict[str, Any]:
+        """Return the protocol-shaped identity snapshot for a session.
+
+        ``SessionIdentity`` is the wire value record (mirrored in TS); the
+        runtime ShellSession keeps mutable mode/cell/agent state while this
+        snapshot carries the stable identity fields consumed by events and
+        bridges. terminal/process ownership is injected by the host later.
+        """
+        self._get_session(session_id)
+        return dataclasses.asdict(self._identities[session_id])
 
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
@@ -131,12 +150,8 @@ class ProtocolHost:
         op = str(payload.get("op", ""))
         target = str(payload.get("session_id", session_id))
         if op == CONTROL_ATTACH:
-            self._get_session(target)
-            return [
-                self._emit(
-                    KIND_EVENT, {"name": "session.attached", "data": {"session_id": target}}, session_id, trace_id
-                )
-            ]
+            identity = self.session_identity(target)
+            return [self._emit(KIND_EVENT, {"name": "session.attached", "data": identity}, session_id, trace_id)]
         if op == CONTROL_DETACH:
             return [
                 self._emit(
