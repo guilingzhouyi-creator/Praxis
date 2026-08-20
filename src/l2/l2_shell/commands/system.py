@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 def _cmd_status(args: list[str], session=None) -> dict:
     from l1.kernel.healthcheck import safe_system_check as _health
     from l1.kernel.process import get_table
+    from l2.bridge import terminals as get_terminals
     from l2.i18n import t
-    from l3.agent_terminal import get_terminals
 
     h = _health()
     print(t("shell.status.kernel_health", status=h.get("status", "?"), modules=h.get("module_count", 0)))
@@ -53,23 +53,21 @@ def _cmd_status(args: list[str], session=None) -> dict:
 
 
 def _cmd_intents(args: list[str], session=None) -> dict:
-    from l3.scheduler.think_registry import get_think_registry
+    from l2.bridge import think_registry_stats
 
-    reg = get_think_registry()
-    return {"success": True, "intents": reg.stats()}
+    return {"success": True, "intents": think_registry_stats()}
 
 
 def _cmd_scheduler(args: list[str], session=None) -> dict:
-    from l3.scheduler.scheduler import get_scheduler
+    from l2.bridge import scheduler_stats
 
-    s = get_scheduler()
-    return {"success": True, "data": s.stats() if hasattr(s, "stats") else {}}
+    return {"success": True, "data": scheduler_stats()}
 
 
 def _cmd_observe(args: list[str], session=None) -> dict:
-    from l3.bus.observability_bus import get_obs_bus
+    from l2.bridge import obs_bus_summary
 
-    return {"success": True, "data": get_obs_bus().summary()}
+    return {"success": True, "data": obs_bus_summary()}
 
 
 def _parse_skill_args(args: list[str]) -> tuple[str, str, list[str]]:
@@ -206,7 +204,7 @@ def _skills_candidates(sm, rest: list[str], role: str, agent_id: str) -> dict:
 def _skills_retriever(sm, rest: list[str]) -> dict:
     """Skill retriever backend control (tfidf | embedding)."""
     action = rest[1] if len(rest) > 1 else "status"
-    from l3.memory.skill_retriever import retriever_status, set_backend
+    from l2.bridge import retriever_status, set_retriever_backend
 
     if action == "status":
         return retriever_status()
@@ -214,7 +212,7 @@ def _skills_retriever(sm, rest: list[str]) -> dict:
         backend = rest[2] if len(rest) > 2 else ""
         if not backend:
             return {"success": False, "error": _t("shell.app_error.usage_skills_retriever")}
-        return set_backend(backend)
+        return set_retriever_backend(backend=backend)
     return {
         "success": False,
         "error": _t("shell.app_error.unknown_action", domain="retriever", action=action),
@@ -324,9 +322,9 @@ def _skills_evolve(sm, rest: list[str], role: str, agent_id: str) -> dict:
     if not ok:
         return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     try:
-        from l3.memory.r4_agent import get_r4_agent
+        from l2.bridge import r4_evolve_skill
 
-        return get_r4_agent().evolve_skill(intent)
+        return r4_evolve_skill(intent)
     except Exception as e:
         return {"success": False, "error": _t("shell.app_error.evolve_failed", error=e)}
 
@@ -429,9 +427,9 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
     if not ok:
         return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     try:
-        from l3.memory.r4_agent import get_r4_agent
+        from l2.bridge import r4_register_custom_skill
 
-        result = get_r4_agent().register_custom_skill(
+        result = r4_register_custom_skill(
             name=name,
             description=desc,
             prompt=prompt,
@@ -477,9 +475,9 @@ def _link_registered_skill(sm, name: str, scope: str, tags: list[str], result: d
     so L2 never imports the memory graph directly. Degrades to a no-op when
     the graph is disabled — registration never hard-fails on linkage."""
     try:
-        from l3.memory.r4_skill_retrieval import link_registered_skill_graph
+        from l2.bridge import link_skill_graph
 
-        linked = link_registered_skill_graph(sm, name, scope, tags)
+        linked = link_skill_graph(sm, name, scope, tags)
         return {"success": True, "skill": name, "scope": scope, "linked": linked.get("linked", 0), **result}
     except Exception:
         return {"success": True, "skill": name, "scope": scope, "linked": 0, **result}
@@ -635,10 +633,9 @@ def _cmd_vfs(args: list[str], session=None) -> dict:
 
 def _cmd_cache(args: list[str], session=None) -> dict:
     from l1.kernel.params.agent import DEFAULT_CELL_ID
-    from l3.cell import get_cell
+    from l2.bridge import cell_cache_stats
 
-    cell = get_cell(DEFAULT_CELL_ID)
-    return {"success": True, "cache": cell.cache.stats() if hasattr(cell, "cache") else {}}
+    return {"success": True, "cache": cell_cache_stats(DEFAULT_CELL_ID)}
 
 
 def _cmd_sysinfo(args: list[str], session=None) -> dict:
@@ -676,7 +673,7 @@ def _cmd_devices(args: list[str], session=None) -> dict:
 
 
 def _cmd_tools(args: list[str], session=None) -> dict:
-    from l3.agent_terminal import get_terminals
+    from l2.bridge import terminals as get_terminals
 
     agent_id = args[0] if args else ""
     terms = get_terminals()

@@ -203,6 +203,72 @@ def memory() -> Any:
     return get_memory()
 
 
+# ── system domain ──
+def think_registry_stats() -> dict:
+    """Return think-registry statistics (``/intents``)."""
+    from l3.scheduler.think_registry import get_think_registry
+
+    return get_think_registry().stats()
+
+
+def scheduler_stats() -> dict:
+    """Return scheduler statistics (``/scheduler``)."""
+    from l3.scheduler.scheduler import get_scheduler
+
+    s = get_scheduler()
+    return s.stats() if hasattr(s, "stats") else {}
+
+
+def obs_bus_summary() -> dict:
+    """Return observability-bus summary (``/observe``)."""
+    from l3.bus.observability_bus import get_obs_bus
+
+    return get_obs_bus().summary()
+
+
+def retriever_status() -> dict:
+    """Return skill-retriever status."""
+    from l3.memory.skill_retriever import retriever_status as _fn
+
+    return _fn()
+
+
+def set_retriever_backend(**kwargs: Any) -> dict:
+    """Switch the skill-retriever backend."""
+    from l3.memory.skill_retriever import set_backend as _fn
+
+    return _fn(**kwargs)
+
+
+def r4_evolve_skill(intent: str) -> dict:
+    """Evolve an R4 agent skill from an intent."""
+    from l3.memory.r4_agent import get_r4_agent
+
+    return get_r4_agent().evolve_skill(intent)
+
+
+def r4_register_custom_skill(**kwargs: Any) -> dict:
+    """Register a custom skill on the R4 agent."""
+    from l3.memory.r4_agent import get_r4_agent
+
+    return get_r4_agent().register_custom_skill(**kwargs)
+
+
+def link_skill_graph(sm: Any, name: str, scope: str, tags: list[str]) -> dict:
+    """Link a registered skill into the skill graph."""
+    from l3.memory.r4_skill_retrieval import link_registered_skill_graph
+
+    return link_registered_skill_graph(sm, name, scope, tags)
+
+
+def cell_cache_stats(cell_id: str) -> dict:
+    """Return one cell's cache statistics."""
+    from l3.cell import get_cell
+
+    cell = get_cell(cell_id)
+    return cell.cache.stats() if hasattr(cell, "cache") else {}
+
+
 # ── card / plugin / cell / terminal domains ──
 def card_registry() -> Any:
     """Return the card registry."""
