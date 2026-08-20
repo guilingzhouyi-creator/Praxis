@@ -271,3 +271,15 @@ class TestHost:
         assert len(lines) == 2
         for line in lines:
             assert isinstance(json.loads(line), dict)
+
+    def test_handler_stdout_captured_into_rendered(self, capsys) -> None:
+        """Legacy handler prints are captured, keeping the JSONL stream clean."""
+        host = ProtocolHost()
+        out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "clear", "args": []}))
+        result = next(env for env in out if env["kind"] == KIND_RESULT)
+        assert result["payload"]["success"] is True
+        # The ANSI clear rendered by the handler lands in the payload, not stdout.
+        assert "\x1b[2J" in result["payload"]["rendered"]
+        assert capsys.readouterr().out == ""
+        # The enriched result still survives the canonical JSONL encode.
+        assert encode_message(result)

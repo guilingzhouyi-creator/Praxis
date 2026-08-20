@@ -9,9 +9,12 @@ engine modification, no behavior change, purely additive transport.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import io
 import shlex
 import sys
+import threading
 from typing import Any, TextIO
 
 from l2.protocol.envelope import (
@@ -35,15 +38,31 @@ from l2.protocol.envelope import (
 )
 from l2.protocol.records import SessionIdentity
 
+_DISPATCH_LOCK = threading.Lock()
+
 
 def _dispatch_text(text: str, session) -> dict:
-    """Route one input line through the existing engine (unchanged)."""
+    """Route one input line through the existing engine (unchanged).
+
+    Legacy handler ``print()`` output (e.g. status/clear rendering) is
+    captured into a ``rendered`` payload field so the JSONL stream stays
+    clean and the text reaches protocol clients as data. The capture lock
+    serializes dispatches because ``redirect_stdout`` is process-global and
+    web mode is threaded.
+    """
     from l2.l2_shell import dispatch
 
+    buf = io.StringIO()
     try:
-        return dispatch(text, session)
+        with _DISPATCH_LOCK, contextlib.redirect_stdout(buf):
+            result = dispatch(text, session)
     except Exception as e:  # pragma: no cover - defensive bridge boundary
         return {"success": False, "error": str(e)}
+    out = dict(result) if isinstance(result, dict) else {"success": False, "error": str(result)}
+    rendered = buf.getvalue()
+    if rendered:
+        out["rendered"] = rendered
+    return out
 
 
 class ProtocolHost:
