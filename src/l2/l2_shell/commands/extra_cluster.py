@@ -13,7 +13,7 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_cluster(args: list[str]) -> dict:
+def _cmd_cluster(args: list[str], session=None) -> dict:
     from l3.cell.peers.l3 import get_coordinator
 
     coord = get_coordinator()
@@ -26,13 +26,13 @@ def _cmd_cluster(args: list[str]) -> dict:
     return {"success": False, "error": _t("shell.app_error.usage_cluster")}
 
 
-def _cmd_cells(args: list[str]) -> dict:
+def _cmd_cells(args: list[str], session=None) -> dict:
     from l1.kernel.params.agent import DEFAULT_CELL_ID
 
     return {"success": True, "cell": DEFAULT_CELL_ID}
 
 
-def _cmd_cross(args: list[str]) -> dict:
+def _cmd_cross(args: list[str], session=None) -> dict:
     from l3.cell.peers.l3 import get_coordinator
 
     return {
@@ -41,7 +41,7 @@ def _cmd_cross(args: list[str]) -> dict:
     }
 
 
-def _cmd_htn(args: list[str]) -> dict:
+def _cmd_htn(args: list[str], session=None) -> dict:
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_htn")}
     sub = args[0].lower()

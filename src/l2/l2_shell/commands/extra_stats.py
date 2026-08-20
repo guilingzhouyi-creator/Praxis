@@ -92,7 +92,7 @@ _STATS_METRIC_GROUPS: dict[str, list[str]] = {
 }
 
 
-def _cmd_stats(args: list[str]) -> dict:
+def _cmd_stats(args: list[str], session=None) -> dict:
     """Query statistics: StatsCenter metrics, card execution timeline,
     side-execution timing, API request timing, reasoning token spend.
 

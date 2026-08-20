@@ -10,7 +10,7 @@ from l2.selector import preselect
 logger = logging.getLogger(__name__)
 
 
-def _cmd_help(args: list[str]) -> dict:
+def _cmd_help(args: list[str], session=None) -> dict:
     from l1.kernel.commands import get_command
 
     from .common import list_commands
@@ -64,14 +64,14 @@ def _cmd_help(args: list[str]) -> dict:
         return {"success": False, "error": str(e)}
 
 
-def _cmd_agents(args: list[str]) -> dict:
+def _cmd_agents(args: list[str], session=None) -> dict:
     try:
         return {"success": True, "data": preselect()}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def _cmd_connect(args: list[str]) -> dict:
+def _cmd_connect(args: list[str], session=None) -> dict:
     from l3.agent_terminal import get_terminals
 
     if not args:
@@ -85,7 +85,7 @@ def _cmd_connect(args: list[str]) -> dict:
     terms = get_terminals()
     if agent_id not in terms:
         return {"success": False, "error": f"unknown agent: {agent_id}"}
-    state = get_state()
+    state = session if session is not None else get_state()
     cell_id = DEFAULT_CELL_ID
     try:
         cell = get_cell(cell_id)
@@ -98,10 +98,10 @@ def _cmd_connect(args: list[str]) -> dict:
     return {"success": True, "agent": agent_id}
 
 
-def _cmd_disconnect(args: list[str]) -> dict:
+def _cmd_disconnect(args: list[str], session=None) -> dict:
     from ..state import get_state
 
-    state = get_state()
+    state = session if session is not None else get_state()
     if not state.is_direct():
         return {"success": False, "error": _t("shell.app_error.no_active_session")}
     try:
@@ -115,10 +115,10 @@ def _cmd_disconnect(args: list[str]) -> dict:
     return {"success": True}
 
 
-def _cmd_mode(args: list[str]) -> dict:
+def _cmd_mode(args: list[str], session=None) -> dict:
     from ..state import get_state
 
-    state = get_state()
+    state = session if session is not None else get_state()
     if args:
         sub = args[0].lower()
         if sub == "direct":

@@ -12,7 +12,7 @@ from l3.error_bus import capture
 logger = logging.getLogger(__name__)
 
 
-def _cmd_config(args: list[str]) -> dict:
+def _cmd_config(args: list[str], session=None) -> dict:
     from l1.kernel.settings import get_settings
 
     s = get_settings()
@@ -26,7 +26,7 @@ def _cmd_config(args: list[str]) -> dict:
     return {"success": True, args[0]: v}
 
 
-def _cmd_cron(args: list[str]) -> dict:
+def _cmd_cron(args: list[str], session=None) -> dict:
     from l4.cron_scheduler import get_scheduler
 
     s = get_scheduler()
@@ -62,7 +62,7 @@ _MODEL_HANDLERS: dict[str, Callable[[list[str]], dict]] = {
 }
 
 
-def _cmd_model(args: list[str]) -> dict:
+def _cmd_model(args: list[str], session=None) -> dict:
     if not args:
         return _model_list()
     handler = _MODEL_HANDLERS.get(args[0].lower())
@@ -86,7 +86,7 @@ def _model_spec_caps(args: list[str]) -> dict:
     return handle_think_caps_set(caps)
 
 
-def _cmd_model_spec(args: list[str]) -> dict:
+def _cmd_model_spec(args: list[str], session=None) -> dict:
     """Model-spec / strategy panel: view, switch packs, set caps."""
     from l3.services.model_service import get_service as _ms
     from l4.api_handlers.api_handlers_providers import handle_model_spec_overview
@@ -108,7 +108,7 @@ def _cmd_model_spec(args: list[str]) -> dict:
     }
 
 
-def _cmd_model_spec_peer(args: list[str]) -> dict:
+def _cmd_model_spec_peer(args: list[str], session=None) -> dict:
     """Peer-agent think strategy: apply/clear strategy packs on think scopes."""
     from l3.scheduler.think_registry import get_think_registry
     from l4.api_handlers.api_handlers_providers import handle_peer_strategy_get
@@ -131,7 +131,7 @@ def _cmd_model_spec_peer(args: list[str]) -> dict:
     }
 
 
-def _cmd_settings(args: list[str]) -> dict:
+def _cmd_settings(args: list[str], session=None) -> dict:
     from .commands_settings import _cmd_settings as _cs
 
     return _cs(args)

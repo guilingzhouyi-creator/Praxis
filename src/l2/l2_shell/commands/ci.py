@@ -160,7 +160,7 @@ _CI_HANDLERS: dict[str, Callable] = {
 }
 
 
-def _cmd_ci(args: list[str]) -> dict:
+def _cmd_ci(args: list[str], session=None) -> dict:
     """Show CI review stats/reports, inspect or set review switches.
 
     Sub-commands: ``config [--cell X] [--agent Y]``, ``set <key> <value>

@@ -47,14 +47,16 @@ l2_shell/  shared engine: dispatch (| pipeline, / commands, Direct mode, L3A)
 - `ShellFamily` is revision-based like `CommandRegistry`; `resolve(frontend)`
   falls back to the configured default dialect.  No shell is hardcoded —
   adding a frontend means declaring a shell in YAML.
-- `l2_shell/state.py` is a thin accessor over the ShellFamily default
-  shell's session: `get_state()` / `reset_state()` delegate to
-  `get_family().default()` (with a stable fallback while the family is
-  empty, e.g. early boot / isolated tests).  It is NOT a second
-  process-global state source — new code passes a `ShellSession`
-  explicitly to `dispatch(text, session=None)`; legacy callers (L4 API
-  handlers, command handlers, completer) read the default shell's session
-  through the accessor.
+- Command handlers use the explicit session contract `handler(args,
+  session=None)` (2026-08-20): `dispatch` resolves the session and passes
+  it explicitly, so handlers never read a process-global default when a
+  session is available — the shape the TS dispatcher will reuse.
+  `l2_shell/state.py` remains only as the fallback for callers that have no
+  session context (L4 requests without a `session` field, the completer):
+  `get_state()` / `reset_state()` delegate to `get_family().default()`
+  (with a stable fallback while the family is empty, e.g. early boot /
+  isolated tests).  It is NOT a second process-global state source;
+  removal awaits L4 session management.
 
 ## Interaction model
 

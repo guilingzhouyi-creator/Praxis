@@ -7,7 +7,7 @@ from l2.i18n import t as _t
 from .engineering_debug import _parse_operator_flags
 
 
-def _cmd_debug_input(args: list[str]) -> dict:
+def _cmd_debug_input(args: list[str], session=None) -> dict:
     """Show or switch input activity monitoring (engineering mode only)."""
     from l3.tool_system.input_activity import get_input_activity
 

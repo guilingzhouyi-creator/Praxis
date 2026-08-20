@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _cmd_security(args: list[str]) -> dict:
+def _cmd_security(args: list[str], session=None) -> dict:
     from l3.services.central_security import get_center
 
     center = get_center()

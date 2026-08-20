@@ -12,7 +12,7 @@ from __future__ import annotations
 from l2.i18n import t as _t
 
 
-def _cmd_identity_binding(args: list[str]) -> dict:
+def _cmd_identity_binding(args: list[str], session=None) -> dict:
     """Manage per-Cell identity bindings: list | set | clear | define."""
     sub = args[0] if args else "list"
     if sub == "list":

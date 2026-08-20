@@ -14,7 +14,7 @@ from l3.error_bus import capture
 logger = logging.getLogger(__name__)
 
 
-def _cmd_mcp(args: list[str]) -> dict:
+def _cmd_mcp(args: list[str], session=None) -> dict:
     try:
         from l4.mcp_bridge import get_bridge
 

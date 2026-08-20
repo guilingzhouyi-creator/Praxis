@@ -10,7 +10,7 @@ from __future__ import annotations
 from l2.i18n import t as _t
 
 
-def _cmd_l3ac(args: list[str]) -> dict:
+def _cmd_l3ac(args: list[str], session=None) -> dict:
     """Manage the L3A-C secretary: status | contribute | reset."""
     sub = args[0] if args else "status"
     if sub == "reset":

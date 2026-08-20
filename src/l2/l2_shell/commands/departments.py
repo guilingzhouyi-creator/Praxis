@@ -40,7 +40,7 @@ def _dept_route(mgr: DepartmentManager, args: list[str]) -> dict:
     return {"success": True, "route": mgr.route_content(content_type, cell_count=cell_count)}
 
 
-def _cmd_departments(args: list[str]) -> dict:
+def _cmd_departments(args: list[str], session=None) -> dict:
     """Manage department division: status | route | enable | disable | define."""
     sub = args[0] if args else "status"
     if sub in ("enable", "disable"):

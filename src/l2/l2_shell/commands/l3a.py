@@ -20,12 +20,12 @@ def _ensure() -> None:
         _l3a_initialized = True
 
 
-def _cmd_l3a(args: list[str]) -> dict:
+def _cmd_l3a(args: list[str], session=None) -> dict:
     _ensure()
     return _l3a_dispatch(args)
 
 
-def _cmd_agents_md(args: list[str]) -> dict:
+def _cmd_agents_md(args: list[str], session=None) -> dict:
     """Generate/refresh the project handbook (AGENTS.md) via the L3A pipeline.
 
     Thin shell command: routes ``agents-md`` into the L3A dispatch, which
@@ -36,7 +36,7 @@ def _cmd_agents_md(args: list[str]) -> dict:
     return _l3a_dispatch(["agents-md"] + args)
 
 
-def _cmd_session_monitor(args: list[str]) -> dict:
+def _cmd_session_monitor(args: list[str], session=None) -> dict:
     """Session monitor (3.3): /session monitor [on|off] — real-time status
     of every registered session entity (running status / resource /
     progress counters, dual identity). Default ON.
@@ -59,7 +59,7 @@ def _cmd_session_monitor(args: list[str]) -> dict:
     return {"status": session_monitor_status(), **session_monitor()}
 
 
-def _cmd_session_reload(args: list[str]) -> dict:
+def _cmd_session_reload(args: list[str], session=None) -> dict:
     """Session auto-reload (3.3): /session reload <agent_id> [reason=...]
     — full session reset on anomaly (distinct from interrupt resume).
 
@@ -81,7 +81,7 @@ def _cmd_session_reload(args: list[str]) -> dict:
     return auto_reload_session(agent_id, reason=reason)
 
 
-def _cmd_session_history(args: list[str]) -> dict:
+def _cmd_session_history(args: list[str], session=None) -> dict:
     """Session history (3.3): /session history [on|off|limit=N] [session=<id>]
     — query session records (start/end/duration), toggle the module.
 
@@ -109,7 +109,7 @@ def _cmd_session_history(args: list[str]) -> dict:
     return {"status": history_status(), **query_session_history(limit=limit, session_id=session_id)}
 
 
-def _cmd_session_resume(args: list[str]) -> dict:
+def _cmd_session_resume(args: list[str], session=None) -> dict:
     """Session restore / resume (3.3, TUI): /session resume <session_id>
     [page=N] — load the conversation window for recall/reload via the
     dynamic loader (pagination + label-alternated dispatch + cache hits).

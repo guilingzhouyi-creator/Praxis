@@ -10,7 +10,7 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_status(args: list[str]) -> dict:
+def _cmd_status(args: list[str], session=None) -> dict:
     from l1.kernel.healthcheck import safe_system_check as _health
     from l1.kernel.process import get_table
     from l2.i18n import t
@@ -42,7 +42,7 @@ def _cmd_status(args: list[str]) -> dict:
     try:
         from ..state import get_state
 
-        st = get_state()
+        st = session if session is not None else get_state()
         result["mode"] = st.mode
         result["cell_id"] = st.cell_id
         if st.is_direct():
@@ -52,21 +52,21 @@ def _cmd_status(args: list[str]) -> dict:
     return result
 
 
-def _cmd_intents(args: list[str]) -> dict:
+def _cmd_intents(args: list[str], session=None) -> dict:
     from l3.scheduler.think_registry import get_think_registry
 
     reg = get_think_registry()
     return {"success": True, "intents": reg.stats()}
 
 
-def _cmd_scheduler(args: list[str]) -> dict:
+def _cmd_scheduler(args: list[str], session=None) -> dict:
     from l3.scheduler.scheduler import get_scheduler
 
     s = get_scheduler()
     return {"success": True, "data": s.stats() if hasattr(s, "stats") else {}}
 
 
-def _cmd_observe(args: list[str]) -> dict:
+def _cmd_observe(args: list[str], session=None) -> dict:
     from l3.bus.observability_bus import get_obs_bus
 
     return {"success": True, "data": get_obs_bus().summary()}
@@ -569,7 +569,7 @@ _SKILL_HANDLERS: dict[str, Callable[..., dict]] = {
 }
 
 
-def _cmd_skills(args: list[str]) -> dict:
+def _cmd_skills(args: list[str], session=None) -> dict:
     """Manage skills — list/get are public; create/update/delete/reload are developer-only.
 
     Usage:
@@ -615,7 +615,7 @@ def _cmd_skills(args: list[str]) -> dict:
     return handler(sm, rest, role, agent_id)
 
 
-def _cmd_process(args: list[str]) -> dict:
+def _cmd_process(args: list[str], session=None) -> dict:
     from l1.kernel.process import get_table
 
     if args and args[0] == "audit":
@@ -623,7 +623,7 @@ def _cmd_process(args: list[str]) -> dict:
     return {"success": True, "processes": get_table().list_processes()}
 
 
-def _cmd_vfs(args: list[str]) -> dict:
+def _cmd_vfs(args: list[str], session=None) -> dict:
     from l1.kernel.vfs import get_vfs
 
     path = args[0] if args else "/"
@@ -633,7 +633,7 @@ def _cmd_vfs(args: list[str]) -> dict:
     return r
 
 
-def _cmd_cache(args: list[str]) -> dict:
+def _cmd_cache(args: list[str], session=None) -> dict:
     from l1.kernel.params.agent import DEFAULT_CELL_ID
     from l3.cell import get_cell
 
@@ -641,25 +641,25 @@ def _cmd_cache(args: list[str]) -> dict:
     return {"success": True, "cache": cell.cache.stats() if hasattr(cell, "cache") else {}}
 
 
-def _cmd_sysinfo(args: list[str]) -> dict:
+def _cmd_sysinfo(args: list[str], session=None) -> dict:
     import sys
 
     return {"success": True, "python": sys.version, "platform": sys.platform}
 
 
-def _cmd_clear(args: list[str]) -> dict:
+def _cmd_clear(args: list[str], session=None) -> dict:
     print("\033[2J\033[H", end="")
     return {"success": True, "clear": True}
 
 
-def _cmd_history(args: list[str]) -> dict:
+def _cmd_history(args: list[str], session=None) -> dict:
     from l1.kernel.params.system import SHELL_HISTORY_DEFAULT_LIMIT
 
     limit = int(args[0]) if args and args[0].isdigit() else SHELL_HISTORY_DEFAULT_LIMIT
     return {"success": True, "history": [], "limit": limit}
 
 
-def _cmd_lang(args: list[str]) -> dict:
+def _cmd_lang(args: list[str], session=None) -> dict:
     from l2.i18n import get_available_locales, get_locale, set_locale
 
     if args:
@@ -667,7 +667,7 @@ def _cmd_lang(args: list[str]) -> dict:
     return {"success": True, "locale": get_locale(), "available": get_available_locales()}
 
 
-def _cmd_devices(args: list[str]) -> dict:
+def _cmd_devices(args: list[str], session=None) -> dict:
     from l1.kernel.device import get_device_manager
 
     dm = get_device_manager()
@@ -675,7 +675,7 @@ def _cmd_devices(args: list[str]) -> dict:
     return {"success": True, "devices": devices, "count": len(devices)}
 
 
-def _cmd_tools(args: list[str]) -> dict:
+def _cmd_tools(args: list[str], session=None) -> dict:
     from l3.agent_terminal import get_terminals
 
     agent_id = args[0] if args else ""
@@ -689,7 +689,7 @@ def _cmd_tools(args: list[str]) -> dict:
     return {"terminals": list(terms.keys())}
 
 
-def _cmd_help(args: list[str]) -> dict:
+def _cmd_help(args: list[str], session=None) -> dict:
     """Show help for commands (/help <cmd>) or list all commands."""
     from l1.kernel.commands import get_command
     from l2.l2_shell.commands import list_commands

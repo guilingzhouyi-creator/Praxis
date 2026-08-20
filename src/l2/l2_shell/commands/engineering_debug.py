@@ -41,7 +41,7 @@ def _parse_operator_flags(args: list[str]) -> tuple[str, str, int]:
     return actor_id, role, ring
 
 
-def _cmd_debug_mode(args: list[str]) -> dict:
+def _cmd_debug_mode(args: list[str], session=None) -> dict:
     """Show or switch engineering debug mode (auto|on|off|reset)."""
     from l3.tool_system.engineering_debug import get_engineering_debug
 

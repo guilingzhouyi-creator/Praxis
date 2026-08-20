@@ -9,7 +9,7 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_presentation(args: list[str]) -> dict:
+def _cmd_presentation(args: list[str], session=None) -> dict:
     """Show or switch the tool presentation mode (native / code / both)."""
     from l3.tool_system.tool_presentation import (
         presentation_status,

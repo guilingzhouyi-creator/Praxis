@@ -13,7 +13,7 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_buffer(args: list[str]) -> dict:
+def _cmd_buffer(args: list[str], session=None) -> dict:
     from l3.resource_buffer.manager import get_manager
 
     mgr = get_manager()
@@ -22,7 +22,7 @@ def _cmd_buffer(args: list[str]) -> dict:
     return {"success": True, "buffer": {}}
 
 
-def _cmd_think(args: list[str]) -> dict:
+def _cmd_think(args: list[str], session=None) -> dict:
     """Inspect or configure think quotas."""
     from l3.scheduler.think_registry import get_think_registry
 

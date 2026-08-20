@@ -29,7 +29,7 @@ def _get_center():
     return get_center()
 
 
-def _cmd_settings(args: list[str]) -> dict:
+def _cmd_settings(args: list[str], session=None) -> dict:
     """Multi-level settings query and configuration.
 
     Parser order:

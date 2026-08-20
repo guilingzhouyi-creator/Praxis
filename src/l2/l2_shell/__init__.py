@@ -152,13 +152,13 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
         if info:
             handler = get_handler(cmd)
             if handler:
-                return handler(args)
+                return handler(args, session=state)
         # Check aliases via reverse index (O(1) instead of O(n))
         resolved = _lookup_alias(cmd)
         if resolved:
             handler = get_handler(resolved)
             if handler:
-                return handler(args)
+                return handler(args, session=state)
         try:
             from l2.i18n import t as _t
 
