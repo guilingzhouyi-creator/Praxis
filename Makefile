@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark language-check
 
 install:
 	pip install -e ".[test]"
@@ -105,3 +105,30 @@ automation-report:
 
 automation-doctor:
 	python scripts/py/praxis_automation.py doctor --workflow performance --json
+
+ts-install:
+	npm ci --prefix packages/protocol-ts
+
+ts-test: ts-install
+	npm test --prefix packages/protocol-ts
+
+ts-typecheck: ts-install
+	npm run typecheck --prefix packages/protocol-ts
+
+rust-test:
+	cargo test --workspace --manifest-path crates/Cargo.toml
+
+rust-contract-test:
+	cargo test --tests --manifest-path crates/Cargo.toml
+
+rust-fmt-check:
+	cargo fmt --manifest-path crates/Cargo.toml --all -- --check
+
+rust-clippy:
+	cargo clippy --manifest-path crates/Cargo.toml --workspace --all-targets --all-features -- -D warnings
+
+rust-benchmark:
+	PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-kernel-bench
+
+language-check: ts-test ts-typecheck rust-test rust-fmt-check rust-clippy

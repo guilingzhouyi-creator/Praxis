@@ -1,0 +1,13 @@
+{
+  "registrations": [
+    {"name": "z.event", "owner": "owner.z", "description": "z event"},
+    {"name": "a.event", "owner": "owner.a", "description": "a event"},
+    {"name": "z.event", "owner": "owner.z", "description": "updated z"}
+  ],
+  "expected": [
+    {"name": "a.event", "owner": "owner.a", "description": "a event"},
+    {"name": "z.event", "owner": "owner.z", "description": "updated z"}
+  ],
+  "has": ["a.event", "z.event"],
+  "missing": ["missing.event"]
+}

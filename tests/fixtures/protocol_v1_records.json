@@ -1,0 +1,90 @@
+[
+  {
+    "data": {
+      "cell_id": "cell-a",
+      "memory_scope": "user:u-1",
+      "process_id": "process-1",
+      "role": "operator",
+      "session_id": "s-1",
+      "terminal_id": "terminal-1",
+      "user_id": "u-1"
+    },
+    "record_type": "session_identity",
+    "schema_version": 1
+  },
+  {
+    "data": {
+      "event_id": "event-1",
+      "event_type": "tool.completed",
+      "input_seq": 1,
+      "payload": {
+        "labels": ["stable", "json"],
+        "success": true
+      },
+      "seq": 2,
+      "session_id": "s-1",
+      "trace_id": "trace-1",
+      "ts": 100.0
+    },
+    "record_type": "event_envelope",
+    "schema_version": 1
+  },
+  {
+    "data": {
+      "content": "The result is ready.",
+      "input_seq": 1,
+      "message_id": "message-1",
+      "role": "assistant",
+      "session_id": "s-1",
+      "trace_id": "trace-1",
+      "ts": 101.0
+    },
+    "record_type": "session_message",
+    "schema_version": 1
+  },
+  {
+    "data": {
+      "error_kind": "timeout",
+      "failure_id": "failure-1",
+      "input_seq": 1,
+      "message": "tool timed out",
+      "retryable": true,
+      "session_id": "s-1",
+      "tool_name": "read_file",
+      "trace_id": "trace-1",
+      "ts": 102.0
+    },
+    "record_type": "tool_failure",
+    "schema_version": 1
+  },
+  {
+    "data": {
+      "decision_id": "decision-1",
+      "evidence_refs": ["evidence-1"],
+      "input_seq": 1,
+      "outcome": "completed",
+      "session_id": "s-1",
+      "summary": "The requested file was inspected.",
+      "trace_id": "trace-1",
+      "ts": 103.0
+    },
+    "record_type": "decision_summary",
+    "schema_version": 1
+  },
+  {
+    "data": {
+      "digest": "sha256:abc",
+      "evidence_id": "evidence-1",
+      "input_seq": 1,
+      "kind": "tool_result",
+      "locator": "tool:read_file:call-1",
+      "metadata": {
+        "source": "tool_pipeline"
+      },
+      "session_id": "s-1",
+      "trace_id": "trace-1"
+    },
+    "record_type": "evidence_ref",
+    "schema_version": 1
+  }
+]

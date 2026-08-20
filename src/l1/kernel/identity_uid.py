@@ -20,8 +20,10 @@ from __future__ import annotations
 import logging
 import secrets
 import threading
+from collections.abc import Iterable
+from itertools import islice
 
-from .params.agent import IDENTITY_UID_LENGTH, IDENTITY_UID_PREFIX
+from .params.agent import IDENTITY_UID_LENGTH, IDENTITY_UID_MAX_ATTEMPTS, IDENTITY_UID_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +39,39 @@ def issue_identity_uid() -> str:
     """
     global _seen
     try:
-        for _ in range(8):  # bounded retries for collision-resilience
-            body = secrets.token_hex(IDENTITY_UID_LENGTH // 2)[:IDENTITY_UID_LENGTH]
+        return issue_identity_uid_from_candidates(
+            secrets.token_hex(IDENTITY_UID_LENGTH // 2) for _ in range(IDENTITY_UID_MAX_ATTEMPTS)
+        )
+    except Exception as e:
+        logger.warning("identity_uid: issuance failed: %s", e)
+    return ""
+
+
+def issue_identity_uid_from_candidates(candidates: Iterable[str]) -> str:
+    """Issue from explicit entropy candidates for deterministic adapters/tests.
+
+    Each candidate is truncated to the configured body length, matching the
+    random issuer's bounded body construction. At most
+    ``IDENTITY_UID_MAX_ATTEMPTS`` candidates are consumed.
+
+    Returns:
+        A fresh UID, or ``""`` when every candidate collides or issuance fails.
+    """
+    global _seen
+    try:
+        for body in islice(candidates, IDENTITY_UID_MAX_ATTEMPTS):
+            if not isinstance(body, str):
+                continue
+            body = body[:IDENTITY_UID_LENGTH]
+            if len(body) != IDENTITY_UID_LENGTH:
+                continue
             uid = f"{IDENTITY_UID_PREFIX}{body}"
             with _lock:
                 if uid not in _seen:
                     _seen.add(uid)
                     return uid
     except Exception as e:
-        logger.warning("identity_uid: issuance failed: %s", e)
+        logger.warning("identity_uid: candidate issuance failed: %s", e)
     return ""
 
 

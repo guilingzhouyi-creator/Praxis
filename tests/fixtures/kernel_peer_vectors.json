@@ -1,0 +1,63 @@
+{
+  "self_id": "self",
+  "operations": [
+    {
+      "kind": "announce",
+      "at_ms": 100000,
+      "peer_id": "peer-a",
+      "host": "10.0.0.2",
+      "port": 1111,
+      "cells": 1,
+      "version": "v1"
+    },
+    {
+      "kind": "announce",
+      "at_ms": 150000,
+      "peer_id": "peer-b",
+      "host": "10.0.0.3",
+      "port": 2222,
+      "cells": 2,
+      "version": "v1"
+    },
+    {
+      "kind": "health",
+      "at_ms": 150000,
+      "status": "healthy",
+      "peers_total": 2,
+      "peers_alive": 2,
+      "peers_dead": 0,
+      "lost": [],
+      "evicted": []
+    },
+    {
+      "kind": "health",
+      "at_ms": 160100,
+      "status": "healthy",
+      "peers_total": 2,
+      "peers_alive": 1,
+      "peers_dead": 1,
+      "lost": ["peer-a"],
+      "evicted": []
+    },
+    {
+      "kind": "announce",
+      "at_ms": 350000,
+      "peer_id": "peer-b",
+      "host": "10.0.0.3",
+      "port": 2222,
+      "cells": 3,
+      "version": "v1"
+    },
+    {
+      "kind": "health",
+      "at_ms": 400100,
+      "status": "healthy",
+      "peers_total": 1,
+      "peers_alive": 1,
+      "peers_dead": 0,
+      "lost": [],
+      "evicted": ["peer-a"]
+    }
+  ],
+  "expected_peer_ids": ["peer-b"]
+}

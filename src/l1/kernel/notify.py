@@ -40,8 +40,10 @@ class LocalNotifyAdapter(NotifyPort):
     protected path must not break because a notification failed.
     """
 
-    def __init__(self) -> None:
-        self._queue: deque[dict[str, Any]] = deque(maxlen=NOTIFY_QUEUE_MAX)
+    def __init__(self, capacity: int = NOTIFY_QUEUE_MAX) -> None:
+        if capacity <= 0:
+            raise ValueError("notification capacity must be positive")
+        self._queue: deque[dict[str, Any]] = deque(maxlen=capacity)
         self._lock = threading.RLock()
 
     def broadcast(self, topic: str, payload: dict[str, Any]) -> None:

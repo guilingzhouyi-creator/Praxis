@@ -1,0 +1,15 @@
+{
+  "state_root": "state",
+  "boot_steps": [
+    {"name": "cell", "depends_on": ["services"]},
+    {"name": "services", "depends_on": ["config"]},
+    {"name": "config", "depends_on": []}
+  ],
+  "ports": [
+    {"name": "process", "kind": "process", "contract_version": 1},
+    {"name": "storage", "kind": "storage", "contract_version": 1},
+    {"name": "scheduler", "kind": "scheduler", "contract_version": 1}
+  ],
+  "expected_boot_order": ["config", "services", "cell"],
+  "expected_port_order": ["process", "storage", "scheduler"]
+}

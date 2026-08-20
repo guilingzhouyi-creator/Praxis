@@ -173,13 +173,6 @@ RECORD_CENTER_AUTO_EXPORT_INTERVAL: Final[float] = 300.0
 # (benchmark.yml gate), not just a warning. Baseline lives in
 # tests/benchmarks/baseline.json (recorded by bench_trends.py record).
 BENCH_REGRESSION_LIMIT_PCT: Final[float] = 10.0
-# Warmup rounds discarded before recording a performance sample.
-PERF_HARNESS_WARMUP_ROUNDS: Final[int] = 1
-# Recorded rounds used to calculate robust performance summaries.
-PERF_HARNESS_SAMPLE_ROUNDS: Final[int] = 7
-# MAD percentage used to flag high-variance benchmark samples.
-PERF_HARNESS_MAD_WARN_PCT: Final[float] = 3.0
-
 # ── Memory ring quality scoring (quality_note) ──
 MEMORY_RING_SCORE_CHAR_WEIGHT: Final[float] = 0.3
 MEMORY_RING_SCORE_TAG_WEIGHT: Final[int] = 5
@@ -357,6 +350,7 @@ MEMORY_INJECT_DEDUP_ENABLED_DEFAULT: Final[bool] = True
 STATECHART_HEALTH_FAIL_THRESHOLD: Final[int] = 3  # ft: consecutive failures → DEGRADED
 STATECHART_HEALTH_SUCCESS_THRESHOLD: Final[int] = 5  # st: consecutive successes → HEALTHY
 STATECHART_HEALTH_TIMEOUT: Final[int] = 15  # hto: heartbeat timeout
+HEALTHCHECK_ELAPSED_PRECISION: Final[int] = 2
 STATECHART_CRASH_TIMEOUT: Final[int] = 30  # cto: crash timeout
 STATECHART_RESOURCE_TOKEN_BUDGET: Final[int] = 73000  # tb: token budget
 STATECHART_RESOURCE_MEMORY_LIMIT: Final[int] = 500  # ml: memory limit

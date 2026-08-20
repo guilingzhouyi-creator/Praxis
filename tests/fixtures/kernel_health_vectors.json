@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "name": "all_ok",
+      "subsystems": {
+        "l1.kernel.event": {"status": "OK", "detail": "functional"},
+        "l1.kernel.process": {"status": "OK", "detail": "imported"}
+      },
+      "elapsed_ms": 1.234,
+      "expected": {
+        "status": "OK",
+        "module_count": 2,
+        "healthy": 2,
+        "degraded": 0,
+        "failed": 0,
+        "subsystems": {
+          "l1.kernel.event": {"status": "OK", "detail": "functional"},
+          "l1.kernel.process": {"status": "OK", "detail": "imported"}
+        },
+        "elapsed_ms": 1.23
+      }
+    },
+    {
+      "name": "degraded_is_visible",
+      "subsystems": {
+        "kernel.device[manager]": {"status": "OK", "detail": "DeviceManager"},
+        "kernel.event[bus]": {"status": "DEGRADED", "detail": "missing methods"},
+        "kernel.process[table]": {"status": "OK", "detail": "0 processes"}
+      },
+      "elapsed_ms": 12.876,
+      "expected": {
+        "status": "DEGRADED",
+        "module_count": 3,
+        "healthy": 2,
+        "degraded": 1,
+        "failed": 0,
+        "subsystems": {
+          "kernel.device[manager]": {"status": "OK", "detail": "DeviceManager"},
+          "kernel.event[bus]": {"status": "DEGRADED", "detail": "missing methods"},
+          "kernel.process[table]": {"status": "OK", "detail": "0 processes"}
+        },
+        "elapsed_ms": 12.88
+      }
+    },
+    {
+      "name": "failure_wins",
+      "subsystems": {
+        "kernel.constitution[loaded]": {"status": "FAILED", "detail": "empty"},
+        "kernel.event[bus]": {"status": "DEGRADED", "detail": "degraded"}
+      },
+      "elapsed_ms": 99.995,
+      "expected": {
+        "status": "DOWN",
+        "module_count": 2,
+        "healthy": 0,
+        "degraded": 1,
+        "failed": 1,
+        "subsystems": {
+          "kernel.constitution[loaded]": {"status": "FAILED", "detail": "empty"},
+          "kernel.event[bus]": {"status": "DEGRADED", "detail": "degraded"}
+        },
+        "elapsed_ms": 100.0
+      }
+    },
+    {
+      "name": "unknown_is_degraded",
+      "subsystems": {
+        "kernel.future": {"status": "UNKNOWN", "detail": "provider pending"}
+      },
+      "elapsed_ms": 0.0,
+      "expected": {
+        "status": "DEGRADED",
+        "module_count": 1,
+        "healthy": 0,
+        "degraded": 1,
+        "failed": 0,
+        "subsystems": {
+          "kernel.future": {"status": "UNKNOWN", "detail": "provider pending"}
+        },
+        "elapsed_ms": 0.0
+      }
+    }
+  ]
+}

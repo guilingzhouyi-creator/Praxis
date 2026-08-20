@@ -1,0 +1,61 @@
+name: Multi-language Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "rust-toolchain.toml"
+      - "packages/protocol-ts/**"
+      - "tests/fixtures/protocol_v1_records.json"
+      - "Makefile"
+      - ".github/workflows/multilang.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "rust-toolchain.toml"
+      - "packages/protocol-ts/**"
+      - "tests/fixtures/protocol_v1_records.json"
+      - "Makefile"
+      - ".github/workflows/multilang.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: multilang-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: packages/protocol-ts/package-lock.json
+      - name: Install TypeScript dependencies
+        run: npm ci --prefix packages/protocol-ts
+      - name: TypeScript protocol tests
+        run: npm test --prefix packages/protocol-ts
+      - name: TypeScript typecheck
+        run: npm run typecheck --prefix packages/protocol-ts
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+      - name: Rust tests
+        run: cargo test --workspace --manifest-path crates/Cargo.toml
+      - name: Rust format check
+        run: cargo fmt --manifest-path crates/Cargo.toml --all -- --check
+      - name: Rust clippy
+        run: cargo clippy --manifest-path crates/Cargo.toml --workspace --all-targets --all-features -- -D warnings

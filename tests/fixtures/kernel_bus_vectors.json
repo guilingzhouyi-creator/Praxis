@@ -1,0 +1,115 @@
+[
+  {
+    "case": "dependency_plan_and_lifecycle",
+    "registrations": [
+      {
+        "name": "pmu",
+        "version": "0.1.0",
+        "description": "power monitor",
+        "depends_on": [],
+        "optional_deps": [],
+        "tags": ["cell", "monitor"]
+      },
+      {
+        "name": "watchdog",
+        "version": "0.1.0",
+        "description": "watchdog",
+        "depends_on": ["pmu"],
+        "optional_deps": ["missing"],
+        "tags": ["cell", "monitor"]
+      },
+      {
+        "name": "cache",
+        "version": "0.1.0",
+        "description": "cache",
+        "depends_on": ["pmu"],
+        "optional_deps": [],
+        "tags": ["cell", "cache"]
+      },
+      {
+        "name": "observer",
+        "version": "0.1.0",
+        "description": "external observer",
+        "depends_on": ["external"],
+        "optional_deps": ["missing"],
+        "tags": ["global"]
+      }
+    ],
+    "available": ["external"],
+    "expected_names": ["pmu", "watchdog", "cache", "observer"],
+    "expected_graph": {
+      "pmu": [],
+      "watchdog": ["pmu"],
+      "cache": ["pmu"],
+      "observer": ["external"]
+    },
+    "expected_order": ["pmu", "observer", "watchdog", "cache"],
+    "expected_states": {
+      "pmu": "stopped",
+      "watchdog": "stopped",
+      "cache": "stopped",
+      "observer": "stopped"
+    }
+  },
+  {
+    "case": "duplicate_registration_overwrites_in_place",
+    "registrations": [
+      {
+        "name": "pmu",
+        "description": "old",
+        "tags": ["old"]
+      },
+      {
+        "name": "watchdog",
+        "depends_on": ["pmu"]
+      },
+      {
+        "name": "pmu",
+        "version": "0.2.0",
+        "description": "replacement",
+        "tags": ["new"]
+      }
+    ],
+    "available": [],
+    "expected_names": ["pmu", "watchdog"],
+    "expected_graph": {
+      "pmu": [],
+      "watchdog": ["pmu"]
+    },
+    "expected_order": ["pmu", "watchdog"],
+    "expected_specs": {
+      "pmu": {
+        "name": "pmu",
+        "version": "0.2.0",
+        "description": "replacement",
+        "depends_on": [],
+        "optional_deps": [],
+        "tags": ["new"]
+      }
+    },
+    "expected_states": {
+      "pmu": "stopped",
+      "watchdog": "stopped"
+    }
+  },
+  {
+    "case": "cycle_is_rejected",
+    "registrations": [
+      {
+        "name": "alpha",
+        "depends_on": ["beta"]
+      },
+      {
+        "name": "beta",
+        "depends_on": ["alpha"]
+      }
+    ],
+    "available": [],
+    "expected_names": ["alpha", "beta"],
+    "expected_graph": {
+      "alpha": ["beta"],
+      "beta": ["alpha"]
+    },
+    "expected_cycle": ["alpha", "beta"]
+  }
+]

@@ -55,12 +55,14 @@ applies the same 90% drift floor as every existing layer baseline.
 
 `config/quality/perf-schema.json` is the machine-readable result contract and
 `scripts/py/perf_harness.py` is the shared sampler for in-process benchmarks.
-It discards a configurable warmup round, records seven samples by default, and
-emits a versioned document containing platform metadata, per-sample throughput,
-average operation latency, p95 batch latency, median absolute deviation (MAD),
-and coefficient of variation (CV). `perf_quality.py --run-json` wraps the
-layer measurements in the same schema with `schema_version`, `generated_at`,
-`platform`, and `layers` fields.
+Sampling policy is declared in `config/quality/perf-harness.yaml` and validated
+at load time; it is no longer a runtime `l1.kernel.params` dependency. The
+shipped policy discards one warmup round and records seven samples by default.
+The sampler emits a versioned document containing platform metadata,
+per-sample throughput, average operation latency, p95 batch latency, median
+absolute deviation (MAD), and coefficient of variation (CV).
+`perf_quality.py --run-json` wraps the layer measurements in the same schema
+with `schema_version`, `generated_at`, `platform`, and `layers` fields.
 
 The sampler treats variance as evidence, not as a reason to silently rewrite a
 baseline. Baselines are regenerated only on the same platform and dependency

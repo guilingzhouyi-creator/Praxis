@@ -8,6 +8,7 @@ Split into sub-modules for maintainability:
   storage.py   — StoragePort, FsStoragePort (TS-friendly read/write surface)
   lock.py      — LockPort, ThreadLockPort (mutex abstraction)
   process.py   — ProcessPort, SubprocessProcessPort, ProcessResult (exec seam)
+  service.py   — mechanism service ports, including automation side channels
   scheduler.py — KernelSchedulerPort (submit/poll/preempt mechanism seam)
   registry.py  — register_port, get_port, reset_ports
 
@@ -39,10 +40,14 @@ from l1.kernel.ports.registry import (
 from l1.kernel.ports.scheduler import KernelSchedulerPort
 from l1.kernel.ports.service import (
     AuthPort,
+    DependencyGraphPort,
+    EvidencePort,
     FilesystemPort,
     InputActivityPort,
     InputSourcePort,
+    ObservabilityPort,
     RpcServerPort,
+    TracePort,
     WebSocketPort,
 )
 from l1.kernel.ports.storage import (
@@ -81,9 +86,11 @@ __all__ = [
     "CandidateStatus",
     "CandidateValidation",
     "ChannelPort",
+    "DependencyGraphPort",
     "Endpoint",
     "Event",
     "EventBusPort",
+    "EvidencePort",
     "FilesystemPort",
     "FsStoragePort",
     "InputActivityPort",
@@ -92,6 +99,7 @@ __all__ = [
     "KernelSchedulerPort",
     "LockPort",
     "Message",
+    "ObservabilityPort",
     "ProcessPort",
     "ProcessOptions",
     "ProcessResult",
@@ -101,6 +109,7 @@ __all__ = [
     "SubprocessProcessPort",
     "TaskHandle",
     "ThreadLockPort",
+    "TracePort",
     "TransportPort",
     "WebSocketPort",
     "WorkerPort",

@@ -1,0 +1,97 @@
+[
+  {
+    "case": "mixed_interrupts",
+    "events": [
+      {
+        "type": "CANCELLED",
+        "agent_id": "agent-a",
+        "reason": "user abort",
+        "data": null
+      },
+      {
+        "type": "RESOURCE_EXHAUSTION",
+        "agent_id": "agent-b",
+        "reason": "memory pressure",
+        "data": {"usage": 99}
+      },
+      {
+        "type": "CANCELLED",
+        "agent_id": "agent-a",
+        "reason": "second abort",
+        "data": {}
+      },
+      {
+        "type": "OOM_KILL",
+        "agent_id": "agent-c",
+        "reason": "allocator limit",
+        "data": {"victim": "agent-c"}
+      }
+    ],
+    "expected_counts": {
+      "CANCELLED": 2,
+      "OOM_KILL": 1,
+      "RESOURCE_EXHAUSTION": 1
+    },
+    "recent_limit": 3,
+    "expected_recent": [
+      {
+        "type": "RESOURCE_EXHAUSTION",
+        "agent": "agent-b",
+        "reason": "memory pressure",
+        "data": {"usage": 99},
+        "seq": 1
+      },
+      {
+        "type": "CANCELLED",
+        "agent": "agent-a",
+        "reason": "second abort",
+        "data": {},
+        "seq": 2
+      },
+      {
+        "type": "OOM_KILL",
+        "agent": "agent-c",
+        "reason": "allocator limit",
+        "data": {"victim": "agent-c"},
+        "seq": 1
+      }
+    ]
+  },
+  {
+    "case": "all_types",
+    "events": [
+      {"type": "AGENT_CRASH", "agent_id": "agent-x", "reason": "panic"},
+      {"type": "DEADLOCK_DETECTED", "agent_id": "agent-y", "reason": "cycle"},
+      {"type": "OOM_KILL", "agent_id": "agent-z", "reason": "oom"}
+    ],
+    "expected_counts": {
+      "AGENT_CRASH": 1,
+      "DEADLOCK_DETECTED": 1,
+      "OOM_KILL": 1
+    },
+    "recent_limit": 20,
+    "expected_recent": [
+      {
+        "type": "AGENT_CRASH",
+        "agent": "agent-x",
+        "reason": "panic",
+        "data": {},
+        "seq": 1
+      },
+      {
+        "type": "DEADLOCK_DETECTED",
+        "agent": "agent-y",
+        "reason": "cycle",
+        "data": {},
+        "seq": 1
+      },
+      {
+        "type": "OOM_KILL",
+        "agent": "agent-z",
+        "reason": "oom",
+        "data": {},
+        "seq": 1
+      }
+    ]
+  }
+]

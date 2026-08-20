@@ -1,0 +1,16 @@
+{
+  "valid_steps": [
+    {"name": "cell", "depends_on": ["services"]},
+    {"name": "services", "depends_on": ["config"]},
+    {"name": "config", "depends_on": []}
+  ],
+  "expected_order": ["config", "services", "cell"],
+  "cycle_steps": [
+    {"name": "a", "depends_on": ["b"]},
+    {"name": "b", "depends_on": ["a"]}
+  ],
+  "missing_steps": [
+    {"name": "cell", "depends_on": ["services"]}
+  ],
+  "python_missing_order": ["cell"]
+}

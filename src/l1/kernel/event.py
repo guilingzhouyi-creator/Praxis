@@ -147,6 +147,9 @@ class EventBus:
         # shutdown() drain within a deadline without touching executor internals.
         self._inflight = 0
         self._inflight_cv = _Condition()
+        self._submitted = 0
+        self._completed = 0
+        self._dropped = 0
 
     def on(self, st: SignalType, cb: Callable) -> None:
         """Subscribe a callback to a signal type."""
@@ -207,15 +210,22 @@ class EventBus:
         """Submit a task to the executor, dropping if too many tasks are in flight."""
         with self._inflight_cv:
             if self._inflight >= self._MAX_EVT_QUEUED:
+                self._dropped += 1
                 logger.warning("event_bus: too many in-flight tasks (%d), dropping task", self._MAX_EVT_QUEUED)
                 return
             self._inflight += 1
-        try:
-            self._executor.submit(self._run_tracked, fn, args)
-        except RuntimeError:
-            # Executor already shut down between the flag check and submit — undo
-            # the reservation and drop the task rather than crash the emitter.
-            self._task_done()
+
+            try:
+                self._executor.submit(self._run_tracked, fn, args)
+            except RuntimeError:
+                # Executor already shut down between the flag check and submit — undo
+                # the reservation and drop the task rather than crash the emitter.
+                self._inflight -= 1
+                self._dropped += 1
+                if self._inflight == 0:
+                    self._inflight_cv.notify_all()
+                return
+            self._submitted += 1
 
     def _run_tracked(self, fn: Callable, args: tuple) -> None:
         """Run a dispatched callback and decrement the in-flight counter when done."""
@@ -227,6 +237,7 @@ class EventBus:
     def _task_done(self) -> None:
         """Mark one in-flight task finished; wake shutdown() when the pool drains."""
         with self._inflight_cv:
+            self._completed += 1
             self._inflight -= 1
             if self._inflight <= 0:
                 self._inflight = 0
@@ -281,7 +292,16 @@ class EventBus:
                 "queue_max": self._MAX_EVT_QUEUED,
             }
         with self._inflight_cv:
-            base["queue_depth"] = self._inflight
+            base.update(
+                {
+                    "queue_depth": self._inflight,
+                    "submitted": self._submitted,
+                    "completed": self._completed,
+                    "dropped": self._dropped,
+                }
+            )
+            dispatch_attempts = self._submitted + self._dropped
+            base["drop_rate"] = self._dropped / dispatch_attempts if dispatch_attempts else 0.0
         return base
 
     def shutdown(self, wait: bool = False, timeout: float | None = None) -> None:

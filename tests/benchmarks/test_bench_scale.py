@@ -59,6 +59,43 @@ def test_lock_contention_uses_fixed_total_work_per_worker_count() -> None:
         assert all("lock_wait_p95_ms" in point for point in curve.values())
 
 
+def test_event_benchmark_isolates_listeners_and_records_delivery() -> None:
+    """Each EventBus round drains its local listeners and reports delivery counts."""
+    report = bench_scale.run_queue_event(queue_iters=2, event_iters=3, listener_counts=[0, 1], rounds=2)
+
+    zero = report["event_bus"]["0"]
+    one = report["event_bus"]["1"]
+    assert len(zero["rounds"]) == 2
+    assert len(one["rounds"]) == 2
+    assert zero["clean"] is True
+    assert one["clean"] is True
+    assert one["submitted"] == 6
+    assert one["completed"] == 6
+    assert one["dropped"] == 0
+    assert one["queue_depth"] == 0
+    assert one["drained"] is True
+    assert all(sample["submitted"] == 3 for sample in one["rounds"])
+    assert all(sample["completed"] == 3 for sample in one["rounds"])
+
+
+def test_event_benchmark_can_record_bounded_clean_curve() -> None:
+    """A bounded load curve provides a clean delivery comparison beside overload data."""
+    report = bench_scale.run_queue_event(
+        queue_iters=2,
+        event_iters=3,
+        listener_counts=[0, 1],
+        rounds=2,
+        bounded_event_iters=2,
+    )
+
+    bounded = report["bounded_event_bus"]
+    assert bounded["1"]["clean"] is True
+    assert bounded["1"]["drained"] is True
+    assert bounded["1"]["submitted"] == 4
+    assert bounded["1"]["completed"] == 4
+    assert bounded["1"]["dropped"] == 0
+
+
 def test_mutex_contention_assigns_a_distinct_identity_per_worker(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mutex contention cannot collapse into same-agent recursive acquisitions."""
     from l1.kernel import sync

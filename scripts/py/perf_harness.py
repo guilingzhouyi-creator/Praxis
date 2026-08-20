@@ -14,16 +14,73 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from l1.kernel.params.system import (  # noqa: E402
-    PERF_HARNESS_MAD_WARN_PCT,
-    PERF_HARNESS_SAMPLE_ROUNDS,
-    PERF_HARNESS_WARMUP_ROUNDS,
-)
-
 SCHEMA_VERSION = 1
+PERF_HARNESS_CONFIG = ROOT / "config" / "quality" / "perf-harness.yaml"
+
+
+class PerfHarnessConfigError(ValueError):
+    """Raised when the performance harness configuration is missing or invalid."""
+
+
+@dataclass(frozen=True, slots=True)
+class PerfHarnessConfig:
+    """Validated sampling defaults for repeatable performance measurements."""
+
+    warmup_rounds: int
+    sample_rounds: int
+    mad_warn_pct: float
+
+
+def _positive_integer(value: Any, field: str, *, allow_zero: bool = False) -> int:
+    """Validate and return an integer sampling setting."""
+    if type(value) is not int or (value < 0 if allow_zero else value < 1):
+        qualifier = "non-negative" if allow_zero else "positive"
+        raise PerfHarnessConfigError(f"perf_harness.{field} must be a {qualifier} integer")
+    return value
+
+
+def load_config(path: str | Path = PERF_HARNESS_CONFIG) -> PerfHarnessConfig:
+    """Load and validate sampling defaults from a quality configuration file."""
+    config_path = Path(path)
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except OSError as error:
+        raise PerfHarnessConfigError(f"cannot read performance harness config '{config_path}': {error}") from error
+    except yaml.YAMLError as error:
+        raise PerfHarnessConfigError(f"cannot parse performance harness config '{config_path}': {error}") from error
+    if not isinstance(data, dict):
+        raise PerfHarnessConfigError("performance harness config root must be a mapping")
+    section = data.get("perf_harness")
+    if not isinstance(section, dict):
+        raise PerfHarnessConfigError("perf_harness config section must be a mapping")
+    if section.get("schema_version") != 1:
+        raise PerfHarnessConfigError("perf_harness.schema_version must be 1")
+    expected = {"schema_version", "warmup_rounds", "sample_rounds", "mad_warn_pct"}
+    unknown = sorted(set(section) - expected)
+    if unknown:
+        raise PerfHarnessConfigError(f"unknown perf_harness config fields: {', '.join(unknown)}")
+    missing = sorted(expected - set(section))
+    if missing:
+        raise PerfHarnessConfigError(f"missing perf_harness config fields: {', '.join(missing)}")
+    warmup_rounds = _positive_integer(section["warmup_rounds"], "warmup_rounds", allow_zero=True)
+    sample_rounds = _positive_integer(section["sample_rounds"], "sample_rounds")
+    mad_warn_pct = section["mad_warn_pct"]
+    if isinstance(mad_warn_pct, bool) or not isinstance(mad_warn_pct, (int, float)) or not 0 < mad_warn_pct <= 100:
+        raise PerfHarnessConfigError("perf_harness.mad_warn_pct must be a number in the range (0, 100]")
+    return PerfHarnessConfig(warmup_rounds, sample_rounds, float(mad_warn_pct))
+
+
+_CONFIG = load_config()
+# Compatibility aliases keep benchmark drivers stable while the source of truth
+# moves out of the runtime params package and into build-quality configuration.
+PERF_HARNESS_WARMUP_ROUNDS = _CONFIG.warmup_rounds
+PERF_HARNESS_SAMPLE_ROUNDS = _CONFIG.sample_rounds
+PERF_HARNESS_MAD_WARN_PCT = _CONFIG.mad_warn_pct
 
 
 def _quantile(values: list[float], probability: float) -> float:

@@ -6,6 +6,7 @@ import sys
 import time
 import uuid
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -141,15 +142,27 @@ class AutomationRunner:
 
     @staticmethod
     def _hooks():
-        """Resolve best-effort runtime hooks without changing step execution."""
+        """Resolve stable side-channel ports without changing step execution."""
         try:
-            from l3.error_bus.trace import trace_scope
-            from l3.services.observability import emit_count, emit_duration
-            from l3.tool_system.security_evidence import record_evidence
+            from l1.kernel.ports import EvidencePort, ObservabilityPort, TracePort, get_port
 
-            return trace_scope, emit_count, emit_duration, record_evidence
+            trace_port = get_port("trace")
+            observability_port = get_port("observability")
+            evidence_port = get_port("evidence")
+            if not isinstance(trace_port, TracePort):
+                raise TypeError("trace port has an invalid adapter")
+            if not isinstance(observability_port, ObservabilityPort):
+                raise TypeError("observability port has an invalid adapter")
+            if not isinstance(evidence_port, EvidencePort):
+                raise TypeError("evidence port has an invalid adapter")
+
+            return (
+                trace_port.scope,
+                observability_port.emit_count,
+                observability_port.emit_duration,
+                evidence_port.record_evidence,
+            )
         except Exception:
-            from contextlib import contextmanager
 
             @contextmanager
             def trace_scope(trace_id: str):

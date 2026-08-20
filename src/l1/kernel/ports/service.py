@@ -1,4 +1,4 @@
-"""Service port abstractions — auth, WebSocket, RPC, filesystem, input activity.
+"""Service port abstractions — auth, automation side channels, and I/O services.
 
 Domain ports (I18n / CardRegistry / MonitorBus / CandidateLedger / LLM) moved
 to l3.ports / l4.ports (WS5.1) so the kernel namespace only carries mechanism
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from typing import Any
 
 from l1.kernel.params.api import AUTH_TOKEN_TTL_SECONDS
@@ -29,6 +30,53 @@ class InputActivityPort(ABC):
     @abstractmethod
     def snapshot(self) -> InputActivitySnapshot:
         """Return the latest privacy-preserving activity aggregate."""
+
+
+class ObservabilityPort(ABC):
+    """Best-effort metric sink for build and runtime side-channel signals."""
+
+    @abstractmethod
+    def emit_count(self, name: str, value: int = 1, *, tags: dict[str, Any] | None = None) -> None:
+        """Record a bounded counter without changing the protected flow."""
+
+    @abstractmethod
+    def emit_duration(self, name: str, started: float, *, tags: dict[str, Any] | None = None) -> None:
+        """Record elapsed milliseconds from a monotonic start value."""
+
+
+class EvidencePort(ABC):
+    """Append-only evidence sink with a primitive, language-neutral contract."""
+
+    @abstractmethod
+    def record_evidence(
+        self,
+        phase: str,
+        *,
+        gate: str = "",
+        decision: str = "ALLOW",
+        target: str = "",
+        source: str = "",
+        tags: dict[str, str] | None = None,
+        raw: dict[str, Any] | None = None,
+        chain_kind: str = "",
+    ) -> str:
+        """Record a decision and return its evidence id, or an empty id on no-op."""
+
+
+class DependencyGraphPort(ABC):
+    """Plan a validated dependency graph without exposing its implementation."""
+
+    @abstractmethod
+    def plan(self, nodes: dict[str, tuple[str, ...]]) -> list[str]:
+        """Return a deterministic prerequisites-first order for *nodes*."""
+
+
+class TracePort(ABC):
+    """Scope a run-wide trace id without coupling callers to an error-bus module."""
+
+    @abstractmethod
+    def scope(self, trace_id: str) -> AbstractContextManager[str]:
+        """Return a context manager that sets and restores *trace_id*."""
 
 
 class InputSourcePort(ABC):

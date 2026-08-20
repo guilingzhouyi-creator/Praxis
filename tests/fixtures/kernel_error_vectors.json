@@ -1,0 +1,47 @@
+[
+  {
+    "case": "catalog_default_with_context",
+    "code": "E_TIMEOUT",
+    "message": "",
+    "cause": "",
+    "context": {"timeout": 60},
+    "trace_id": "",
+    "expected_response": {
+      "success": false,
+      "error": "Operation timed out",
+      "error_code": "E_TIMEOUT",
+      "context": {"timeout": 60}
+    },
+    "expected_trace_id": ""
+  },
+  {
+    "case": "explicit_message_cause_and_trace",
+    "code": "E_CUSTOM",
+    "message": "Disk full",
+    "cause": "write failed",
+    "context": {"path": "/tmp/output"},
+    "trace_id": "trace-42",
+    "expected_response": {
+      "success": false,
+      "error": "Disk full",
+      "error_code": "E_CUSTOM",
+      "context": {"path": "/tmp/output"},
+      "cause": "write failed"
+    },
+    "expected_trace_id": "trace-42"
+  },
+  {
+    "case": "unknown_default",
+    "code": "E_NOT_REGISTERED",
+    "message": "",
+    "cause": "",
+    "context": {},
+    "trace_id": "trace-unknown",
+    "expected_response": {
+      "success": false,
+      "error": "Unknown error: E_NOT_REGISTERED",
+      "error_code": "E_NOT_REGISTERED"
+    },
+    "expected_trace_id": "trace-unknown"
+  }
+]

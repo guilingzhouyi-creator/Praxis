@@ -1,0 +1,79 @@
+{
+  "cases": [
+    {
+      "name": "bounded_history_and_type_filters",
+      "max_history": 2,
+      "workers": 1,
+      "max_queued": 500,
+      "registry_max": 4,
+      "signals": [
+        {
+          "type": "TASK_DONE",
+          "data": {"seq": 1},
+          "sender": "agent-a",
+          "target": "cell-a",
+          "timestamp": 100.5
+        },
+        {
+          "type": "REVIEW_RESULT",
+          "data": {"seq": 2, "approved": true},
+          "sender": "reviewer-a",
+          "target": "cell-a",
+          "timestamp": 101.5
+        },
+        {
+          "type": "TASK_DONE",
+          "data": {"seq": 3},
+          "sender": "agent-a",
+          "target": "cell-a",
+          "timestamp": 102.5
+        }
+      ],
+      "expected_history": [
+        {
+          "type": "REVIEW_RESULT",
+          "data": {"seq": 2, "approved": true},
+          "sender": "reviewer-a",
+          "target": "cell-a",
+          "timestamp": 101.5
+        },
+        {
+          "type": "TASK_DONE",
+          "data": {"seq": 3},
+          "sender": "agent-a",
+          "target": "cell-a",
+          "timestamp": 102.5
+        }
+      ],
+      "expected_task_history": [
+        {
+          "type": "TASK_DONE",
+          "data": {"seq": 3},
+          "sender": "agent-a",
+          "target": "cell-a",
+          "timestamp": 102.5
+        }
+      ],
+      "expected_review_history": [
+        {
+          "type": "REVIEW_RESULT",
+          "data": {"seq": 2, "approved": true},
+          "sender": "reviewer-a",
+          "target": "cell-a",
+          "timestamp": 101.5
+        }
+      ],
+      "expected_stats": {
+        "signal_types": 0,
+        "listeners": 0,
+        "history": 2,
+        "wildcard_listeners": 0,
+        "queue_max": 500,
+        "queue_depth": 0,
+        "submitted": 0,
+        "completed": 0,
+        "dropped": 0
+      }
+    }
+  ]
+}

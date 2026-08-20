@@ -1,0 +1,40 @@
+{
+  "prefix": "id-",
+  "body_length": 16,
+  "max_attempts": 3,
+  "cases": [
+    {
+      "tracked": [],
+      "candidates": ["aaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"],
+      "expected": "id-aaaaaaaaaaaaaaaa"
+    },
+    {
+      "tracked": ["id-aaaaaaaaaaaaaaaa"],
+      "candidates": ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"],
+      "expected": "id-bbbbbbbbbbbbbbbb"
+    },
+    {
+      "tracked": ["id-aaaaaaaaaaaaaaaa", "id-bbbbbbbbbbbbbbbb"],
+      "candidates": ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb", "cccccccccccccccc"],
+      "expected": "id-cccccccccccccccc"
+    },
+    {
+      "tracked": ["id-aaaaaaaaaaaaaaaa", "id-bbbbbbbbbbbbbbbb", "id-cccccccccccccccc"],
+      "candidates": ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb", "cccccccccccccccc"],
+      "expected": ""
+    },
+    {
+      "tracked": [],
+      "candidates": ["short", "dddddddddddddddd"],
+      "expected": "id-dddddddddddddddd"
+    }
+  ],
+  "verify": [
+    {"uid": "id-aaaaaaaaaaaaaaaa", "expected": true},
+    {"uid": "id-zzzzzzzzzzzzzzzz", "expected": true},
+    {"uid": "", "expected": false},
+    {"uid": "id-", "expected": false},
+    {"uid": "id-123", "expected": false},
+    {"uid": "plain-aaaaaaaaaaaaaaaa", "expected": false}
+  ]
+}

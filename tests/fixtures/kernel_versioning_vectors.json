@@ -1,0 +1,38 @@
+{
+  "cases": [
+    {
+      "case": "stamp_snapshot",
+      "kind": "snapshot",
+      "input": {"key": "value"},
+      "expect": {"key": "value", "_version": 3}
+    },
+    {
+      "case": "checkpoint_identity_migration",
+      "kind": "checkpoint",
+      "input": {"_version": 1, "key": "value"},
+      "expect": {"_version": 2, "key": "value"},
+      "applied": [
+        {"from_version": 1, "to_version": 2, "label": "identity"}
+      ]
+    },
+    {
+      "case": "unknown_kind",
+      "kind": "unknown",
+      "input": {"_version": 1, "key": "value"},
+      "expect": {"_version": 1, "key": "value"},
+      "applied": []
+    },
+    {
+      "case": "future_version",
+      "kind": "snapshot",
+      "input": {"_version": 99},
+      "error": "FUTURE_VERSION"
+    },
+    {
+      "case": "missing_zero_migration",
+      "kind": "snapshot",
+      "input": {"_version": 0},
+      "error": "MISSING_MIGRATION"
+    }
+  ]
+}

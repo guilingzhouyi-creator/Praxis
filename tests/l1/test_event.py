@@ -110,6 +110,22 @@ def test_on_any_not_removed_by_off_type() -> None:
     assert len(calls) == 1
 
 
+def test_off_any_removes_wildcard_listener() -> None:
+    """off_any removes exactly the wildcard callback registered by on_any."""
+    bus = EventBus(max_history=10)
+    calls = []
+
+    def cb(signal: Signal) -> None:
+        calls.append(signal)
+
+    bus.on_any(cb)
+    bus.off_any(cb)
+    assert bus.stats()["wildcard_listeners"] == 0
+    bus.emit(Signal(type=SignalType.TASK_ASSIGN))
+    bus.shutdown(wait=True, timeout=1.0)
+    assert calls == []
+
+
 def test_history_records_emitted_signals() -> None:
     bus = EventBus(max_history=5)
     bus.emit(Signal(type=SignalType.TASK_ASSIGN))
@@ -148,6 +164,62 @@ def test_stats() -> None:
     assert s["listeners"] == 2  # typed listeners only; wildcard is separate
     assert s["history"] == 0
     assert s["wildcard_listeners"] == 1
+    assert s["submitted"] == 0
+    assert s["completed"] == 0
+    assert s["dropped"] == 0
+    assert s["drop_rate"] == 0.0
+
+
+def test_stats_count_successful_dispatches() -> None:
+    """Successful executor submissions become completed after a draining shutdown."""
+    bus = EventBus(max_history=10)
+    bus.on_any(lambda _signal: None)
+    assert bus.emit(Signal(type=SignalType.TASK_DONE)) == 1
+    bus.shutdown(wait=True, timeout=1.0)
+    stats = bus.stats()
+    assert stats["submitted"] == 1
+    assert stats["completed"] == 1
+    assert stats["dropped"] == 0
+    assert stats["queue_depth"] == 0
+
+
+def test_stats_count_queue_drops() -> None:
+    """A full bounded queue increments dropped without leaking in-flight work."""
+    bus = EventBus(max_history=10)
+    bus._MAX_EVT_QUEUED = 0
+    bus.on_any(lambda _signal: None)
+    assert bus.emit(Signal(type=SignalType.TASK_DONE)) == 1
+    stats = bus.stats()
+    assert stats["submitted"] == 0
+    assert stats["completed"] == 0
+    assert stats["dropped"] == 1
+    assert stats["queue_depth"] == 0
+    assert stats["drop_rate"] == 1.0
+    bus.shutdown(wait=True, timeout=1.0)
+
+
+def test_stats_count_executor_submit_failure() -> None:
+    """Executor submission failure releases the reservation and counts one drop."""
+
+    class FailingExecutor:
+        """Minimal executor double that rejects every submission."""
+
+        def submit(self, *_args, **_kwargs):
+            raise RuntimeError("executor closed")
+
+        def shutdown(self, **_kwargs):
+            return None
+
+    bus = EventBus(max_history=10)
+    bus._executor = FailingExecutor()
+    bus.on_any(lambda _signal: None)
+    assert bus.emit(Signal(type=SignalType.TASK_DONE)) == 1
+    stats = bus.stats()
+    assert stats["submitted"] == 0
+    assert stats["completed"] == 0
+    assert stats["dropped"] == 1
+    assert stats["queue_depth"] == 0
+    bus.shutdown(wait=True, timeout=1.0)
 
 
 def test_shutdown_idempotent() -> None:

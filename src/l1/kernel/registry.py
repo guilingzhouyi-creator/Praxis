@@ -16,11 +16,38 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 from .params.kernel import REGISTRY_QUERY_LIMIT, GateStatus
 
 logger = logging.getLogger(__name__)
+
+
+def snapshot_sections(sections: Mapping[str, Any]) -> dict[str, Any]:
+    """Return an isolated, name-sorted copy of opaque registry sections."""
+    return {name: deepcopy(sections[name]) for name in sorted(sections)}
+
+
+def aggregate_summary(
+    modules: Mapping[str, Mapping[str, Any]],
+    process_count: int,
+    device_count: int,
+    syscall_names: Sequence[str],
+    timestamp: float,
+    *,
+    healthy_status: str = GateStatus.PASS,
+) -> dict[str, Any]:
+    """Aggregate explicit registry values without probing runtime providers."""
+    healthy = sum(1 for value in modules.values() if value.get("status") == healthy_status)
+    return {
+        "modules": {"total": len(modules), "healthy": healthy},
+        "processes": process_count,
+        "devices": device_count,
+        "syscalls": len(syscall_names),
+        "timestamp": timestamp,
+    }
 
 
 class Registry:
@@ -118,6 +145,11 @@ class Registry:
         with self._lock:
             self._sections[name] = data
 
+    def sections(self) -> dict[str, Any]:
+        """Return an isolated, name-sorted snapshot of register-backed sections."""
+        with self._lock:
+            return snapshot_sections(self._sections)
+
     def get_section(self, name: str, default: Any = None) -> Any:
         """Read a named state section previously written by set_section."""
         with self._lock:
@@ -135,14 +167,7 @@ class Registry:
     def summary(self) -> dict[str, Any]:
         """Return a unified system overview (modules, processes, devices, syscalls)."""
         m = self.modules()
-        healthy = sum(1 for v in m.values() if v.get("status") == GateStatus.PASS)
-        return {
-            "modules": {"total": len(m), "healthy": healthy},
-            "processes": len(self.processes()),
-            "devices": len(self.devices()),
-            "syscalls": len(self.syscalls()),
-            "timestamp": time.time(),
-        }
+        return aggregate_summary(m, len(self.processes()), len(self.devices()), self.syscalls(), time.time())
 
 
 _registry: Registry | None = None

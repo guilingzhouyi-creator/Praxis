@@ -93,6 +93,7 @@ flowchart TB
 | — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
 | — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (perf_quality.py), drift floor |
 | — | [automation.md](automation.md) | Declarative automation manifest, DAG planning, ProcessPort execution, and evidence hooks |
+| — | [multilang-build.md](multilang-build.md) | Rust workspace and TypeScript protocol build boundary for the staged rewrite |
 | — | [completion-judge.md](completion-judge.md) | CompletionJudge: 11-dimension "done" gate, COMPLETE/PARTIAL/INCOMPLETE verdicts, shared JSONL log, mode-split dashboard |
 | — | [skill-system.md](skill-system.md) | Skill manager (L1), R4Agent evolution, per-Cell bindings, staged/guided skills |
 | — | [runtime-subsystems.md](runtime-subsystems.md) | error bus (trace_id), AgentLoop entities, boot, search, LLM workers, resource buffer, ConfigDiscovery |
@@ -103,18 +104,18 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 44 files / 6,091 lines |
+| L2 Shell | 45 files / 6,584 lines |
 | L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 113 files / 23,538 lines |
-| L1 Kernel | 69 files / 18,370 lines |
-| L2 Shell | 44 files / 6,091 lines |
-| L3 Cell | 347 files / 77,687 lines |
-| L4 Bridge | 113 files / 23,538 lines |
+| L4 Bridge | 113 files / 23,539 lines |
+| L1 Kernel | 69 files / 18,617 lines |
+| L2 Shell | 45 files / 6,584 lines |
+| L3 Cell | 348 files / 77,881 lines |
+| L4 Bridge | 113 files / 23,539 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 7,026 lines |
-| L3 Memory | 46 files / 10,695 lines |
+| L3 Memory | 46 files / 10,771 lines |
 | L3 Card | 27 files / 6,451 lines |
-| L3 Services | 44 files / 11,485 lines |
+| L3 Services | 45 files / 11,593 lines |
 | L3 Bus | 17 files / 4,396 lines |
 | L3 Agent | 36 files / 7,483 lines |
 | L4 Handlers | 34 files / 6,411 lines |
@@ -126,7 +127,7 @@ flowchart TB
 | L4 Handlers | 34 files / 6,411 lines |
 | API routes | 368 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,200 |
+| Params modules / constants | 8 / 1,205 |
 | Health | 0.696 (grade B) |
 
 ## Reading path

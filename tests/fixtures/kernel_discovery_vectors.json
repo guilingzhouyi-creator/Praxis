@@ -1,0 +1,65 @@
+[
+  {
+    "case": "defaults_yaml_runtime_layers",
+    "defaults": {
+      "tool": {"git_timeout": 30, "shell_timeout": 10},
+      "service_limits": {"channel_ring_capacity": 64, "worker_max": 8},
+      "scalar": "default"
+    },
+    "overrides": {
+      "tool": {"git_timeout": 60},
+      "service_limits": null,
+      "scalar": "yaml",
+      "unknown": {"ignored": true}
+    },
+    "expected_config": {
+      "tool": {"git_timeout": 60, "shell_timeout": 10},
+      "service_limits": {"channel_ring_capacity": 64, "worker_max": 8},
+      "scalar": "yaml",
+      "unknown": null
+    },
+    "expected_source": {
+      "tool": {"git_timeout": 30, "shell_timeout": 10},
+      "service_limits": {"channel_ring_capacity": 64, "worker_max": 8},
+      "scalar": "default"
+    },
+    "tool_queries": [
+      {"key": "git_timeout", "default": 0, "expected": 60},
+      {"key": "missing", "default": 99, "expected": 99}
+    ],
+    "service_queries": [
+      {"key": "channel_ring_capacity", "default": 0, "expected": 64},
+      {"key": "missing", "default": 99, "expected": 99}
+    ]
+  },
+  {
+    "case": "replacement_values",
+    "defaults": {
+      "tool": {"git_timeout": 30},
+      "service_limits": {"worker_max": 8},
+      "scalar": "default"
+    },
+    "overrides": {
+      "tool": ["replacement"],
+      "service_limits": {"worker_max": 16, "queue": 100},
+      "scalar": null
+    },
+    "expected_config": {
+      "tool": ["replacement"],
+      "service_limits": {"worker_max": 16, "queue": 100},
+      "scalar": "default",
+      "unknown": null
+    },
+    "expected_source": {
+      "tool": {"git_timeout": 30},
+      "service_limits": {"worker_max": 8},
+      "scalar": "default"
+    },
+    "tool_queries": [
+      {"key": "git_timeout", "default": 0, "expected": 0}
+    ],
+    "service_queries": [
+      {"key": "worker_max", "default": 0, "expected": 16}
+    ]
+  }
+]

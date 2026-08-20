@@ -1,0 +1,7 @@
+# Performance harness sampling defaults. Keep build-quality controls outside
+# the runtime kernel params package so benchmark policy can evolve independently.
+perf_harness:
+  schema_version: 1
+  warmup_rounds: 1
+  sample_rounds: 7
+  mad_warn_pct: 3.0

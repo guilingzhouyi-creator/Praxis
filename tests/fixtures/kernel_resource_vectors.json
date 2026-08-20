@@ -1,0 +1,264 @@
+{
+  "config": {
+    "default_profile": {
+      "max_tokens": 4096,
+      "max_workers": 4,
+      "max_scouts": 3,
+      "max_memory": 100,
+      "priority": 5
+    },
+    "fallback_agent": "default",
+    "resource_keys": ["workers", "scouts", "memory", "tokens"],
+    "default_cost": 1
+  },
+  "profiles": [
+    {
+      "agent_id": "default",
+      "fields": {
+        "max_tokens": 4096,
+        "max_workers": 4,
+        "max_scouts": 3,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "agent_id": "scout",
+      "fields": {
+        "max_tokens": 2048,
+        "max_workers": 1,
+        "max_scouts": 0,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "agent_id": "l3",
+      "fields": {
+        "max_tokens": 2048,
+        "max_workers": 2,
+        "max_scouts": 0,
+        "max_memory": 100,
+        "priority": 1
+      }
+    },
+    {
+      "agent_id": "human",
+      "fields": {
+        "max_tokens": 0,
+        "max_workers": 0,
+        "max_scouts": 0,
+        "max_memory": 100,
+        "priority": 0
+      }
+    }
+  ],
+  "operations": [
+    {
+      "op": "get_profile",
+      "agent_id": "ghost",
+      "expected": {
+        "max_tokens": 4096,
+        "max_workers": 4,
+        "max_scouts": 3,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "op": "get_profile",
+      "agent_id": "scout",
+      "expected": {
+        "max_tokens": 2048,
+        "max_workers": 1,
+        "max_scouts": 0,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "op": "set_profile",
+      "agent_id": "custom",
+      "fields": {"max_workers": 2, "max_tokens": 10},
+      "expected": {"success": true}
+    },
+    {
+      "op": "get_profile",
+      "agent_id": "custom",
+      "expected": {
+        "max_tokens": 10,
+        "max_workers": 2,
+        "max_scouts": 3,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "op": "check",
+      "agent_id": "custom",
+      "resource": "workers",
+      "cost": 1,
+      "expected": {"success": true, "current": 1, "limit": 2}
+    },
+    {
+      "op": "check",
+      "agent_id": "custom",
+      "resource": "workers",
+      "cost": 2,
+      "expected": {
+        "success": false,
+        "error": "workers limit exceeded (3 > 2)",
+        "current": 1,
+        "limit": 2,
+        "requested": 2
+      }
+    },
+    {
+      "op": "check",
+      "agent_id": "custom",
+      "resource": "tokens",
+      "cost": 5,
+      "expected": {"success": true, "current": 5, "limit": 10}
+    },
+    {
+      "op": "check",
+      "agent_id": "custom",
+      "resource": "tokens",
+      "cost": -2,
+      "expected": {"success": true, "current": 3, "limit": 10}
+    },
+    {
+      "op": "release",
+      "agent_id": "custom",
+      "resource": "tokens",
+      "cost": 5,
+      "expected": {"success": true, "current": 0}
+    },
+    {
+      "op": "release",
+      "agent_id": "custom",
+      "resource": "workers",
+      "cost": -2,
+      "expected": {"success": true, "current": 3}
+    },
+    {
+      "op": "usage",
+      "agent_id": "custom",
+      "expected": {
+        "workers": {"current": 3, "max": 2},
+        "scouts": {"current": 0, "max": 3},
+        "memory": {"current": 0, "max": 100},
+        "tokens": {"current": 0, "max": 10}
+      }
+    },
+    {
+      "op": "set_profile",
+      "agent_id": "custom",
+      "fields": {"unknown": 999},
+      "expected": {"success": true}
+    },
+    {
+      "op": "all_usage",
+      "expected": {
+        "default": {
+          "workers": {"current": 0, "max": 4},
+          "scouts": {"current": 0, "max": 3},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 4096}
+        },
+        "scout": {
+          "workers": {"current": 0, "max": 1},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 2048}
+        },
+        "l3": {
+          "workers": {"current": 0, "max": 2},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 2048}
+        },
+        "human": {
+          "workers": {"current": 0, "max": 0},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 0}
+        },
+        "custom": {
+          "workers": {"current": 3, "max": 2},
+          "scouts": {"current": 0, "max": 3},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 10}
+        }
+      }
+    },
+    {
+      "op": "cleanup_agent",
+      "agent_id": "custom",
+      "expected": {"success": true}
+    },
+    {
+      "op": "get_profile",
+      "agent_id": "custom",
+      "expected": {
+        "max_tokens": 4096,
+        "max_workers": 4,
+        "max_scouts": 3,
+        "max_memory": 100,
+        "priority": 5
+      }
+    },
+    {
+      "op": "usage",
+      "agent_id": "custom",
+      "expected": {
+        "workers": {"current": 0, "max": 4},
+        "scouts": {"current": 0, "max": 3},
+        "memory": {"current": 0, "max": 100},
+        "tokens": {"current": 0, "max": 4096}
+      }
+    },
+    {
+      "op": "release",
+      "agent_id": "custom",
+      "resource": "cpu",
+      "cost": 5,
+      "expected": {"success": true, "current": 0}
+    },
+    {
+      "op": "check",
+      "agent_id": "ghost",
+      "resource": "workers",
+      "expected": {"success": true, "current": 1, "limit": 4}
+    },
+    {
+      "op": "all_usage",
+      "expected": {
+        "default": {
+          "workers": {"current": 0, "max": 4},
+          "scouts": {"current": 0, "max": 3},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 4096}
+        },
+        "scout": {
+          "workers": {"current": 0, "max": 1},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 2048}
+        },
+        "l3": {
+          "workers": {"current": 0, "max": 2},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 2048}
+        },
+        "human": {
+          "workers": {"current": 0, "max": 0},
+          "scouts": {"current": 0, "max": 0},
+          "memory": {"current": 0, "max": 100},
+          "tokens": {"current": 0, "max": 0}
+        }
+      }
+    }
+  ]
+}

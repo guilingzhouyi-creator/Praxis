@@ -10,7 +10,72 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
 
-from perf_harness import SCHEMA_VERSION, run_benchmark, run_suite, write_json  # noqa: E402
+from perf_harness import (  # noqa: E402
+    PERF_HARNESS_MAD_WARN_PCT,
+    PERF_HARNESS_SAMPLE_ROUNDS,
+    PERF_HARNESS_WARMUP_ROUNDS,
+    SCHEMA_VERSION,
+    PerfHarnessConfigError,
+    load_config,
+    run_benchmark,
+    run_suite,
+    write_json,
+)
+
+
+def test_shipped_config_drives_compatibility_defaults() -> None:
+    """The checked-in quality config supplies the legacy harness aliases."""
+    config = load_config()
+
+    assert config.warmup_rounds == PERF_HARNESS_WARMUP_ROUNDS == 1
+    assert config.sample_rounds == PERF_HARNESS_SAMPLE_ROUNDS == 7
+    assert config.mad_warn_pct == PERF_HARNESS_MAD_WARN_PCT == 3.0
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({}, "section"),
+        ({"perf_harness": {"schema_version": 2}}, "schema_version"),
+        (
+            {"perf_harness": {"schema_version": 1, "warmup_rounds": -1, "sample_rounds": 7, "mad_warn_pct": 3}},
+            "warmup_rounds",
+        ),
+        (
+            {"perf_harness": {"schema_version": 1, "warmup_rounds": 1, "sample_rounds": 0, "mad_warn_pct": 3}},
+            "sample_rounds",
+        ),
+        (
+            {"perf_harness": {"schema_version": 1, "warmup_rounds": 1, "sample_rounds": 7, "mad_warn_pct": 0}},
+            "mad_warn_pct",
+        ),
+        (
+            {
+                "perf_harness": {
+                    "schema_version": 1,
+                    "warmup_rounds": 1,
+                    "sample_rounds": 7,
+                    "mad_warn_pct": 3,
+                    "extra": True,
+                }
+            },
+            "unknown",
+        ),
+    ],
+)
+def test_config_validation_rejects_invalid_payloads(tmp_path: Path, payload: dict, message: str) -> None:
+    """Missing, malformed, and unknown settings fail closed with context."""
+    path = tmp_path / "perf-harness.yaml"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PerfHarnessConfigError, match=message):
+        load_config(path)
+
+
+def test_config_validation_reports_missing_file(tmp_path: Path) -> None:
+    """A missing quality config cannot silently restore runtime defaults."""
+    with pytest.raises(PerfHarnessConfigError, match="cannot read"):
+        load_config(tmp_path / "missing.yaml")
 
 
 def test_run_benchmark_records_warmups_and_samples() -> None:

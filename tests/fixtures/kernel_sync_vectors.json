@@ -1,0 +1,59 @@
+{
+  "cases": [
+    {
+      "name": "reentrant_reads_timeout_and_missing_unlock",
+      "lock_name": "vector-rwlock-preference",
+      "timeout_ms": 0,
+      "operations": [
+        {
+          "kind": "read",
+          "agent": "reader-a",
+          "expected": {"success": true, "mode": "read", "readers": 1},
+          "status": {"name": "vector-rwlock-preference", "readers": 1, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "read",
+          "agent": "reader-a",
+          "expected": {"success": true, "mode": "read", "readers": 2},
+          "status": {"name": "vector-rwlock-preference", "readers": 2, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "write",
+          "agent": "writer",
+          "expected": {"success": false, "error": "timeout"},
+          "status": {"name": "vector-rwlock-preference", "readers": 2, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "read",
+          "agent": "reader-b",
+          "expected": {"success": true, "mode": "read", "readers": 3},
+          "status": {"name": "vector-rwlock-preference", "readers": 3, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "unlock",
+          "agent": "reader-a",
+          "expected": {"success": true, "mode": "read", "readers": 2},
+          "status": {"name": "vector-rwlock-preference", "readers": 2, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "unlock",
+          "agent": "reader-a",
+          "expected": {"success": true, "mode": "read", "readers": 1},
+          "status": {"name": "vector-rwlock-preference", "readers": 1, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "unlock",
+          "agent": "reader-b",
+          "expected": {"success": true, "mode": "read", "readers": 0},
+          "status": {"name": "vector-rwlock-preference", "readers": 0, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        },
+        {
+          "kind": "unlock",
+          "agent": "writer",
+          "expected": {"success": false, "error": "not locked", "writer": "", "readers": 0},
+          "status": {"name": "vector-rwlock-preference", "readers": 0, "writer": "", "writer_depth": 0, "write_waiters": 0}
+        }
+      ]
+    }
+  ]
+}

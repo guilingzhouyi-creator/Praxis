@@ -13,7 +13,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))  # noqa: E402
 
-from commit_scan import body_advisories, load_policy, parse_subject, scan_range, validate_subject  # noqa: E402
+from commit_scan import (  # noqa: E402
+    body_advisories,
+    load_policy,
+    parse_subject,
+    scan_range,
+    validate_subject,
+    validate_type_content,
+)
 
 
 def policy() -> dict:
@@ -120,6 +127,12 @@ def test_fix_branch_policy():
 def test_feature_branch_allows_feat():
     p = policy()
     assert validate_subject("feat(kernel): add token ring revocation", branch="feature/x", policy=p) == []
+
+
+def test_rust_and_typescript_paths_are_code_for_type_checks():
+    assert validate_type_content("feat", ["crates/l1-kernel-rs/src/lib.rs"]) == []
+    assert validate_type_content("test", ["crates/l1-kernel-rs/tests/contract_vectors.rs"]) == []
+    assert validate_type_content("feat", ["packages/protocol-ts/src/envelope.ts"]) == []
 
 
 def test_scan_range_skips_merge_and_clean():

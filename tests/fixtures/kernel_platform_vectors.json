@@ -1,0 +1,60 @@
+[
+  {
+    "case": "posix_rg",
+    "snapshot": {
+      "is_windows": false,
+      "is_mac": false,
+      "shell_path": "/bin/bash",
+      "python_exe": "/usr/bin/python",
+      "rg_available": true,
+      "path_separator": "/"
+    },
+    "shell_command": ["/bin/bash", "-c", "echo ready"],
+    "grep_options": {
+      "pattern": "needle",
+      "path": ".",
+      "fixed": true,
+      "ignore_case": true,
+      "max_count": 3,
+      "glob_pattern": "*.rs",
+      "file_type": "rust"
+    },
+    "grep_command": ["rg", "-n", "--no-heading", "-F", "-i", "--max-count", "3", "--glob", "*.rs", "--type", "rust", "needle", "."],
+    "url_parts": ["/api/", "/v2/", "/health"],
+    "url": "api/v2/health",
+    "temp_system": "/tmp",
+    "temp_dir": "/tmp/praxis",
+    "tcp_endpoint": "127.0.0.1:42101",
+    "tcp_default_host": "localhost",
+    "tcp": ["127.0.0.1", 42101]
+  },
+  {
+    "case": "windows_findstr",
+    "snapshot": {
+      "is_windows": true,
+      "is_mac": false,
+      "shell_path": "C:\\Windows\\System32\\cmd.exe",
+      "python_exe": "C:\\Python\\python.exe",
+      "rg_available": false,
+      "path_separator": "\\"
+    },
+    "shell_command": ["C:\\Windows\\System32\\cmd.exe", "/c", "echo ready"],
+    "grep_options": {
+      "pattern": "needle",
+      "path": "src",
+      "fixed": true,
+      "ignore_case": true,
+      "max_count": 0,
+      "glob_pattern": "*.py",
+      "file_type": ""
+    },
+    "grep_command": ["findstr", "/n", "/s", "/i", "/x", "/c:needle", "src\\*.py"],
+    "url_parts": ["/api/", "/v2/", "/health"],
+    "url": "api/v2/health",
+    "temp_system": "C:\\Temp",
+    "temp_dir": "C:\\Temp\\praxis",
+    "tcp_endpoint": ":42101",
+    "tcp_default_host": "localhost",
+    "tcp": ["localhost", 42101]
+  }
+]

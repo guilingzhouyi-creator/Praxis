@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -50,7 +51,7 @@ NO_EVIDENCE = json.dumps(
 
 def _scan(msg: str, detected: str = DSH_DETECTED) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [str(ROOT / ".venv" / "bin" / "python"), str(SCAN), "--msg", msg, "--detected", detected],
+        [sys.executable, str(SCAN), "--msg", msg, "--detected", detected],
         capture_output=True,
         text=True,
     )
@@ -118,7 +119,7 @@ def test_trailing_period_rejected() -> None:
 
 def test_detect_agent_emits_json() -> None:
     res = subprocess.run(
-        [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
+        [sys.executable, str(DETECT), "--json"],
         capture_output=True,
         text=True,
     )
@@ -145,7 +146,7 @@ def test_execution_evidence_beats_config(monkeypatch: pytest.MonkeyPatch, tmp_pa
     )
     monkeypatch.setenv("DSH_HOME", str(dsh_home))
     res = subprocess.run(
-        [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
+        [sys.executable, str(DETECT), "--json"],
         capture_output=True,
         text=True,
     )
@@ -174,7 +175,7 @@ def test_config_fallback_when_no_session(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setenv("DSH_HOME", str(dsh_home))
     monkeypatch.delenv("DSH_SESSION_JSONL", raising=False)
     res = subprocess.run(
-        [str(ROOT / ".venv" / "bin" / "python"), str(DETECT), "--json"],
+        [sys.executable, str(DETECT), "--json"],
         capture_output=True,
         text=True,
     )

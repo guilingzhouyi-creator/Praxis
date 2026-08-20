@@ -133,6 +133,12 @@ def wire_defaults() -> dict[str, str]:
     register_port("scheduler", get_scheduler())
     registry["scheduler"] = "central_scheduler"
 
+    # Automation side channels — stable L1 ports keep build scripts independent
+    # from the concrete observability, evidence, DVG, and trace implementations.
+    from l3.services.automation_ports import wire_automation_ports
+
+    registry.update(wire_automation_ports())
+
     # Hook chain — shared LifecycleHooks singleton with EventEmitHook
     # pre-registered. Not a port: consumed via hook.get_hook_chain().
     from l3.services.hook import get_hook_chain
@@ -256,6 +262,10 @@ def wire_from_config(cfg: dict) -> dict[str, str]:
 
         register_port("storage", get_storage())
         registry["storage"] = "fs"
+
+    from l3.services.automation_ports import wire_automation_ports
+
+    registry.update(wire_automation_ports())
 
     if not _is_registered("r4_candidates"):
         from l3.memory.r4_candidate_store import R4CandidateAdapter

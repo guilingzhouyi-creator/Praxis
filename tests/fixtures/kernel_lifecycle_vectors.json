@@ -1,0 +1,100 @@
+{
+  "paths": [
+    {
+      "case": "install_boot_shutdown",
+      "states": ["halted", "installing", "booting", "active", "draining", "halted"]
+    },
+    {
+      "case": "crash_recovery",
+      "states": ["halted", "booting", "crashed", "booting", "active"]
+    }
+  ],
+  "invalid_transitions": [
+    {"from": "halted", "to": "active"},
+    {"from": "active", "to": "booting"},
+    {"from": "draining", "to": "active"},
+    {"from": "crashed", "to": "active"}
+  ],
+  "install_decisions": [
+    {
+      "case": "first_install",
+      "current_schema": "20260730.1",
+      "record": {
+        "install_version": 0,
+        "schema_version": "",
+        "app_version": "",
+        "last_boot": "",
+        "last_boot_success": false,
+        "last_shutdown": "",
+        "last_shutdown_clean": false,
+        "boot_count": 0,
+        "lifecycle_state": "halted"
+      },
+      "should_install": true
+    },
+    {
+      "case": "schema_mismatch",
+      "current_schema": "schema-2",
+      "record": {
+        "install_version": 1,
+        "schema_version": "schema-old",
+        "app_version": "kernel-1",
+        "last_boot": "boot-1",
+        "last_boot_success": true,
+        "last_shutdown": "shutdown-1",
+        "last_shutdown_clean": true,
+        "boot_count": 1,
+        "lifecycle_state": "halted"
+      },
+      "should_install": true
+    },
+    {
+      "case": "unclean_shutdown",
+      "current_schema": "20260730.1",
+      "record": {
+        "install_version": 1,
+        "schema_version": "20260730.1",
+        "app_version": "kernel-1",
+        "last_boot": "boot-1",
+        "last_boot_success": true,
+        "last_shutdown": "shutdown-1",
+        "last_shutdown_clean": false,
+        "boot_count": 1,
+        "lifecycle_state": "halted"
+      },
+      "should_install": true
+    },
+    {
+      "case": "clean_shutdown",
+      "current_schema": "20260730.1",
+      "record": {
+        "install_version": 1,
+        "schema_version": "20260730.1",
+        "app_version": "kernel-1",
+        "last_boot": "boot-1",
+        "last_boot_success": true,
+        "last_shutdown": "shutdown-1",
+        "last_shutdown_clean": true,
+        "boot_count": 1,
+        "lifecycle_state": "halted"
+      },
+      "should_install": false
+    },
+    {
+      "case": "boot_without_shutdown",
+      "current_schema": "20260730.1",
+      "record": {
+        "install_version": 1,
+        "schema_version": "20260730.1",
+        "app_version": "kernel-1",
+        "last_boot": "boot-1",
+        "last_boot_success": true,
+        "last_shutdown": "",
+        "last_shutdown_clean": false,
+        "boot_count": 1,
+        "lifecycle_state": "active"
+      },
+      "should_install": true
+    }
+  ]
+}

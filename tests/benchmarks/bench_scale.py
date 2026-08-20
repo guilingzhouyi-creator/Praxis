@@ -31,7 +31,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import math
 import os
@@ -56,6 +55,7 @@ from l4.params import (
     EVAL_DIFF_COMPRESS_ITERS,
     EVAL_DIFF_HEADER_ITERS,
     EVAL_DIFF_HUNK_ITERS,
+    EVAL_EVENT_BOUNDED_ITERS,
     EVAL_EVENT_ITERS,
     EVAL_EVENT_LISTENERS,
     EVAL_GATECHAIN_ITERS,
@@ -578,39 +578,102 @@ def _queue_wall(iters: int) -> float:
     return time.perf_counter() - start
 
 
-def _event_wall(iters: int, listeners: int) -> float:
-    """Event-bus emit with *listeners* subscribers; return wall (s)."""
-    from l1.kernel.event import get_bus
+def _event_round(iters: int, listeners: int) -> dict[str, Any]:
+    """Measure one isolated EventBus emit round and drain its callbacks."""
+    from l1.kernel.event import EventBus
+    from l1.kernel.params.kernel import EVENT_BUS_SHUTDOWN_TIMEOUT
 
-    bus = get_bus()
-    subs = []
+    bus = EventBus()
+    callbacks: list[Callable] = []
+    wall_s = 0.0
     try:
         for _ in range(listeners):
-            subs.append(bus.on_any(lambda _e: None))
+
+            def callback(_event: Any) -> None:
+                return None
+
+            callbacks.append(callback)
+            bus.on_any(callback)
         start = time.perf_counter()
         for _ in range(iters):
             bus.emit_event("bench.marker", {"i": 0})
-        return time.perf_counter() - start
+        wall_s = time.perf_counter() - start
     finally:
-        for s in subs:
-            with contextlib.suppress(Exception):
-                bus.off(s)
-
-
-def run_queue_event(queue_iters: int, event_iters: int, listener_counts: list[int], rounds: int) -> dict[str, Any]:
-    """RingChannel throughput + event-bus throughput vs listener count."""
-    queue_wall = _measure(lambda: _queue_wall(queue_iters), rounds)
-    event: dict[str, Any] = {}
-    for n in listener_counts:
-        wall = _measure(lambda _n=n: _event_wall(event_iters, _n), rounds)
-        event[str(n)] = {
-            "ops_per_sec": round(_ops_per_sec(event_iters, wall), 0),
-            "degradation_vs_zero": round((_event_wall(event_iters, 0) / wall) if wall > 0 else 0.0, 3),
-        }
+        for callback in callbacks:
+            bus.off_any(callback)
+        bus.shutdown(wait=True, timeout=EVENT_BUS_SHUTDOWN_TIMEOUT)
+    stats = bus.stats()
+    dispatch_attempts = stats["submitted"] + stats["dropped"]
+    drained = stats["queue_depth"] == 0
     return {
+        "wall_s": wall_s,
+        "submitted": stats["submitted"],
+        "completed": stats["completed"],
+        "dropped": stats["dropped"],
+        "queue_depth": stats["queue_depth"],
+        "drop_rate": stats["dropped"] / dispatch_attempts if dispatch_attempts else 0.0,
+        "drained": drained,
+        "clean": stats["dropped"] == 0 and drained,
+    }
+
+
+def _event_wall(iters: int, listeners: int) -> float:
+    """Event-bus emit with *listeners* subscribers; return wall (s)."""
+    return float(_event_round(iters, listeners)["wall_s"])
+
+
+def _event_report(iters: int, samples: list[dict[str, Any]], baseline_wall: float) -> dict[str, Any]:
+    """Summarize EventBus rounds while preserving per-round delivery evidence."""
+    wall = _median([float(sample["wall_s"]) for sample in samples])
+    submitted = sum(int(sample["submitted"]) for sample in samples)
+    completed = sum(int(sample["completed"]) for sample in samples)
+    dropped = sum(int(sample["dropped"]) for sample in samples)
+    dispatch_attempts = submitted + dropped
+    return {
+        "ops_per_sec": round(_ops_per_sec(iters, wall), 0),
+        "wall_s": round(wall, 6),
+        "degradation_vs_zero": round((baseline_wall / wall) if wall > 0 else 0.0, 3),
+        "submitted": submitted,
+        "completed": completed,
+        "dropped": dropped,
+        "queue_depth": max(int(sample["queue_depth"]) for sample in samples),
+        "drop_rate": round(dropped / dispatch_attempts if dispatch_attempts else 0.0, 6),
+        "drained": all(bool(sample["drained"]) for sample in samples),
+        "clean": all(bool(sample["clean"]) for sample in samples),
+        "rounds": samples,
+    }
+
+
+def _event_curve(event_iters: int, listener_counts: list[int], rounds: int) -> dict[str, Any]:
+    """Measure one EventBus load curve and compare it with a zero-listener baseline."""
+    event: dict[str, Any] = {}
+    zero_samples = [_event_round(event_iters, 0) for _ in range(rounds)]
+    zero_wall = _median([float(sample["wall_s"]) for sample in zero_samples])
+    for n in listener_counts:
+        samples = [_event_round(event_iters, n) for _ in range(rounds)]
+        event[str(n)] = _event_report(event_iters, samples, zero_wall)
+    if "0" in event:
+        event["0"] = _event_report(event_iters, zero_samples, zero_wall)
+    return event
+
+
+def run_queue_event(
+    queue_iters: int,
+    event_iters: int,
+    listener_counts: list[int],
+    rounds: int,
+    bounded_event_iters: int | None = None,
+) -> dict[str, Any]:
+    """RingChannel throughput plus normal and optional bounded EventBus curves."""
+    queue_wall = _measure(lambda: _queue_wall(queue_iters), rounds)
+    event = _event_curve(event_iters, listener_counts, rounds)
+    report = {
         "queue_put_get_ops_per_sec": round(_ops_per_sec(queue_iters, queue_wall), 0),
         "event_bus": event,
     }
+    if bounded_event_iters is not None:
+        report["bounded_event_bus"] = _event_curve(bounded_event_iters, listener_counts, rounds)
+    return report
 
 
 # ── Constitution analysis module ───────────────────────────────────────────
@@ -1267,7 +1330,13 @@ def run_all(agent_counts: list[int], rounds: int) -> dict[str, Any]:
         "lock_contention": run_lock_contention(EVAL_LOCK_CONTEND_WORKERS, EVAL_LOCK_CONTEND_TOTAL_OPS, rounds),
         "lock_vs_lockfree": run_lock_vs_lockfree(EVAL_LOCKFREE_ITERS, rounds),
         "scheduling_latency": run_scheduling_latency(EVAL_SCHED_LATENCY_TASKS),
-        "queue_event": run_queue_event(EVAL_QUEUE_ITERS, EVAL_EVENT_ITERS, EVAL_EVENT_LISTENERS, rounds),
+        "queue_event": run_queue_event(
+            EVAL_QUEUE_ITERS,
+            EVAL_EVENT_ITERS,
+            EVAL_EVENT_LISTENERS,
+            rounds,
+            bounded_event_iters=EVAL_EVENT_BOUNDED_ITERS,
+        ),
         "constitution": run_constitution(EVAL_CONSTITUTION_ITERS, rounds),
         "memory": run_memory(EVAL_MEMORY_ALLOC_ITERS, rounds),
         "gatechain": run_gatechain(EVAL_GATECHAIN_ITERS, rounds),
@@ -1341,8 +1410,18 @@ def print_report(platform_info: dict[str, Any], report: dict[str, Any]) -> None:
     qe = report.get("queue_event")
     if qe:
         print(f"  RingChannel put+get: {qe['queue_put_get_ops_per_sec']:,.0f} ops/s")
-        for n, m in qe["event_bus"].items():
-            print(f"  Event-bus emit ({n} listeners): {m['ops_per_sec']:,.0f} ops/s")
+        curves = [("normal", qe["event_bus"])]
+        if qe.get("bounded_event_bus") is not None:
+            curves.append(("bounded", qe["bounded_event_bus"]))
+        for label, curve in curves:
+            for n, m in curve.items():
+                if m["clean"]:
+                    status = "clean"
+                elif not m["drained"]:
+                    status = f"not-drained depth={m['queue_depth']}"
+                else:
+                    status = f"dropped={m['dropped']} ({m['drop_rate']:.2%})"
+                print(f"  Event-bus {label} emit ({n} listeners): {m['ops_per_sec']:,.0f} ops/s [{status}]")
 
     con = report.get("constitution")
     if con:
@@ -1533,7 +1612,15 @@ def main() -> int:
     elif args.mode == "latency":
         report = {"scheduling_latency": run_scheduling_latency(EVAL_SCHED_LATENCY_TASKS)}
     elif args.mode == "queue":
-        report = {"queue_event": run_queue_event(EVAL_QUEUE_ITERS, EVAL_EVENT_ITERS, EVAL_EVENT_LISTENERS, args.rounds)}
+        report = {
+            "queue_event": run_queue_event(
+                EVAL_QUEUE_ITERS,
+                EVAL_EVENT_ITERS,
+                EVAL_EVENT_LISTENERS,
+                args.rounds,
+                bounded_event_iters=EVAL_EVENT_BOUNDED_ITERS,
+            )
+        }
     elif args.mode == "constitution":
         report = {"constitution": run_constitution(EVAL_CONSTITUTION_ITERS, args.rounds)}
     elif args.mode == "memory":

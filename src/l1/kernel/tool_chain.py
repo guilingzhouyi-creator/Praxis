@@ -31,6 +31,7 @@ import os
 import threading
 import time
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from l1.kernel.params.system import HASH_TRUNC_SHORT, LOG_TRUNC_40
@@ -94,6 +95,54 @@ class CallLink:
     children: list[str] = field(default_factory=list)
 
 
+def normalize_call_data(
+    tool_name: str,
+    agent_id: str,
+    ring: int,
+    call_id: str,
+    parent_id: str,
+    depth: int,
+) -> str:
+    """Render the stable, language-neutral fields used by a call fingerprint."""
+    return f"{tool_name}:{agent_id}:{ring}:{call_id}:{parent_id}:{depth}"
+
+
+def compute_fingerprint(secret_key: bytes, call_data: str, prev_fingerprint: str = "") -> str:
+    """Compute a truncated HMAC-SHA256 fingerprint with a GENESIS fallback."""
+    payload = f"{call_data}:{prev_fingerprint or 'GENESIS'}"
+    return hmac.new(secret_key, payload.encode(), hashlib.sha256).hexdigest()[:LOG_TRUNC_40]
+
+
+def verify_fingerprint_chain(secret_key: bytes, links: Sequence[CallLink]) -> dict:
+    """Verify root-first call links and return the stable audit result shape."""
+    steps: list[dict] = []
+    prev_fp = ""
+    valid = True
+    for link in links:
+        call_data = normalize_call_data(
+            link.tool_name,
+            link.agent_id,
+            link.ring,
+            link.call_id,
+            link.parent_id,
+            link.depth,
+        )
+        expected = compute_fingerprint(secret_key, call_data, prev_fp)
+        match = expected == link.fingerprint
+        if not match:
+            valid = False
+        steps.append(
+            {
+                "call_id": link.call_id,
+                "tool": link.tool_name,
+                "depth": link.depth,
+                "fingerprint_match": match,
+            }
+        )
+        prev_fp = link.fingerprint
+    return {"valid": valid, "steps": steps, "depth": len(links)}
+
+
 class ToolChain:
     """Hierarchical tool call chain with cryptographic fingerprinting.
 
@@ -123,7 +172,7 @@ class ToolChain:
             else:
                 depth = 1
 
-            call_data = f"{tool_name}:{agent_id}:{ring}:{call_id}:{parent_id}:{depth}"
+            call_data = normalize_call_data(tool_name, agent_id, ring, call_id, parent_id, depth)
             fp = self._compute_fp(call_data, prev_fp)
 
             link = CallLink(
@@ -198,25 +247,7 @@ class ToolChain:
         """
         ancestry = self.chain(call_id)
         ancestry.reverse()  # root first
-        steps: list[dict] = []
-        prev_fp = ""
-        valid = True
-        for link in ancestry:
-            call_data = f"{link.tool_name}:{link.agent_id}:{link.ring}:{link.call_id}:{link.parent_id}:{link.depth}"
-            expected = self._compute_fp(call_data, prev_fp)
-            match = expected == link.fingerprint
-            if not match:
-                valid = False
-            steps.append(
-                {
-                    "call_id": link.call_id,
-                    "tool": link.tool_name,
-                    "depth": link.depth,
-                    "fingerprint_match": match,
-                }
-            )
-            prev_fp = link.fingerprint
-        return {"valid": valid, "steps": steps, "depth": len(ancestry)}
+        return verify_fingerprint_chain(_SECRET_KEY, ancestry)
 
     def agent_calls(self, agent_id: str, limit: int = TOOLCHAIN_QUERY_LIMIT) -> list[CallLink]:
         """Get all calls by a specific agent."""
@@ -255,8 +286,7 @@ class ToolChain:
             }
 
     def _compute_fp(self, data: str, prev_fp: str = "") -> str:
-        payload = f"{data}:{prev_fp or 'GENESIS'}"
-        return hmac.new(_SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()[:LOG_TRUNC_40]
+        return compute_fingerprint(_SECRET_KEY, data, prev_fp)
 
     def _trim(self) -> None:
         """Remove oldest calls, preserving parent-child chain integrity.
@@ -289,7 +319,14 @@ class ToolChain:
             queue = [self._calls[root_id]]
             while queue:
                 node = queue.pop(0)
-                call_data = f"{node.tool_name}:{node.agent_id}:{node.ring}:{node.call_id}:{node.parent_id}:{node.depth}"
+                call_data = normalize_call_data(
+                    node.tool_name,
+                    node.agent_id,
+                    node.ring,
+                    node.call_id,
+                    node.parent_id,
+                    node.depth,
+                )
                 node.fingerprint = self._compute_fp(call_data, node.prev_fingerprint)
                 # Propagate this node's new fingerprint to each child's
                 # prev_fingerprint, then queue the child for its own recompute

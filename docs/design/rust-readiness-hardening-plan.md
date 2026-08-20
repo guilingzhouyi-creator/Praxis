@@ -1,6 +1,6 @@
 # Rust-Readiness Hardening Plan — Python 侧封口（先于 Rust 重写）
 
-> 状态：Phase 0 已实施（`feature/kernel-boundary-hardening`，未合并）；Phase 1/2 未动工
+> 状态：WS1–WS6 实现切片已进入当前主线；尚未完成当前主线重验收。本文是历史施工台账，现行入口门禁见 `docs/design/kernel-rewrite-readiness-package.md`
 > 依据：`docs/roadmaps/kernel-boundary-audit.md`（评分 42/100，§5 绕过路径 / §11 落地顺序）
 > 关联：`docs/roadmaps/frontend-kernel-roadmap.md`（M3/M4 Rust 下沉）、`docs/roadmaps/multilang-migration.md`（`l1_kernel_rs` 槽位）
 > 范围：仅 Python 侧改造，**不写任何 Rust 代码**；目标是把 `l1_kernel_rs` 将来要替换的契约收敛到最小、机制化、不可绕过。

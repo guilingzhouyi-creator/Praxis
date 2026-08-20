@@ -1,0 +1,69 @@
+{
+  "authorization": [
+    {
+      "agent_id": "",
+      "role": "",
+      "internal": false,
+      "allowed": false
+    },
+    {
+      "agent_id": "agent-1",
+      "role": "scout",
+      "internal": false,
+      "allowed": false
+    },
+    {
+      "agent_id": "agent-1",
+      "role": "deployer",
+      "internal": false,
+      "allowed": true
+    },
+    {
+      "agent_id": "",
+      "role": "",
+      "internal": true,
+      "allowed": true
+    }
+  ],
+  "mutations": [
+    {
+      "kind": "upsert",
+      "cell_id": "cell-1",
+      "role": "writer",
+      "identity_id": "id-first",
+      "internal": true,
+      "expected": true
+    },
+    {
+      "kind": "upsert",
+      "cell_id": "cell-1",
+      "role": "writer",
+      "identity_id": "",
+      "internal": true,
+      "expected": true
+    },
+    {
+      "kind": "unbind",
+      "cell_id": "cell-1",
+      "role": "writer",
+      "internal": true,
+      "expected": true
+    },
+    {
+      "kind": "unbind",
+      "cell_id": "cell-1",
+      "role": "writer",
+      "internal": true,
+      "expected": false
+    },
+    {
+      "kind": "clear",
+      "cell_id": "cell-1",
+      "role": "",
+      "internal": true,
+      "expected_count": 0
+    }
+  ],
+  "expected_revision": 4,
+  "expected_cells": []
+}

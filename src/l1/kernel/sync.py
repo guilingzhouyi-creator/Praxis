@@ -423,7 +423,7 @@ class Condition:
 
 
 class RWLock:
-    """Read-Write Lock — multiple readers XOR single writer."""
+    """Read-write lock with writer preference and reentrant ownership."""
 
     def __init__(self, name: str):
         self.name = name
@@ -432,6 +432,7 @@ class RWLock:
         self._reader_counts: dict[str, int] = {}
         self._reader_total = 0
         self._writer = ""
+        self._writer_depth = 0
         self._write_waiters = 0
         self._lock = threading.RLock()
         self._cond = threading.Condition(self._lock)
@@ -441,6 +442,8 @@ class RWLock:
         writers are queued (writers-preference — prevents reader starvation of
         waiting writers). An agent already holding a read proceeds even with
         queued writers. Returns a result dict."""
+        if not agent_id:
+            return {"success": False, "error": "invalid agent_id"}
         deadline = time.time() + timeout
         with self._lock:
             already_reader = self._reader_counts.get(agent_id, 0) > 0
@@ -463,8 +466,13 @@ class RWLock:
         """Acquire an exclusive write lock, waiting while readers or another
         writer hold it. The waiter count is tracked under the lock (no
         unsynchronized increment). Returns a result dict."""
+        if not agent_id:
+            return {"success": False, "error": "invalid agent_id"}
         deadline = time.time() + timeout
         with self._lock:
+            if self._writer == agent_id:
+                self._writer_depth += 1
+                return {"success": True, "mode": "write", "depth": self._writer_depth}
             self._write_waiters += 1
             try:
                 while self._reader_count() > 0 or (self._writer and self._writer != agent_id):
@@ -473,15 +481,20 @@ class RWLock:
                         return {"success": False, "error": "timeout"}
                     self._cond.wait(timeout=min(remaining, RWLOCK_POLL_INTERVAL))
                 self._writer = agent_id
-                return {"success": True, "mode": "write"}
+                self._writer_depth = 1
+                return {"success": True, "mode": "write", "depth": self._writer_depth}
             finally:
                 self._write_waiters -= 1
 
     def unlock(self, agent_id: str) -> dict:
         """Release the lock held by *agent_id* (write or one read). Returns a result dict."""
+        if not agent_id:
+            return {"success": False, "error": "invalid agent_id"}
         with self._lock:
             if self._writer == agent_id:
-                self._writer = ""
+                self._writer_depth -= 1
+                if self._writer_depth == 0:
+                    self._writer = ""
             elif self._reader_counts.get(agent_id, 0) > 0:
                 n = self._reader_counts[agent_id] - 1
                 if n:
@@ -498,7 +511,10 @@ class RWLock:
                     "readers": self._reader_count(),
                 }
             self._cond.notify_all()
-            return {"success": True, "mode": "write" if self._writer else "read", "readers": self._reader_count()}
+            result = {"success": True, "mode": "write" if self._writer else "read", "readers": self._reader_count()}
+            if self._writer:
+                result["depth"] = self._writer_depth
+            return result
 
     def _reader_count(self) -> int:
         """Total number of held read locks across all agents (O(1) running total)."""
@@ -511,6 +527,7 @@ class RWLock:
                 "name": self.name,
                 "readers": self._reader_count(),
                 "writer": self._writer,
+                "writer_depth": self._writer_depth,
                 "write_waiters": self._write_waiters,
             }
 

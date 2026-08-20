@@ -1,0 +1,70 @@
+{
+  "state_root": "/var/lib/praxis-rs",
+  "contract_version": 1,
+  "entries": [
+    {"path": "runtime/checkpoint.json", "kind": "file"},
+    {"path": "manifest.json", "kind": "file"},
+    {"path": "audit/events.jsonl", "kind": "file"},
+    {"path": "tmp", "kind": "directory"},
+    {"path": "audit", "kind": "directory"},
+    {"path": "journal", "kind": "directory"},
+    {"path": "runtime", "kind": "directory"},
+    {"path": "snapshots", "kind": "directory"},
+    {"path": "journal/events.jsonl", "kind": "file"},
+    {"path": "lifecycle.json", "kind": "file"}
+  ],
+  "expected_entries": [
+    {"path": "audit", "kind": "directory"},
+    {"path": "audit/events.jsonl", "kind": "file"},
+    {"path": "journal", "kind": "directory"},
+    {"path": "journal/events.jsonl", "kind": "file"},
+    {"path": "lifecycle.json", "kind": "file"},
+    {"path": "manifest.json", "kind": "file"},
+    {"path": "runtime", "kind": "directory"},
+    {"path": "runtime/checkpoint.json", "kind": "file"},
+    {"path": "snapshots", "kind": "directory"},
+    {"path": "tmp", "kind": "directory"}
+  ],
+  "probes": [
+    {
+      "probe": {"root_exists": false, "root_empty": false, "manifest_version": null, "clean_shutdown": null},
+      "expected_action": "initialize",
+      "expected_reason": "missing_root"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": true, "manifest_version": null, "clean_shutdown": null},
+      "expected_action": "initialize",
+      "expected_reason": "empty_root"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": null, "clean_shutdown": null},
+      "expected_action": "reject",
+      "expected_reason": "missing_manifest"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": 0, "clean_shutdown": null},
+      "expected_action": "migrate",
+      "expected_reason": "older_layout"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": 1, "clean_shutdown": true},
+      "expected_action": "resume",
+      "expected_reason": "clean_state"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": 1, "clean_shutdown": false},
+      "expected_action": "recover",
+      "expected_reason": "unclean_shutdown"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": 2, "clean_shutdown": true},
+      "expected_action": "reject",
+      "expected_reason": "future_layout"
+    },
+    {
+      "probe": {"root_exists": true, "root_empty": false, "manifest_version": 1, "clean_shutdown": null},
+      "expected_action": "reject",
+      "expected_reason": "missing_clean_shutdown"
+    }
+  ]
+}

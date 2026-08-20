@@ -13,7 +13,7 @@ import logging
 import time
 from typing import Any
 
-from l1.kernel.params.system import LOG_TRUNC_120
+from l1.kernel.params.system import HEALTHCHECK_ELAPSED_PRECISION, LOG_TRUNC_120
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,32 @@ _KERNEL_MODULES = [
 ]
 
 
+def aggregate_health(results: dict[str, dict], elapsed_ms: float) -> dict[str, Any]:
+    """Aggregate explicit subsystem results without probing runtime state.
+
+    Unknown status labels are counted as degraded so a new provider cannot
+    accidentally make an incomplete health report look healthy.
+    """
+    healthy = sum(1 for result in results.values() if result.get("status") == "OK")
+    failed = sum(1 for result in results.values() if result.get("status") == "FAILED")
+    degraded = len(results) - healthy - failed
+    if failed > 0:
+        overall = "DOWN"
+    elif degraded > 0:
+        overall = "DEGRADED"
+    else:
+        overall = "OK"
+    return {
+        "status": overall,
+        "module_count": len(results),
+        "healthy": healthy,
+        "degraded": degraded,
+        "failed": failed,
+        "subsystems": results,
+        "elapsed_ms": round(elapsed_ms, HEALTHCHECK_ELAPSED_PRECISION),
+    }
+
+
 def safe_system_check() -> dict[str, Any]:
     """Non-destructive check of all kernel subsystems.
 
@@ -60,50 +86,26 @@ def safe_system_check() -> dict[str, Any]:
     """
     t0 = time.perf_counter()
     results: dict[str, dict] = {}
-    healthy = degraded = failed = 0
-
     # 1. Module importability
     for mod_name in _KERNEL_MODULES:
         try:
             __import__(mod_name)
             results[mod_name] = {"status": "OK", "detail": "imported"}
-            healthy += 1
         except Exception as e:
             results[mod_name] = {"status": "FAILED", "detail": str(e)[:LOG_TRUNC_120]}
-            failed += 1
             logger.warning("health: %s failed: %s", mod_name, e)
 
     # 2. Runtime subsystem checks (non-destructive)
     for fn in (_check_process_table, _check_event_bus, _check_device_manager, _check_constitution):
         try:
-            ok, msg = fn(results)
-            if ok:
-                healthy += 1
-            else:
-                degraded += 1
+            fn(results)
         except Exception as e:
-            failed += 1
+            key = f"kernel.health[{fn.__name__}]"
+            results[key] = {"status": "FAILED", "detail": str(e)[:LOG_TRUNC_120]}
             logger.warning("health check failed: %s", e)
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
-
-    # Determine overall status
-    if failed > 0:
-        overall = "DOWN"
-    elif degraded > 0:
-        overall = "DEGRADED"
-    else:
-        overall = "OK"
-
-    return {
-        "status": overall,
-        "module_count": healthy + degraded + failed,
-        "healthy": healthy,
-        "degraded": degraded,
-        "failed": failed,
-        "subsystems": results,
-        "elapsed_ms": round(elapsed_ms, 2),
-    }
+    return aggregate_health(results, elapsed_ms)
 
 
 def _check_process_table(results: dict) -> tuple[bool, str]:

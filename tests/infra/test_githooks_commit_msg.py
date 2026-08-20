@@ -7,6 +7,7 @@ exemption) are machine-verified rather than trusted by convention.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -23,7 +24,9 @@ def run_hook(message: str) -> int:
         f.write(message)
         path = f.name
     try:
-        result = subprocess.run(["bash", str(HOOK), path], capture_output=True, text=True)
+        env = os.environ.copy()
+        env.update({"PRAXIS_AUTHOR": "AtomCode", "PRAXIS_MODEL": "deepseek-v4-flash"})
+        result = subprocess.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env)
         return result.returncode
     finally:
         Path(path).unlink(missing_ok=True)

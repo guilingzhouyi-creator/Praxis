@@ -1,0 +1,13 @@
+{
+  "capacity": 2,
+  "events": [
+    {"topic": "first", "payload": {"n": 1}, "timestamp": 1.0},
+    {"topic": "second", "payload": {"n": 2}, "timestamp": 2.0},
+    {"topic": "third", "payload": {"n": 3}, "timestamp": 3.0}
+  ],
+  "expected_recent": [
+    {"topic": "third", "payload": {"n": 3}},
+    {"topic": "second", "payload": {"n": 2}}
+  ],
+  "expected_dropped": 1
+}

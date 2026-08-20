@@ -198,13 +198,13 @@ class DeviceManager:
             logger.info("device registered: %s (%s, %d caps)", name, device_type.name, len(caps))
             return {"success": True, "device": name}
 
-    def check_rate(self, name: str) -> dict:
+    def check_rate(self, name: str, now: float | None = None) -> dict:
         """Check whether *name* may call now under its rate window. Returns a result dict with remaining budget."""
         with self._lock:
             dev = self._devices.get(name)
             if not dev:
                 return {"allowed": False, "error": f"unknown device: {name}"}
-            now = time.time()
+            now = time.time() if now is None else now
             ts_list = self._call_timestamps.setdefault(name, [])
             cutoff = now - dev.rate_window
             ts_list[:] = [t for t in ts_list if t > cutoff]
@@ -219,17 +219,18 @@ class DeviceManager:
         with self._lock:
             return self._devices.get(name)
 
-    def record_call(self, name: str, success: bool = True) -> None:
+    def record_call(self, name: str, success: bool = True, now: float | None = None) -> None:
         """Record a call on *name*, updating last_used, counters, and the rate window. No-op for unknown devices."""
         with self._lock:
             dev = self._devices.get(name)
             if not dev:
                 return
-            dev.last_used = time.time()
+            now = time.time() if now is None else now
+            dev.last_used = now
             dev.call_count += 1
             if not success:
                 dev.error_count += 1
-            self._call_timestamps.setdefault(name, []).append(time.time())
+            self._call_timestamps.setdefault(name, []).append(now)
 
     def set_health(self, name: str, health: DeviceHealth) -> bool:
         """Set the health status of *name*. Returns True if the device exists."""

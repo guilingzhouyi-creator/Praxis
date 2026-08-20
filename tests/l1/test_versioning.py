@@ -126,3 +126,21 @@ def test_version_constants_are_positive() -> None:
 
     for v in (SNAPSHOT_VERSION, CHECKPOINT_VERSION, SETTINGS_VERSION, LOG_VERSION):
         assert v >= 1
+
+
+def test_duplicate_migration_versions_run_in_registration_order() -> None:
+    """Keep duplicate install registrations append-only like the kernel runner."""
+    import importlib
+
+    import l1.kernel.migration as migration
+
+    migration = importlib.reload(migration)
+    calls: list[str] = []
+    version = "20990101.1"
+    migration.register_migration(version, lambda: calls.append("first"))
+    migration.register_migration(version, lambda: calls.append("second"))
+
+    report = migration.run_pending("20990101.0", version)
+
+    assert report == {"applied": [version, version], "errors": []}
+    assert calls == ["first", "second"]

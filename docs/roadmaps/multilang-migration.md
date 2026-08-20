@@ -1,7 +1,8 @@
 # Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends
 
-> Status: planning (Python backend shipped; TypeScript / Rust backends are
-> slots). Associated design: `docs/roadmaps/frontend-kernel-roadmap.md`
+> Status: build scaffold active (Python backend shipped; TypeScript protocol
+> mirror and Rust contract workspace are in place). Associated design:
+> `docs/roadmaps/frontend-kernel-roadmap.md`
 > (Rust kernel sink, TS frontend, language-neutral contract).
 
 ## 0. Purpose
@@ -123,10 +124,11 @@ engine and the Rust kernel mechanism set.
 - Performance reports use a versioned JSON schema. L2 protocol measurements are
   regression evidence only; Rust migration priority still requires the fixed-work
   Amdahl benchmark from `frontend-kernel-roadmap.md`.
-- Before a Rust sink is introduced, move sampler defaults out of L1
-  `params/system.py` and expose stable observability, evidence, and dependency
-  graph ports. The current runner's optional L3 hooks are a compatibility shim,
-  not a future authority boundary.
+- G4 is now implemented: sampler defaults live in
+  `config/quality/perf-harness.yaml`, and stable L1 observability, evidence,
+  trace, and dependency-graph ports isolate the runner from L3 implementations.
+  Boot adapters remain replaceable; standalone automation keeps its local
+  fallback behavior.
 
 ## 5. Open items / deferred
 
@@ -148,3 +150,21 @@ engine and the Rust kernel mechanism set.
 3. `presentation_status()` lists the new language in `languages`.
 4. Full gates green: ruff / layer-import / params-compliance / domain tests /
    full baseline; docs updated in the same commit.
+
+## 7. Build scaffold (M0.5)
+
+The language build perimeter is now executable without changing the Python
+runtime:
+
+- `packages/protocol-ts/package-lock.json` fixes the TypeScript/Vitest graph;
+  `npm ci` is the only clean-install path used by the Makefile and CI.
+- `crates/` is a pinned Rust 1.97.1 workspace with `rustfmt` and `clippy`.
+  `l1-kernel-rs` exports only a versioned contract descriptor and forbids
+  unsafe code.
+- `make language-check` runs TS tests/typecheck plus Rust test, format, and
+  clippy gates. `.github/workflows/multilang.yml` runs the same gates on
+  relevant changes.
+
+This milestone deliberately does not add FFI, a Rust process adapter, a TS
+session authority, or a second scheduler. Those remain M1–M4 work and require
+the port, protocol, and performance evidence gates described above.

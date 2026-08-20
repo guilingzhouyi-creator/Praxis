@@ -1,0 +1,105 @@
+[
+  {
+    "case": "exact_match",
+    "target": "/project/foo",
+    "bases": ["/project/foo"],
+    "expected": true
+  },
+  {
+    "case": "child_file",
+    "target": "/project/foo/main.py",
+    "bases": ["/project/foo"],
+    "expected": true
+  },
+  {
+    "case": "deep_child",
+    "target": "/project/foo/a/b/c.py",
+    "bases": ["/project/foo"],
+    "expected": true
+  },
+  {
+    "case": "prefix_collision",
+    "target": "/project/foo_secret",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "prefix_collision_two",
+    "target": "/project/foobar/x.py",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "sibling",
+    "target": "/project/bar/x.py",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "empty_bases",
+    "target": "/anything/at/all",
+    "bases": [],
+    "expected": true
+  },
+  {
+    "case": "empty_target",
+    "target": "",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "trailing_separator",
+    "target": "/project/foo/x.py",
+    "bases": ["/project/foo/"],
+    "expected": true
+  },
+  {
+    "case": "relative_target_against_absolute_base",
+    "target": "project/foo/main.py",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "multiple_bases",
+    "target": "/elsewhere/x.py",
+    "bases": ["/project/foo", "/elsewhere"],
+    "expected": true
+  },
+  {
+    "case": "root_base",
+    "target": "/etc/passwd",
+    "bases": ["/"],
+    "expected": true
+  },
+  {
+    "case": "single_char_prefix_collision",
+    "target": "/x2/y.py",
+    "bases": ["/x"],
+    "expected": false
+  },
+  {
+    "case": "single_char_child",
+    "target": "/x/y.py",
+    "bases": ["/x"],
+    "expected": true
+  },
+  {
+    "case": "dotdot_normalization",
+    "target": "/project/foo/../foo_secret",
+    "bases": ["/project/foo"],
+    "expected": false
+  },
+  {
+    "case": "empty_base_skipped",
+    "target": "/project/foo",
+    "bases": ["", "/project/foo"],
+    "expected": true
+  },
+  {
+    "case": "explicit_relative_working_dir",
+    "target": "src/main.rs",
+    "bases": ["src"],
+    "working_dir": "/workspace/praxis",
+    "expected": true
+  }
+]

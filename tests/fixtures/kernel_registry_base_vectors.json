@@ -1,0 +1,69 @@
+{
+  "allow_overwrite": false,
+  "registrations": [
+    {
+      "name": "alpha",
+      "description": "Alpha descriptor",
+      "category": "cat1",
+      "tags": ["fast", "core"],
+      "metadata": {"owner": "kernel"},
+      "version": "1.2.0"
+    },
+    {
+      "name": "beta",
+      "description": "Beta descriptor",
+      "category": "cat2",
+      "tags": [],
+      "metadata": {},
+      "version": "1.0.0"
+    },
+    {
+      "name": "alpha",
+      "description": "Rejected replacement",
+      "category": "cat9",
+      "tags": ["replacement"],
+      "metadata": {"owner": "other"},
+      "version": "9.0.0"
+    }
+  ],
+  "expected_register": [true, true, false],
+  "expected_names": ["alpha", "beta"],
+  "category": "cat1",
+  "expected_category_names": ["alpha"],
+  "get": [
+    {
+      "name": "alpha",
+      "expected": {
+        "name": "alpha",
+        "description": "Alpha descriptor",
+        "category": "cat1",
+        "tags": ["fast", "core"],
+        "metadata": {"owner": "kernel"},
+        "version": "1.2.0"
+      }
+    },
+    {"name": "missing", "expected": null}
+  ],
+  "expected_stats": {
+    "total": 2,
+    "registers": 2,
+    "unregisters": 0,
+    "categories": {"cat1": 1, "cat2": 1}
+  },
+  "expected_public": [
+    {
+      "name": "alpha",
+      "description": "Alpha descriptor",
+      "category": "cat1",
+      "tags": ["fast", "core"],
+      "version": "1.2.0"
+    },
+    {
+      "name": "beta",
+      "description": "Beta descriptor",
+      "category": "cat2",
+      "tags": [],
+      "version": "1.0.0"
+    }
+  ]
+}

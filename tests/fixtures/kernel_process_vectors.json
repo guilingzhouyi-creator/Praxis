@@ -1,0 +1,116 @@
+{
+  "cases": [
+    {
+      "name": "cancel_and_resource_accounting",
+      "audit_max": 8,
+      "operations": [
+        {"kind": "spawn", "name": "agent-a", "role": "worker", "parent_pid": 0, "ring": 2, "pid": 1},
+        {"kind": "mark_identity_verified", "name": "agent-a"},
+        {"kind": "record_tokens", "pid": 1, "allocated": 7, "used": 2},
+        {"kind": "record_card", "pid": 1},
+        {"kind": "record_scout", "pid": 1, "delta": 2},
+        {"kind": "record_scout", "pid": 1, "delta": -1},
+        {"kind": "record_cpu", "pid": 1, "seconds": 1.5},
+        {"kind": "set_running", "name": "agent-a", "result": true},
+        {"kind": "yield", "name": "agent-a"},
+        {"kind": "cancel", "name": "agent-a", "reason": "user abort"},
+        {"kind": "set_running", "name": "agent-a", "result": false}
+      ],
+      "expected": {
+        "agent": {
+          "pid": 1,
+          "name": "agent-a",
+          "role": "worker",
+          "parent_pid": 0,
+          "ring": 2,
+          "state": "STOPPED",
+          "identity_verified": true,
+          "cancelled": true,
+          "cancel_reason": "user abort",
+          "exit_code": null,
+          "exit_reason": "",
+          "resources": {
+            "tokens_allocated": 7,
+            "tokens_used": 2,
+            "workers_active": 0,
+            "scouts_active": 1,
+            "memory_entries": 0,
+            "cards_processed": 1,
+            "cpu_time": 1.5
+          }
+        },
+        "resource_summary": {"tokens": 7, "workers": 0, "scouts": 1, "cards": 1},
+        "is_cancelled": true,
+        "final_set_running": false,
+        "audit": [
+          {"op": "spawn", "pid": 1, "name": "agent-a", "detail": "worker"},
+          {"op": "cancel", "pid": 1, "name": "agent-a", "detail": "user abort"}
+        ]
+      }
+    },
+    {
+      "name": "exit_reap_audit_order",
+      "audit_max": 8,
+      "operations": [
+        {"kind": "spawn", "name": "agent-b", "role": "worker", "parent_pid": 0, "ring": 1, "pid": 1},
+        {"kind": "exit_by_name", "name": "agent-b", "exit_code": 3, "reason": "shutdown"},
+        {"kind": "reap", "pid": 1}
+      ],
+      "expected": {
+        "before_reap": {
+          "pid": 1,
+          "name": "agent-b",
+          "state": "ZOMBIE",
+          "exit_code": 3,
+          "exit_reason": "shutdown"
+        },
+        "after_reap_exists": false,
+        "resource_summary": {"tokens": 0, "workers": 0, "scouts": 0, "cards": 0},
+        "audit": [
+          {"op": "spawn", "pid": 1, "name": "agent-b", "detail": "worker"},
+          {"op": "exit", "pid": 1, "name": "agent-b", "detail": "shutdown"},
+          {"op": "reap", "pid": 1, "name": "agent-b", "detail": ""}
+        ]
+      }
+    },
+    {
+      "name": "allocator_record_usage",
+      "audit_max": 8,
+      "operations": [
+        {"kind": "spawn", "name": "agent-c", "role": "worker", "parent_pid": 0, "ring": 1, "pid": 1},
+        {"kind": "record_alloc", "pid": 1, "tokens": 5},
+        {"kind": "record_use", "pid": 1, "tokens": 3, "cpu_seconds": 0.25}
+      ],
+      "expected": {
+        "agent": {
+          "pid": 1,
+          "name": "agent-c",
+          "role": "worker",
+          "parent_pid": 0,
+          "ring": 1,
+          "state": "READY",
+          "identity_verified": false,
+          "cancelled": false,
+          "cancel_reason": "",
+          "exit_code": null,
+          "exit_reason": "",
+          "resources": {
+            "tokens_allocated": 5,
+            "tokens_used": 3,
+            "workers_active": 0,
+            "scouts_active": 0,
+            "memory_entries": 0,
+            "cards_processed": 0,
+            "cpu_time": 0.25
+          }
+        },
+        "is_cancelled": false,
+        "final_set_running": true,
+        "resource_summary": {"tokens": 5, "workers": 0, "scouts": 0, "cards": 0},
+        "audit": [
+          {"op": "spawn", "pid": 1, "name": "agent-c", "detail": "worker"}
+        ]
+      }
+    }
+  ]
+}

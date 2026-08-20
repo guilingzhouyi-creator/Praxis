@@ -1,0 +1,55 @@
+{
+  "cases": [
+    {
+      "name": "importance_routes_and_compaction_filters",
+      "entries": [
+        {"id": "hot", "importance": 0.8, "ttl": 0.0, "expired": false},
+        {"id": "cold", "importance": 0.2, "ttl": 0.0, "expired": false},
+        {"id": "live-short", "importance": 0.1, "ttl": 15.0, "expired": false},
+        {"id": "expired-short", "importance": 0.4, "ttl": 15.0, "expired": true},
+        {"id": "expired-important", "importance": 0.6, "ttl": 15.0, "expired": true}
+      ],
+      "count": 3,
+      "expected_swap_out": [
+        {"id": "hot", "target_ring": 2},
+        {"id": "cold", "target_ring": 3},
+        {"id": "live-short", "target_ring": 3}
+      ],
+      "expected_compaction": [
+        {"id": "expired-short", "target_ring": 3}
+      ]
+    },
+    {
+      "name": "default_count_keeps_order",
+      "entries": [
+        {"id": "one", "importance": 0.3, "ttl": 0.0, "expired": false},
+        {"id": "two", "importance": 0.29, "ttl": 0.0, "expired": false}
+      ],
+      "expected_swap_out": [
+        {"id": "one", "target_ring": 2},
+        {"id": "two", "target_ring": 3}
+      ],
+      "expected_compaction": []
+    }
+  ],
+  "pressure": [
+    {
+      "name": "all_high",
+      "snapshot": {"under_pressure": true, "working_pct": 95.0, "short_pct": 90.0, "long_pct": 99.0},
+      "high_threshold": 90.0,
+      "expected": {"swap_out_working": true, "compact_short_term": true, "long_term_full": true}
+    },
+    {
+      "name": "below_high",
+      "snapshot": {"under_pressure": true, "working_pct": 89.9, "short_pct": 90.0, "long_pct": 10.0},
+      "high_threshold": 90.0,
+      "expected": {"swap_out_working": false, "compact_short_term": true, "long_term_full": false}
+    },
+    {
+      "name": "pressure_gate_off",
+      "snapshot": {"under_pressure": false, "working_pct": 100.0, "short_pct": 100.0, "long_pct": 100.0},
+      "high_threshold": 90.0,
+      "expected": {"swap_out_working": false, "compact_short_term": false, "long_term_full": false}
+    }
+  ]
+}

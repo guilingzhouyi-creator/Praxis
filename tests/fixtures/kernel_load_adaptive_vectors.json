@@ -1,0 +1,124 @@
+{
+  "cases": [
+    {
+      "name": "hold_within_band",
+      "config": {
+        "low_ratio": 0.2,
+        "high_ratio": 0.6,
+        "ewma_alpha": 0.3,
+        "hysteresis_samples": 3,
+        "cooldown_s": 5.0,
+        "grow_step": 2,
+        "shrink_factor": 2,
+        "slow_task_ratio": 0.5,
+        "task_timeout": 30.0
+      },
+      "steps": [
+        {
+          "metrics": {"queue_ratio": 0.4, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 100.0,
+          "expected": {"action": "HOLD", "target_workers": 8, "ewma_depth": 0.4, "in_cooldown": false, "reason": "within target band"}
+        }
+      ]
+    },
+    {
+      "name": "hysteresis_then_grow",
+      "config": {
+        "low_ratio": 0.2,
+        "high_ratio": 0.6,
+        "ewma_alpha": 0.3,
+        "hysteresis_samples": 3,
+        "cooldown_s": 5.0,
+        "grow_step": 2,
+        "shrink_factor": 2,
+        "slow_task_ratio": 0.5,
+        "task_timeout": 30.0
+      },
+      "steps": [
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 100.0,
+          "expected": {"action": "HOLD", "target_workers": 8, "ewma_depth": 0.9, "in_cooldown": false, "reason": "hysteresis (1/3)"}
+        },
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 101.0,
+          "expected": {"action": "HOLD", "target_workers": 8, "ewma_depth": 0.9, "in_cooldown": false, "reason": "hysteresis (2/3)"}
+        },
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 102.0,
+          "expected": {"action": "GROW", "target_workers": 10, "ewma_depth": 0.9, "in_cooldown": false, "reason": "queue ratio 0.900 > 0.6, grow +2"}
+        }
+      ]
+    },
+    {
+      "name": "slow_task_grow_fast",
+      "config": {
+        "low_ratio": 0.2,
+        "high_ratio": 0.6,
+        "ewma_alpha": 0.3,
+        "hysteresis_samples": 1,
+        "cooldown_s": 0.0,
+        "grow_step": 2,
+        "shrink_factor": 2,
+        "slow_task_ratio": 0.5,
+        "task_timeout": 30.0
+      },
+      "steps": [
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 20.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 100.0,
+          "expected": {"action": "GROW_FAST", "target_workers": 12, "ewma_depth": 0.9, "in_cooldown": false, "reason": "slow tasks detected, grow fast +4"}
+        }
+      ]
+    },
+    {
+      "name": "idle_shrink",
+      "config": {
+        "low_ratio": 0.2,
+        "high_ratio": 0.6,
+        "ewma_alpha": 0.3,
+        "hysteresis_samples": 1,
+        "cooldown_s": 0.0,
+        "grow_step": 2,
+        "shrink_factor": 2,
+        "slow_task_ratio": 0.5,
+        "task_timeout": 30.0
+      },
+      "steps": [
+        {
+          "metrics": {"queue_ratio": 0.0, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 16, "worker_min": 4, "worker_max": 32},
+          "now": 100.0,
+          "expected": {"action": "SHRINK", "target_workers": 8, "ewma_depth": 0.0, "in_cooldown": false, "reason": "queue ratio 0.000 < 0.2, shrink to 8"}
+        }
+      ]
+    },
+    {
+      "name": "cooldown_holds_followup",
+      "config": {
+        "low_ratio": 0.2,
+        "high_ratio": 0.6,
+        "ewma_alpha": 0.3,
+        "hysteresis_samples": 1,
+        "cooldown_s": 10.0,
+        "grow_step": 2,
+        "shrink_factor": 2,
+        "slow_task_ratio": 0.5,
+        "task_timeout": 30.0
+      },
+      "steps": [
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 100.0,
+          "expected": {"action": "GROW", "target_workers": 10, "ewma_depth": 0.9, "in_cooldown": false, "reason": "queue ratio 0.900 > 0.6, grow +2"}
+        },
+        {
+          "metrics": {"queue_ratio": 0.9, "completion_rate": 0.0, "active_ratio": 0.0, "task_elapsed": 0.0, "worker_count": 8, "worker_min": 4, "worker_max": 32},
+          "now": 105.0,
+          "expected": {"action": "HOLD", "target_workers": 8, "ewma_depth": 0.9, "in_cooldown": true, "reason": "in cooldown"}
+        }
+      ]
+    }
+  ]
+}

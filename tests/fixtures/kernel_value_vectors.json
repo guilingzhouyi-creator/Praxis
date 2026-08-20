@@ -1,0 +1,135 @@
+[
+  {
+    "case": "process_success",
+    "kind": "process_result",
+    "value": {
+      "returncode": 0,
+      "stdout": "ready\n",
+      "stderr": "",
+      "timed_out": false,
+      "error_kind": ""
+    }
+  },
+  {
+    "case": "process_timeout",
+    "kind": "process_result",
+    "value": {
+      "returncode": -1,
+      "stdout": "",
+      "stderr": "deadline",
+      "timed_out": true,
+      "error_kind": ""
+    }
+  },
+  {
+    "case": "process_options",
+    "kind": "process_options",
+    "value": {
+      "cwd": "/tmp",
+      "input_text": "status\n",
+      "env": {
+        "LANG": "C",
+        "PATH": "/usr/bin"
+      },
+      "executable": "/bin/sh"
+    }
+  },
+  {
+    "case": "process_states",
+    "kind": "process_states",
+    "value": ["READY", "RUNNING", "BLOCKED", "ZOMBIE", "STOPPED"]
+  },
+  {
+    "case": "signal_record",
+    "kind": "signal",
+    "value": {
+      "type": "TASK_DONE",
+      "data": {
+        "success": true,
+        "seq": 2
+      },
+      "sender": "agent-a",
+      "target": "cell-a",
+      "timestamp": 100.5
+    }
+  },
+  {
+    "case": "event_record",
+    "kind": "event",
+    "value": {
+      "type": "tool.completed",
+      "source": "tool_pipeline",
+      "severity": "info",
+      "message": "The result is ready.",
+      "message_locale": "en",
+      "data": {
+        "success": true
+      }
+    }
+  },
+  {
+    "case": "event_bus_clean",
+    "kind": "event_bus_stats",
+    "value": {
+      "signal_types": 1,
+      "listeners": 1,
+      "history": 1,
+      "wildcard_listeners": 0,
+      "queue_max": 500,
+      "queue_depth": 0,
+      "submitted": 4,
+      "completed": 4,
+      "dropped": 0
+    }
+  },
+  {
+    "case": "event_bus_lossy",
+    "kind": "event_bus_stats",
+    "value": {
+      "signal_types": 1,
+      "listeners": 4,
+      "history": 8,
+      "wildcard_listeners": 0,
+      "queue_max": 500,
+      "queue_depth": 0,
+      "submitted": 4,
+      "completed": 4,
+      "dropped": 1
+    }
+  },
+  {
+    "case": "capability_unwired",
+    "kind": "capability_result",
+    "value": {
+      "success": false,
+      "error": "no execution authority (fail-closed)",
+      "capability": "read_file",
+      "data": {}
+    }
+  },
+  {
+    "case": "rwlock_write_reentrant",
+    "kind": "rwlock",
+    "value": {
+      "name": "vector-rwlock",
+      "agent_id": "writer",
+      "first": {"success": true, "mode": "write", "depth": 1},
+      "second": {"success": true, "mode": "write", "depth": 2},
+      "release_once": {"success": true, "mode": "write", "readers": 0, "depth": 1},
+      "release_twice": {"success": true, "mode": "read", "readers": 0},
+      "status": {"name": "vector-rwlock", "readers": 0, "writer": "", "writer_depth": 0, "write_waiters": 0}
+    }
+  },
+  {
+    "case": "rwlock_empty_identity",
+    "kind": "rwlock",
+    "value": {
+      "name": "vector-rwlock-empty",
+      "agent_id": "",
+      "read": {"success": false, "error": "invalid agent_id"},
+      "write": {"success": false, "error": "invalid agent_id"},
+      "unlock": {"success": false, "error": "invalid agent_id"},
+      "status": {"name": "vector-rwlock-empty", "readers": 0, "writer": "", "writer_depth": 0, "write_waiters": 0}
+    }
+  }
+]

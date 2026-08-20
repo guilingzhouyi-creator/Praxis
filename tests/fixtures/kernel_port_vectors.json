@@ -1,0 +1,15 @@
+{
+  "descriptors": [
+    {"name": "process", "kind": "process", "contract_version": 1, "metadata": {"native": true}},
+    {"name": "storage", "kind": "storage", "contract_version": 1},
+    {"name": "lock", "kind": "lock", "contract_version": 1},
+    {"name": "scheduler", "kind": "scheduler", "contract_version": 1}
+  ],
+  "expected_order": ["process", "storage", "lock", "scheduler"],
+  "values": {
+    "result_ok": {"success": true, "error": "", "data": {}},
+    "endpoint": {"address": "127.0.0.1:9000", "hint": "tcp"},
+    "message": {"type": "message", "source": "agent-a", "target": "cell-a", "payload": {"ok": true}, "timestamp": 100.5, "locale": "en", "headers": {}},
+    "input_activity": {"state": "active", "keyboard_active": true, "pointer_active": false, "last_activity_at": 100.0, "idle_seconds": 0.5, "source": "noop", "permission": "unavailable"}
+  }
+}

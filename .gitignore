@@ -96,6 +96,9 @@ node_modules/
 opencode.json
 .reasonix/
 
+# ── Rust build output ──
+crates/target/
+
 # ── Config / runtime artifacts (test checkpoints, keys) ──
 .config/
 

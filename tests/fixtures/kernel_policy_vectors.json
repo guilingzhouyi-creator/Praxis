@@ -1,0 +1,170 @@
+[
+  {
+    "case": "gatechain_empty_whitelist",
+    "kind": "gatechain",
+    "tools": [],
+    "input": {
+      "tool": "read_file",
+      "agent_id": "agent-a"
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "BLOCK",
+      "blocked_gate": "G1"
+    }
+  },
+  {
+    "case": "gatechain_interactive_pass",
+    "kind": "gatechain",
+    "tools": ["read_file"],
+    "input": {
+      "tool": "read_file",
+      "agent_id": "shell",
+      "interactive": true
+    },
+    "expect": {
+      "allowed": true,
+      "decision": "PASS"
+    }
+  },
+  {
+    "case": "gatechain_identity_missing",
+    "kind": "gatechain",
+    "tools": ["read_file"],
+    "input": {
+      "tool": "read_file",
+      "agent_id": "agent-a"
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "BLOCK",
+      "blocked_gate": "G2"
+    }
+  },
+  {
+    "case": "gatechain_territory_block",
+    "kind": "gatechain",
+    "tools": ["read_file"],
+    "input": {
+      "tool": "read_file",
+      "agent_id": "shell",
+      "target": "/project/outside.py",
+      "territory": ["/project/src"],
+      "interactive": true
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "BLOCK",
+      "blocked_gate": "G3"
+    }
+  },
+  {
+    "case": "gatechain_escalation_block",
+    "kind": "gatechain",
+    "tools": ["deploy"],
+    "input": {
+      "tool": "deploy",
+      "agent_id": "shell",
+      "danger_override": 5,
+      "interactive": true
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "BLOCK",
+      "blocked_gate": "G4"
+    }
+  },
+  {
+    "case": "gatechain_explicit_approval",
+    "kind": "gatechain",
+    "tools": ["deploy"],
+    "input": {
+      "tool": "deploy",
+      "agent_id": "shell",
+      "danger_override": 5,
+      "pre_approved": true,
+      "interactive": true
+    },
+    "expect": {
+      "allowed": true,
+      "decision": "PASS"
+    }
+  },
+  {
+    "case": "gatechain_low_reputation_frequency",
+    "kind": "gatechain",
+    "tools": ["read_file"],
+    "history_count": 10,
+    "input": {
+      "tool": "read_file",
+      "agent_id": "agent-a",
+      "reputation": 0.6,
+      "timestamp": 100.0,
+      "interactive": true,
+      "identity": {
+        "pid": 7,
+        "ring": 1,
+        "state": "READY",
+        "verified": true
+      }
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "BLOCK",
+      "blocked_gate": "G5"
+    }
+  },
+  {
+    "case": "constitution_territory_block",
+    "kind": "constitution",
+    "input": {
+      "action": "read_file",
+      "agent_id": "agent-a",
+      "target": "/project/outside.py",
+      "territory": ["/project/src"]
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "block"
+    }
+  },
+  {
+    "case": "constitution_file_protection",
+    "kind": "constitution",
+    "input": {
+      "action": "write",
+      "agent_id": "agent-a",
+      "target": "/project/.praxis-rules.md"
+    },
+    "expect": {
+      "allowed": false,
+      "decision": "block"
+    }
+  },
+  {
+    "case": "constitution_sandbox_warning",
+    "kind": "constitution",
+    "input": {
+      "action": "write_file",
+      "agent_id": "agent-a",
+      "target": "/outside/file.py"
+    },
+    "expect": {
+      "allowed": true,
+      "decision": "pass"
+    }
+  },
+  {
+    "case": "constitution_plain_pass",
+    "kind": "constitution",
+    "input": {
+      "action": "read_file",
+      "agent_id": "agent-a",
+      "target": ""
+    },
+    "expect": {
+      "allowed": true,
+      "decision": "pass"
+    }
+  }
+]

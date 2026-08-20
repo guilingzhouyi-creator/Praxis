@@ -241,6 +241,7 @@ IDENTITY_BINDING_PERSIST_UNBIND: Final[str] = "unbind"
 # Issued by the identity_uid singleton (L1), never client-supplied.
 IDENTITY_UID_LENGTH: Final[int] = 16  # uid body length (chars)
 IDENTITY_UID_PREFIX: Final[str] = "id-"  # uid prefix (readable namespace)
+IDENTITY_UID_MAX_ATTEMPTS: Final[int] = 8  # bounded collision retries per issuance
 
 # ── Identity definition (Phase B: registered-identity detailed definition) ──
 # A registered identity carries a detailed definition (default from the

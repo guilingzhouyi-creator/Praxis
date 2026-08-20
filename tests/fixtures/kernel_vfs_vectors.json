@@ -1,0 +1,72 @@
+[
+  {
+    "case": "longest_prefix_project_source",
+    "mounts": [
+      {
+        "name": "/project",
+        "mount_type": "PROJECT",
+        "real_path": "/srv/project",
+        "min_ring": 1,
+        "read_only": false
+      },
+      {
+        "name": "/project/src",
+        "mount_type": "SANDBOX",
+        "real_path": "/srv/src",
+        "min_ring": 2,
+        "read_only": true
+      }
+    ],
+    "path": "/project/src/main.py",
+    "expect": {
+      "mount": "/project/src",
+      "rel": "main.py",
+      "root": "/srv/src",
+      "real_path": "/srv/src/main.py",
+      "min_ring": 2,
+      "read_only": true
+    }
+  },
+  {
+    "case": "project_fallback_prefix",
+    "mounts": [
+      {
+        "name": "/project",
+        "mount_type": "PROJECT",
+        "real_path": "/srv/project",
+        "min_ring": 1,
+        "read_only": false
+      },
+      {
+        "name": "/project/src",
+        "mount_type": "SANDBOX",
+        "real_path": "/srv/src",
+        "min_ring": 2,
+        "read_only": true
+      }
+    ],
+    "path": "/project/README.md",
+    "expect": {
+      "mount": "/project",
+      "rel": "README.md",
+      "root": "/srv/project",
+      "real_path": "/srv/project/README.md",
+      "min_ring": 1,
+      "read_only": false
+    }
+  },
+  {
+    "case": "unmounted_path_is_none",
+    "mounts": [
+      {
+        "name": "/project",
+        "mount_type": "PROJECT",
+        "real_path": "/srv/project",
+        "min_ring": 1,
+        "read_only": false
+      }
+    ],
+    "path": "/outside/file.txt",
+    "expect": null
+  }
+]

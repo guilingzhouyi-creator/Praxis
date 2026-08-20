@@ -13,6 +13,8 @@ keep every new file in the layer it belongs to:
 | `locales/` | i18n: en, zh-CN, ja, ko |
 | `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
 | `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
+| `packages/` | Language migration workspaces; `packages/protocol-ts/` is a read-only TypeScript mirror of the v1 protocol and is not imported by the Python runtime |
+| `crates/` | Rust migration workspace; `crates/l1-kernel-rs/` is currently a contract-only L1 boundary and is not imported by the Python runtime |
 
 ## 构建环境 (build environment) — external tooling that guides the build
 
@@ -27,7 +29,7 @@ Never imported by the runtime; never migrated into `config/` or `src/`.
 | `.gitcode/` | GitCode CI workflow (gray release) |
 | `.atomcode/` | AtomCode agent skills/commands (project scope) |
 | `.opencode/` | OpenCode agent skills/commands (legacy) |
-| `Makefile`, `pyproject.toml`, `Dockerfile`, `docker-compose.yml` | Build config, packaging metadata, container images (kernel/api/sandbox/llm/supervisor) |
+| `Makefile`, `pyproject.toml`, `crates/Cargo.toml`, `rust-toolchain.toml`, `Dockerfile`, `docker-compose.yml` | Build config, language workspace metadata, toolchain pin, packaging metadata, container images (kernel/api/sandbox/llm/supervisor) |
 | `.pre-commit-config.yaml`, `codecov.yml`, `.gitleaks.toml` | Lint / coverage / secret-scan config |
 
 ## 发布 (release) — packaging output

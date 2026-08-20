@@ -1,0 +1,110 @@
+{
+  "config": {
+    "degraded_threshold": 0.5,
+    "down_threshold": 0.9,
+    "min_calls_degraded": 5,
+    "min_calls_down": 10,
+    "type_names": ["LLM", "DATABASE", "NETWORK", "STORAGE", "CUSTOM"],
+    "reset_precision": 2
+  },
+  "operations": [
+    {
+      "op": "register",
+      "device": {
+        "name": "llm",
+        "device_type": "LLM",
+        "health": "HEALTHY",
+        "rate_limit": 2,
+        "rate_window": 10.0,
+        "description": "local llm",
+        "capabilities": ["text-generation"],
+        "connected_at": 100.0,
+        "version": "v1"
+      },
+      "expected": true
+    },
+    {
+      "op": "register",
+      "device": {
+        "name": "llm",
+        "device_type": "LLM",
+        "rate_limit": 2,
+        "rate_window": 10.0
+      },
+      "expected": false
+    },
+    {
+      "op": "check_rate",
+      "name": "llm",
+      "now": 100.0,
+      "expected": {"allowed": true, "remaining": 2, "reset_after": 0}
+    },
+    {"op": "record_call", "name": "llm", "now": 100.0, "success": false, "expected": null},
+    {"op": "record_call", "name": "llm", "now": 101.0, "success": true, "expected": null},
+    {
+      "op": "check_rate",
+      "name": "llm",
+      "now": 101.0,
+      "expected": {"allowed": false, "remaining": 0, "reset_after": 9.0}
+    },
+    {
+      "op": "check_rate",
+      "name": "llm",
+      "now": 111.0,
+      "expected": {"allowed": true, "remaining": 2, "reset_after": 0}
+    },
+    {"op": "record_many", "name": "llm", "now": 112.0, "count": 10, "success": false, "expected": null},
+    {"op": "refresh_health", "expected": null},
+    {
+      "op": "list",
+      "expected": [
+        {
+          "name": "llm",
+          "type": "LLM",
+          "health": "DOWN",
+          "rate_limit": 2,
+          "calls": 12,
+          "errors": 11,
+          "last_used": 112.0,
+          "description": "local llm"
+        }
+      ]
+    },
+    {
+      "op": "stats",
+      "expected": {
+        "total_devices": 1,
+        "by_type": {"LLM": 1, "DATABASE": 0, "NETWORK": 0, "STORAGE": 0, "CUSTOM": 0},
+        "healthy": 0,
+        "down": 1
+      }
+    },
+    {"op": "set_health", "name": "llm", "health": "HEALTHY", "expected": true},
+    {
+      "op": "list",
+      "expected": [
+        {
+          "name": "llm",
+          "type": "LLM",
+          "health": "HEALTHY",
+          "rate_limit": 2,
+          "calls": 12,
+          "errors": 11,
+          "last_used": 112.0,
+          "description": "local llm"
+        }
+      ]
+    },
+    {"op": "unregister", "name": "llm", "expected": true},
+    {
+      "op": "stats",
+      "expected": {
+        "total_devices": 0,
+        "by_type": {"LLM": 0, "DATABASE": 0, "NETWORK": 0, "STORAGE": 0, "CUSTOM": 0},
+        "healthy": 0,
+        "down": 0
+      }
+    },
+    {"op": "check_rate", "name": "missing", "now": 200.0, "expected": {"allowed": false, "error": "unknown device: missing"}}
+  ]
+}

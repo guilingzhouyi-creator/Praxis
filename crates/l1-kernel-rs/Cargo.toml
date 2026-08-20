@@ -1,0 +1,16 @@
+[package]
+name = "l1-kernel-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Contract-only Rust boundary for the Praxis L1 kernel migration"
+
+[dependencies]
+hmac = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+
+[lib]
+name = "l1_kernel_rs"
+path = "src/lib.rs"

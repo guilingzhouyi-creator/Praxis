@@ -45,7 +45,7 @@
 | 路径/平台抽象 | `paths.py`、`platform.py` | OS 接缝 |
 | 注册表基类 | `registry.py`、`registry_base.py` | 通用注册机制 |
 | 版本/迁移 | `versioning.py`、`migration.py` | schema 版本机制 |
-| 配置发现 | `discovery.py` | 结构化配置机制 |
+| 配置发现 | `discovery.py` | 结构化配置机制；Rust 候选仅接收已解析值并镜像三层合并，不执行 YAML/目录扫描 |
 
 ## 2. Incorrectly Included（不应在 Kernel 的模块）
 
@@ -157,7 +157,7 @@
 
 ### 11.1 Minimal Kernel（Rust 重写应携带的边界）
 
-留下（真正不可绕过的核心）：sync、event 核心（无类型 channel+pub/sub）、process（ProcessTable+真实 FSM+取消令牌，拥有所有句柄）、allocator/resource（仅记账，profile 注入）、gatechain（引擎，阈值/白名单注入，boot 时填充）、constitution（引擎，规则只从数据加载）、**invoke-capability syscall（唯一执行门：register/authorize/invoke/audit）**、ports 机制类型、worker_thread、os/lifecycle、persist journal、errors、paths、platform、ipc/channel_ring、interrupt、territory、versioning/migration、discovery。
+留下（真正不可绕过的核心）：sync、event 核心（无类型 channel+pub/sub）、process（ProcessTable+真实 FSM+取消令牌，拥有所有句柄）、allocator/resource（仅记账，profile 注入）、gatechain（引擎，阈值/白名单注入，boot 时填充）、constitution（引擎，规则只从数据加载）、**invoke-capability syscall（唯一执行门：register/authorize/invoke/audit）**、ports 机制类型、worker_thread、os/lifecycle、persist journal、errors、paths、platform、ipc/channel_ring、interrupt、territory、versioning/migration、discovery（已解析值机制；配置扫描仍属 Python 适配器）。
 
 移出：prompts、skill*、model_registry、reputation、commands、diff_frame、net/net_transport、notify、identity_binding、scheduler 策略、card/issue 注册表、approval gates、tool registry、harness/security-mode 策略。
 
@@ -172,6 +172,7 @@ Kernel 强制不变量：单一执行器；G1 白名单非空（未知能力=BLO
 2. **Phase 1（执行权威收敛）**：在 kernel 侧定义 invoke-capability 接口并让 AgentLoop/MCP/L2/LLM engine/sideload 全部改走它——Rust 重写才有单一可替换执行面。
    - ✅ **已实施（W6.1）**：`src/l1/kernel/capability.py::invoke_capability` 成为唯一执行权威——未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点把 kernel seam 连到 ToolPipeline（`_register_capability_executor` → `invoke_gated`）；L2 shell 与 MCP 边界调用方已全部改走 kernel seam。同时落地 W2.2（harness posture 校验失败即拒绝）与 W2.4（RING≥2 未验证身份 G2 BLOCK）。
 3. **Phase 2（按缩放曲线选热路径，frontend-kernel-roadmap §4.2）**：优先 sync/event/allocator/process 记账等纯机制模块；只迁移机制，策略留在 Python/config。
+   - ✅ **候选切片已落地（feature/root-kernel-preflight）**：Rust `platform` 已镜像 OS 值、shell/grep 命令构造、URL 拼接、临时目录派生和 TCP endpoint 解析；`paths` 已镜像 DeployMode、配置覆盖、完整 `PraxisPaths` 子路径/模板字段和 resettable store；`territory` 已提供带显式 working directory 的组件边界判断；`interrupt` 已提供五类 IRQ、按类型序号和 bounded history 记账；`errors` 已提供错误码目录、失败响应、cause 截断和显式 trace 值；`discovery` 已镜像 defaults/source/runtime 三层 registry、对象浅合并、标量替换、null section 保留默认值、未知 section 忽略和 tool/service fallback；`load_adaptive` 已镜像纯 EWMA/hysteresis/扩缩容控制律，时间显式注入；`schema` 已镜像 owner 冲突、同 owner 更新和排序快照；`rule_descriptor` 已镜像纯 severity/result、描述元数据、排序 tags 和 checker context；共享向量覆盖 POSIX/Windows、CLI/Docker、territory、interrupt、errors、discovery、load-adaptive、schema 与 rule-descriptor 分支，但不执行任何 subprocess/filesystem/socket/symlink/callback/i18n/ErrorBus/YAML 目录扫描/线程池/EventBus/catalog/Markdown 副作用。
 4. **Phase 3（下沉验收）**：每个下沉模块必须满足——无 bypass、fail-closed、审计强制、白名单非空、port 接口不变（`l1_kernel_rs` 复用同一套 params/ 常量）。
 5. **重审门槛**：每迁移一个模块前重跑本审计 §4 不变量清单；任何在 Python 侧靠约定维持的不变量不得进入 Rust 侧。
 

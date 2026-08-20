@@ -31,6 +31,37 @@ from .params.kernel import (
 logger = logging.getLogger(__name__)
 
 
+def plan_swap_out(
+    entries: list[dict], count: int | None = None, importance_threshold: float = SWAPPER_SWAP_OUT_IMPORTANCE
+) -> list[dict]:
+    """Plan working-ring destinations from explicit entry facts."""
+    limit = SWAPPER_SWAP_COUNT if count is None else max(0, count)
+    return [
+        {"id": entry["id"], "target_ring": 3 if entry["importance"] < importance_threshold else 2}
+        for entry in entries[:limit]
+    ]
+
+
+def plan_compaction(entries: list[dict], importance_threshold: float = SWAPPER_COMPACT_IMPORTANCE) -> list[dict]:
+    """Plan ring-2 to ring-3 moves for expired low-importance entries."""
+    return [
+        {"id": entry["id"], "target_ring": 3}
+        for entry in entries
+        if entry["importance"] < importance_threshold and entry["ttl"] > 0 and entry["expired"]
+    ]
+
+
+def plan_pressure(snapshot: dict, high_threshold: float = SWAPPER_PRESSURE_HIGH) -> dict[str, bool]:
+    """Plan pressure actions from explicit occupancy percentages."""
+    if not snapshot["under_pressure"]:
+        return {"swap_out_working": False, "compact_short_term": False, "long_term_full": False}
+    return {
+        "swap_out_working": snapshot["working_pct"] >= high_threshold,
+        "compact_short_term": snapshot["short_pct"] >= high_threshold,
+        "long_term_full": snapshot["long_pct"] >= high_threshold,
+    }
+
+
 class Swapper:
     """Background memory pressure manager."""
 
@@ -74,13 +105,14 @@ class Swapper:
         s_pct = stats["short"]["pct"]
         l_pct = stats["long"]["pct"]
         logger.info("pressure: W=%d%% S=%d%% L=%d%%", w_pct, s_pct, l_pct)
-        if w_pct >= SWAPPER_PRESSURE_HIGH:
+        plan = plan_pressure({"under_pressure": True, "working_pct": w_pct, "short_pct": s_pct, "long_pct": l_pct})
+        if plan["swap_out_working"]:
             n = self._swap_out_working()
             logger.warning("swapped out %d entries from working memory", n)
-        if s_pct >= SWAPPER_PRESSURE_HIGH:
+        if plan["compact_short_term"]:
             n = self._compact_short_term()
             logger.warning("compacted %d short-term entries", n)
-        if l_pct >= SWAPPER_PRESSURE_HIGH:
+        if plan["long_term_full"]:
             logger.warning("LONG-TERM MEMORY FULL")
 
     def swap_in(self, entry_id: str) -> dict:
@@ -124,12 +156,14 @@ class Swapper:
         if not self._mem or not hasattr(self._mem, "working"):
             return 0
         entries = self._mem.working_entries()[:count]
-        for e in entries:
+        by_id = {e.id: e for e in entries}
+        actions = plan_swap_out([{"id": e.id, "importance": e.importance} for e in entries], count=count)
+        for action in actions:
+            e = by_id[action["id"]]
             try:
-                target_ring = 3 if e.importance < SWAPPER_SWAP_OUT_IMPORTANCE else 2
-                self._mem.promote(e.id, target_ring=target_ring)
+                self._mem.promote(e.id, target_ring=action["target_ring"])
                 self._total_swapped_out += 1
-                logger.debug("swapped %s ring1 → ring%d (importance=%.2f)", e.id, target_ring, e.importance)
+                logger.debug("swapped %s ring1 → ring%d (importance=%.2f)", e.id, action["target_ring"], e.importance)
             except Exception as err:
                 logger.warning("swap out %s failed: %s", getattr(e, "id", "?"), err)
         return len(entries)
@@ -138,14 +172,23 @@ class Swapper:
         if not self._mem or not hasattr(self._mem, "short_term"):
             return 0
         entries = self._mem.short_term()
-        compacted = 0
+        candidates = []
+        by_id = {e.id: e for e in entries}
         for e in entries:
             try:
-                if e.importance < SWAPPER_COMPACT_IMPORTANCE and e.ttl > 0 and e.expired():
-                    self._mem.promote(e.id, target_ring=3)
-                    compacted += 1
-                    self._total_compactions += 1
-                    logger.debug("compacted %s ring2 → ring3", e.id)
+                expired = e.expired() if e.importance < SWAPPER_COMPACT_IMPORTANCE and e.ttl > 0 else False
+                candidates.append({"id": e.id, "importance": e.importance, "ttl": e.ttl, "expired": expired})
+            except Exception as err:
+                logger.warning("compact %s failed: %s", getattr(e, "id", "?"), err)
+        actions = plan_compaction(candidates)
+        compacted = 0
+        for action in actions:
+            e = by_id[action["id"]]
+            try:
+                self._mem.promote(e.id, target_ring=action["target_ring"])
+                compacted += 1
+                self._total_compactions += 1
+                logger.debug("compacted %s ring2 → ring3", e.id)
             except Exception as err:
                 logger.warning("compact %s failed: %s", getattr(e, "id", "?"), err)
         return compacted

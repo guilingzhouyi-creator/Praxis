@@ -51,6 +51,29 @@ def test_manifest_plans_dependencies_first() -> None:
     assert workflow.steps[0].argv("/venv/bin/python")[0] == "/venv/bin/python"
 
 
+def test_manifest_uses_registered_dependency_graph_port() -> None:
+    """Manifest planning consumes the stable port when boot wiring is present."""
+    from l1.kernel.ports import DependencyGraphPort, register_port, reset_ports
+
+    class FakeGraph(DependencyGraphPort):
+        def __init__(self) -> None:
+            self.nodes: dict[str, tuple[str, ...]] | None = None
+
+        def plan(self, nodes: dict[str, tuple[str, ...]]) -> list[str]:
+            self.nodes = nodes
+            return ["build", "check"]
+
+    graph = FakeGraph()
+    reset_ports()
+    register_port("dependency_graph", graph)
+    try:
+        workflow = _manifest().workflow("test")
+        assert [step.step_id for step in workflow.plan()] == ["build", "check"]
+        assert graph.nodes == {"build": (), "check": ("build",)}
+    finally:
+        reset_ports()
+
+
 @pytest.mark.parametrize(
     "patch",
     [
@@ -88,9 +111,58 @@ def test_runner_skips_dependents_after_failure() -> None:
         calls.append(step.step_id)
         return ProcessResult(returncode=1 if step.step_id == "build" else 0, stderr="failed")
 
-    run = AutomationRunner(executor).run(_manifest().workflow("test"), trace_id="trace-test")
+    from l1.kernel.ports import reset_ports
+
+    reset_ports()
+    try:
+        run = AutomationRunner(executor).run(_manifest().workflow("test"), trace_id="trace-test")
+    finally:
+        reset_ports()
 
     assert calls == ["build"]
     assert [step.status for step in run.steps] == ["failed", "skipped"]
     assert all(step.trace_id == "trace-test" for step in run.steps)
     assert not run.ok
+
+
+def test_runner_uses_side_channel_ports_without_l3_imports() -> None:
+    """Metrics, evidence, and trace adapters observe steps without owning execution."""
+    from contextlib import contextmanager
+
+    from l1.kernel.ports import EvidencePort, ObservabilityPort, TracePort, register_port, reset_ports
+
+    events: list[tuple[str, str]] = []
+
+    class Metrics(ObservabilityPort):
+        def emit_count(self, name: str, value: int = 1, *, tags=None) -> None:
+            events.append(("count", name))
+
+        def emit_duration(self, name: str, started: float, *, tags=None) -> None:
+            events.append(("duration", name))
+
+    class Evidence(EvidencePort):
+        def record_evidence(self, phase: str, **kwargs) -> str:
+            events.append(("evidence", phase))
+            return "evidence-test"
+
+    class Trace(TracePort):
+        @contextmanager
+        def scope(self, trace_id: str):
+            events.append(("trace-start", trace_id))
+            yield trace_id
+            events.append(("trace-end", trace_id))
+
+    reset_ports()
+    register_port("observability", Metrics())
+    register_port("evidence", Evidence())
+    register_port("trace", Trace())
+    try:
+        run = AutomationRunner(lambda step: ProcessResult()).run(_manifest().workflow("test"), trace_id="trace-ports")
+    finally:
+        reset_ports()
+
+    assert run.ok
+    assert ("trace-start", "trace-ports") in events
+    assert ("trace-end", "trace-ports") in events
+    assert events.count(("evidence", "automation")) == 2
+    assert events.count(("count", "automation.step.count")) == 2

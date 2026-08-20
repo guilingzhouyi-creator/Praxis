@@ -8,6 +8,7 @@ tested against a stable, side-effect-free baseline.
 Modules:
   envelope — message construction/validation/encoding + Outbox/SessionCursor
   schema   — JSON Schema machine-readable contract (TS zod/io-ts mirror)
+  records  — versioned TS-neutral session, event, failure, decision, and evidence records
   host     — JSONL stdio bridge over the existing l2.l2_shell.dispatch
 """
 
@@ -31,7 +32,26 @@ from l2.protocol.envelope import (
     make_message,
     validate_message,
 )
-from l2.protocol.schema import ENVELOPE_JSON_SCHEMA, KIND_PAYLOAD_SCHEMAS
+from l2.protocol.records import (
+    RECORD_SCHEMA_VERSION,
+    RECORD_TYPES,
+    DecisionSummary,
+    EventEnvelope,
+    EvidenceRef,
+    Record,
+    RecordValidationError,
+    SessionIdentity,
+    SessionMessage,
+    ToolFailure,
+    decode_record,
+    encode_record,
+)
+from l2.protocol.schema import (
+    ENVELOPE_JSON_SCHEMA,
+    KIND_PAYLOAD_SCHEMAS,
+    RECORD_DATA_SCHEMAS,
+    RECORD_ENVELOPE_JSON_SCHEMA,
+)
 
 __all__ = [
     "KIND_ACK",
@@ -52,4 +72,18 @@ __all__ = [
     "validate_message",
     "ENVELOPE_JSON_SCHEMA",
     "KIND_PAYLOAD_SCHEMAS",
+    "RECORD_SCHEMA_VERSION",
+    "RECORD_TYPES",
+    "RECORD_DATA_SCHEMAS",
+    "RECORD_ENVELOPE_JSON_SCHEMA",
+    "DecisionSummary",
+    "EventEnvelope",
+    "EvidenceRef",
+    "Record",
+    "RecordValidationError",
+    "SessionIdentity",
+    "SessionMessage",
+    "ToolFailure",
+    "decode_record",
+    "encode_record",
 ]

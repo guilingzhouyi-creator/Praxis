@@ -225,6 +225,7 @@
     {
       "classes": [],
       "functions": [
+        "aggregate_health",
         "safe_system_check",
         "subsystem_status"
       ],
@@ -245,6 +246,7 @@
       "classes": [],
       "functions": [
         "issue_identity_uid",
+        "issue_identity_uid_from_candidates",
         "reset_identity_uid",
         "verify_identity_uid"
       ],
@@ -494,10 +496,14 @@
     {
       "classes": [
         "AuthPort",
+        "DependencyGraphPort",
+        "EvidencePort",
         "FilesystemPort",
         "InputActivityPort",
         "InputSourcePort",
+        "ObservabilityPort",
         "RpcServerPort",
+        "TracePort",
         "WebSocketPort"
       ],
       "functions": [],
@@ -553,7 +559,9 @@
         "Registry"
       ],
       "functions": [
-        "get_registry"
+        "aggregate_summary",
+        "get_registry",
+        "snapshot_sections"
       ],
       "module": "l1.kernel.registry"
     },
@@ -669,6 +677,9 @@
       ],
       "functions": [
         "get_swapper",
+        "plan_compaction",
+        "plan_pressure",
+        "plan_swap_out",
         "reset_swapper"
       ],
       "module": "l1.kernel.swapper"
@@ -707,8 +718,11 @@
         "ToolChain"
       ],
       "functions": [
+        "compute_fingerprint",
         "get_tool_chain",
-        "reset_tool_chain"
+        "normalize_call_data",
+        "reset_tool_chain",
+        "verify_fingerprint_chain"
       ],
       "module": "l1.kernel.tool_chain"
     },

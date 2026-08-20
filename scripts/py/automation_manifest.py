@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / "config" / "discovery" / "automation.yaml"
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 
 class ManifestError(ValueError):
@@ -81,21 +85,23 @@ class AutomationWorkflow:
         return ordered
 
     def _dvg_plan(self, steps: dict[str, AutomationStep]) -> list[AutomationStep] | None:
-        """Use the runtime DVG when available, with a standalone fallback."""
+        """Use the registered dependency-graph port, with a standalone fallback."""
         if any(dependency not in steps for step in steps.values() for dependency in step.depends_on):
             return None
         try:
-            from l3.tool_system.dvg import DvgGraph
+            from l1.kernel.ports import DependencyGraphPort, get_port
+
+            graph_port = get_port("dependency_graph")
+            if not isinstance(graph_port, DependencyGraphPort):
+                return None
         except Exception:
             return None
-        graph = DvgGraph()
-        for step in self.steps:
-            if not graph.register_tool_deps(step.step_id, list(step.depends_on)):
-                loop = ", ".join((*step.depends_on, step.step_id))
-                raise ManifestError(f"workflow '{self.name}' contains a dependency cycle: {loop}")
-        ordered_names = graph.topo_order()
-        if set(ordered_names) != set(steps):
-            raise ManifestError(f"workflow '{self.name}' DVG plan contains unknown nodes")
+        try:
+            ordered_names = graph_port.plan({step_id: step.depends_on for step_id, step in steps.items()})
+        except ValueError as error:
+            raise ManifestError(f"workflow '{self.name}' dependency graph is invalid: {error}") from error
+        if set(ordered_names) != set(steps) or len(ordered_names) != len(steps):
+            raise ManifestError(f"workflow '{self.name}' dependency graph returned an invalid order")
         return [steps[name] for name in ordered_names]
 
 

@@ -94,7 +94,7 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 |---|---|---|
 | **P0 止血** | 已合入：工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）、G1 fail-closed、`_execute_tool_spec` 私有化；剩余：修复 `_l3a_intent`（改走 `l3.cell.peers.l3` 或经桥）、删除 `shell_session.py` 死代码 | 门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen |
 | **P1 边界迁移** | 建 L3 command bridge；63 个 `_cmd_*` 控制命令改走桥；selector 策略迁 L3；配置权威收敛（settings 单一写面）；`_cmd_history` 等桩补齐为真实现 | L2→L3 直连导入清零（allowlist 移除）；策略写操作全部经桥 |
-| **P2 协议 v1** | 参考实现已落地：`src/l2/protocol/`（envelope/schema/host）+ 契约钉（`test_protocol_v1.py`、`test_dispatch_contract.py`）；剩余：event projection、multiplexing、web 端点迁移到协议 | 双前端（web + TUI）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿 |
+| **P2 协议 v1** | Python 参考实现已落地：`src/l2/protocol/`（envelope/schema/records/host）+ 契约钉；只读 TS parity mirror 已落地：`packages/protocol-ts/`（共享 fixture + Vitest）；剩余：event projection、multiplexing、web 端点迁移到协议 | 双前端（web + TUI）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿；TS 仍不拥有运行时状态 |
 | **P3 TS 引擎** | `parser/dispatcher/session/builtins/bridge.ts` 替代 Python 引擎外壳（Python L3 不动）；协议 v1 作为唯一跨语言契约 | TS 引擎跑通 web/TUI/轻量桌面；L3 零改动 |
 | **P4 重型/移动** | VSCode 级共生平台（事件投影 + diff 流 + 多路会话）与移动 SSH 适配器 | 五前端矩阵全部接入协议 v1 |
 

@@ -1,0 +1,16 @@
+{
+  "severity": [
+    {"input": "MUST", "expected": "MUST"},
+    {"input": "SHOULD", "expected": "SHOULD"},
+    {"input": "MAY", "expected": "MAY"},
+    {"input": "unknown", "expected": "MAY"}
+  ],
+  "rule": {
+    "id": "territory.write",
+    "section": "§2.3",
+    "severity": "MUST",
+    "description": "stay inside",
+    "source": "custom",
+    "tags": ["territory", "write"]
+  }
+}

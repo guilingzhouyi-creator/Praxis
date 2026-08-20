@@ -1,0 +1,94 @@
+{
+  "secret_key": "fixture-key",
+  "cases": [
+    {
+      "name": "genesis_root",
+      "links": [
+        {
+          "call_id": "call-001",
+          "tool_name": "review",
+          "agent_id": "agent-a",
+          "ring": 2,
+          "parent_id": "",
+          "depth": 1,
+          "normalized": "review:agent-a:2:call-001::1",
+          "fingerprint": "09474a9fe7eddb8bf519e276c6fd566e3ab70ef7"
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "steps": [
+          {"call_id": "call-001", "tool": "review", "depth": 1, "fingerprint_match": true}
+        ],
+        "depth": 1
+      }
+    },
+    {
+      "name": "parent_child_chain",
+      "links": [
+        {
+          "call_id": "call-001",
+          "tool_name": "review",
+          "agent_id": "agent-a",
+          "ring": 2,
+          "parent_id": "",
+          "depth": 1,
+          "normalized": "review:agent-a:2:call-001::1",
+          "fingerprint": "09474a9fe7eddb8bf519e276c6fd566e3ab70ef7"
+        },
+        {
+          "call_id": "call-002",
+          "tool_name": "inspect",
+          "agent_id": "agent-a",
+          "ring": 1,
+          "parent_id": "call-001",
+          "depth": 2,
+          "normalized": "inspect:agent-a:1:call-002:call-001:2",
+          "fingerprint": "a4ee3edef69eef03c5b37e3935c6d049617e1eba"
+        }
+      ],
+      "expected": {
+        "valid": true,
+        "steps": [
+          {"call_id": "call-001", "tool": "review", "depth": 1, "fingerprint_match": true},
+          {"call_id": "call-002", "tool": "inspect", "depth": 2, "fingerprint_match": true}
+        ],
+        "depth": 2
+      }
+    },
+    {
+      "name": "tampered_child",
+      "links": [
+        {
+          "call_id": "call-001",
+          "tool_name": "review",
+          "agent_id": "agent-a",
+          "ring": 2,
+          "parent_id": "",
+          "depth": 1,
+          "normalized": "review:agent-a:2:call-001::1",
+          "fingerprint": "09474a9fe7eddb8bf519e276c6fd566e3ab70ef7"
+        },
+        {
+          "call_id": "call-002",
+          "tool_name": "inspect",
+          "agent_id": "agent-a",
+          "ring": 1,
+          "parent_id": "call-001",
+          "depth": 2,
+          "normalized": "inspect:agent-a:1:call-002:call-001:2",
+          "fingerprint": "a4ee3edef69eef03c5b37e3935c6d049617e1ebx",
+          "canonical_fingerprint": "a4ee3edef69eef03c5b37e3935c6d049617e1eba"
+        }
+      ],
+      "expected": {
+        "valid": false,
+        "steps": [
+          {"call_id": "call-001", "tool": "review", "depth": 1, "fingerprint_match": true},
+          {"call_id": "call-002", "tool": "inspect", "depth": 2, "fingerprint_match": false}
+        ],
+        "depth": 2
+      }
+    }
+  ]
+}

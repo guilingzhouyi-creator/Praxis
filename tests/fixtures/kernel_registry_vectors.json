@@ -1,0 +1,71 @@
+{
+  "cases": [
+    {
+      "name": "sorted_isolated_sections",
+      "sections": {
+        "todo_table": {
+          "status": "open",
+          "iteration": 2,
+          "tasks": ["compile", "verify"]
+        },
+        "card_tool_stats": {
+          "status": "ready",
+          "calls": 4
+        },
+        "empty": null
+      },
+      "modules": {
+        "event": {"status": "PASS", "detail": "functional"},
+        "process": {"status": "WARN", "detail": "warming"},
+        "device": {"status": "PASS", "detail": "ready"}
+      },
+      "process_count": 3,
+      "device_count": 2,
+      "syscalls": ["process.list", "mutex.acquire", "process.list"],
+      "timestamp": 1700000000.25,
+      "expected_sections": {
+        "card_tool_stats": {"status": "ready", "calls": 4},
+        "empty": null,
+        "todo_table": {
+          "status": "open",
+          "iteration": 2,
+          "tasks": ["compile", "verify"]
+        }
+      },
+      "expected_summary": {
+        "modules": {"total": 3, "healthy": 2},
+        "processes": 3,
+        "devices": 2,
+        "syscalls": 3,
+        "timestamp": 1700000000.25
+      }
+    },
+    {
+      "name": "custom_health_label",
+      "sections": {
+        "z": {"value": 1},
+        "a": {"value": true}
+      },
+      "modules": {
+        "alpha": {"status": "READY"},
+        "beta": {"status": "DEGRADED"}
+      },
+      "process_count": 0,
+      "device_count": 0,
+      "syscalls": [],
+      "timestamp": 0.0,
+      "healthy_status": "READY",
+      "expected_sections": {
+        "a": {"value": true},
+        "z": {"value": 1}
+      },
+      "expected_summary": {
+        "modules": {"total": 2, "healthy": 1},
+        "processes": 0,
+        "devices": 0,
+        "syscalls": 0,
+        "timestamp": 0.0
+      }
+    }
+  ]
+}
