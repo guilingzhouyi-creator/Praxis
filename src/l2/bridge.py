@@ -269,6 +269,86 @@ def cell_cache_stats(cell_id: str) -> dict:
     return cell.cache.stats() if hasattr(cell, "cache") else {}
 
 
+# ── model domain ──
+def model_apply_strategy(scope: str, name: str) -> dict:
+    """Apply a strategy pack on a model scope."""
+    from l3.services.model_service import get_service
+
+    return get_service().apply_strategy(scope, name)
+
+
+def model_clear_strategy(scope: str) -> dict:
+    """Clear the strategy pack on a model scope."""
+    from l3.services.model_service import get_service
+
+    return get_service().clear_strategy(scope)
+
+
+def model_resolve(role: str) -> dict:
+    """Resolve one role's provider/model as JSON data (no object leak)."""
+    from l3.services.model_service import get_service
+
+    cfg = get_service().resolve(role)
+    return {"provider": cfg.provider, "model": cfg.model}
+
+
+def model_providers() -> list[str]:
+    """Return the registered provider names."""
+    from l3.services.model_service import get_service
+
+    return get_service().list_providers()
+
+
+def think_clear_strategy(scope: str, name: str) -> dict:
+    """Clear a peer think-strategy pack."""
+    from l3.scheduler.think_registry import get_think_registry
+
+    return get_think_registry().clear_strategy(scope, name)
+
+
+def think_apply_strategy(scope: str, cell_id: str, pack: str) -> dict:
+    """Apply a peer think-strategy pack."""
+    from l3.scheduler.think_registry import get_think_registry
+
+    return get_think_registry().apply_strategy(scope, cell_id, pack)
+
+
+def settings_set(key: str, value: Any) -> dict:
+    """Write one settings key through the settings center."""
+    from l3.config.settings_center import get_center
+
+    return get_center().set(key, value)
+
+
+# ── selector / cell domain ──
+def cell_ids() -> list[str]:
+    """Return the registered cell ids."""
+    from l3.cell import get_cells
+
+    return list(get_cells().keys())
+
+
+def cell_liveness(cell_id: str) -> dict:
+    """Return one cell's liveness snapshot."""
+    from l3.cell import get_cell
+
+    return get_cell(cell_id).liveness()
+
+
+def cell_agent_reachable(cell_id: str, agent_id: str) -> dict:
+    """Ask one cell whether an agent is reachable."""
+    from l3.cell import get_cell
+
+    return get_cell(cell_id).agent_reachable(agent_id)
+
+
+def cell_territory(cell_id: str) -> list[str]:
+    """Return one cell's territory roots."""
+    from l3.cell import get_cell
+
+    return list(getattr(get_cell(cell_id), "territory", []) or [])
+
+
 # ── card / plugin / cell / terminal domains ──
 def card_registry() -> Any:
     """Return the card registry."""

@@ -38,9 +38,11 @@ ALLOWLIST = {
     ("l2/bridge.py", "l3.memory.r4_agent"),
     ("l2/bridge.py", "l3.memory.r4_skill_retrieval"),
     ("l2/bridge.py", "l3.memory.skill_retriever"),
+    ("l2/bridge.py", "l3.config.settings_center"),
     ("l2/bridge.py", "l3.scheduler.scheduler"),
     ("l2/bridge.py", "l3.scheduler.think_registry"),
     ("l2/bridge.py", "l3.services.central_plugin"),
+    ("l2/bridge.py", "l3.services.model_service"),
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
     ("l2/i18n.py", "l4.ports"),  # WS5.1: I18nPort moved out of kernel
     ("l1/kernel/commands.py", "l2.commands"),  # WS5.3: transition shim
@@ -88,10 +90,6 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a.session_json"),
     ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a.session_loader"),
     ("l2/l2_shell/commands/l3ac.py", "l3.cell.peers.l3a.secretary"),
-    ("l2/l2_shell/commands/model.py", "l3.config.settings_center"),
-    ("l2/l2_shell/commands/model.py", "l3.error_bus"),
-    ("l2/l2_shell/commands/model.py", "l3.scheduler.think_registry"),
-    ("l2/l2_shell/commands/model.py", "l3.services.model_service"),
     ("l2/l2_shell/commands/model.py", "l4.api_handlers.api_handlers_providers"),
     ("l2/l2_shell/commands/model.py", "l4.cron_scheduler"),
     ("l2/l2_shell/commands/model.py", "l4.llm.llm"),
