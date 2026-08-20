@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _cmd_test_auto(args: list[str], session=None) -> dict:
     """Show or switch the AutoTestGate mode (off / async)."""
-    from l3.tool_system.auto_test import (
+    from l2.bridge import (
         auto_test_status,
         reset_auto_test,
         set_auto_test,

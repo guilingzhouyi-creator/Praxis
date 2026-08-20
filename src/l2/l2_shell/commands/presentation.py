@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _cmd_presentation(args: list[str], session=None) -> dict:
     """Show or switch the tool presentation mode (native / code / both)."""
-    from l3.tool_system.tool_presentation import (
+    from l2.bridge import (
         presentation_status,
         reset_presentation_mode,
         set_presentation_mode,

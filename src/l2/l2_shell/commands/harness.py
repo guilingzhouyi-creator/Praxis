@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _cmd_harness(args: list[str], session=None) -> dict:
     """Show or switch the harness mode (governed / code / semi / minimal)."""
-    from l3.tool_system.harness import (
+    from l2.bridge import (
         harness_status,
         reset_harness_mode,
         set_harness_mode,

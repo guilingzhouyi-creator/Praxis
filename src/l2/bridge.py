@@ -505,3 +505,171 @@ def tool_config() -> Any:
     from l3.tool_system.tool_config import ToolConfig
 
     return ToolConfig
+
+
+# ── tool-system / harness / debug / auto-test domain ──
+def harness_status() -> dict:
+    """Return harness-mode status."""
+    from l3.tool_system.harness import harness_status as _fn
+
+    return _fn()
+
+
+def reset_harness_mode() -> dict:
+    """Reset the harness mode to its default."""
+    from l3.tool_system.harness import reset_harness_mode as _fn
+
+    return _fn()
+
+
+def set_harness_mode(mode: str, confirmed: bool, source: str) -> dict:
+    """Switch the harness mode (governed/code/semi/minimal)."""
+    from l3.tool_system.harness import set_harness_mode as _fn
+
+    return _fn(mode, confirmed=confirmed, source=source)
+
+
+def engineering_debug() -> Any:
+    """Return the engineering-debug manager."""
+    from l3.tool_system.engineering_debug import get_engineering_debug
+
+    return get_engineering_debug()
+
+
+def input_activity() -> Any:
+    """Return the input-activity monitor."""
+    from l3.tool_system.input_activity import get_input_activity
+
+    return get_input_activity()
+
+
+def presentation_status() -> dict:
+    """Return tool-presentation mode status."""
+    from l3.tool_system.tool_presentation import presentation_status as _fn
+
+    return _fn()
+
+
+def reset_presentation_mode() -> dict:
+    """Reset the tool-presentation mode."""
+    from l3.tool_system.tool_presentation import reset_presentation_mode as _fn
+
+    return _fn()
+
+
+def set_presentation_mode(mode: str, source: str) -> dict:
+    """Switch the tool-presentation mode (native/code/both)."""
+    from l3.tool_system.tool_presentation import set_presentation_mode as _fn
+
+    return _fn(mode, source=source)
+
+
+def auto_test_status() -> dict:
+    """Return AutoTestGate status."""
+    from l3.tool_system.auto_test import auto_test_status as _fn
+
+    return _fn()
+
+
+def reset_auto_test() -> dict:
+    """Reset the AutoTestGate mode."""
+    from l3.tool_system.auto_test import reset_auto_test as _fn
+
+    return _fn()
+
+
+def set_auto_test(mode: str, source: str) -> dict:
+    """Switch the AutoTestGate mode (off/async)."""
+    from l3.tool_system.auto_test import set_auto_test as _fn
+
+    return _fn(mode, source=source)
+
+
+def list_tools() -> list:
+    """Return the registered tool specs (metadata)."""
+    from l3.tool_system.tool_spec import list_tools as _fn
+
+    return _fn()
+
+
+def get_tool(name: str) -> Any:
+    """Return one tool spec by name (metadata lookup, never execution)."""
+    from l3.tool_system.tool_spec import get_tool as _fn
+
+    return _fn(name)
+
+
+# ── l3a / session domain ──
+def l3a_dispatch(args: list[str]) -> dict:
+    """Route a command into the L3A daemon dispatch."""
+    from l3.cell.peers.l3a import dispatch as _fn
+
+    return _fn(args)
+
+
+def l3a_start() -> None:
+    """Start the L3A daemon (idempotent)."""
+    from l3.cell.peers.l3a import start as _fn
+
+    _fn()
+
+
+def session_monitor(enabled: bool | None = None) -> dict:
+    """Return session-monitor state, or toggle it when enabled is given."""
+    from l3.agent_terminal import session_monitor as _state
+    from l3.agent_terminal import session_monitor_status as _status
+    from l3.agent_terminal import set_session_monitor as _set
+
+    if enabled is None:
+        return {"status": _status(), **_state()}
+    return _set(enabled=enabled)
+
+
+def auto_reload_session(agent_id: str, reason: str) -> dict:
+    """Trigger a full session reload for one agent."""
+    from l3.agent_terminal import auto_reload_session as _fn
+
+    return _fn(agent_id, reason=reason)
+
+
+def session_history_status() -> dict:
+    """Return session-history switch state."""
+    from l3.cell.peers.l3a.session_json import history_status as _fn
+
+    return _fn()
+
+
+def query_session_history(limit: int, session_id: str) -> dict:
+    """Query session history records."""
+    from l3.cell.peers.l3a.session_json import query_session_history as _fn
+
+    return _fn(limit=limit, session_id=session_id)
+
+
+def set_session_history(enabled: bool) -> dict:
+    """Toggle session-history recording."""
+    from l3.cell.peers.l3a.session_json import set_history as _fn
+
+    return _fn(enabled=enabled)
+
+
+def load_for_window(session_id: str, page: int, page_size: int) -> dict:
+    """Load a conversation window via the dynamic session loader."""
+    from l3.cell.peers.l3a.session_loader import load_for_window as _fn
+
+    return _fn(session_id, page=page, page_size=page_size)
+
+
+# ── terminal / scout domain ──
+def scout_findings_display_limit() -> int:
+    """Return the scout-findings display limit constant."""
+    from l3.params import SCOUT_FINDINGS_DISPLAY_LIMIT
+
+    return SCOUT_FINDINGS_DISPLAY_LIMIT
+
+
+def scout_pool() -> Any:
+    """Return the scout pool instance."""
+    from l3.agent.scout import get_pool
+
+    return get_pool()

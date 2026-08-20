@@ -54,6 +54,17 @@ ALLOWLIST = {
     ("l2/bridge.py", "l3.services.model_service"),
     ("l2/bridge.py", "l3.services.stats_center"),
     ("l2/bridge.py", "l3.tool_system.tool_config"),
+    ("l2/bridge.py", "l3.tool_system.harness"),
+    ("l2/bridge.py", "l3.tool_system.engineering_debug"),
+    ("l2/bridge.py", "l3.tool_system.input_activity"),
+    ("l2/bridge.py", "l3.tool_system.tool_presentation"),
+    ("l2/bridge.py", "l3.tool_system.auto_test"),
+    ("l2/bridge.py", "l3.tool_system.tool_spec"),
+    ("l2/bridge.py", "l3.cell.peers.l3a"),
+    ("l2/bridge.py", "l3.cell.peers.l3a.session_json"),
+    ("l2/bridge.py", "l3.cell.peers.l3a.session_loader"),
+    ("l2/bridge.py", "l3.params"),
+    ("l2/bridge.py", "l3.agent.scout"),
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
     ("l2/i18n.py", "l4.ports"),  # WS5.1: I18nPort moved out of kernel
     ("l1/kernel/commands.py", "l2.commands"),  # WS5.3: transition shim
@@ -61,7 +72,6 @@ ALLOWLIST = {
     ("l1/kernel/prompts.py", "l3.agent.prompts"),  # WS5.3: transition shim
     ("l3/services/review_pipeline.py", "l4.sandbox.diff_frame"),  # WS5.3: moved module
     ("l3/services/model_service.py", "l4.ports"),  # WS5.1: LLMConfig moved out of kernel
-    ("l2/shells/terminal.py", "l3.params"),  # WS5.4: scout business params live in L3
     ("l3/services/diff_record_source.py", "l4.params"),  # WS5.4: diff business params live in L4
     ("l3/services/central_security.py", "l4.params"),  # WS5.4: security-gate params live in L4
     ("l3/config/bootstrap.py", "l4.params"),  # WS5.4: api business params live in L4
@@ -70,24 +80,12 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/ci.py", "l4.ci_review"),
     ("l2/l2_shell/commands/extra_mcp.py", "l4.api_handlers.api_handlers_mcp"),
     ("l2/l2_shell/commands/extra_mcp.py", "l4.mcp_bridge"),
-    ("l2/l2_shell/commands/harness.py", "l3.tool_system.harness"),
-    ("l2/l2_shell/commands/engineering_debug.py", "l3.tool_system.engineering_debug"),
-    ("l2/l2_shell/commands/input_activity.py", "l3.tool_system.input_activity"),
-    ("l2/l2_shell/commands/presentation.py", "l3.tool_system.tool_presentation"),
-    ("l2/l2_shell/commands/test_auto.py", "l3.tool_system.auto_test"),
-    ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a"),
-    ("l2/l2_shell/commands/l3a.py", "l3.agent_terminal"),
-    ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a.session_json"),
-    ("l2/l2_shell/commands/l3a.py", "l3.cell.peers.l3a.session_loader"),
     ("l2/l2_shell/commands/model.py", "l4.api_handlers.api_handlers_providers"),
     ("l2/l2_shell/commands/model.py", "l4.cron_scheduler"),
     ("l2/l2_shell/commands/model.py", "l4.llm.llm"),
     ("l3/memory/memory_graph.py", "l4.llm.llm"),
     ("l3/memory/memory_graph_semantic.py", "l4.llm.llm"),
     ("l3/memory/memory_extract.py", "l4.llm.llm"),
-    ("l2/shells/terminal.py", "l3.agent.scout"),
-    ("l2/shells/terminal.py", "l3.cell"),
-    ("l2/shells/terminal.py", "l3.tool_system.tool_spec"),
     ("l3/agent/_term_lifecycle.py", "l4.llm.llm"),
     ("l3/agent/_term_lifecycle.py", "l4.llm.llm_base"),
     ("l3/agent/subagent_task.py", "l4.llm.llm"),
