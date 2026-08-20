@@ -13,9 +13,9 @@ def get_tool_names() -> list[str]:
     """Get all registered tool names from ToolConfig + built-in commands."""
     tool_names = []
     try:
-        from l3.tool_system.tool_config import ToolConfig as ToolConfigCls
+        from l2.bridge import tool_config
 
-        tool_names = sorted(ToolConfigCls.completions().keys())
+        tool_names = sorted(tool_config().completions().keys())
     except Exception:
         logger.warning("shell_completer: get_tool_names failed")
     builtins = ["help", "exit", "clear", "history", "tools", "status"]
@@ -29,9 +29,9 @@ def _load_tool_help() -> dict[str, str]:
     """Load help text for all registered tools. Returns {tool_name: help_text}."""
     help_map: dict[str, str] = {}
     try:
-        from l3.tool_system.tool_config import ToolConfig as ToolConfigCls
+        from l2.bridge import tool_config
 
-        for name, meta in ToolConfigCls.completions().items():
+        for name, meta in tool_config().completions().items():
             h = meta.get("help", "") if isinstance(meta, dict) else ""
             help_map[name] = str(h)[:LOG_TRUNC_60]
     except Exception:

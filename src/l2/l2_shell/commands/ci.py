@@ -123,12 +123,12 @@ def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bo
     if not _is_allowed_key(full_key):
         return {
             "success": False,
-            "error": f"key not writable: {full_key}",
+            "error": _t("shell.app_error.key_not_writable", full_key=full_key),
             "allowed": sorted(CI_SETTING_SUFFIXES),
         }
     if _is_control_key(full_key):
         if not admin:
-            return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
+            return {"success": False, "error": _t("shell.app_error.admin_confirmation_required", full_key=full_key)}
     elif not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     value = _parse_value(" ".join(rest[2:]))
@@ -160,7 +160,7 @@ _CI_HANDLERS: dict[str, Callable] = {
 }
 
 
-def _cmd_ci(args: list[str]) -> dict:
+def _cmd_ci(args: list[str], session=None) -> dict:
     """Show CI review stats/reports, inspect or set review switches.
 
     Sub-commands: ``config [--cell X] [--agent Y]``, ``set <key> <value>
@@ -168,20 +168,20 @@ def _cmd_ci(args: list[str]) -> dict:
     [--admin]``, ``list [status]``, ``show <card_id>``.
     """
     try:
-        from l3.config.settings_center import get_center
+        from l2.bridge import settings_center
         from l4.ci_review import get_service
 
         rest, cell_id, agent_id, admin = _parse_flags(args)
         svc = get_service()
-        center = get_center()
+        center = settings_center()
         if not rest:
             return {"success": True, **svc.stats()}
         handler = _CI_HANDLERS.get(rest[0].lower())
         if not handler:
             return {
                 "success": False,
-                "error": f"unknown ci subcommand: {rest[0].lower()} (expected config|set|toggle|rerun|list|show)",
+                "error": _t("shell.app_error.unknown_ci_subcommand", sub=rest[0].lower()),
             }
         return handler(svc, center, rest, cell_id, agent_id, admin)
     except Exception as e:
-        return {"success": False, "error": f"[E_CI_REVIEW_CMD] {e}"}
+        return {"success": False, "error": _t("shell.app_error.ci_review_error", error=e)}

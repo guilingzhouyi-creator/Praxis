@@ -64,7 +64,7 @@ GET  /api/v2/shell/autocomplete     → _shell_autocomplete → l2.l2_shell.comp
 GET  /api/v2/shell/commands         → _shell_commands    → l1.kernel.commands.get_registry().list(category)
 ```
 
-仍待完成：Phase 4（会话收尾，移除 `state.py` deprecated shim）、Phase 5（底层边界文档标注转化位）、
+Phase 4（会话收尾）🟡 部分完成：命令 handler 已统一显式 session 契约 `(args, session=None)`（2026-08-20）；剩余移除 `state.py` shim（待 L4 会话管理就绪）。仍待完成：Phase 5（底层边界文档标注转化位）、
 Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，与 `invoke_capability` 实码不符）。
 
 | Phase | 动作 | 落点 |
@@ -72,7 +72,7 @@ Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，
 | **1. 接通命令执行** | `_shell_dispatch` stub → `l2.l2_shell.dispatch(text, session)` | `src/l4/api_handlers/api_handlers_agent.py` |
 | **2. 接通补全** | `_shell_autocomplete` stub → `l2.l2_shell.completer.autocomplete()` | 同上 |
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
-| **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
+| **4. 会话收尾** | 🟡 部分完成（2026-08-20）：handler 契约统一 `(args, session=None)`、`dispatch` 显式传 session；剩余：移除 `state.py` shim（待 L4 会话管理就绪） | `src/l2/l2_shell/state.py` |
 | **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
 | **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md |
 

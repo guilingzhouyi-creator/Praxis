@@ -1,0 +1,116 @@
+"""Web endpoint protocol v1 mode: /shell accepts protocol envelopes.
+
+The legacy ``{text, session}`` dict mode stays; envelope mode routes
+through the shared ProtocolHost so web clients reuse the same session
+semantics as the TS bridge.
+"""
+
+from __future__ import annotations
+
+from l2.protocol import KIND_ACK, KIND_COMMAND, KIND_CONTROL, KIND_EVENT, KIND_INTENT, KIND_RESULT, make_message
+from l2.protocol.host import get_protocol_host, reset_protocol_host
+from l4.api_handlers.api_handlers_agent import _shell_dispatch
+
+
+def _command(name: str, session_id: str = "s-web-1", seq: int = 1) -> dict:
+    return make_message(session_id, seq, KIND_COMMAND, {"name": name, "args": []})
+
+
+def test_protocol_envelope_mode_returns_result_and_ack():
+    reset_protocol_host()
+    out = _shell_dispatch(_command("help"))
+    assert out["success"] is True
+    kinds = [env["kind"] for env in out["envelopes"]]
+    assert KIND_RESULT in kinds
+    assert KIND_ACK in kinds
+
+
+def test_protocol_intent_routes_through_dispatch():
+    reset_protocol_host()
+    msg = make_message("s-web-2", 1, KIND_INTENT, {"text": "help"})
+    out = _shell_dispatch(msg)
+    assert out["success"] is True
+    result = next(env for env in out["envelopes"] if env["kind"] == KIND_RESULT)
+    # Intent routes into the L3A path; in a bare test host the L3 runtime is
+    # unavailable, so the result must at least be a structured dict carrying
+    # success (True or False) — the routing itself is what is pinned here.
+    assert isinstance(result["payload"], dict)
+    assert "success" in result["payload"]
+
+
+def test_legacy_dict_mode_unchanged():
+    out = _shell_dispatch({"text": "/help"})
+    assert out.get("success") is True
+
+
+def test_invalid_envelope_fails_closed():
+    reset_protocol_host()
+    out = _shell_dispatch({"kind": "nope"})
+    # Outer success means the protocol layer handled the request; the
+    # validation failure is carried inside the result envelope.
+    assert out["success"] is True
+    result = next(env for env in out["envelopes"] if env["kind"] == KIND_RESULT)
+    assert result["payload"]["success"] is False
+
+
+def test_web_mode_reuses_host_session_pool():
+    reset_protocol_host()
+    host = get_protocol_host()
+    _shell_dispatch(make_message("s-pool", 1, KIND_INTENT, {"text": "help"}))
+    _shell_dispatch(make_message("s-pool", 2, KIND_INTENT, {"text": "status"}))
+    assert "s-pool" in host._sessions
+    assert len(host._sessions) == 1
+
+
+def test_attach_emits_session_identity_snapshot():
+    reset_protocol_host()
+    msg = make_message("s-attach", 1, KIND_CONTROL, {"op": "attach", "session_id": "s-attach"})
+    out = _shell_dispatch(msg)
+    event = next(env for env in out["envelopes"] if env["kind"] == KIND_EVENT)
+    assert event["payload"]["name"] == "session.attached"
+    identity = event["payload"]["data"]
+    assert identity["session_id"] == "s-attach"
+    # The SessionIdentity wire record is fully present (TS-mirrored shape).
+    for field in ("terminal_id", "process_id", "user_id", "role", "cell_id", "memory_scope"):
+        assert field in identity
+
+
+def test_multiple_views_share_session_with_independent_cursors():
+    reset_protocol_host()
+    host = get_protocol_host()
+    # Two frontends (e.g. web + TUI) attach to the same session.
+    _shell_dispatch(
+        make_message("s-multi", 1, KIND_CONTROL, {"op": "attach", "session_id": "s-multi", "view_id": "view-a"})
+    )
+    _shell_dispatch(
+        make_message("s-multi", 2, KIND_CONTROL, {"op": "attach", "session_id": "s-multi", "view_id": "view-b"})
+    )
+    assert host.view_cursor("view-a")["session_id"] == "s-multi"
+    assert host.view_cursor("view-b")["session_id"] == "s-multi"
+    assert host.view_cursor("view-a")["attached"] is True
+    assert len(host._sessions) == 1  # one shared runtime session
+    # Detaching one view leaves the other attached.
+    _shell_dispatch(
+        make_message("s-multi", 3, KIND_CONTROL, {"op": "detach", "session_id": "s-multi", "view_id": "view-a"})
+    )
+    assert host.view_cursor("view-a")["attached"] is False
+    assert host.view_cursor("view-b")["attached"] is True
+    # A single-view transport (no view_id) defaults to the session id.
+    assert host.view_cursor("s-multi") is None
+
+
+def test_recovery_replays_per_view_cursor():
+    reset_protocol_host()
+    host = get_protocol_host()
+    host._get_session("s-rep")
+    # Two outbound events land in the shared session outbox.
+    host._emit(KIND_EVENT, {"name": "e1"}, "s-rep")
+    host._emit(KIND_EVENT, {"name": "e2"}, "s-rep")
+    host.attach_view("v-a", "s-rep")
+    host.attach_view("v-b", "s-rep")
+    # v-a acknowledges the first event; v-b stays behind.
+    host._cursors["v-a"].ack(1)
+    replay_b = host._get_outbox("s-rep").unacked(host._cursors["v-b"].last_acked)
+    assert len(replay_b) == 2  # v-b still replays both events
+    replay_a = host._get_outbox("s-rep").unacked(host._cursors["v-a"].last_acked)
+    assert [message["seq"] for message in replay_a] == [2]

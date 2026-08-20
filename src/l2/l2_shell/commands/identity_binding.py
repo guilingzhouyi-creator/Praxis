@@ -12,7 +12,7 @@ from __future__ import annotations
 from l2.i18n import t as _t
 
 
-def _cmd_identity_binding(args: list[str]) -> dict:
+def _cmd_identity_binding(args: list[str], session=None) -> dict:
     """Manage per-Cell identity bindings: list | set | clear | define."""
     sub = args[0] if args else "list"
     if sub == "list":
@@ -23,7 +23,10 @@ def _cmd_identity_binding(args: list[str]) -> dict:
         return _ib_clear(args)
     if sub == "define":
         return _ib_define(args)
-    return {"success": False, "error": f"unknown subcommand: {sub} (list|set|clear|define)"}
+    return {
+        "success": False,
+        "error": _t("shell.app_error.unknown_subcommand_hint", sub=sub, hint="list|set|clear|define"),
+    }
 
 
 def _ib_define(args: list[str]) -> dict:
@@ -55,7 +58,7 @@ def _ib_define(args: list[str]) -> dict:
         return {"success": False, "error": _t("shell.app_error.identity_binding_writer_required")}
     existing = mgr.get_binding(cell_id, role)
     if existing is None:
-        return {"success": False, "error": f"no binding for {cell_id}/{role} — bind first"}
+        return {"success": False, "error": _t("shell.app_error.no_binding", cell_id=cell_id, role=role)}
     return mgr.bind(
         cell_id,
         role,

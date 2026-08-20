@@ -76,3 +76,20 @@ class TestShellSession:
         assert snap["cell_id"] == "cell-x"
         assert snap["agent_id"] == "agent-9"
         assert snap["session_id"] == "s2"
+
+    def test_history_records_and_bounds(self):
+        from l1.kernel.params.system import SHELL_HISTORY_MAX_LIMIT
+        from l2.shells.session import ShellSession
+
+        s = ShellSession()
+        assert s.history(10) == []
+        s.record("/lang", "command")
+        s.record("hello world", "intent")
+        entries = s.history(10)
+        assert [e["text"] for e in entries] == ["/lang", "hello world"]
+        assert [e["kind"] for e in entries] == ["command", "intent"]
+        assert all("ts" in e for e in entries)
+        # Bounded at the hard cap, oldest evicted first.
+        for i in range(SHELL_HISTORY_MAX_LIMIT + 50):
+            s.record(f"cmd-{i}", "command")
+        assert len(s.history(SHELL_HISTORY_MAX_LIMIT + 100)) == SHELL_HISTORY_MAX_LIMIT

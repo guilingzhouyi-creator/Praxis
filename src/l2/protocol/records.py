@@ -114,9 +114,9 @@ class SessionIdentity(_ProtocolRecord):
     def _validate(self) -> None:
         """Validate session identity fields."""
         _require_text(self.session_id, "session_id")
-        _require_text(self.terminal_id, "terminal_id")
-        _require_text(self.process_id, "process_id")
-        for name in ("user_id", "role", "cell_id", "memory_scope"):
+        # terminal/process ownership is host-injected and legitimately absent
+        # for stdio/web sessions, so those fields are optional like the rest.
+        for name in ("terminal_id", "process_id", "user_id", "role", "cell_id", "memory_scope"):
             _require_text(getattr(self, name), name, allow_empty=True)
 
 

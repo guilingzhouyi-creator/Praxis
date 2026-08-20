@@ -10,7 +10,7 @@ from l2.selector import preselect
 logger = logging.getLogger(__name__)
 
 
-def _cmd_help(args: list[str]) -> dict:
+def _cmd_help(args: list[str], session=None) -> dict:
     from l1.kernel.commands import get_command
 
     from .common import list_commands
@@ -20,7 +20,7 @@ def _cmd_help(args: list[str]) -> dict:
             cmd_name = args[0].lower().lstrip("/")
             cmd = get_command(cmd_name)
             if not cmd:
-                return {"success": False, "error": f"unknown command: {cmd_name}"}
+                return {"success": False, "error": _t("shell.app_error.unknown_command", cmd_name=cmd_name)}
             lines = [f"/{cmd_name}  — {cmd.get('help', '')}"]
             if cmd.get("aliases"):
                 lines.append(f"  aliases: {', '.join('/' + a for a in cmd['aliases'])}")
@@ -64,31 +64,31 @@ def _cmd_help(args: list[str]) -> dict:
         return {"success": False, "error": str(e)}
 
 
-def _cmd_agents(args: list[str]) -> dict:
+def _cmd_agents(args: list[str], session=None) -> dict:
     try:
         return {"success": True, "data": preselect()}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def _cmd_connect(args: list[str]) -> dict:
-    from l3.agent_terminal import get_terminals
+def _cmd_connect(args: list[str], session=None) -> dict:
+    from l2.bridge import terminals
 
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_connect")}
     from l1.kernel.params.agent import DEFAULT_CELL_ID
-    from l3.cell import get_cell
+    from l2.bridge import cell as _get_cell
 
     from ..state import get_state
 
     agent_id = args[0]
-    terms = get_terminals()
+    terms = terminals()
     if agent_id not in terms:
-        return {"success": False, "error": f"unknown agent: {agent_id}"}
-    state = get_state()
+        return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
+    state = session if session is not None else get_state()
     cell_id = DEFAULT_CELL_ID
     try:
-        cell = get_cell(cell_id)
+        cell = _get_cell(cell_id)
         r = cell.send_direct_message(agent_id, "")
         if not r.get("success"):
             return {"success": False, "error": r.get("error", "connect failed")}
@@ -98,16 +98,16 @@ def _cmd_connect(args: list[str]) -> dict:
     return {"success": True, "agent": agent_id}
 
 
-def _cmd_disconnect(args: list[str]) -> dict:
+def _cmd_disconnect(args: list[str], session=None) -> dict:
     from ..state import get_state
 
-    state = get_state()
+    state = session if session is not None else get_state()
     if not state.is_direct():
         return {"success": False, "error": _t("shell.app_error.no_active_session")}
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         cell.close_direct_session(state.agent_id)
     except Exception as e:
         logger.warning("connect: close_direct_session failed: %s", e)
@@ -115,10 +115,10 @@ def _cmd_disconnect(args: list[str]) -> dict:
     return {"success": True}
 
 
-def _cmd_mode(args: list[str]) -> dict:
+def _cmd_mode(args: list[str], session=None) -> dict:
     from ..state import get_state
 
-    state = get_state()
+    state = session if session is not None else get_state()
     if args:
         sub = args[0].lower()
         if sub == "direct":
@@ -130,5 +130,5 @@ def _cmd_mode(args: list[str]) -> dict:
             tool_mode = args[1].lower() if len(args) > 1 else "toggle"
             current = "write" if tool_mode == "write" else "read"
             return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": current}
-        return {"success": False, "error": f"unknown mode subcommand: {sub}"}
+        return {"success": False, "error": _t("shell.app_error.unknown_mode_subcommand", sub=sub)}
     return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": "read"}

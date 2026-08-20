@@ -53,7 +53,6 @@ KNOWN_GAPS = frozenset(
         "l1.kernel.tool_chain",
         # L2
         "l2.selector",
-        "l2.shell_session",
         # L3 agents
         "l3.agent.ai",
         "l3.agent.pal_router",

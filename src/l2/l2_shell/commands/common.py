@@ -59,9 +59,9 @@ def preconnect_enhanced(cell_id: str, agent_id: str, message: str = "") -> dict:
     if not basic.get("allowed"):
         return {"allowed": False, "checks": checks, "reason": basic.get("reason", "preconnect_failed")}
     try:
-        from l3.services.adapter_bridge import get_llm_engine
+        from l2.bridge import llm_engine
 
-        engine = get_llm_engine()
+        engine = llm_engine()
         provider_status = engine.provider_status() if hasattr(engine, "provider_status") else {}
         checks["llm_provider"] = provider_status
         if provider_status.get("status") == "error":
@@ -113,16 +113,16 @@ def resolve_scope(args: list[str]) -> tuple[str, str, list[str]]:
 
 def resolve_agents(scope: str, scope_id: str) -> list[str]:
     """Resolve the agent ids matching a scope (agent/cell/global)."""
-    from l3.agent_terminal import get_terminals
+    from l2.bridge import terminals
 
-    terms = get_terminals()
+    terms = terminals()
     if scope == "agent":
         return [scope_id] if scope_id in terms else []
     if scope == "cell":
         try:
-            from l3.cell import get_cell
+            from l2.bridge import cell as _get_cell
 
-            cell = get_cell(scope_id)
+            cell = _get_cell(scope_id)
             return list(cell._agents.keys()) if hasattr(cell, "_agents") else []
         except Exception:
             return []
@@ -149,7 +149,7 @@ def _pipeline(segments: list[str]) -> dict:
                 result = handler(args)
                 segment_results.append(result)
             except Exception as e:
-                return {"success": False, "error": f"pipeline step {i} '{cmd}' failed: {e}"}
+                return {"success": False, "error": _t("shell.app_error.pipeline_step_failed", step=i, cmd=cmd, error=e)}
         else:
-            return {"success": False, "error": f"pipeline step {i}: unknown command: {cmd}"}
+            return {"success": False, "error": _t("shell.app_error.pipeline_step_unknown_command", step=i, cmd=cmd)}
     return segment_results[-1] if segment_results else {"success": True, "output": ""}

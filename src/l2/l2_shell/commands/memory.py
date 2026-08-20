@@ -6,21 +6,21 @@ import logging
 from collections.abc import Callable
 
 from l1.kernel.params.agent import DEFAULT_CELL_ID
+from l2.bridge import capture
 from l2.i18n import t as _t
-from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)
 
 
-def _cmd_memory_filter(args: list[str]) -> dict:
+def _cmd_memory_filter(args: list[str], session=None) -> dict:
     """/memory filter [on|off] [fine|coarse] — memory domain-filter switches.
 
     Without args: report current switch state. ``on``/``off`` flips the
     master switch; ``fine``/``coarse`` flips the fine-grained switch.
     """
-    from l3.memory.memory_domain_filter import get_memory_filter
+    from l2.bridge import memory_filter
 
-    f = get_memory_filter()
+    f = memory_filter()
     if not args:
         return {"success": True, "filter": f.status()}
     enabled = None
@@ -42,7 +42,7 @@ def _cmd_memory_filter(args: list[str]) -> dict:
 
 def _memory_corpus(rest: list[str]) -> dict:
     """/memory corpus [limit] — export the correction corpus (global op)."""
-    from l3.memory.memory_record_source import export_corpus
+    from l2.bridge import export_corpus
 
     limit = int(rest[1]) if len(rest) >= 2 and str(rest[1]).isdigit() else 0
     return export_corpus(limit=limit)
@@ -50,7 +50,7 @@ def _memory_corpus(rest: list[str]) -> dict:
 
 def _memory_digest(rest: list[str]) -> dict:
     """/memory digest [on|off] [max_chars=N] — digest-cache switches (global op)."""
-    from l3.agent.digest_cache import digest_status, set_digest_switches
+    from l2.bridge import digest_status, set_digest_switches
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
@@ -63,7 +63,7 @@ def _memory_digest(rest: list[str]) -> dict:
 
 def _memory_tool_result(rest: list[str]) -> dict:
     """/memory tool-result [on|off] [max_chars=N] — tool-result offload switches (global op)."""
-    from l3.agent.tool_result_cache import set_tool_result_switches, tool_result_status
+    from l2.bridge import set_tool_result_switches, tool_result_status
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
@@ -76,7 +76,7 @@ def _memory_tool_result(rest: list[str]) -> dict:
 
 def _memory_compaction(rest: list[str]) -> dict:
     """/memory compaction [deterministic|llm-assisted|off] — hybrid extractor mode (global op)."""
-    from l3.memory.memory_extract import compaction_status, set_compaction_mode
+    from l2.bridge import compaction_status, set_compaction_mode
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("deterministic", "llm-assisted", "off"):
@@ -86,7 +86,7 @@ def _memory_compaction(rest: list[str]) -> dict:
 
 def _memory_premise_guard(rest: list[str]) -> dict:
     """/memory premise-guard [on|off] — post-compaction anchor audit (global op)."""
-    from l3.memory.premise_guard import premise_guard_status, set_premise_guard
+    from l2.bridge import premise_guard_status, set_premise_guard
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
@@ -96,7 +96,7 @@ def _memory_premise_guard(rest: list[str]) -> dict:
 
 def _memory_inject_dedup(rest: list[str]) -> dict:
     """/memory inject-dedup [on|off] — injection content dedup (global op)."""
-    from l3.memory.memory_context import inject_dedup_status, set_inject_dedup
+    from l2.bridge import inject_dedup_status, set_inject_dedup
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
@@ -106,7 +106,7 @@ def _memory_inject_dedup(rest: list[str]) -> dict:
 
 def _memory_context_audit(rest: list[str]) -> dict:
     """/memory context-audit [cell_id] — per-agent context pressure (global op)."""
-    from l3.agent.agent_loop import audit_cell_context
+    from l2.bridge import audit_cell_context
 
     cell_id = rest[1] if len(rest) >= 2 else ""
     return audit_cell_context(cell_id=cell_id)
@@ -130,12 +130,7 @@ def _memory_prompt_version(rest: list[str]) -> dict:
 
 def _memory_prompt_monitor(rest: list[str]) -> dict:
     """/memory prompt-monitor [on|off|stats|emit] — bypass monitor (global op)."""
-    from l3.agent.prompt_monitor import (
-        emit_prompt_metrics,
-        prompt_monitor_stats,
-        prompt_monitor_status,
-        set_prompt_monitor,
-    )
+    from l2.bridge import emit_prompt_metrics, prompt_monitor_stats, prompt_monitor_status, set_prompt_monitor
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     if sub in ("on", "off"):
@@ -149,11 +144,12 @@ def _memory_prompt_monitor(rest: list[str]) -> dict:
 
 def _memory_prompt_library(rest: list[str]) -> dict:
     """/memory prompt-library [on|off] [global=on|off] — shared prompt libraries (global op)."""
-    from l3.agent.global_prompt_library import (
+    from l2.bridge import (
         global_prompt_library_status,
+        prompt_library_status,
         set_global_prompt_library_switches,
+        set_prompt_library_switches,
     )
-    from l3.agent.prompt_library import prompt_library_status, set_prompt_library_switches
 
     cell = None
     glob = None
@@ -172,7 +168,7 @@ def _memory_prompt_library(rest: list[str]) -> dict:
 
 def _memory_sensitive(rest: list[str]) -> dict:
     """/memory sensitive [on|off] [action=report|redact|block] — sensitive-info switch (global op)."""
-    from l3.agent.sensitive_detect import sensitive_status, set_sensitive_switches
+    from l2.bridge import sensitive_status, set_sensitive_switches
 
     sub = rest[1].lower() if len(rest) >= 2 else ""
     enabled = None
@@ -189,7 +185,7 @@ def _memory_sensitive(rest: list[str]) -> dict:
 
 def _memory_compression_guard(rest: list[str]) -> dict:
     """/memory compression-guard [threshold=N] [breaker=on|off] — recursion guard (global op)."""
-    from l3.agent.compression_guard import guard_status, set_guard_switches
+    from l2.bridge import guard_status, set_guard_switches
 
     threshold = None
     breaker = None
@@ -223,7 +219,7 @@ def _memory_agent_op(op: str, agents: list, kwargs: dict) -> dict:
     """Run a per-agent memory op (search/stats) over the resolved agents."""
     for aid in agents:
         try:
-            from l3.memory.memory import get_memory
+            from l2.bridge import memory as get_memory
 
             mem = get_memory()
             if op == "search":
@@ -231,7 +227,7 @@ def _memory_agent_op(op: str, agents: list, kwargs: dict) -> dict:
             elif op == "stats":
                 r = mem.aggregate_stats(agent_id=aid)
             else:
-                return {"success": False, "error": f"unknown memory op: {op}"}
+                return {"success": False, "error": _t("shell.app_error.unknown_memory_op", op=op)}
             return {"success": True, "agent": aid, "data": r}
         except Exception as e:
             capture("memory: cmd failed", error_code="E_CMD", component="l2", context={"error": str(e)})
@@ -239,7 +235,7 @@ def _memory_agent_op(op: str, agents: list, kwargs: dict) -> dict:
     return {"success": True}
 
 
-def _cmd_memory(args: list[str]) -> dict:
+def _cmd_memory(args: list[str], session=None) -> dict:
     from .common import resolve_agents, resolve_scope
 
     scope, scope_id, rest = resolve_scope(args)
@@ -282,8 +278,8 @@ def _card_dispatch(sub: str, args: list[str], cr) -> dict:
     }
 
 
-def _cmd_card(args: list[str]) -> dict:
-    from l3.card.card_registry import get_registry
+def _cmd_card(args: list[str], session=None) -> dict:
+    from l2.bridge import card_registry as get_registry
 
     cr = get_registry()
     if not args:
@@ -291,8 +287,8 @@ def _cmd_card(args: list[str]) -> dict:
     return _card_dispatch(args[0].lower(), args, cr)
 
 
-def _cmd_plugins(args: list[str]) -> dict:
-    from l3.services.central_plugin import get_center
+def _cmd_plugins(args: list[str], session=None) -> dict:
+    from l2.bridge import plugin_center as get_center
 
     center = get_center()
     if args and args[0] == "stats":
@@ -300,9 +296,9 @@ def _cmd_plugins(args: list[str]) -> dict:
     return {"success": True, "plugins": center.list_plugins() if hasattr(center, "list_plugins") else []}
 
 
-def _cmd_spawn(args: list[str]) -> dict:
+def _cmd_spawn(args: list[str], session=None) -> dict:
     from l1.kernel.params.agent import CENTRAL_DEFAULT_ROLES
-    from l3.cell import get_cell
+    from l2.bridge import cell as get_cell
 
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_spawn")}
@@ -311,10 +307,10 @@ def _cmd_spawn(args: list[str]) -> dict:
     return cell.add_agent(name, role=role)
 
 
-def _cmd_kill(args: list[str]) -> dict:
+def _cmd_kill(args: list[str], session=None) -> dict:
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_kill")}
-    from l3.agent_terminal import get_terminals
+    from l2.bridge import terminals as get_terminals
 
     terms = get_terminals()
     if args[0] in terms:
@@ -322,37 +318,37 @@ def _cmd_kill(args: list[str]) -> dict:
     return {"success": True}
 
 
-def _cmd_destroy(args: list[str]) -> dict:
-    from l3.cell import reset_cells
+def _cmd_destroy(args: list[str], session=None) -> dict:
+    from l2.bridge import reset_cells
 
     reset_cells()
     return {"success": True, "message": _t("shell.render.cells_reset")}
 
 
-def _cmd_emergency(args: list[str]) -> dict:
-    from l3.cell import get_cell
+def _cmd_emergency(args: list[str], session=None) -> dict:
+    from l2.bridge import cell as get_cell
 
     cell = get_cell(DEFAULT_CELL_ID)
     return cell.emergency_stop()
 
 
-def _cmd_audit(args: list[str]) -> dict:
+def _cmd_audit(args: list[str], session=None) -> dict:
     from l1.kernel import get_audit_log
 
     limit = int(args[0]) if args and args[0].isdigit() else 20
     return {"success": True, "audit": get_audit_log(limit=limit)}
 
 
-def _cmd_cell_create(args: list[str]) -> dict:
-    from l3.cell import get_cell
+def _cmd_cell_create(args: list[str], session=None) -> dict:
+    from l2.bridge import cell as get_cell
 
     cell_id = args[0] if args else "cell-new"
     get_cell(cell_id, [args[1] if len(args) > 1 else "."])
     return {"success": True, "cell_id": cell_id}
 
 
-def _cmd_agent_restart(args: list[str]) -> dict:
-    from l3.cell import get_cell
+def _cmd_agent_restart(args: list[str], session=None) -> dict:
+    from l2.bridge import cell as get_cell
 
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_agent_restart")}
@@ -360,8 +356,8 @@ def _cmd_agent_restart(args: list[str]) -> dict:
     return cell.restart_agent(args[0])
 
 
-def _cmd_agent_refresh(args: list[str]) -> dict:
-    from l3.cell import get_cell
+def _cmd_agent_refresh(args: list[str], session=None) -> dict:
+    from l2.bridge import cell as get_cell
 
     cell = get_cell(DEFAULT_CELL_ID)
     if args:
@@ -369,7 +365,7 @@ def _cmd_agent_refresh(args: list[str]) -> dict:
     return {"success": False, "error": _t("shell.app_error.agent_id_required")}
 
 
-def _cmd_tokens(args: list[str]) -> dict:
+def _cmd_tokens(args: list[str], session=None) -> dict:
     from l1.kernel.allocator import get_allocator
 
     alloc = get_allocator()

@@ -130,6 +130,17 @@ class TestOutbox:
         assert [m["seq"] for m in box.unacked()] == [2, 3, 4]
         assert OUTBOX_MAXLEN >= 3
 
+    def test_ack_is_non_destructive_across_views(self) -> None:
+        """One view acking never erases messages another view must replay."""
+        box = Outbox()
+        box.append(make_message("s", 1, KIND_RESULT, {"success": True}))
+        box.append(make_message("s", 2, KIND_RESULT, {"success": True}))
+        box.ack(1)
+        # The advancing view sees only its future; a lagging view still
+        # replays the full window from its own cursor.
+        assert [m["seq"] for m in box.unacked()] == [2]
+        assert [m["seq"] for m in box.unacked(0)] == [1, 2]
+
 
 class TestSessionCursor:
     """Per-view attachment + acknowledged position."""
@@ -142,6 +153,14 @@ class TestSessionCursor:
         assert cur.attached and cur.session_id == "s-9"
         cur.detach()
         assert not cur.attached
+
+    def test_ack_advances_only_this_view(self) -> None:
+        """A view's ack position is independent of other views."""
+        cur = SessionCursor(view_id="view-a")
+        cur.ack(5)
+        assert cur.last_acked == 5
+        cur.ack(3)
+        assert cur.last_acked == 5
 
 
 class TestSchema:
@@ -215,6 +234,32 @@ class TestHost:
         assert out[0]["kind"] == KIND_RESULT
         assert out[0]["payload"]["success"] is False
 
+    def test_ack_advances_shared_outbox_watermark(self) -> None:
+        """Acknowledging through a view trims the shared session snapshot."""
+        host = ProtocolHost()
+        host.attach_view("s-ack", "s-ack")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-ack")
+        host._emit(KIND_EVENT, {"name": "e2"}, "s-ack")
+        assert len(host.session_state("s-ack")["events"]) == 2
+        host.handle_message(make_message("s-ack", 1, KIND_ACK, {"ack_seq": 2, "view_id": "s-ack"}))
+        # The default single-view transport acks through its session view.
+        assert host.session_state("s-ack")["events"] == []
+
+    def test_shared_watermark_tracks_lagging_view(self) -> None:
+        """One view acking never erases the window a lagging view needs."""
+        host = ProtocolHost()
+        host._get_session("s-mx")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-mx")
+        host._emit(KIND_EVENT, {"name": "e2"}, "s-mx")
+        host.attach_view("v-a", "s-mx")
+        host.attach_view("v-b", "s-mx")
+        # v-a acks both; v-b stays behind -> shared snapshot keeps both.
+        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-a"}))
+        assert len(host.session_state("s-mx")["events"]) == 2
+        # v-b catches up -> shared watermark advances and the snapshot trims.
+        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-b"}))
+        assert host.session_state("s-mx")["events"] == []
+
     def test_run_reads_jsonl_stream(self) -> None:
         """run() consumes stdin lines and writes JSONL responses."""
         host = ProtocolHost()
@@ -226,3 +271,15 @@ class TestHost:
         assert len(lines) == 2
         for line in lines:
             assert isinstance(json.loads(line), dict)
+
+    def test_handler_stdout_captured_into_rendered(self, capsys) -> None:
+        """Legacy handler prints are captured, keeping the JSONL stream clean."""
+        host = ProtocolHost()
+        out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "clear", "args": []}))
+        result = next(env for env in out if env["kind"] == KIND_RESULT)
+        assert result["payload"]["success"] is True
+        # The ANSI clear rendered by the handler lands in the payload, not stdout.
+        assert "\x1b[2J" in result["payload"]["rendered"]
+        assert capsys.readouterr().out == ""
+        # The enriched result still survives the canonical JSONL encode.
+        assert encode_message(result)

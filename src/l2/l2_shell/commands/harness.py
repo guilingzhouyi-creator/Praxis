@@ -9,9 +9,9 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_harness(args: list[str]) -> dict:
+def _cmd_harness(args: list[str], session=None) -> dict:
     """Show or switch the harness mode (governed / code / semi / minimal)."""
-    from l3.tool_system.harness import (
+    from l2.bridge import (
         harness_status,
         reset_harness_mode,
         set_harness_mode,
@@ -27,4 +27,4 @@ def _cmd_harness(args: list[str]) -> dict:
         return set_harness_mode(sub, confirmed=confirm, source="shell")
     if sub in ("--confirm", "-y"):
         return {"success": False, "error": _t("shell.app_error.usage_harness")}
-    return {"success": False, "error": f"unknown harness mode: {sub}"}
+    return {"success": False, "error": _t("shell.app_error.unknown_harness_mode", sub=sub)}

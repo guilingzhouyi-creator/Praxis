@@ -22,10 +22,10 @@ def _stats_summary() -> dict:
         bus_stats = get_event_bus().stats()
     except Exception:
         bus_stats = {}
-    from l3.services.stats_center import get_center as _sc
+    from l2.bridge import stats_center
 
     try:
-        summary = _sc().stats()
+        summary = stats_center().stats()
     except Exception:
         summary = {}
     return {"success": True, "event_bus": bus_stats, "metrics": summary}
@@ -33,28 +33,28 @@ def _stats_summary() -> dict:
 
 def _stats_timeline(args: list[str], window: str) -> dict:
     """Card end-to-end timeline (cell + agent breakdown)."""
-    from l3.card.card_registry import get_registry
+    from l2.bridge import card_registry
 
     limit = STATS_TIMELINE_LIMIT
     for a in args[1:]:
         if a.isdigit():
             limit = int(a)
             break
-    return {"success": True, **get_registry().execution_stats(limit=limit)}
+    return {"success": True, **card_registry().execution_stats(limit=limit)}
 
 
 def _stats_query(window: str, metrics: list[str] | None) -> dict:
     """Query StatsCenter aggregated metrics within a window (None = all)."""
-    from l3.services.stats_center import get_center as _sc
+    from l2.bridge import stats_center
 
-    return {"success": True, "metrics": _sc().query(metrics=metrics, window=window)}
+    return {"success": True, "metrics": stats_center().query(metrics=metrics, window=window)}
 
 
 def _stats_graph(args: list[str], window: str) -> dict:
     """Memory-graph overview: enabled/edge mode/stats/semantic edges/compact."""
-    from l3.memory.memory_graph import get_graph
+    from l2.bridge import memory_graph
 
-    g = get_graph()
+    g = memory_graph()
     return {
         "success": True,
         "graph": {
@@ -70,9 +70,13 @@ def _stats_graph(args: list[str], window: str) -> dict:
 def _stats_top(args: list[str], window: str) -> dict:
     """Cross-Cell ranking for a metric."""
     metric = args[1] if len(args) > 1 else "card.execution.total"
-    from l3.services.stats_center import get_center as _sc
+    from l2.bridge import stats_center
 
-    return {"success": True, "metric": metric, "ranking": _sc().top(metric, limit=STATS_TOP_LIMIT, window=window)}
+    return {
+        "success": True,
+        "metric": metric,
+        "ranking": stats_center().top(metric, limit=STATS_TOP_LIMIT, window=window),
+    }
 
 
 _STATS_METRIC_GROUPS: dict[str, list[str]] = {
@@ -92,7 +96,7 @@ _STATS_METRIC_GROUPS: dict[str, list[str]] = {
 }
 
 
-def _cmd_stats(args: list[str]) -> dict:
+def _cmd_stats(args: list[str], session=None) -> dict:
     """Query statistics: StatsCenter metrics, card execution timeline,
     side-execution timing, API request timing, reasoning token spend.
 

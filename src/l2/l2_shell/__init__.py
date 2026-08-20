@@ -14,7 +14,7 @@ import logging
 import shlex
 
 from l1.kernel import EVENT_TASK_ASSIGN, emit_signal
-from l1.kernel.commands import get_command, get_handler
+from l1.kernel.commands import get_handler
 from l1.kernel.commands import get_registry as _get_cmd_reg
 from l1.kernel.params.agent import SIGNAL_TARGET_L3
 
@@ -124,6 +124,16 @@ def _command_names() -> list[str]:
     return _COMMAND_NAMES_CACHE
 
 
+def _history_kind(text: str) -> str:
+    """Classify an input line for the session history (command/pipeline/intent)."""
+    stripped = text.lstrip()
+    if stripped.startswith("/"):
+        return "command"
+    if "|" in text:
+        return "pipeline"
+    return "intent"
+
+
 def dispatch(text: str, session: ShellSession | None = None) -> dict:
     """Route user input to the active shell mode.
 
@@ -137,28 +147,30 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
     the deprecated process-global shell state is used for backward
     compatibility.
     """
+    state = session if session is not None else get_state()
+    if text and text.strip():
+        state.record(text, _history_kind(text))
+
     if "|" in text:
         segments = [s.strip() for s in text.split("|")]
         if len(segments) >= 2:
             return _pipeline(segments)
 
-    state = session if session is not None else get_state()
-
     if text.startswith("/"):
         parts = shlex.split(text)
         cmd = parts[0][1:]
         args = parts[1:]
-        info = get_command(cmd)
-        if info:
-            handler = get_handler(cmd)
-            if handler:
-                return handler(args)
+        # Single authoritative handler lookup (a handler exists iff the
+        # command is registered); avoids a second registry lock+scan.
+        handler = get_handler(cmd)
+        if handler:
+            return handler(args, session=state)
         # Check aliases via reverse index (O(1) instead of O(n))
         resolved = _lookup_alias(cmd)
         if resolved:
             handler = get_handler(resolved)
             if handler:
-                return handler(args)
+                return handler(args, session=state)
         try:
             from l2.i18n import t as _t
 
@@ -181,9 +193,9 @@ def _direct_message(state: ShellState, text: str) -> dict:
     Passes the response through ``guard_output``.
     """
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         r = cell.send_direct_message(state.agent_id, text)
         if not r.get("success"):
             _auto_disconnect(state, r.get("error", "send_failed"))
@@ -208,9 +220,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
         return
     logger.warning("auto-disconnect from %s: %s", state.agent_id, reason)
     try:
-        from l3.cell import get_cell
+        from l2.bridge import cell as _get_cell
 
-        cell = get_cell(state.cell_id)
+        cell = _get_cell(state.cell_id)
         cell.close_direct_session(state.agent_id)
     except Exception:
         logger.warning("auto-disconnect: close_direct_session failed for %s", state.agent_id)
@@ -226,9 +238,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
 def _l3a_intent(text: str) -> dict:
     """Send a natural-language intent to the L3 coordinator for processing."""
     try:
-        from l3.cell.peers.l3 import get_coordinator
+        from l2.bridge import coordinator
 
-        coord = get_coordinator()
+        coord = coordinator()
         return coord.process_intent(text)
     except Exception as e:
         return {"success": False, "error": str(e)}

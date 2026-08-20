@@ -41,15 +41,15 @@ def _parse_operator_flags(args: list[str]) -> tuple[str, str, int]:
     return actor_id, role, ring
 
 
-def _cmd_debug_mode(args: list[str]) -> dict:
+def _cmd_debug_mode(args: list[str], session=None) -> dict:
     """Show or switch engineering debug mode (auto|on|off|reset)."""
-    from l3.tool_system.engineering_debug import get_engineering_debug
+    from l2.bridge import engineering_debug
 
     if not args or args[0].lower() in ("status", "show"):
-        return get_engineering_debug().status()
+        return engineering_debug().status()
     sub = args[0].lower()
     actor_id, role, ring = _parse_operator_flags(args[1:])
-    manager = get_engineering_debug()
+    manager = engineering_debug()
     if sub == "reset":
         return manager.reset_mode(actor_id=actor_id, role=role, ring=ring, source="shell")
     if sub not in ("auto", "on", "off"):

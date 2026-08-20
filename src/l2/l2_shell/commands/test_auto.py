@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 
+from l2.i18n import t as _t
+
 logger = logging.getLogger(__name__)
 
 
-def _cmd_test_auto(args: list[str]) -> dict:
+def _cmd_test_auto(args: list[str], session=None) -> dict:
     """Show or switch the AutoTestGate mode (off / async)."""
-    from l3.tool_system.auto_test import (
+    from l2.bridge import (
         auto_test_status,
         reset_auto_test,
         set_auto_test,
@@ -22,4 +24,4 @@ def _cmd_test_auto(args: list[str]) -> dict:
         return {"success": True, **reset_auto_test()}
     if sub in ("off", "async"):
         return set_auto_test(sub, source="shell")
-    return {"success": False, "error": f"unknown auto-test mode: {sub} (expected off|async|reset)"}
+    return {"success": False, "error": _t("shell.app_error.unknown_auto_test_mode", sub=sub)}

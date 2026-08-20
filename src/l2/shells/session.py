@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import threading
+import time
+from collections import deque
 
 from l1.kernel.params.agent import DEFAULT_CELL_ID
+from l1.kernel.params.system import SHELL_HISTORY_MAX_LIMIT
 
 
 class ShellSession:
@@ -24,6 +27,17 @@ class ShellSession:
         self.agent_id: str = ""
         self.session_id: str = session_id
         self._preconnect_cache: dict = {}
+        self._history: deque[dict] = deque(maxlen=SHELL_HISTORY_MAX_LIMIT)
+
+    def record(self, text: str, kind: str = "command") -> None:
+        """Append one input line to the bounded session history."""
+        with self._lock:
+            self._history.append({"ts": time.time(), "text": text, "kind": kind})
+
+    def history(self, limit: int) -> list[dict]:
+        """Return the most recent history entries in chronological order."""
+        with self._lock:
+            return list(self._history)[-limit:]
 
     def is_direct(self) -> bool:
         """Check if the session is in Direct (connected-to-agent) mode."""

@@ -6,13 +6,13 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from l2.bridge import capture
 from l2.i18n import t as _t
-from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)
 
 
-def _cmd_config(args: list[str]) -> dict:
+def _cmd_config(args: list[str], session=None) -> dict:
     from l1.kernel.settings import get_settings
 
     s = get_settings()
@@ -26,7 +26,7 @@ def _cmd_config(args: list[str]) -> dict:
     return {"success": True, args[0]: v}
 
 
-def _cmd_cron(args: list[str]) -> dict:
+def _cmd_cron(args: list[str], session=None) -> dict:
     from l4.cron_scheduler import get_scheduler
 
     s = get_scheduler()
@@ -62,7 +62,7 @@ _MODEL_HANDLERS: dict[str, Callable[[list[str]], dict]] = {
 }
 
 
-def _cmd_model(args: list[str]) -> dict:
+def _cmd_model(args: list[str], session=None) -> dict:
     if not args:
         return _model_list()
     handler = _MODEL_HANDLERS.get(args[0].lower())
@@ -86,18 +86,18 @@ def _model_spec_caps(args: list[str]) -> dict:
     return handle_think_caps_set(caps)
 
 
-def _cmd_model_spec(args: list[str]) -> dict:
+def _cmd_model_spec(args: list[str], session=None) -> dict:
     """Model-spec / strategy panel: view, switch packs, set caps."""
-    from l3.services.model_service import get_service as _ms
+    from l2.bridge import model_apply_strategy, model_clear_strategy
     from l4.api_handlers.api_handlers_providers import handle_model_spec_overview
 
     if not args:
         return handle_model_spec_overview({})
     sub = args[0].lower()
     if sub == "strategy" and len(args) >= 3:
-        return _ms().apply_strategy(args[1], args[2])
+        return model_apply_strategy(args[1], args[2])
     if sub == "clear" and len(args) >= 2:
-        return _ms().clear_strategy(args[1])
+        return model_clear_strategy(args[1])
     if sub == "caps":
         return _model_spec_caps(args)
     if sub == "peer":
@@ -108,30 +108,29 @@ def _cmd_model_spec(args: list[str]) -> dict:
     }
 
 
-def _cmd_model_spec_peer(args: list[str]) -> dict:
+def _cmd_model_spec_peer(args: list[str], session=None) -> dict:
     """Peer-agent think strategy: apply/clear strategy packs on think scopes."""
-    from l3.scheduler.think_registry import get_think_registry
+    from l2.bridge import think_apply_strategy, think_clear_strategy
     from l4.api_handlers.api_handlers_providers import handle_peer_strategy_get
 
-    reg = get_think_registry()
     if not args:
         return handle_peer_strategy_get({})
     sub = args[0].lower()
     if sub == "clear" and len(args) >= 3:
-        return reg.clear_strategy(args[1], args[2])
+        return think_clear_strategy(args[1], args[2])
     if sub in ("global", "cell", "agent") and len(args) >= 2:
         if sub == "global":
-            return reg.apply_strategy("global", "", args[1])
+            return think_apply_strategy("global", "", args[1])
         if len(args) >= 3:
-            return reg.apply_strategy(sub, args[1], args[2])
-        return {"success": False, "error": f"usage: /model spec peer {sub} <name> <pack>"}
+            return think_apply_strategy(sub, args[1], args[2])
+        return {"success": False, "error": _t("shell.app_error.usage_model_spec_peer_sub", sub=sub)}
     return {
         "success": False,
         "error": _t("shell.app_error.usage_model_spec_peer"),
     }
 
 
-def _cmd_settings(args: list[str]) -> dict:
+def _cmd_settings(args: list[str], session=None) -> dict:
     from .commands_settings import _cmd_settings as _cs
 
     return _cs(args)
@@ -155,14 +154,13 @@ def _coerce_str(v: str) -> Any:
 
 def _model_list() -> dict:
     from l1.kernel.params.agent import AGENT_ROLE_TYPES
-    from l3.services.model_service import get_service as _ms
+    from l2.bridge import model_resolve
 
-    ms = _ms()
     lines = [f"Providers ({len(AGENT_ROLE_TYPES)} registered):"]
     for role in AGENT_ROLE_TYPES:
         try:
-            cfg = ms.resolve(role)
-            lines.append(f"  {role:25s} → provider={cfg.provider:15s} model={cfg.model}")
+            cfg = model_resolve(role)
+            lines.append(f"  {role:25s} → provider={cfg['provider']:15s} model={cfg['model']}")
         except Exception:
             capture("model: resolve failed", error_code="E_CMD", component="l2", context={"role": role})
             lines.append(f"  {role:25s} → (error)")
@@ -171,15 +169,14 @@ def _model_list() -> dict:
 
 def _model_switch(role: str, provider: str, model: str = "") -> dict:
     from l1.kernel.params.agent import AGENT_CLEARANCE
-    from l3.config.settings_center import get_center
+    from l2.bridge import settings_set
 
     if role not in AGENT_CLEARANCE:
-        return {"success": False, "error": f"unknown role: {role}"}
-    center = get_center()
+        return {"success": False, "error": _t("shell.app_error.unknown_role", role=role)}
     prefix = f"model.{role}"
-    center.set(f"{prefix}.provider", provider)
+    settings_set(f"{prefix}.provider", provider)
     if model:
-        center.set(f"{prefix}.model", model)
+        settings_set(f"{prefix}.model", model)
     try:
         from l1.kernel import get_event_bus
 
@@ -195,9 +192,8 @@ def _model_status() -> dict:
 
 
 def _model_health(provider: str = "") -> dict:
-    from l3.services.model_service import get_service as _ms
+    from l2.bridge import model_providers
 
-    ms = _ms()
     try:
         from l4.llm.llm import get_engine
 
@@ -206,13 +202,12 @@ def _model_health(provider: str = "") -> dict:
             return engine._provider.health()
     except Exception:
         capture("model: health check failed", error_code="E_CMD", component="l2")
-    return {"success": True, "providers": ms.list_providers()}
+    return {"success": True, "providers": model_providers()}
 
 
 def _model_set(role: str, key: str, value: str) -> dict:
-    from l3.config.settings_center import get_center
+    from l2.bridge import settings_set
 
     prefix = f"model.{role}"
-    center = get_center()
-    center.set(f"{prefix}.{key}", _coerce_str(value))
+    settings_set(f"{prefix}.{key}", _coerce_str(value))
     return {"success": True, f"{prefix}.{key}": value}
