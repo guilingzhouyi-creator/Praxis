@@ -123,12 +123,12 @@ def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bo
     if not _is_allowed_key(full_key):
         return {
             "success": False,
-            "error": f"key not writable: {full_key}",
+            "error": _t("shell.app_error.key_not_writable", full_key=full_key),
             "allowed": sorted(CI_SETTING_SUFFIXES),
         }
     if _is_control_key(full_key):
         if not admin:
-            return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
+            return {"success": False, "error": _t("shell.app_error.admin_confirmation_required", full_key=full_key)}
     elif not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     value = _parse_value(" ".join(rest[2:]))
@@ -180,8 +180,8 @@ def _cmd_ci(args: list[str], session=None) -> dict:
         if not handler:
             return {
                 "success": False,
-                "error": f"unknown ci subcommand: {rest[0].lower()} (expected config|set|toggle|rerun|list|show)",
+                "error": _t("shell.app_error.unknown_ci_subcommand", sub=rest[0].lower()),
             }
         return handler(svc, center, rest, cell_id, agent_id, admin)
     except Exception as e:
-        return {"success": False, "error": f"[E_CI_REVIEW_CMD] {e}"}
+        return {"success": False, "error": _t("shell.app_error.ci_review_error", error=e)}

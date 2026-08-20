@@ -115,7 +115,7 @@ def _skills_get(sm, rest: list[str]) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_get")}
     skill = sm.get(name)
     if not skill:
-        return {"success": False, "error": f"skill '{name}' not found"}
+        return {"success": False, "error": _t("shell.app_error.skill_not_found", name=name)}
     return {"success": True, "skill": skill}
 
 
@@ -148,7 +148,7 @@ def _skills_distill(sm, rest: list[str]) -> dict:
         return sm.set_distill_policy(sub={field: flag}, source="shell")
     return {
         "success": False,
-        "error": f"unknown distill action: {action}",
+        "error": _t("shell.app_error.unknown_action", domain="distill", action=action),
         "suggestions": ["status", "set <distill|dpo_signal|generalize|llm_distill|clustering|sampling> <on|off>"],
     }
 
@@ -163,7 +163,7 @@ def _candidate_policy(sm, store, rest: list[str], role: str, agent_id: str) -> d
         return {"success": False, "error": _t("shell.app_error.usage_skills_candidates_policy")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     return store.set_enabled(value in ("on", "true", "1"))
 
 
@@ -175,7 +175,7 @@ def _candidate_transition(sm, store, action: str, rest: list[str], role: str, ag
         return {"success": False, "error": _t("shell.app_error.usage_skills_candidates")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     transitions = {
         "validate": lambda: store.validate(candidate_id),
         "publish": lambda: store.publish(candidate_id, " ".join(rest[3:])),
@@ -217,7 +217,7 @@ def _skills_retriever(sm, rest: list[str]) -> dict:
         return set_backend(backend)
     return {
         "success": False,
-        "error": f"unknown retriever action: {action}",
+        "error": _t("shell.app_error.unknown_action", domain="retriever", action=action),
         "suggestions": ["status", "set <tfidf|embedding>"],
     }
 
@@ -239,7 +239,7 @@ def _skills_pipeline_set(sm, rest: list[str]) -> dict:
         return sm.set_pipeline_policy(**{field: fv}, source="shell")
     return {
         "success": False,
-        "error": f"invalid pipeline field/value: {field} {value}",
+        "error": _t("shell.app_error.invalid_field_value", domain="pipeline", field=field, value=value),
         "suggestions": [
             "status",
             "set <retrieval|curation> <on|off>",
@@ -257,7 +257,7 @@ def _skills_pipeline(sm, rest: list[str]) -> dict:
         return _skills_pipeline_set(sm, rest)
     return {
         "success": False,
-        "error": f"unknown pipeline action: {action}",
+        "error": _t("shell.app_error.unknown_action", domain="pipeline", action=action),
         "suggestions": ["status", "set <field> <value>"],
     }
 
@@ -284,7 +284,7 @@ def _skills_disclosure(sm, rest: list[str]) -> dict:
             return sm.set_disclosure_policy(full_index_limit=int(value), source="shell")
         return {
             "success": False,
-            "error": f"invalid disclosure field/value: {field} {value}",
+            "error": _t("shell.app_error.invalid_field_value", domain="disclosure", field=field, value=value),
             "suggestions": [
                 "status",
                 "set <full_index_enabled|audience_filter_enabled|strategy_capability_view> <on|off>",
@@ -293,7 +293,7 @@ def _skills_disclosure(sm, rest: list[str]) -> dict:
         }
     return {
         "success": False,
-        "error": f"unknown disclosure action: {action}",
+        "error": _t("shell.app_error.unknown_action", domain="disclosure", action=action),
         "suggestions": ["status", "set <field> <value>"],
     }
 
@@ -308,7 +308,7 @@ def _skills_guidance(sm, rest: list[str]) -> dict:
         return sm.set_guidance_policy(mode=mode, source="shell")
     return {
         "success": False,
-        "error": f"unknown guidance action: {action}",
+        "error": _t("shell.app_error.unknown_action", domain="guidance", action=action),
         "suggestions": ["status", "set <small|full>"],
     }
 
@@ -322,13 +322,13 @@ def _skills_evolve(sm, rest: list[str], role: str, agent_id: str) -> dict:
     # like create/update/delete/reload (see authorize_write in SkillManager).
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     try:
         from l3.memory.r4_agent import get_r4_agent
 
         return get_r4_agent().evolve_skill(intent)
     except Exception as e:
-        return {"success": False, "error": f"evolve failed: {e}"}
+        return {"success": False, "error": _t("shell.app_error.evolve_failed", error=e)}
 
 
 def _skills_create(sm, rest: list[str], role: str, agent_id: str) -> dict:
@@ -345,7 +345,7 @@ def _skills_update(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_update")}
     name, field, value = rest[1], rest[2], rest[3]
     if field not in ("description", "prompt", "rules"):
-        return {"success": False, "error": f"unsupported field: {field}"}
+        return {"success": False, "error": _t("shell.app_error.unsupported_field", field=field)}
     data: dict[str, object] = {"rules": [r for r in value.split(";") if r]} if field == "rules" else {field: value}
     return sm.update(name, data, agent_id=agent_id, role=role)
 
@@ -427,7 +427,7 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
     name, desc, prompt, scope, scope_identity, priority, tags, tools = parsed
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     try:
         from l3.memory.r4_agent import get_r4_agent
 
@@ -492,7 +492,7 @@ def _skills_enable(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_enable")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     data = {"status": "active"}
     updated = sm.update(name, data, agent_id=agent_id, role=role)
     if not updated.get("success"):
@@ -507,7 +507,7 @@ def _skills_disable(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_disable")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     data = {"status": "retired"}
     updated = sm.update(name, data, agent_id=agent_id, role=role)
     if not updated.get("success"):
@@ -528,10 +528,10 @@ def _skills_update_speed(sm, rest: list[str], role: str, agent_id: str) -> dict:
         elif flag in ("off", "disable"):
             enabled = False
         else:
-            return {"success": False, "error": f"usage: /skills update-speed <fast|slow> [on|off], got {flag!r}"}
+            return {"success": False, "error": _t("shell.app_error.usage_update_speed_flag", flag=flag)}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     return sm.set_update_policy(update_speed=speed, enabled=enabled, source="shell")
 
 
@@ -539,7 +539,7 @@ def _skills_reload(sm, rest: list[str], role: str, agent_id: str) -> dict:
     """Reload builtin skills (developer-only)."""
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": f"permission denied: {who}"}
+        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
     count = sm.load_builtin()
     return {"success": True, "loaded": count, "authorized": who}
 
@@ -609,7 +609,7 @@ def _cmd_skills(args: list[str], session=None) -> dict:
     if not handler:
         return {
             "success": False,
-            "error": f"unknown skills subcommand: {sub}",
+            "error": _t("shell.app_error.unknown_skills_subcommand", sub=sub),
             "suggestions": ["list", "get", "create", "update", "delete", "reload", "permissions"],
         }
     return handler(sm, rest, role, agent_id)
@@ -683,7 +683,7 @@ def _cmd_tools(args: list[str], session=None) -> dict:
     if agent_id:
         term = terms.get(agent_id)
         if not term:
-            return {"success": False, "error": f"unknown agent: {agent_id}"}
+            return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
         tools = term.list_tools()
         return {"success": True, "tools": tools, "agent": agent_id}
     return {"terminals": list(terms.keys())}
@@ -698,7 +698,7 @@ def _cmd_help(args: list[str], session=None) -> dict:
         cmd_name = args[0].lower().lstrip("/")
         cmd = get_command(cmd_name)
         if not cmd:
-            return {"success": False, "error": f"unknown command: {cmd_name}"}
+            return {"success": False, "error": _t("shell.app_error.unknown_command", cmd_name=cmd_name)}
         lines = [f"/{cmd_name}  — {cmd.get('help', '')}"]
         if cmd.get("aliases"):
             lines.append(f"  aliases: {', '.join('/' + a for a in cmd['aliases'])}")

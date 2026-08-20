@@ -89,7 +89,7 @@ def _settings_cell(cell_id: str, args: list[str]) -> dict:
     slot = acb.get_slot(cell_id)
     if slot:
         return {"success": True, "scope": "cell", "cell_id": cell_id, "slots": slot}
-    return {"success": False, "error": f"cell '{cell_id}' not found in ACB"}
+    return {"success": False, "error": _t("shell.app_error.cell_not_found_acb", cell_id=cell_id)}
 
 
 def _settings_agent(agent_id: str, args: list[str]) -> dict:
@@ -105,7 +105,7 @@ def _settings_agent(agent_id: str, args: list[str]) -> dict:
     slot = acb.get_slot(agent_id)
     if slot:
         return {"success": True, "scope": "agent", "agent_id": agent_id, "slots": slot}
-    return {"success": False, "error": f"agent '{agent_id}' not found in ACB"}
+    return {"success": False, "error": _t("shell.app_error.agent_not_found_acb", agent_id=agent_id)}
 
 
 def _settings_pool(pool_type: str, args: list[str]) -> dict:

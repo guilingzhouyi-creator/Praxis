@@ -231,7 +231,7 @@ def _memory_agent_op(op: str, agents: list, kwargs: dict) -> dict:
             elif op == "stats":
                 r = mem.aggregate_stats(agent_id=aid)
             else:
-                return {"success": False, "error": f"unknown memory op: {op}"}
+                return {"success": False, "error": _t("shell.app_error.unknown_memory_op", op=op)}
             return {"success": True, "agent": aid, "data": r}
         except Exception as e:
             capture("memory: cmd failed", error_code="E_CMD", component="l2", context={"error": str(e)})

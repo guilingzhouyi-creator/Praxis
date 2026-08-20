@@ -124,7 +124,7 @@ def _cmd_model_spec_peer(args: list[str], session=None) -> dict:
             return reg.apply_strategy("global", "", args[1])
         if len(args) >= 3:
             return reg.apply_strategy(sub, args[1], args[2])
-        return {"success": False, "error": f"usage: /model spec peer {sub} <name> <pack>"}
+        return {"success": False, "error": _t("shell.app_error.usage_model_spec_peer_sub", sub=sub)}
     return {
         "success": False,
         "error": _t("shell.app_error.usage_model_spec_peer"),
@@ -174,7 +174,7 @@ def _model_switch(role: str, provider: str, model: str = "") -> dict:
     from l3.config.settings_center import get_center
 
     if role not in AGENT_CLEARANCE:
-        return {"success": False, "error": f"unknown role: {role}"}
+        return {"success": False, "error": _t("shell.app_error.unknown_role", role=role)}
     center = get_center()
     prefix = f"model.{role}"
     center.set(f"{prefix}.provider", provider)

@@ -149,7 +149,7 @@ def _pipeline(segments: list[str]) -> dict:
                 result = handler(args)
                 segment_results.append(result)
             except Exception as e:
-                return {"success": False, "error": f"pipeline step {i} '{cmd}' failed: {e}"}
+                return {"success": False, "error": _t("shell.app_error.pipeline_step_failed", step=i, cmd=cmd, error=e)}
         else:
-            return {"success": False, "error": f"pipeline step {i}: unknown command: {cmd}"}
+            return {"success": False, "error": _t("shell.app_error.pipeline_step_unknown_command", step=i, cmd=cmd)}
     return segment_results[-1] if segment_results else {"success": True, "output": ""}

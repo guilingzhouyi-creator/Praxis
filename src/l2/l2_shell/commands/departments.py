@@ -56,7 +56,12 @@ def _cmd_departments(args: list[str], session=None) -> dict:
         return _dept_define(mgr, args)
     if sub == "monitor":
         return _dept_monitor(args)
-    return {"success": False, "error": f"unknown subcommand: {sub} (status|route|enable|disable|define|monitor)"}
+    return {
+        "success": False,
+        "error": _t(
+            "shell.app_error.unknown_subcommand_hint", sub=sub, hint="status|route|enable|disable|define|monitor"
+        ),
+    }
 
 
 def _dept_monitor(args: list[str]) -> dict:
@@ -77,7 +82,10 @@ def _dept_monitor(args: list[str]) -> dict:
         return {"success": True, "monitor": status()}
     if sub == "status":
         return {"success": True, "monitor": status()}
-    return {"success": False, "error": f"unknown monitor subcommand: {sub} (status|enable|disable|reset)"}
+    return {
+        "success": False,
+        "error": _t("shell.app_error.unknown_monitor_subcommand", sub=sub, hint="status|enable|disable|reset"),
+    }
 
 
 def _dept_define(mgr: DepartmentManager, args: list[str]) -> dict:
@@ -91,7 +99,7 @@ def _dept_define(mgr: DepartmentManager, args: list[str]) -> dict:
     dept_id = args[1]
     dept = mgr._departments.get(dept_id)  # manager-internal view (read path)
     if dept is None:
-        return {"success": False, "error": f"unknown department: {dept_id}"}
+        return {"success": False, "error": _t("shell.app_error.unknown_department", dept_id=dept_id)}
     rest = args[2:]
     text = ""
     if "--text" in rest:

@@ -20,7 +20,7 @@ def _cmd_help(args: list[str], session=None) -> dict:
             cmd_name = args[0].lower().lstrip("/")
             cmd = get_command(cmd_name)
             if not cmd:
-                return {"success": False, "error": f"unknown command: {cmd_name}"}
+                return {"success": False, "error": _t("shell.app_error.unknown_command", cmd_name=cmd_name)}
             lines = [f"/{cmd_name}  — {cmd.get('help', '')}"]
             if cmd.get("aliases"):
                 lines.append(f"  aliases: {', '.join('/' + a for a in cmd['aliases'])}")
@@ -84,7 +84,7 @@ def _cmd_connect(args: list[str], session=None) -> dict:
     agent_id = args[0]
     terms = get_terminals()
     if agent_id not in terms:
-        return {"success": False, "error": f"unknown agent: {agent_id}"}
+        return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
     state = session if session is not None else get_state()
     cell_id = DEFAULT_CELL_ID
     try:
@@ -130,5 +130,5 @@ def _cmd_mode(args: list[str], session=None) -> dict:
             tool_mode = args[1].lower() if len(args) > 1 else "toggle"
             current = "write" if tool_mode == "write" else "read"
             return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": current}
-        return {"success": False, "error": f"unknown mode subcommand: {sub}"}
+        return {"success": False, "error": _t("shell.app_error.unknown_mode_subcommand", sub=sub)}
     return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": "read"}

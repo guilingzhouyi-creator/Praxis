@@ -271,7 +271,7 @@ def _select_by_id(agent_id: str) -> dict:
                 context={"cell_id": cell_id, "agent_id": agent_id},
             )
             continue
-    return {"success": False, "error": f"agent {agent_id} not found or unreachable"}
+    return {"success": False, "error": _t("shell.app_error.agent_unreachable", agent_id=agent_id)}
 
 
 def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
@@ -288,7 +288,7 @@ def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
         capture(
             "select_by_role failed", error_code="E_SELECT", component="l2", context={"cell_id": cell_id, "role": role}
         )
-    return {"success": False, "error": f"no agent with role {role} in {cell_id}"}
+    return {"success": False, "error": _t("shell.app_error.no_agent_with_role", role=role, cell_id=cell_id)}
 
 
 def _select_best(role: str, domain: str) -> dict:

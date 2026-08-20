@@ -29,8 +29,11 @@ def _cmd_l3ac(args: list[str], session=None) -> dict:
         kind = args[1]
         raw = args[2].lower()
         if raw not in ("true", "yes", "1", "false", "no", "0"):
-            return {"success": False, "error": f"invalid boolean: {args[2]} (true|false)"}
+            return {"success": False, "error": _t("shell.app_error.invalid_boolean", value=args[2])}
         ok = raw in ("true", "yes", "1")
         card_id = args[4] if len(args) > 4 and args[3] == "--card" else ""
         return sec.contribute(kind, success=ok, card_id=card_id)
-    return {"success": False, "error": f"unknown subcommand: {sub} (status|contribute|reset)"}
+    return {
+        "success": False,
+        "error": _t("shell.app_error.unknown_subcommand_hint", sub=sub, hint="status|contribute|reset"),
+    }

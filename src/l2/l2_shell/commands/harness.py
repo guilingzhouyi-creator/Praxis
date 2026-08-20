@@ -27,4 +27,4 @@ def _cmd_harness(args: list[str], session=None) -> dict:
         return set_harness_mode(sub, confirmed=confirm, source="shell")
     if sub in ("--confirm", "-y"):
         return {"success": False, "error": _t("shell.app_error.usage_harness")}
-    return {"success": False, "error": f"unknown harness mode: {sub}"}
+    return {"success": False, "error": _t("shell.app_error.unknown_harness_mode", sub=sub)}
