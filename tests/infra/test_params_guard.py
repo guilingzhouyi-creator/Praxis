@@ -62,7 +62,7 @@ BASELINE_DEAD_ORPHANS: frozenset[str] = frozenset(
         "SESSION_COMPRESSION_THRESHOLD",
         # allocator.py (1)
         "ALLOCATOR_ALLOCATE_AMOUNT",
-        # api.py (12)
+        # api.py (13)
         "ANTHROPIC_API_VERSION",
         "CHANNEL_RING_GET_TIMEOUT",
         "CHANNEL_RING_PUT_TIMEOUT",
@@ -75,6 +75,7 @@ BASELINE_DEAD_ORPHANS: frozenset[str] = frozenset(
         "LLM_RATE_LIMIT_DEFAULT",
         "PAL_DEFAULT_TIER",
         "SEARCH_MAX_WORKERS",
+        "SHELL_READ_CHUNK_SIZE",
         # kernel.py (12)
         "CADENCE_MAX_ATTEMPTS",
         "CADENCE_MAX_STEPS",
@@ -90,8 +91,9 @@ BASELINE_DEAD_ORPHANS: frozenset[str] = frozenset(
         "SWAPPER_RECALL_LIMIT",
         # sync.py (1)
         "MUTEX_POLL_INTERVAL",
-        # system.py (32)
+        # system.py (33)
         "BOOT_VFS_TEMP_PATH",
+        "BUFFER_MAX",
         "CARD_QUEUE_CELL_MAX",
         "CELL_EVENTS_LIMIT",
         "CI_PIPELINE_CACHE_TTL",

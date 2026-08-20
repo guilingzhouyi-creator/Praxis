@@ -18,9 +18,9 @@ def _cmd_memory_filter(args: list[str], session=None) -> dict:
     Without args: report current switch state. ``on``/``off`` flips the
     master switch; ``fine``/``coarse`` flips the fine-grained switch.
     """
-    from l2.bridge import get_memory_filter
+    from l2.bridge import memory_filter
 
-    f = get_memory_filter()
+    f = memory_filter()
     if not args:
         return {"success": True, "filter": f.status()}
     enabled = None
