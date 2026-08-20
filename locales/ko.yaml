@@ -104,6 +104,7 @@ shell:
     usage_skills_delete: "사용법: /skills delete <name> [--role <role>]"
     usage_skills_candidates: "사용법: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "사용법: /skills candidates policy <on|off>"
+    usage_skills_update_speed: "사용법: /skills update-speed <fast|slow> [on|off]"
     r4_candidate_ledger_unavailable: "R4 후보 원장을 사용할 수 없습니다: 먼저 런타임을 부팅하세요"
     usage_session_reload: "사용법: /session reload <agent_id> [reason=...]"
     usage_session_resume: "사용법: /session resume <session_id> [page=N]"

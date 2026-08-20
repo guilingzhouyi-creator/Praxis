@@ -104,6 +104,7 @@ shell:
     usage_skills_delete: "使い方: /skills delete <name> [--role <role>]"
     usage_skills_candidates: "使い方: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "使い方: /skills candidates policy <on|off>"
+    usage_skills_update_speed: "使い方: /skills update-speed <fast|slow> [on|off]"
     r4_candidate_ledger_unavailable: "R4 候補台帳を利用できません: 先にランタイムを起動してください"
     usage_session_reload: "使い方: /session reload <agent_id> [reason=...]"
     usage_session_resume: "使い方: /session resume <session_id> [page=N]"

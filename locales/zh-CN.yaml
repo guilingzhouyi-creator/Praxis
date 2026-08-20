@@ -100,6 +100,7 @@ shell:
     usage_skills_delete: "用法: /skills delete <name> [--role <role>]"
     usage_skills_candidates: "用法: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "用法: /skills candidates policy <on|off>"
+    usage_skills_update_speed: "用法: /skills update-speed <fast|slow> [on|off]"
     r4_candidate_ledger_unavailable: "R4 候选账本不可用: 请先启动运行时"
     usage_session_reload: "用法: /session reload <agent_id> [reason=...]"
     usage_session_resume: "用法: /session resume <session_id> [page=N]"

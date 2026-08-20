@@ -104,6 +104,7 @@ shell:
     usage_skills_delete: "usage: /skills delete <name> [--role <role>]"
     usage_skills_candidates: "usage: /skills candidates <list|validate|publish|activate|retire|policy>"
     usage_skills_candidates_policy: "usage: /skills candidates policy <on|off>"
+    usage_skills_update_speed: "usage: /skills update-speed <fast|slow> [on|off]"
     r4_candidate_ledger_unavailable: "R4 candidate ledger unavailable: boot the runtime first"
     usage_session_reload: "usage: /session reload <agent_id> [reason=...]"
     usage_session_resume: "usage: /session resume <session_id> [page=N]"

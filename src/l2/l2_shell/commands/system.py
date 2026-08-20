@@ -518,7 +518,7 @@ def _skills_disable(sm, rest: list[str], role: str, agent_id: str) -> dict:
 def _skills_update_speed(sm, rest: list[str], role: str, agent_id: str) -> dict:
     """Adjust the R4Agent skill-update cadence (fast|slow, on|off)."""
     if len(rest) < 2:
-        return {"success": False, "error": "usage: /skills update-speed <fast|slow> [on|off]"}
+        return {"success": False, "error": _t("shell.app_error.usage_skills_update_speed")}
     speed = rest[1]
     enabled: bool | None = None
     if len(rest) > 2:
