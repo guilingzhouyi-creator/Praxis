@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import shlex
 import sys
-from typing import TextIO
+from typing import Any, TextIO
 
 from l2.protocol.envelope import (
     CONTROL_ACK,
@@ -29,6 +29,7 @@ from l2.protocol.envelope import (
     decode_message,
     encode_message,
     make_message,
+    validate_message,
 )
 
 
@@ -81,6 +82,13 @@ class ProtocolHost:
         msg, err = decode_message(line)
         if err is not None:
             return [self._emit(KIND_RESULT, {"success": False, "error": err}, "-")]
+        return self.handle_message(msg)
+
+    def handle_message(self, msg: dict[str, Any]) -> list[dict]:
+        """Handle one decoded envelope dict; shared by stdio and web modes."""
+        violations = validate_message(msg)
+        if violations:
+            return [self._emit(KIND_RESULT, {"success": False, "error": "; ".join(violations)}, "-")]
         session_id = msg["session_id"]
         trace_id = msg.get("trace_id", "")
         kind = msg["kind"]
@@ -171,6 +179,23 @@ def main() -> int:
     """Run the stdio host (python -m l2.protocol.host)."""
     host = ProtocolHost()
     return host.run(sys.stdin, sys.stdout)
+
+
+_HOST: ProtocolHost | None = None
+
+
+def get_protocol_host() -> ProtocolHost:
+    """Return the process-wide protocol host (web mode shares its session pool)."""
+    global _HOST
+    if _HOST is None:
+        _HOST = ProtocolHost()
+    return _HOST
+
+
+def reset_protocol_host() -> None:
+    """Reset the shared host for tests or a controlled restart."""
+    global _HOST
+    _HOST = None
 
 
 if __name__ == "__main__":

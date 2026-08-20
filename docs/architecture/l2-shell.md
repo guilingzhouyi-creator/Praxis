@@ -94,7 +94,9 @@ invisible to `dispatch` and every shell dialect.
 - Event emission: shell state changes / human corrections
   (`reference_channel.human_correction` — a profile collector source)
 - HTTP contract (language-agnostic, see `l5-user.md`):
-  - `POST /api/v2/shell` → `dispatch(text, session)` (one input line)
+  - `POST /api/v2/shell` → `dispatch(text, session)` (one input line; a
+    protocol v1 envelope body is routed through the shared `ProtocolHost`
+    and answered with `{"envelopes": [...]}` since 2026-08-20)
   - `GET  /api/v2/shell/autocomplete` → partial-line suggestions
   - `GET  /api/v2/shell/commands` → command registry list (category filter)
   Handlers live in `l4/api_handlers/api_handlers_agent.py`; wired by
