@@ -73,3 +73,27 @@ def test_attach_emits_session_identity_snapshot():
     # The SessionIdentity wire record is fully present (TS-mirrored shape).
     for field in ("terminal_id", "process_id", "user_id", "role", "cell_id", "memory_scope"):
         assert field in identity
+
+
+def test_multiple_views_share_session_with_independent_cursors():
+    reset_protocol_host()
+    host = get_protocol_host()
+    # Two frontends (e.g. web + TUI) attach to the same session.
+    _shell_dispatch(
+        make_message("s-multi", 1, KIND_CONTROL, {"op": "attach", "session_id": "s-multi", "view_id": "view-a"})
+    )
+    _shell_dispatch(
+        make_message("s-multi", 2, KIND_CONTROL, {"op": "attach", "session_id": "s-multi", "view_id": "view-b"})
+    )
+    assert host.view_cursor("view-a")["session_id"] == "s-multi"
+    assert host.view_cursor("view-b")["session_id"] == "s-multi"
+    assert host.view_cursor("view-a")["attached"] is True
+    assert len(host._sessions) == 1  # one shared runtime session
+    # Detaching one view leaves the other attached.
+    _shell_dispatch(
+        make_message("s-multi", 3, KIND_CONTROL, {"op": "detach", "session_id": "s-multi", "view_id": "view-a"})
+    )
+    assert host.view_cursor("view-a")["attached"] is False
+    assert host.view_cursor("view-b")["attached"] is True
+    # A single-view transport (no view_id) defaults to the session id.
+    assert host.view_cursor("s-multi") is None

@@ -27,6 +27,7 @@ from l2.protocol.envelope import (
     KIND_INTENT,
     KIND_RESULT,
     Outbox,
+    SessionCursor,
     decode_message,
     encode_message,
     make_message,
@@ -51,6 +52,7 @@ class ProtocolHost:
     def __init__(self) -> None:
         self._sessions: dict[str, object] = {}
         self._identities: dict[str, SessionIdentity] = {}
+        self._cursors: dict[str, SessionCursor] = {}
         self._outboxes: dict[str, Outbox] = {}
         self._seqs: dict[str, int] = {}
 
@@ -95,6 +97,35 @@ class ProtocolHost:
         """
         self._get_session(session_id)
         return dataclasses.asdict(self._identities[session_id])
+
+    def attach_view(self, view_id: str, session_id: str) -> dict[str, Any]:
+        """Bind one frontend view to a session; returns the identity snapshot.
+
+        Multiple views (web, TUI, desktop, SSH, IDE) may attach to the same
+        session; each view keeps its own ack cursor while the session outbox
+        is shared. ``view_id`` defaults to the session id for single-view
+        transports.
+        """
+        self._get_session(session_id)
+        cursor = self._cursors.get(view_id)
+        if cursor is None:
+            cursor = SessionCursor(view_id=view_id)
+            self._cursors[view_id] = cursor
+        cursor.attach(session_id)
+        return self.session_identity(session_id)
+
+    def detach_view(self, view_id: str) -> None:
+        """Unbind a frontend view from its session."""
+        cursor = self._cursors.get(view_id)
+        if cursor is not None:
+            cursor.detach()
+
+    def view_cursor(self, view_id: str) -> dict[str, Any] | None:
+        """Return the per-view cursor snapshot (attachment + ack position)."""
+        cursor = self._cursors.get(view_id)
+        if cursor is None:
+            return None
+        return dataclasses.asdict(cursor)
 
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
@@ -149,13 +180,18 @@ class ProtocolHost:
         """Process control envelopes (attach/detach/resume/recovery)."""
         op = str(payload.get("op", ""))
         target = str(payload.get("session_id", session_id))
+        view_id = str(payload.get("view_id", target))
         if op == CONTROL_ATTACH:
-            identity = self.session_identity(target)
+            identity = self.attach_view(view_id, target)
             return [self._emit(KIND_EVENT, {"name": "session.attached", "data": identity}, session_id, trace_id)]
         if op == CONTROL_DETACH:
+            self.detach_view(view_id)
             return [
                 self._emit(
-                    KIND_EVENT, {"name": "session.detached", "data": {"session_id": target}}, session_id, trace_id
+                    KIND_EVENT,
+                    {"name": "session.detached", "data": {"session_id": target, "view_id": view_id}},
+                    session_id,
+                    trace_id,
                 )
             ]
         if op == CONTROL_ACK:
