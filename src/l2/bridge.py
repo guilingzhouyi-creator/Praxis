@@ -1,0 +1,239 @@
+"""L2 → L3 command bridge — the single L3 boundary for the L2 shell.
+
+Every shell-command access to L3 internals funnels through this module so
+the L2→L3 import surface collapses to one controlled boundary — the port
+target of the planned TS ``bridge.ts``. Each function lazily imports the
+underlying L3 module and forwards the call unchanged, keeping boot light
+and preserving L3 module ownership.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+# ── error bus ──
+def capture(*args: Any, **kwargs: Any) -> None:
+    """Forward error capture to the L3 error bus."""
+    from l3.error_bus import capture as _capture
+
+    _capture(*args, **kwargs)
+
+
+# ── memory domain ──
+def memory_filter() -> Any:
+    """Return the memory domain-filter instance."""
+    from l3.memory.memory_domain_filter import get_memory_filter
+
+    return get_memory_filter()
+
+
+def export_corpus(limit: int = 0) -> dict:
+    """Export the correction corpus."""
+    from l3.memory.memory_record_source import export_corpus as _fn
+
+    return _fn(limit=limit)
+
+
+def digest_status() -> dict:
+    """Return digest-cache switch status."""
+    from l3.agent.digest_cache import digest_status as _fn
+
+    return _fn()
+
+
+def set_digest_switches(**kwargs: Any) -> dict:
+    """Update digest-cache switches."""
+    from l3.agent.digest_cache import set_digest_switches as _fn
+
+    return _fn(**kwargs)
+
+
+def tool_result_status() -> dict:
+    """Return tool-result offload switch status."""
+    from l3.agent.tool_result_cache import tool_result_status as _fn
+
+    return _fn()
+
+
+def set_tool_result_switches(**kwargs: Any) -> dict:
+    """Update tool-result offload switches."""
+    from l3.agent.tool_result_cache import set_tool_result_switches as _fn
+
+    return _fn(**kwargs)
+
+
+def compaction_status() -> dict:
+    """Return hybrid extractor mode status."""
+    from l3.memory.memory_extract import compaction_status as _fn
+
+    return _fn()
+
+
+def set_compaction_mode(mode: str) -> dict:
+    """Set the hybrid extractor mode."""
+    from l3.memory.memory_extract import set_compaction_mode as _fn
+
+    return _fn(mode)
+
+
+def premise_guard_status() -> dict:
+    """Return premise-guard status."""
+    from l3.memory.premise_guard import premise_guard_status as _fn
+
+    return _fn()
+
+
+def set_premise_guard(enabled: bool) -> dict:
+    """Toggle the premise guard."""
+    from l3.memory.premise_guard import set_premise_guard as _fn
+
+    return _fn(enabled=enabled)
+
+
+def inject_dedup_status() -> dict:
+    """Return injection-content dedup status."""
+    from l3.memory.memory_context import inject_dedup_status as _fn
+
+    return _fn()
+
+
+def set_inject_dedup(enabled: bool) -> dict:
+    """Toggle injection-content dedup."""
+    from l3.memory.memory_context import set_inject_dedup as _fn
+
+    return _fn(enabled=enabled)
+
+
+def audit_cell_context(cell_id: str = "") -> dict:
+    """Audit per-agent context pressure."""
+    from l3.agent.agent_loop import audit_cell_context as _fn
+
+    return _fn(cell_id=cell_id)
+
+
+def prompt_monitor_status() -> dict:
+    """Return prompt bypass-monitor status."""
+    from l3.agent.prompt_monitor import prompt_monitor_status as _fn
+
+    return _fn()
+
+
+def prompt_monitor_stats() -> dict:
+    """Return prompt bypass-monitor stats."""
+    from l3.agent.prompt_monitor import prompt_monitor_stats as _fn
+
+    return _fn()
+
+
+def set_prompt_monitor(enabled: bool, source: str = "shell") -> dict:
+    """Toggle the prompt bypass monitor."""
+    from l3.agent.prompt_monitor import set_prompt_monitor as _fn
+
+    return _fn(enabled=enabled, source=source)
+
+
+def emit_prompt_metrics() -> dict:
+    """Emit prompt metrics now."""
+    from l3.agent.prompt_monitor import emit_prompt_metrics as _fn
+
+    return _fn()
+
+
+def global_prompt_library_status() -> dict:
+    """Return global prompt-library switch status."""
+    from l3.agent.global_prompt_library import global_prompt_library_status as _fn
+
+    return _fn()
+
+
+def set_global_prompt_library_switches(enabled: bool) -> dict:
+    """Update global prompt-library switches."""
+    from l3.agent.global_prompt_library import set_global_prompt_library_switches as _fn
+
+    return _fn(enabled=enabled)
+
+
+def prompt_library_status() -> dict:
+    """Return prompt-library switch status."""
+    from l3.agent.prompt_library import prompt_library_status as _fn
+
+    return _fn()
+
+
+def set_prompt_library_switches(enabled: bool) -> dict:
+    """Update prompt-library switches."""
+    from l3.agent.prompt_library import set_prompt_library_switches as _fn
+
+    return _fn(enabled=enabled)
+
+
+def sensitive_status() -> dict:
+    """Return sensitive-info switch status."""
+    from l3.agent.sensitive_detect import sensitive_status as _fn
+
+    return _fn()
+
+
+def set_sensitive_switches(enabled: bool | None = None, action: str | None = None) -> dict:
+    """Update sensitive-info switches."""
+    from l3.agent.sensitive_detect import set_sensitive_switches as _fn
+
+    return _fn(enabled=enabled, action=action)
+
+
+def guard_status() -> dict:
+    """Return recursion-guard status."""
+    from l3.agent.compression_guard import guard_status as _fn
+
+    return _fn()
+
+
+def set_guard_switches(recursion_threshold: int | None = None, breaker_enabled: bool | None = None) -> dict:
+    """Update recursion-guard switches."""
+    from l3.agent.compression_guard import set_guard_switches as _fn
+
+    return _fn(recursion_threshold=recursion_threshold, breaker_enabled=breaker_enabled)
+
+
+def memory() -> Any:
+    """Return the memory service instance."""
+    from l3.memory.memory import get_memory
+
+    return get_memory()
+
+
+# ── card / plugin / cell / terminal domains ──
+def card_registry() -> Any:
+    """Return the card registry."""
+    from l3.card.card_registry import get_registry
+
+    return get_registry()
+
+
+def plugin_center() -> Any:
+    """Return the central plugin center."""
+    from l3.services.central_plugin import get_center
+
+    return get_center()
+
+
+def cell(cell_id: str = "") -> Any:
+    """Return one cell by id."""
+    from l3.cell import get_cell
+
+    return get_cell(cell_id)
+
+
+def reset_cells() -> None:
+    """Reset the cell registry (test/restart helper)."""
+    from l3.cell import reset_cells as _fn
+
+    _fn()
+
+
+def terminals() -> Any:
+    """Return the agent-terminal registry."""
+    from l3.agent_terminal import get_terminals
+
+    return get_terminals()
