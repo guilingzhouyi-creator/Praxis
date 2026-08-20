@@ -1,7 +1,7 @@
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 51 YAML commands + 63 `_cmd_*` handler functions (15 code-only),
+command engine — 51 YAML commands + 65 `_cmd_*` handler functions (15 code-only),
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model
@@ -76,7 +76,7 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 | `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `l2.shell_session` live `Popen` + `shell_completer` | Python-only lifecycle | — (not an FFI-clean one-shot port) |
+| Terminal dialing (interactive) | `shell_completer` (legacy `l2.shell_session` Popen manager removed — dead code, P0) | Python-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
 never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is

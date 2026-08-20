@@ -375,22 +375,6 @@ class TestShellEntryPoints:
         tc.refresh()
         assert len(tc._commands) > 0
 
-    def test_terminal_session_dataclass(self):
-        from l2.shell_session import TerminalSession
-
-        s = TerminalSession(id="test", pid=9999)
-        assert s.id == "test"
-        assert s.pid == 9999
-        assert not s.is_alive()  # no process
-
-    def test_terminal_manager_singleton(self):
-        from l2.shell_session import get_manager, reset_manager
-
-        reset_manager()
-        m1 = get_manager()
-        m2 = get_manager()
-        assert m1 is m2
-
 
 # ═══════════════════════════════════════════════════════════════
 # reset_state integration guard — must not affect other tests
