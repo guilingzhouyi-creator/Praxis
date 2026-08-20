@@ -14,7 +14,7 @@ import logging
 import shlex
 
 from l1.kernel import EVENT_TASK_ASSIGN, emit_signal
-from l1.kernel.commands import get_command, get_handler
+from l1.kernel.commands import get_handler
 from l1.kernel.commands import get_registry as _get_cmd_reg
 from l1.kernel.params.agent import SIGNAL_TARGET_L3
 
@@ -148,11 +148,11 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
         parts = shlex.split(text)
         cmd = parts[0][1:]
         args = parts[1:]
-        info = get_command(cmd)
-        if info:
-            handler = get_handler(cmd)
-            if handler:
-                return handler(args, session=state)
+        # Single authoritative handler lookup (a handler exists iff the
+        # command is registered); avoids a second registry lock+scan.
+        handler = get_handler(cmd)
+        if handler:
+            return handler(args, session=state)
         # Check aliases via reverse index (O(1) instead of O(n))
         resolved = _lookup_alias(cmd)
         if resolved:
