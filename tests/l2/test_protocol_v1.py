@@ -234,6 +234,32 @@ class TestHost:
         assert out[0]["kind"] == KIND_RESULT
         assert out[0]["payload"]["success"] is False
 
+    def test_ack_advances_shared_outbox_watermark(self) -> None:
+        """Acknowledging through a view trims the shared session snapshot."""
+        host = ProtocolHost()
+        host.attach_view("s-ack", "s-ack")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-ack")
+        host._emit(KIND_EVENT, {"name": "e2"}, "s-ack")
+        assert len(host.session_state("s-ack")["events"]) == 2
+        host.handle_message(make_message("s-ack", 1, KIND_ACK, {"ack_seq": 2, "view_id": "s-ack"}))
+        # The default single-view transport acks through its session view.
+        assert host.session_state("s-ack")["events"] == []
+
+    def test_shared_watermark_tracks_lagging_view(self) -> None:
+        """One view acking never erases the window a lagging view needs."""
+        host = ProtocolHost()
+        host._get_session("s-mx")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-mx")
+        host._emit(KIND_EVENT, {"name": "e2"}, "s-mx")
+        host.attach_view("v-a", "s-mx")
+        host.attach_view("v-b", "s-mx")
+        # v-a acks both; v-b stays behind -> shared snapshot keeps both.
+        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-a"}))
+        assert len(host.session_state("s-mx")["events"]) == 2
+        # v-b catches up -> shared watermark advances and the snapshot trims.
+        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-b"}))
+        assert host.session_state("s-mx")["events"] == []
+
     def test_run_reads_jsonl_stream(self) -> None:
         """run() consumes stdin lines and writes JSONL responses."""
         host = ProtocolHost()

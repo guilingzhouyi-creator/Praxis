@@ -68,6 +68,22 @@ class ProtocolHost:
             self._outboxes[session_id] = Outbox()
         return self._outboxes[session_id]
 
+    def _advance_shared_cursor(self, session_id: str) -> None:
+        """Advance the shared outbox watermark to the lagging attached view.
+
+        The shared ``Outbox`` cursor is the *minimum* ack across every view
+        bound to the session, so one view acknowledging never erases
+        messages another view still needs to replay (non-destructive
+        multiplexing). A session with no attached views keeps its watermark,
+        letting a fresh view replay the whole window from its own cursor.
+        """
+        min_acked = None
+        for cursor in self._cursors.values():
+            if cursor.attached and cursor.session_id == session_id:
+                min_acked = cursor.last_acked if min_acked is None else min(min_acked, cursor.last_acked)
+        if min_acked is not None:
+            self._get_outbox(session_id).ack(min_acked)
+
     def _emit(self, kind: str, payload: dict, session_id: str, trace_id: str = "") -> dict:
         """Build one outbound envelope, record it in the outbox, return it."""
         msg = make_message(session_id, self._next_seq(session_id), kind, payload, trace_id=trace_id)
@@ -170,11 +186,13 @@ class ProtocolHost:
             out.extend(self._handle_control(payload, session_id, trace_id))
         elif kind == KIND_ACK:
             # Per-view acknowledgement: the view cursor advances while the
-            # shared outbox retains messages for views that are behind.
+            # shared outbox watermark follows the lagging view, so messages
+            # another view still needs are never erased.
             view_id = str(payload.get("view_id", session_id))
             cursor = self._cursors.get(view_id)
             if cursor is not None:
                 cursor.ack(payload["ack_seq"])
+                self._advance_shared_cursor(session_id)
             return []
         else:
             out.append(
@@ -210,6 +228,7 @@ class ProtocolHost:
             cursor = self._cursors.get(view_id)
             if cursor is not None:
                 cursor.ack(payload.get("last_acked", -1))
+                self._advance_shared_cursor(target)
             return []
         if op in (CONTROL_RESUME, CONTROL_RECOVERY):
             self._get_session(target)
@@ -217,6 +236,7 @@ class ProtocolHost:
             cursor = self._cursors.get(view_id)
             if cursor is not None:
                 cursor.ack(payload.get("last_acked", -1))
+                self._advance_shared_cursor(target)
                 replay = outbox.unacked(cursor.last_acked)
             else:
                 replay = outbox.unacked(payload.get("last_acked", -1))
