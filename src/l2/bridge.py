@@ -383,3 +383,75 @@ def terminals() -> Any:
     from l3.agent_terminal import get_terminals
 
     return get_terminals()
+
+
+# ── settings / stats / security / resource domains ──
+def settings_center() -> Any:
+    """Return the settings center (config single write surface)."""
+    from l3.config.settings_center import get_center
+
+    return get_center()
+
+
+def stats_center() -> Any:
+    """Return the stats center."""
+    from l3.services.stats_center import get_center
+
+    return get_center()
+
+
+def security_center() -> Any:
+    """Return the central security center."""
+    from l3.services.central_security import get_center
+
+    return get_center()
+
+
+def resource_manager() -> Any:
+    """Return the resource-buffer manager."""
+    from l3.resource_buffer.manager import get_manager
+
+    return get_manager()
+
+
+def memory_graph() -> Any:
+    """Return the memory graph instance."""
+    from l3.memory.memory_graph import get_graph
+
+    return get_graph()
+
+
+def think_registry() -> Any:
+    """Return the think registry instance."""
+    from l3.scheduler.think_registry import get_think_registry
+
+    return get_think_registry()
+
+
+# ── department / violation-monitor domain ──
+def department_manager() -> Any:
+    """Return the department manager."""
+    from l3.cell.department import get_department_manager
+
+    return get_department_manager()
+
+
+def violation_monitor_status() -> dict:
+    """Return violation-monitor status."""
+    from l3.cell.violation_monitor import status as _fn
+
+    return _fn()
+
+
+def violation_monitor_set_enabled(enabled: bool) -> dict:
+    """Enable or disable the violation monitor."""
+    from l3.cell.violation_monitor import set_enabled as _fn
+
+    return _fn(enabled)
+
+
+def violation_monitor_reset() -> None:
+    """Reset the violation monitor."""
+    from l3.cell.violation_monitor import reset_violation_monitor as _fn
+
+    _fn()

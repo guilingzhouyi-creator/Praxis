@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 def _get_center():
     """Get SettingsCenter singleton."""
-    from l3.config.settings_center import get_center
+    from l2.bridge import settings_center
 
-    return get_center()
+    return settings_center()
 
 
 def _cmd_settings(args: list[str], session=None) -> dict:

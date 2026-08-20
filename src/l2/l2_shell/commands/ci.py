@@ -168,12 +168,12 @@ def _cmd_ci(args: list[str], session=None) -> dict:
     [--admin]``, ``list [status]``, ``show <card_id>``.
     """
     try:
-        from l3.config.settings_center import get_center
+        from l2.bridge import settings_center
         from l4.ci_review import get_service
 
         rest, cell_id, agent_id, admin = _parse_flags(args)
         svc = get_service()
-        center = get_center()
+        center = settings_center()
         if not rest:
             return {"success": True, **svc.stats()}
         handler = _CI_HANDLERS.get(rest[0].lower())
