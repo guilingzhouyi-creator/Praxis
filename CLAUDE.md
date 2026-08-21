@@ -1,33 +1,30 @@
-# CLAUDE.md
+# CLAUDE.md — 指向 AGENTS.md 的薄指针（不复述规则）
 
-Thin Claude-Code-facing pointer to the full governance index (`AGENTS.md`).
-**Before touching any subsystem, read the relevant AGENTS.md section and the doc it links.**
+> **改代码前必读**：本文件只给指针，规则以 `AGENTS.md` 为准。按表读指定段，探针 ≤3 文件，用打勾式/门禁联动脚手架反馈。
 
-## AGENTS.md is the source of truth
+## 指针 — 任务→读哪段（用 `read` 快速定位）
 
-`AGENTS.md` carries the full load-bearing rule set + a doc index pointing at
-`docs/architecture/*.md`, `docs/workflow/*.md`, `docs/project-structure.md`.
-**This file does not restate those rules.**
+| 任务 | 读哪段 | 工具 |
+|---|---|---|
+| 定向/分层地图 | `AGENTS.md:## 索引` + `docs/architecture/README.md:1-100` | `read AGENTS.md 10 35` |
+| 提交/完成判定 | `AGENTS.md:## 索引` → `docs/workflow/commits.md:8-84` + `config/discovery/commits.yaml:17-60` | `read docs/workflow/commits.md 8 44` |
+| 工作树/豁免/DoD | `AGENTS.md:## 索引` → `docs/workflow/code-of-conduct.md:9-42` | `read docs/workflow/code-of-conduct.md 9 42` |
+| 测试/切片/污染 | `AGENTS.md:## 索引` → `tests/runner.py:28-60` + `tests/conftest.py:_RESETS` | `python tests/runner.py --list-slices` |
+| 钩子/门禁形态 | `AGENTS.md:## 脚手架` → `.githooks/commit-msg:132-173` | `read .githooks/commit-msg 132 173` |
 
-## Orientation
+## 脚手架 — 复用 AGENTS.md（打勾式 + 门禁联动）
 
-Praxis is a five-layer Agent OS (Python 3.11+): L5 CLI → L4 Bridge → L3 Cell → L2 Shell → L1 Kernel.
-Card = unit of work. Cell = scheduling unit. Import direction enforced downward.
+- 按 `AGENTS.md:## 脚手架 — 打勾式 Checklist` 逐项打勾（6 步），未勾不进下一步
+- 按 `AGENTS.md:## 脚手架 — 门禁联动` 逐门禁验证，任一 `✗/VIOLATIONS/INCOMPLETE` 即阻断，回 `grep "VIOLATIONS|INCOMPLETE"` 定位
+- 反馈格式：`门禁: Gx 绿/红 — 原因 — fix: <命令>`，不自授豁免（`WHERE`/`WHEN` 二豁免需用户显式）
 
-## Commands
+## 极简命令（全量见 `AGENTS.md:## 命令`）
 
-Run inside WSL with the repo venv (`.venv/bin/python`). Quickstart:
-`pip install -e ".[test]"` → `python src/main.py boot|health|status` → `python -m pytest tests/ -x -q`.
-Full lists: AGENTS.md "Test commands" / "Lint / format / typecheck".
+```bash
+pip install -e ".[test]" && python src/main.py boot|health|status
+python -m pytest tests/l1/test_kernel.py -x -q  # 单文件；全量见 AGENTS.md
+```
 
-## Before changing code — mandatory gates
+## LLM
 
-See `docs/workflow/code-of-conduct.md` for full text. Key rules:
-- **Worktree gate**: never edit `src/ tests/ config/ scripts/ docs/` on main tree
-- **Two waivers** (user-granted, never self-awarded): main-tree modification (WHERE) and branch pre-merge (WHEN)
-- **Key conventions**: magic numbers → `params/`; prompts are data; English-only comments
-- **Commit / branch / merge**: Conventional Commits + Co-Authored-By; dual-remote push; verify-completion.sh decides "done"
-
-## LLM config
-
-Default: `ollama` / `codellama:7b` at `localhost:11434`. Override via `config/praxis.yaml` or env vars.
+默认 `ollama/codellama:7b@11434`，覆写见 `AGENTS.md:## 索引` → `config/praxis.yaml`。`AGENTS.md:## OpenCode` 为 OpenCode MCP 清单。
