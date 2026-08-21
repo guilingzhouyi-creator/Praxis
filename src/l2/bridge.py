@@ -1,10 +1,17 @@
 """L2 → L3 command bridge — the single L3 boundary for the L2 shell.
 
 Every shell-command access to L3 internals funnels through this module so
-the L2→L3 import surface collapses to one controlled boundary — the port
-target of the planned TS ``bridge.ts``. Each function lazily imports the
-underlying L3 module and forwards the call unchanged, keeping boot light
-and preserving L3 module ownership.
+the L2→L3 import surface collapses to one controlled boundary. It is the
+port target of the TS ``bridge.ts`` (packages/protocol-ts/src/engine/
+bridge.ts — already landed): each function here maps 1:1 onto a bridge
+forward call the TS client makes via the protocol v1 envelope. Each
+function lazily imports the underlying L3 module and forwards the call
+unchanged, keeping boot light and preserving L3 module ownership.
+
+TS rewrite reference: functions are grouped by domain (error bus /
+memory / system / model / selector / injection / settings — see the
+``# ── <domain> ──`` markers); the TS side reuses the same domain grouping
+in ``bridge.ts`` and never re-implements the L3 authority behind them.
 """
 
 from __future__ import annotations

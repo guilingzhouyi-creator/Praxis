@@ -1,5 +1,10 @@
 """I18n — port-based internationalization (backward-compatible facade).
 
+TS rewrite reference: ``t()``/``set_locale()``/``get_locale()`` correspond
+to the TS locale data and the local ``lang`` builtin — keys and ``{var}``
+interpolation live in the locale files (locales/*.yaml), never hardcoded
+in either language.
+
 Design:
   - Delegates to the registered ``I18nPort`` adapter (set at boot via
     ``kernel.ports.register_port("i18n", adapter)``).

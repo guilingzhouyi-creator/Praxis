@@ -1,5 +1,10 @@
 """CommandRegistry — unified shell command registry with system/user separation.
 
+TS rewrite reference: the registry maps onto ``dispatcher.ts`` — system
+commands are the local/builtin handlers, user commands are
+runtime-registered, and unregistered names fall back to the bridge marker
+(never re-implemented).
+
 Architecture:
   System commands — registered by code, protected (cannot be deleted or modified).
   User commands   — registered via API or config, fully mutable.

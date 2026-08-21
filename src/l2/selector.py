@@ -4,6 +4,12 @@ Flow:
   1. PreSelector: scan all Cells → collect agent rosters (PID, role, status)
   2. Selector: route by agent_id / role / territory → (cell_id, agent_id)
   3. PreConnect: verify liveness + prompt injection check → allow/deny
+
+TS rewrite reference: the selector consumes the bridge's dict data API
+(cell_ids / cell_liveness / cell_agent_reachable / cell_territory) so no
+L3 cell object handle ever leaks into L2; the TS side mirrors this as a
+local projection fed by the same bridge calls — selection logic stays in
+Python, TS only renders the outcome.
 """
 
 from __future__ import annotations

@@ -9,6 +9,11 @@ Usage:
   /settings agent <agent_id> set <k> <v> — set agent setting
   /settings pool scout <cell_id>         — list scout pool config
   /settings pool subagent <cell_id>      — list subagent pool config
+
+TS rewrite reference: every settings write funnels through
+``l2.bridge.settings_set`` → L3 settings_center (single write authority);
+the TS side routes /settings via the dispatcher's bridge fallback and
+never owns config state.
 """
 
 from __future__ import annotations

@@ -1,4 +1,8 @@
-"""Auto-completion for L2 Shell."""
+"""Auto-completion for L2 Shell.
+
+TS rewrite reference: completion renders candidates locally from bridge-
+provided data (commands list, history) — pure display, no authority.
+"""
 
 import logging
 
