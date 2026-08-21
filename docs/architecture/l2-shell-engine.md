@@ -182,6 +182,12 @@ read-only until the P0 recovery gates are complete.
 The host is the integration seam: `bridge.ts` spawns it as a child process
 (or connects over WebSocket later) and only ever speaks protocol v1.
 
+Protocol hot-path optimizations landed since (batch flush, per-session
+watermark index, dict direct entry, command args direct entry,
+session-class cache, constant/config governance) are logged in
+`l2-agent-handoff.md` §1.9 — the single source for the optimization
+record; the TS rewrite inherits them with zero cost (see roadmap §8.2).
+
 ## Execution bridge
 
 Every side-effecting request exits L2 through exactly one bridge:
