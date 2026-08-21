@@ -41,7 +41,7 @@ from l2.protocol.records import SessionIdentity
 _DISPATCH_LOCK = threading.Lock()
 
 
-def _dispatch_text(text: str, session) -> dict:
+def _dispatch_text(text: str, session, args: list[str] | None = None) -> dict:
     """Route one input line through the existing engine (unchanged).
 
     Legacy handler ``print()`` output (e.g. status/clear rendering) is
@@ -55,7 +55,7 @@ def _dispatch_text(text: str, session) -> dict:
     buf = io.StringIO()
     try:
         with _DISPATCH_LOCK, contextlib.redirect_stdout(buf):
-            result = dispatch(text, session)
+            result = dispatch(text, session, args=args)
     except Exception as e:  # pragma: no cover - defensive bridge boundary
         return {"success": False, "error": str(e)}
     out = dict(result) if isinstance(result, dict) else {"success": False, "error": str(result)}
@@ -230,7 +230,7 @@ class ProtocolHost:
                 )
             else:
                 text = "/" + name + (" " + shlex.join(args) if args else "")
-                result = _dispatch_text(text, self._get_session(session_id))
+                result = _dispatch_text(text, self._get_session(session_id), args=args)
                 out.append(self._emit(KIND_RESULT, result, session_id, trace_id))
         elif kind == KIND_INTENT:
             text = str(payload.get("text", ""))

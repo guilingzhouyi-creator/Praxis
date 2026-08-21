@@ -284,6 +284,15 @@ class TestHost:
         host.handle_message(make_message("s-d", 1, KIND_ACK, {"ack_seq": 1, "view_id": "v-x"}))
         assert len(host.session_state("s-d")["events"]) == 1
 
+    def test_dispatch_args_shortcut_matches_text_path(self) -> None:
+        """dispatch(text, args=...) behaves identically to the shlex path."""
+        from l2.l2_shell import dispatch as _dispatch
+
+        text = "/lang -v"
+        direct = _dispatch("/lang", args=["-v"])
+        parsed = _dispatch(text)  # shlex.split path
+        assert direct == parsed
+
     def test_run_reads_jsonl_stream(self) -> None:
         """run() consumes stdin lines and writes JSONL responses."""
         host = ProtocolHost()
