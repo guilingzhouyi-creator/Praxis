@@ -5,9 +5,11 @@
  * answers with an ack envelope (the per-input response boundary the Python
  * ProtocolHost emits), with a line/time budget so a stalled host fails fast.
  * Host entry: `python -m l2.protocol` (see tests/e2e.stdio.test.ts).
+ * Built on the shared line request/response engine (line-transport.ts).
  */
 
 import * as readline from "node:readline";
+import { createLineRequestTransport, type LineTransportOptions } from "./line-transport.ts";
 import type { Transport } from "../bridge.ts";
 
 export interface StdioTransportOptions {
@@ -19,50 +21,15 @@ export interface StdioTransportOptions {
   timeoutMs?: number;
 }
 
-/** Returns true when a response line is the ack that closes the request. */
-function isAckLine(line: string): boolean {
-  try {
-    return JSON.parse(line).kind === "ack";
-  } catch {
-    return false;
-  }
-}
-
 export function createStdioTransport(options: StdioTransportOptions): Transport {
   const { input, output, maxLines = 256, timeoutMs = 5000 } = options;
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
 
-  /** One pending request: resolve with collected lines once acked. */
-  let pending:
-    | { resolve: (lines: string[]) => void; lines: string[]; seenAck: boolean }
-    | undefined;
-
-  rl.on("line", (line) => {
-    if (!pending) return;
-    pending.lines.push(line);
-    if (isAckLine(line) || pending.lines.length >= maxLines) {
-      const request = pending;
-      pending = undefined;
-      request.resolve(request.lines);
-    }
-  });
-
-  return (line: string) =>
-    new Promise<string[]>((resolve, reject) => {
-      if (pending) {
-        reject(new Error("stdio transport: concurrent request while one is pending"));
-        return;
-      }
-      pending = { resolve, lines: [], seenAck: false };
-      const timer = setTimeout(() => {
-        const request = pending;
-        pending = undefined;
-        if (request) request.resolve(request.lines);
-      }, timeoutMs);
-      pending.resolve = (lines: string[]) => {
-        clearTimeout(timer);
-        resolve(lines);
-      };
-      output.write(`${line}\n`);
-    });
+  const engineOptions: LineTransportOptions = {
+    onLine: (handler) => rl.on("line", handler),
+    writeLine: (line) => output.write(`${line}\n`),
+    maxLines,
+    timeoutMs,
+  };
+  return createLineRequestTransport(engineOptions);
 }

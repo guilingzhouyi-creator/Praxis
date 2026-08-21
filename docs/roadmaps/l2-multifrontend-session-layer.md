@@ -124,7 +124,8 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 ### 6.4 P3 TS 引擎 — 🟡 骨架（2026-08-21）
 
 - **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端，**异步 Transport 契约** `(line) => Promise<string[]>`）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）；`transports/stdio.ts`（Node readline + ack 边界）+ `transports/http.ts`（fetch `/api/v2/shell`）；**真实端到端打通**（`tests/e2e.stdio.test.ts` spawn Python host：command 往返 + attach/replay）；Vitest 23 passed，tsc 干净。
-- **剩余**：WS/SSH transport 适配器（按 handoff §2.6 标准同目录扩展）+ 五前端矩阵接入。
+- **已落地**：WS/SSH transport 适配器（2026-08-21：`transports/ws.ts` 原生 WebSocket + `transports/ssh.ts` ssh2 channel，共享 `line-transport.ts` 引擎；`tests/transports.test.ts` 6 例，Vitest 29 passed）——**五前端矩阵适配器全部就位**。
+- **剩余**：真实 WS/SSH 端点对接（Python 侧端点待建——适配器为预留接口）+ 五前端矩阵真实接入。
 - **重写标准**：见 [l2-agent-handoff.md](l2-agent-handoff.md) §2（跨语言契约 / 桥 API 对应 / 铁律 / 镜像同步 / 验收清单）。
 - 验收：TS 引擎跑通 web/TUI/轻量桌面；L3 零改动；协议 v1 作为唯一跨语言契约。
 
