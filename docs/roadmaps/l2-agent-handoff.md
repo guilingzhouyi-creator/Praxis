@@ -75,6 +75,13 @@
 - i18n：47 处 f-string 全收编 `shell.app_error.*`（31 key × 4 locale），`test_i18n_l2_regression` 正则含 f-string 盲区。
 - `/history` 真实现（在途 Agent 提交 `6cb40f5`）：`src/l2/shells/session.py` + `l2_shell/__init__.py`。
 
+### 1.7 协议会话边界（L2 作为上层会话统一协议承载面）
+
+- **协议会话**（L2）：`ProtocolHost._get_session(session_id)` 惰性创建的 `ShellSession`（shell="protocol"）——session_id 级、独立于任何 Agent 运行；承载上层前端（web/TUI/desktop/SSH）的**统一会话**（视图游标 + 共享 outbox + 三形状投影）。
+- **≠ AgentLoop 会话**（L3A session system——L3 层，Agent 内部对话/思维链/工具失败记录）：协议 v1 **不承载 AgentLoop 会话级语义**——它只是上层前端到 L2 引擎的统一接入面。
+- **≠ 全系统会话**：不承载内核/服务生命周期会话。
+- **内部接入**：L2 REPL（`python -m l2.l2_shell`）直连 `dispatch()`（交互式本地优化，全局默认 state）；**外部前端一律经协议 v1**（envelope → ProtocolHost）——统一协议承载面覆盖外部，内部 REPL 为直连例外（如需协议承载可经 host 的 REPL 会话改造）。
+
 ## 2. TS 重写标准（P3 翻译规范）
 
 ### 2.1 跨语言契约（协议 v1 是唯一契约）

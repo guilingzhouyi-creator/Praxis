@@ -39,6 +39,10 @@ from l2.protocol.envelope import (
 from l2.protocol.records import SessionIdentity
 
 _DISPATCH_LOCK = threading.Lock()
+# Lazily resolved ShellSession class — every command/control hits
+# _get_session, so cache the class after the first import instead of
+# re-running the import statement on each call.
+_SHELL_SESSION: type | None = None
 
 
 def _dispatch_text(text: str, session, args: list[str] | None = None) -> dict:
@@ -122,9 +126,12 @@ class ProtocolHost:
     def _get_session(self, session_id: str) -> object:
         """Return the in-process ShellSession for an id, creating it lazily."""
         if session_id not in self._sessions:
-            from l2.shells.session import ShellSession
+            global _SHELL_SESSION
+            if _SHELL_SESSION is None:
+                from l2.shells.session import ShellSession
 
-            self._sessions[session_id] = ShellSession(shell="protocol", session_id=session_id)
+                _SHELL_SESSION = ShellSession
+            self._sessions[session_id] = _SHELL_SESSION(shell="protocol", session_id=session_id)
             self._identities[session_id] = SessionIdentity(
                 session_id=session_id,
                 terminal_id="",

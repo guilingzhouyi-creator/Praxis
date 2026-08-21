@@ -65,6 +65,9 @@ def repl() -> None:
         if line in ("help", "?"):
             line = "/help"
         try:
+            # Internal REPL path: direct dispatch (local interactive session on
+            # the global default state) — external frontends use the protocol
+            # v1 envelope via ProtocolHost instead (see handoff §1.8).
             result = dispatch(line)
         except Exception as e:
             print(t("shell.render.error", error=str(e)))
