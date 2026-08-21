@@ -8,6 +8,7 @@ Client message protocol:
   {"type": "subscribe",   "events": ["card.pending", ...]}
   {"type": "unsubscribe", "events": ["card.pending", ...]}
   {"type": "rpc",         "method": "/api/v2/card/submit", "params": {...}}
+  {"kind": "command"|"control"|"ack", "v": 1, ...}  # protocol v1 envelope
 
 Server message protocol:
   {"type": "event",     "event": "card.pending", "data": {...}, "timestamp": ...}
@@ -199,9 +200,13 @@ def handle_client(conn: Any) -> None:
                 from l2.protocol.envelope import encode_message
                 from l2.protocol.host import get_protocol_host
 
-                host = get_protocol_host()
-                for out in host.handle(json.dumps(msg)):
-                    _send(client, json.loads(encode_message(out)))
+                try:
+                    host = get_protocol_host()
+                    for out in host.handle(json.dumps(msg)):
+                        # Send the encoded JSON directly — no decode/re-encode.
+                        client["conn"].send(encode_message(out))
+                except Exception as e:
+                    _send(client, {"type": "error", "message": f"envelope error: {e}"})
                 continue
             mtype = msg.get("type")
             if mtype == "subscribe":
@@ -255,4 +260,8 @@ def start_server(host: str = "", port: int = 0) -> threading.Thread:
 
 def handle_ws_info(body: dict | None = None) -> dict:
     """GET /api/v2/ws — discovery endpoint with the bridge connection URL."""
-    return {"success": True, "url": f"ws://{API_GATEWAY_HOST}:{API_WS_PORT}", "protocol": "subscribe|unsubscribe|rpc"}
+    return {
+        "success": True,
+        "url": f"ws://{API_GATEWAY_HOST}:{API_WS_PORT}",
+        "protocol": "subscribe|unsubscribe|rpc|envelope",
+    }
