@@ -76,8 +76,7 @@
 class TestResourceLimiterConstruction:
     """Construction and singleton access."""
 
-    def test_limiter_created(self):
-        ...
+    def test_limiter_created(self): ...
 ```
 
 - 格式：class 定义后紧跟 `"""短句."""`
@@ -238,11 +237,14 @@ def irq():
 @pytest.fixture
 def irq_with_pmu():
     """InterruptController with a mock PMU."""
+
     class FakePmu:
         def __init__(self):
             self.counts = {}
+
         def increment(self, name: str, delta: int = 1):
             self.counts[name] = self.counts.get(name, 0) + delta
+
     pmu = FakePmu()
     ctrl = InterruptController(cell_id="test-cell", pmu=pmu)
     return ctrl, pmu
@@ -644,6 +646,7 @@ const RESET_MAP: Map<string, () => void> = new Map([
 
 ```python
 # ── Built-in IRQ tests ──
+
 
 class TestBuiltinIrqs:
     """17 built-in IRQs registered at init (0-16, incl. cell.rollback)."""

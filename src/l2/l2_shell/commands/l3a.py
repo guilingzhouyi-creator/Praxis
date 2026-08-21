@@ -87,9 +87,10 @@ def _cmd_session_history(args: list[str], session=None) -> dict:
     Returns:
         dict with the history switch state and matching records.
     """
+    from l1.kernel.params.system import SESSION_HISTORY_QUERY_LIMIT
     from l2.bridge import query_session_history, session_history_status, set_session_history
 
-    limit = 20
+    limit = SESSION_HISTORY_QUERY_LIMIT
     session_id = ""
     for arg in args:
         if arg.lower() in ("on", "off"):
@@ -120,6 +121,7 @@ def _cmd_session_resume(args: list[str], session=None) -> dict:
     for arg in args[1:]:
         if arg.startswith("page=") and arg[5:].isdigit():
             page = int(arg[5:])
+    from l1.kernel.params.system import SESSION_WINDOW_PAGE_SIZE
     from l2.bridge import load_for_window
 
-    return load_for_window(session_id, page=page, page_size=10)
+    return load_for_window(session_id, page=page, page_size=SESSION_WINDOW_PAGE_SIZE)

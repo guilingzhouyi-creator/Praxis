@@ -28,6 +28,7 @@ shell:
   # ── Shell errors ──
   error:
     unknown_command: "Unknown command: /{cmd}"
+    parse_failed: "Command parse failed: {error}"
     no_session: "No active direct session"
     connect_usage: "Usage: /connect <agent_id>"
     connect_blocked: "Connection blocked by security"

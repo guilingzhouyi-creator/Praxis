@@ -461,6 +461,14 @@ SHELL_HISTORY_MAX_LIMIT: Final[int] = 200
 SHELL_HISTORY_DEFAULT_LIMIT: Final[int] = 20
 SHELL_AUTOCOMPLETE_DISPLAY_LIMIT: Final[int] = 15  # commands shown in help
 TOOL_RESULT_DISPLAY_LIMIT: Final[int] = 5
+# Cards shown by /card list (explicit subcommand)
+CARD_LIST_MAX_LIMIT: Final[int] = 20
+# Cards shown by bare /card
+CARD_LIST_DEFAULT_LIMIT: Final[int] = 10
+# Default record cap for /session history queries
+SESSION_HISTORY_QUERY_LIMIT: Final[int] = 20
+# Conversation window size for /session resume pagination
+SESSION_WINDOW_PAGE_SIZE: Final[int] = 10
 # Max lean-case entries shown in /skills output
 SKILL_LEAN_CASES_LIMIT: Final[int] = 20
 SKILL_LIST_SCAN_LIMIT: Final[int] = 20  # max skills listed as graph seeds / linkage candidates

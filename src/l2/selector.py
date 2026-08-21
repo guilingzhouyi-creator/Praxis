@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any
 
 from l1.kernel.params.system import TLB_DEFAULT_RING
 from l2.bridge import capture
@@ -57,11 +56,15 @@ class AgentIdentity:
 def preselect() -> dict:
     """Scan all registered Cells, collect agent rosters with status.
 
+    One ``cell_liveness`` round-trip per cell; the fetched snapshots are
+    handed to the role-index builder so ``/agents`` never scans twice.
+
     Returns:
         {"agents": [AgentIdentity, ...], "cells": [cell_id, ...], "total": int}
     """
     agents: list[dict] = []
     cell_ids: list[str] = []
+    liveness_by_cell: dict[str, dict] = {}
 
     try:
         from l2.bridge import cell_ids as list_cell_ids
@@ -76,6 +79,7 @@ def preselect() -> dict:
         cell_ids.append(cell_id)
         try:
             liveness = cell_liveness(cell_id)
+            liveness_by_cell[cell_id] = liveness
             for aid, ainfo in liveness.get("agents", {}).items():
                 agents.append(
                     {
@@ -91,22 +95,29 @@ def preselect() -> dict:
             logger.warning("preselect cell %s: %s", cell_id, e)
             capture("preselect cell failed", error_code="E_PRESELECT", component="l2", context={"cell_id": cell_id})
 
-    # Build role index for O(1) subsequent lookups
+    # Build role index from snapshots already fetched (no second scan).
     if agents:
-        _rebuild_role_index(cell_ids)
+        _rebuild_role_index(cell_ids, liveness_by_cell=liveness_by_cell)
 
     return {"agents": agents, "cells": cell_ids, "total": len(agents)}
 
 
-def _rebuild_role_index(cell_id_list: list[str]) -> None:
-    """Build reverse index: role → [(cell_id, agent_id)] for O(1) lookup."""
+def _rebuild_role_index(cell_id_list: list[str], liveness_by_cell: dict[str, dict] | None = None) -> None:
+    """Build reverse index: role → [(cell_id, agent_id)] for O(1) lookup.
+
+    ``liveness_by_cell`` carries snapshots the caller already fetched;
+    only cells missing from it trigger a fresh ``cell_liveness`` call.
+    """
     from l2.bridge import cell_liveness
 
     global _role_index, _role_index_stale
     idx: dict[str, list[tuple[str, str]]] = {}
+    snapshots = liveness_by_cell or {}
     for cell_id in cell_id_list:
         try:
-            liveness = cell_liveness(cell_id)
+            liveness = snapshots.get(cell_id)
+            if liveness is None:
+                liveness = cell_liveness(cell_id)
             for aid, ainfo in liveness.get("agents", {}).items():
                 role = ainfo.get("role", ainfo.get("status", "?")).lower()
                 idx.setdefault(role, []).append((cell_id, aid))
@@ -288,25 +299,27 @@ def _select_best(role: str, domain: str) -> dict:
                     best_score = score
                     best = (cell_id, aid)
     else:
-        # Index hit: only score candidates matching the role
-        cell_cache: dict[str, Any] = {}
+        # Index hit: only score candidates matching the role.
+        # Cache key is the cell id; the local value name must never shadow
+        # the ``cell_territory`` bridge function imported above (a previous
+        # shadowing bug silently zeroed territory scoring for the 2nd+ cell).
+        territory_cache: dict[str, list[str]] = {}
         for cell_id, aid in candidates:
-            if cell_id not in cell_cache:
+            if cell_id not in territory_cache:
                 try:
-                    cell_cache[cell_id] = cell_territory(cell_id)
+                    territory_cache[cell_id] = cell_territory(cell_id)
                 except Exception as e:
-                    logger.warning("cell_cache territory for %s: %s", cell_id, e)
+                    logger.warning("territory cache for %s: %s", cell_id, e)
                     capture(
-                        "cell_cache territory failed",
+                        "cell territory cache failed",
                         error_code="E_CACHE",
                         component="l2",
                         context={"cell_id": cell_id},
                     )
-                    cell_cache[cell_id] = []
-            cell_territory = cell_cache[cell_id]
+                    territory_cache[cell_id] = []
             score = 2  # role match
             if domain:
-                for t in cell_territory:
+                for t in territory_cache[cell_id]:
                     if domain.startswith(t):
                         score += 1
             if score > best_score:

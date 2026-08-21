@@ -215,8 +215,8 @@ def handle_client(conn: Any) -> None:
             if mtype == "subscribe":
                 client["types"].update(msg.get("events") or [])
             elif mtype == "unsubscribe":
-                for e in msg.get("events") or []:
-                    client["types"].discard(e)
+                for evt in msg.get("events") or []:
+                    client["types"].discard(evt)
             elif mtype == "rpc":
                 method = str(msg.get("method") or "")
                 params = msg.get("params") or {}

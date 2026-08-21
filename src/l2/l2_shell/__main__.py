@@ -28,12 +28,17 @@ def _render(result) -> None:
     """Print a dispatch result dict to stdout.
 
     Prefers the pre-formatted ``output`` / ``answer`` fields; falls back to a
-    flat ``key: value`` dump for data-only results (e.g. ``/status``).
+    flat ``key: value`` dump for data-only results (e.g. ``/status``). The
+    ``clear`` flag is rendered here — handlers stay stdout-free so protocol
+    and TS frontends receive pure data.
     """
     if not isinstance(result, dict):
         print(result)
         return
     if result.get("success"):
+        if result.get("clear"):
+            print("\033[2J\033[H", end="")
+            return
         output = result.get("output")
         if output:
             print(output)

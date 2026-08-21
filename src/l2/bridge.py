@@ -12,6 +12,14 @@ TS rewrite reference: functions are grouped by domain (error bus /
 memory / system / model / selector / injection / settings — see the
 ``# ── <domain> ──`` markers); the TS side reuses the same domain grouping
 in ``bridge.ts`` and never re-implements the L3 authority behind them.
+The per-call lazy import is a Python boot optimization only — the TS
+client imports modules eagerly (no import-statement cost per call), so
+the rewrite drops this pattern entirely.
+
+Binding rule: every L3 access is fetch-on-demand (``get_*()``) and the
+result is never cached — L2 holds no upper-layer instance, so an upper
+software restart (fresh ``get_*()`` results) needs zero L2 changes (see
+handoff §1.10).
 """
 
 from __future__ import annotations
@@ -354,6 +362,47 @@ def cell_territory(cell_id: str) -> list[str]:
     from l3.cell import get_cell
 
     return list(getattr(get_cell(cell_id), "territory", []) or [])
+
+
+def cell_agent_ids(cell_id: str) -> list[str]:
+    """Return one cell's registered agent ids (dict-safe data, no object leak)."""
+    from l3.cell import get_cell
+
+    agents = getattr(get_cell(cell_id), "_agents", None)
+    return list(agents.keys()) if isinstance(agents, dict) else []
+
+
+def llm_provider_health(provider: str = "") -> dict:
+    """Return LLM provider health via the L4 engine adapter (no object leak)."""
+    from l3.services.adapter_bridge import get_llm_engine
+
+    engine = get_llm_engine()
+    provider_obj = getattr(engine, "_provider", None)
+    if provider_obj is not None and hasattr(provider_obj, "health"):
+        return provider_obj.health()
+    return {}
+
+
+def acb_set_slot(identity: str, key: str, value: Any) -> dict:
+    """Write one ACB slot through the L3 ACB service (single write authority)."""
+    from l3.scheduler.acb import get_service
+
+    return get_service().set_slot(identity, key, value, source="shell")
+
+
+def acb_snapshot(identity: str) -> dict:
+    """Return one identity's full ACB snapshot (dict data only)."""
+    from l3.scheduler.acb import get_service
+
+    return get_service().snapshot(identity)
+
+
+def cell_subagent_pool_stats(cell_id: str) -> dict:
+    """Return one cell's SubAgentPool statistics (dict data only, no object leak)."""
+    from l3.cell import get_cell
+
+    pool = getattr(get_cell(cell_id), "_subagent_pool", None)
+    return pool.stats() if pool is not None and hasattr(pool, "stats") else {}
 
 
 # ── injection guard domain ──

@@ -206,6 +206,7 @@ def _memory_compression_guard(rest: list[str]) -> dict:
 
 
 _MEMORY_GLOBAL_OPS: dict[str, Callable[[list[str]], dict]] = {
+    "filter": lambda rest: _cmd_memory_filter(rest[1:]),
     "corpus": _memory_corpus,
     "digest": _memory_digest,
     "tool-result": _memory_tool_result,
@@ -258,17 +259,15 @@ def _cmd_memory(args: list[str], session=None) -> dict:
     kwargs: dict[str, object] = {"agent_ids": agents}
     if len(rest) >= 2:
         kwargs["query"] = " ".join(rest[1:])
-    # Phase 3 M1: /memory filter [on|off] [fine|coarse] — memory domain
-    # filter operator switches (never code-embedded auto-enable).
-    if op == "filter":
-        return _cmd_memory_filter(rest[1:])
     return _memory_agent_op(op, agents, kwargs)
 
 
 def _card_dispatch(sub: str, args: list[str], cr) -> dict:
     """Dispatch a card subcommand to its registry operation."""
+    from l1.kernel.params.system import CARD_LIST_MAX_LIMIT
+
     if sub == "list":
-        return {"success": True, "data": {"cards": cr.list(state=None)[:20]}}
+        return {"success": True, "data": {"cards": cr.list(state=None)[:CARD_LIST_MAX_LIMIT]}}
     if sub == "submit" and len(args) >= 2:
         return cr.submit(" ".join(args[1:]), ".")
     if sub == "cancel" and len(args) >= 2:
@@ -285,11 +284,12 @@ def _card_dispatch(sub: str, args: list[str], cr) -> dict:
 
 
 def _cmd_card(args: list[str], session=None) -> dict:
+    from l1.kernel.params.system import CARD_LIST_DEFAULT_LIMIT
     from l2.bridge import card_registry as get_registry
 
     cr = get_registry()
     if not args:
-        return {"success": True, "data": {"cards": cr.list(state=None)[:10]}}
+        return {"success": True, "data": {"cards": cr.list(state=None)[:CARD_LIST_DEFAULT_LIMIT]}}
     return _card_dispatch(args[0].lower(), args, cr)
 
 
@@ -319,9 +319,10 @@ def _cmd_kill(args: list[str], session=None) -> dict:
     from l2.bridge import terminals as get_terminals
 
     terms = get_terminals()
-    if args[0] in terms:
-        terms[args[0]].shutdown()
-    return {"success": True}
+    if args[0] not in terms:
+        return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=args[0])}
+    terms[args[0]].shutdown()
+    return {"success": True, "agent": args[0]}
 
 
 def _cmd_destroy(args: list[str], session=None) -> dict:
