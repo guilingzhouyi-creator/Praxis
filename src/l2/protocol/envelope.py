@@ -33,6 +33,8 @@ ENVELOPE_FIELDS: tuple[str, ...] = ("v", "session_id", "seq", "ts", "kind", "pay
 # Bounded replay window per session (recovery reads this, never the past).
 OUTBOX_MAXLEN: int = 1024
 
+# Control ops — TS mirror: packages/protocol-ts/src/envelope.ts
+# CONTROL_KINDS / ControlKind (same five values).
 CONTROL_ATTACH = "attach"
 CONTROL_DETACH = "detach"
 CONTROL_RESUME = "resume"

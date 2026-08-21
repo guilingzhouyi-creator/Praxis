@@ -268,7 +268,15 @@ class ProtocolHost:
         return out
 
     def _handle_control(self, payload: dict, session_id: str, trace_id: str) -> list[dict]:
-        """Process control envelopes (attach/detach/resume/recovery)."""
+        """Process control envelopes (attach/detach/resume/recovery).
+
+        Session-flow steps (TS SessionView counterpart in session.ts):
+          attach            → session.attached event (identity snapshot)
+          resume / recovery → replay window from last_acked (view cursor)
+          ack               → advance the view cursor + shared watermark
+          detach            → session.detached event, view leaves the
+                              shared watermark (per-session view index)
+        """
         op = str(payload.get("op", ""))
         target = str(payload.get("session_id", session_id))
         view_id = str(payload.get("view_id", target))
