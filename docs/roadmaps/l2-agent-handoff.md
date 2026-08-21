@@ -127,6 +127,7 @@
 - **单一协议入口**：TS 只经 `bridge.ts`（零运行时状态）——一切命令经协议 v1 envelope 转发 Python 宿主。
 - **权威留 Python**：TS 永不重实现 AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning。
 - **契约单一真相**：envelope / records / params 的 TS 镜像注释均指向 Python 源文件。
+- **架构基线**：`docs/architecture/l2-shell-engine.md`（引擎层）+ `l2-shell.md`（家族层）为本文档的稳定契约；本表与 §1.7/§1.8 为路线图视角。
 
 ## 2. TS 重写标准（P3 翻译规范）
 

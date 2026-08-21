@@ -84,6 +84,11 @@ Rule: the L2 engine only calls the port/platform abstractions above —
 never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is
 invisible to `dispatch` and every shell dialect.
 
+L2 current status (protocol v1, TS engine, boundary migration) is tracked
+in `roadmaps/l2-agent-handoff.md` (§1) and
+`roadmaps/l2-multifrontend-session-layer.md` (§6); the architecture above
+is the stable contract those roadmaps build against.
+
 ## Contract surfaces
 
 - Shell contract: `name` + `run(text, session) -> dict` + `create_session()`
