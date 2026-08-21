@@ -12,7 +12,7 @@ import json
 import math
 import time
 from dataclasses import MISSING, asdict, dataclass, field, fields
-from typing import Any, ClassVar, TypeAlias
+from typing import Any, ClassVar, TypeAlias, cast
 
 RECORD_SCHEMA_VERSION: int = 1
 
@@ -62,7 +62,7 @@ class _ProtocolRecord:
         """Normalize decoded values before dataclass construction."""
         return values
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self: Any) -> dict[str, Any]:
         """Return the versioned record envelope as JSON-compatible data."""
         return {
             "record_type": self.record_type,
@@ -71,7 +71,7 @@ class _ProtocolRecord:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> _ProtocolRecord:
+    def from_dict(cls: type[Any], raw: dict[str, Any]) -> _ProtocolRecord:
         """Build a record while ignoring unknown fields for forward compatibility."""
         if not isinstance(raw, dict):
             raise RecordValidationError("record must be an object")
@@ -324,10 +324,12 @@ def decode_record(line: str) -> Record:
     if not isinstance(raw, dict):
         raise RecordValidationError("record must be an object")
     record_type = raw.get("record_type")
+    if not isinstance(record_type, str):
+        raise RecordValidationError(f"unknown record_type: {record_type!r}")
     record_cls = _RECORD_CLASSES.get(record_type)
     if record_cls is None:
         raise RecordValidationError(f"unknown record_type: {record_type!r}")
-    return record_cls.from_dict(raw)
+    return cast(Record, record_cls.from_dict(raw))
 
 
 __all__ = [

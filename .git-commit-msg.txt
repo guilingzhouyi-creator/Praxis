@@ -1,11 +1,9 @@
-refactor(l2): single help source, bridge-only reach-ins, honest modes
+test(l2): lift coverage to 75 percent and clear protocol type errors
 
-the duplicate /help body collapses to a forward to connect.py (its
-pipeline tip now describes the real behavior); cell agent resolution
-and provider health cross through l2.bridge dict functions instead of
-touching _agents/_provider internals; card/session display caps move
-into params; /kill reports unknown agents instead of silent success;
-/connect routes bare ids across cells via the selector; /mode tool
-persists read/write on the session instead of discarding it.
+four handler-contract batches cover the session/model/skills/memory
+dispatch tables, selector routing gates, terminal dialect helpers, and
+concurrent-host behavior over mocked L1/L3 boundaries; records and
+projection typing now satisfies mypy; the acb bridge import joins the
+layer-import allowlist; doc stats snapshots regenerate in sync.
 
 Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>

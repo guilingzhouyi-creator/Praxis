@@ -33,6 +33,9 @@ def project(frontend: str, state: dict[str, Any]) -> dict[str, Any]:
     adopt the protocol before its projection ships.
     """
     fn = _REGISTRY.get(frontend) or _REGISTRY.get("web")
+    if fn is None:
+        # No web shape registered either — fall back to the pass-through.
+        fn = _web
     return fn(state)
 
 
