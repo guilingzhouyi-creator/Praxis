@@ -1,4 +1,9 @@
-"""Shared utilities — value coercion, pipeline, agent resolution."""
+"""Shared utilities — value coercion, pipeline, agent resolution.
+
+TS rewrite reference: shared helpers (coercion, pipeline splitting, agent
+resolution) are the local utility layer the TS engine's parser/builtins
+port — no authority, pure shaping of already-bridged data.
+"""
 
 from __future__ import annotations
 

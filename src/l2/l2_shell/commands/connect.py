@@ -1,4 +1,9 @@
-"""L2 Shell: connection and mode commands (agents, connect, mode, help)."""
+"""L2 Shell: connection and mode commands (agents, connect, mode, help).
+
+TS rewrite reference: connection/mode commands forward through the bridge
+(selector/memory domains) — the TS side maps them to dispatcher entries
+whose fallback routes to the bridge marker; no local authority.
+"""
 
 from __future__ import annotations
 

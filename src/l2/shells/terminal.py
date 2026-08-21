@@ -1,5 +1,9 @@
 """TerminalShell — interactive terminal dialect over the L2 command engine.
 
+TS rewrite reference: the terminal dialect is the TUI frontend shape —
+the TS side renders a session through SessionView's tui projection and
+forwards every command via the bridge.
+
 Migrated from ``l2/shell.py`` into the shell family: the per-line dialect
 lives on ``TerminalShell.run`` (dict results, renderable by any frontend)
 and the classic REPL loop on ``TerminalShell.loop``.  The module-level

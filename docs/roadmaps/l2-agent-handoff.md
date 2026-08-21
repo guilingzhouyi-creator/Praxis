@@ -54,7 +54,7 @@
 - L1 `kernel.settings` 只作默认值只读面；ACB 槽位写属绑定域保留。
 - 收敛点：`/config`、`/settings global`、`/ci set`、`/ci toggle`。
 
-### 1.5 TS 引擎（P3）— 🟡 骨架
+### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接已合入 main）
 
 | 模块（`packages/protocol-ts/src/engine/`） | 状态 |
 |---|---|
@@ -74,6 +74,23 @@
 - `src/l2/l2_shell/commands/*.py`（66 个 handler，签名 `(args, session=None)`）。
 - i18n：47 处 f-string 全收编 `shell.app_error.*`（31 key × 4 locale），`test_i18n_l2_regression` 正则含 f-string 盲区。
 - `/history` 真实现（在途 Agent 提交 `6cb40f5`）：`src/l2/shells/session.py` + `l2_shell/__init__.py`。
+
+### 1.7 L2 层 TS 重写映射总表（后续 Agent 快速定位）
+
+| L2 模块 | 关键符号 | TS 对应 |
+|---|---|---|
+| `src/l2/protocol/`（envelope/host/records/projection） | `Outbox`/`SessionCursor`/`ProtocolHost`/`SessionIdentity` | `packages/protocol-ts/src/{envelope,records}.ts` + `engine/bridge.ts` |
+| `src/l2/bridge.py`（92 函数） | 域分组：error bus / memory / system / model / selector / injection / settings | `engine/bridge.ts`（1:1 转发，域分组同构） |
+| `src/l2/commands.py` | `CommandRegistry`（系统/用户命令分离） | `engine/dispatcher.ts`（register / has / listCommands / 未注册回退桥标记） |
+| `src/l2/selector.py` | dict 数据 API（cell_ids / cell_liveness / ...） | 本地投影（渲染选择结果，零对象句柄） |
+| `src/l2/i18n.py` | `t()` / `set_locale()` / `get_locale()` | locale 数据 + `lang` builtin |
+| `src/l2/shell_completer.py` / `l2_shell/completer.py` | Tab 补全 | 本地纯展示（桥数据渲染候选） |
+| `src/l2/shells/`（base / family / session / terminal） | 方言/家族/会话/终端 | `engine/session.ts`（SessionView 投影形状 + 前端矩阵） |
+| `src/l2/l2_shell/__main__.py` | REPL 路由（/命令、\| 管道、纯文本→L3A） | `engine/parser.ts` + `dispatcher.ts` 路由模型 |
+| `src/l2/l2_shell/commands/*.py` | 20+ 命令模块（memory / connect / extra...） | dispatcher 注册组（未注册回退桥标记） |
+| `src/l2/l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） |
+| `src/l2/l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python） |
+| `src/l2/l2_shell/state.py` | 状态访问器 | `SessionView` 快照（attach/replay） |
 
 ## 2. TS 重写标准（P3 翻译规范）
 
