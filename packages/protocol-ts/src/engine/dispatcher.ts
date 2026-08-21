@@ -28,6 +28,11 @@ export class Dispatcher {
     return this.handlers.has(name);
   }
 
+  /** Registered command names (stable, sorted) — feeds the help builtin. */
+  listCommands(): string[] {
+    return [...this.handlers.keys()].sort();
+  }
+
   /** Dispatch a parsed command; unknown names route to the bridge. */
   dispatch(cmd: ParsedCommand, ctx: DispatchContext): CommandResult {
     const handler = this.handlers.get(cmd.name);

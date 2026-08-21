@@ -59,12 +59,12 @@
 | 模块（`packages/protocol-ts/src/engine/`） | 状态 |
 |---|---|
 | `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize` |
-| `dispatcher.ts` | ✅ 注册表 + 未注册回退桥标记 |
+| `dispatcher.ts` | ✅ 注册表 + `listCommands` + 未注册回退桥标记 |
 | `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay，transport 注入） |
-| `session.ts` | ⏳ 视图投影（待做） |
-| `builtins.ts` | ⏳ 本地纯展示命令（待做） |
-| transport 适配器 | ⏳ stdio/HTTP/WS/SSH（待做） |
-| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例（Vitest 14 passed，tsc 干净） |
+| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop`（与 Python `projection.py` 三形状对齐） |
+| `builtins.ts` | ✅ `registerBuiltins`（lang/help/clear 本地纯展示命令） |
+| transport 适配器 | ⏳ stdio/HTTP/WS/SSH（待做；注：真实 stdio 需异步 Transport，当前同步接口为已知债） |
+| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例 + `tests/session.test.ts` 7 例（Vitest 21 passed，tsc 干净） |
 
 协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python 逐字段对齐，§2.4）。
 
@@ -107,11 +107,12 @@
 
 ### 2.5 P3 验收清单
 
-- [ ] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），复用 `projection.ts` 语义（TS 侧若建投影，需与 Python `projection.py` 形状一致）。
-- [ ] `builtins.ts`：`lang`/`help`/纯展示命令本地实现。
-- [ ] transport 适配器：stdio（JSONL 往返）、HTTP（`/api/v2/shell` 双模式）、WS/SSH 线格式。
-- [ ] 端到端：TS 引擎跑通 web/TUI 轻量桌面，**L3 零改动**（Python L3 是唯一运行面）。
-- [ ] 测试：Vitest 全绿 + Python 联动测试（`tests/l4/test_shell_protocol.py`）不回归。
+- [x] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python `projection.py` 三形状一致（含未知前端回退 web）。
+- [x] `builtins.ts`：`lang`/`help`/`clear` 纯展示命令本地实现（`registerBuiltins` + `dispatcher.listCommands`）。
+- [ ] transport 适配器：stdio（JSONL 往返，需异步 Transport 改造）、HTTP（`/api/v2/shell` 双模式）、WS/SSH 线格式。
+- [ ] 端到端真实链路：TS 引擎 + Python ProtocolHost 打通（当前 fake-host 链路已覆盖 parser→dispatcher→bridge→SessionView，真实 transport 待续）。
+- [ ] 测试：Vitest 全绿（当前 21 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py`）不回归。
+- [x] L3 零改动：本轮 TS 引擎增量仅 `packages/protocol-ts/`（Python 零触碰）。
 
 ## 3. 已知坑与运行环境（必读）
 

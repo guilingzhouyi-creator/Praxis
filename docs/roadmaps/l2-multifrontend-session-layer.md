@@ -123,8 +123,8 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 
 ### 6.4 P3 TS 引擎 — 🟡 骨架（2026-08-21）
 
-- **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端：command/attach/ack/replay，transport 注入，复用协议 v1 envelope，TS 侧零运行时状态）；`tests/engine.test.ts` 8 例（Vitest 14 passed，tsc 干净）。
-- **剩余**：`session.ts`（视图投影）、`builtins.ts`（本地纯展示命令）、transport 适配器（stdio/HTTP/WS/SSH）。
+- **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端：command/attach/ack/replay，transport 注入，复用协议 v1 envelope，TS 侧零运行时状态）、`session.ts`（`SessionView` attach/replay/投影 + 三形状投影，与 Python `projection.py` 对齐）、`builtins.ts`（lang/help/clear 本地纯展示命令）；`tests/engine.test.ts` 8 例 + `tests/session.test.ts` 7 例（Vitest 21 passed，tsc 干净）。
+- **剩余**：transport 适配器（stdio/HTTP/WS/SSH；真实 stdio 需异步 Transport 改造——已知债）+ 真实端到端打通。
 - **重写标准**：见 [l2-agent-handoff.md](l2-agent-handoff.md) §2（跨语言契约 / 桥 API 对应 / 铁律 / 镜像同步 / 验收清单）。
 - 验收：TS 引擎跑通 web/TUI/轻量桌面；L3 零改动；协议 v1 作为唯一跨语言契约。
 
