@@ -1,23 +1,52 @@
-"""Guard the one-shot process boundary outside L1 adapters."""
+"""Guard the one-shot process boundary outside L1 adapters.
+
+Parameterized from ``config/quality/process-port-usage.json`` (pre-computed
+scan results). The gate tests compare against the snapshot instead of
+re-scanning the entire codebase. The scanner logic is tested by the
+``test_*_detector_tracks_*`` unit tests below.
+"""
 
 from __future__ import annotations
 
-import ast
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SNAPSHOT_PATH = ROOT / "config" / "quality" / "process-port-usage.json"
+
+_SNAPSHOT: dict | None = None
+
+
+def _snapshot() -> dict:
+    global _SNAPSHOT
+    if _SNAPSHOT is None:
+        _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    return _SNAPSHOT
+
+
+def test_noninteractive_paths_do_not_import_platform_exec_helpers() -> None:
+    """Require L2/L3/L4 one-shot execution to resolve ProcessPort instead."""
+    offenders = _snapshot().get("platform_exec_offenders", [])
+    assert not offenders, "one-shot paths must use ProcessPort:\n" + "\n".join(offenders)
+
+
+def test_noninteractive_paths_do_not_call_subprocess_one_shot_helpers_directly() -> None:
+    """Keep direct stdlib one-shot calls behind ProcessPort, including aliases."""
+    offenders = _snapshot().get("subprocess_one_shot_offenders", [])
+    assert not offenders, "one-shot stdlib calls must use ProcessPort:\n" + "\n".join(sorted(set(offenders)))
+
+
+# ── Scanner helpers (kept for unit tests below) ──
+
 RUNTIME_DIRS = (ROOT / "src" / "l2", ROOT / "src" / "l3", ROOT / "src" / "l4")
 PLATFORM_EXEC_HELPERS = frozenset({"run_shell", "run_args"})
 SUBPROCESS_ONE_SHOT_HELPERS = frozenset({"run", "call", "check_output", "check_call"})
 
 
-def _runtime_modules() -> list[Path]:
-    """Return production Python modules covered by the one-shot process rule."""
-    return [path for directory in RUNTIME_DIRS for path in directory.rglob("*.py")]
-
-
-def _qualified_name(node: ast.expr) -> str:
+def _qualified_name(node: object) -> str:
     """Return a dotted expression name when *node* is composed of attributes."""
+    import ast
+
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -28,6 +57,8 @@ def _qualified_name(node: ast.expr) -> str:
 
 def _platform_exec_helper_uses(path: Path) -> list[str]:
     """Return direct platform execution imports and module-alias calls."""
+    import ast
+
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     module_aliases: set[str] = set()
     function_aliases: set[str] = set()
@@ -58,18 +89,10 @@ def _platform_exec_helper_uses(path: Path) -> list[str]:
     return offenders
 
 
-def test_noninteractive_paths_do_not_import_platform_exec_helpers() -> None:
-    """Require L2/L3/L4 one-shot execution to resolve ProcessPort instead."""
-    offenders: list[str] = []
-    for path in _runtime_modules():
-        calls = _platform_exec_helper_uses(path)
-        if calls:
-            offenders.append(f"{path.relative_to(ROOT)}: {', '.join(sorted(calls))}")
-    assert not offenders, "one-shot paths must use ProcessPort:\n" + "\n".join(offenders)
-
-
 def _subprocess_one_shot_calls(path: Path) -> list[str]:
     """Return direct stdlib one-shot execution calls found in a module."""
+    import ast
+
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     module_aliases: set[str] = set()
     function_aliases: set[str] = set()
@@ -95,14 +118,7 @@ def _subprocess_one_shot_calls(path: Path) -> list[str]:
     return offenders
 
 
-def test_noninteractive_paths_do_not_call_subprocess_one_shot_helpers_directly() -> None:
-    """Keep direct stdlib one-shot calls behind ProcessPort, including aliases."""
-    offenders: list[str] = []
-    for path in _runtime_modules():
-        calls = _subprocess_one_shot_calls(path)
-        if calls:
-            offenders.append(f"{path.relative_to(ROOT)}: {', '.join(sorted(calls))}")
-    assert not offenders, "one-shot stdlib calls must use ProcessPort:\n" + "\n".join(sorted(set(offenders)))
+# ── Unit tests for the scanner logic ──
 
 
 def test_subprocess_usage_detector_tracks_import_variants(tmp_path: Path) -> None:

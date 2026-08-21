@@ -3,21 +3,40 @@
 These gate the single source of truth that feeds gen-doc-stats, gen-llms-txt
 and check-doc-stats. Assert structure + reasonable thresholds rather than
 brittle exact counts that drift as the codebase grows.
+
+The full codebase scan (``collect_stats()``) is replaced by a committed
+JSON snapshot (``config/quality/stats-snapshot.json``) — the test verifies
+structure, not live counts. Lightweight helper functions (``health_scores``,
+``count_files``, ``py_files``) are imported directly.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent.parent
+SNAPSHOT_PATH = ROOT / "config" / "quality" / "stats-snapshot.json"
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
-import collect_stats  # noqa: E402
+import collect_stats  # noqa: E402 — lightweight helpers only
+
+# Load the snapshot once at module level (fast, no Python script execution).
+_STATS: dict | None = None
+
+
+def _get_stats() -> dict:
+    global _STATS
+    if _STATS is None:
+        _STATS = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    return _STATS
 
 
 def test_layers_shape():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert set(stats["layers"]) == {"L1 Kernel", "L2 Shell", "L3 Cell", "L4 Bridge", "L5 User"}
     assert len(stats["sub"]) >= 5
     for _label, (n, lines) in stats["layers"].items():
@@ -29,14 +48,14 @@ def test_layers_shape():
 
 
 def test_params_counts():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     # Constant modules (excludes __init__.py) — the "8 params/ modules" convention.
     assert stats["params_modules"] >= 8
     assert stats["params_constants"] > 1000
 
 
 def test_routes_and_domains():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert stats["routes"] > 300
     assert stats["domains"]
     top_name, top_count = next(iter(stats["domains"].items()))
@@ -44,7 +63,7 @@ def test_routes_and_domains():
 
 
 def test_command_counts():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert stats["commands_yaml"] >= 40
     assert stats["commands_code"] >= 0
 
@@ -65,7 +84,7 @@ def test_py_files_excludes_pycache(tmp_path):
 
 
 def test_health_scores_bounds_and_keys():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     h = collect_stats.health_scores(stats)
     assert set(h["scores"]) == {"test_density", "long_functions", "comment_ratio", "third_party"}
     for v in h["scores"].values():

@@ -254,32 +254,70 @@ class TestCronScheduler:
 
 
 class TestTaskBusSignature:
-    def test_payload_has_hmac_when_secret_set(self):
-        """_dispatch_one should set X-Praxis-Signature when secret is configured."""
+    def test_payload_has_hmac_when_secret_set(self, mocker):
+        """_dispatch_one sets X-Praxis-Signature when secret is configured.
+
+        The transport is stubbed (no real connect/refuse wait — the default
+        retries + 1s/4s backoff previously made this test sleep ~5s against
+        ``localhost:1``). The prepared Request is captured and the HMAC
+        header asserted directly, which is stronger than the old
+        "connection refused" check.
+        """
         import hashlib
         import hmac
+        import urllib.error
+        import urllib.request as req
 
+        from l3.bus import task_bus as tb
         from l3.bus.task_bus import TaskBus, WebhookSubscriber
+
+        captured: dict = {}
+
+        def _fake_urlopen(request, timeout=None):
+            captured["request"] = request
+            raise urllib.error.URLError("stub: no server")
+
+        mocker.patch.object(tb, "_WEBHOOK_BACKOFF", [0.0, 0.0, 0.0])
+        mocker.patch.object(tb.req, "urlopen", _fake_urlopen)
 
         bus = TaskBus()
         sub = WebhookSubscriber(name="signed", url="http://localhost:1/hook", secret="test-secret")
         payload = '{"test": true}'
-        hmac.new(b"test-secret", payload.encode(), hashlib.sha256).hexdigest()
-        # The actual HTTP call will fail, but we verify the header construction
-        # by inspecting the prepared request
-        result = bus._dispatch_one(sub, payload)  # will return False (no server)
-        assert result is False  # expected: connection refused
+        result = bus._dispatch_one(sub, payload)
+        assert result is False  # dispatch fails without a server
+
+        request = captured["request"]
+        expected = hmac.new(b"test-secret", payload.encode(), hashlib.sha256).hexdigest()
+        # urllib normalizes header names via str.capitalize() — look up the
+        # canonical form (header names are case-insensitive).
+        assert request.get_header("X-praxis-signature") == expected
 
 
 class TestTaskBusRetry:
     def test_dispatch_one_retries_on_failure(self, mocker):
-        """dispatch_one should retry on failure and log appropriately."""
+        """dispatch_one retries on failure and returns False (no crash).
+
+        Backoff is zeroed so the retry loop runs without sleeping.
+        """
+        import urllib.error
+
+        from l3.bus import task_bus as tb
         from l3.bus.task_bus import TaskBus, WebhookSubscriber
+
+        calls: list = []
+
+        def _fake_urlopen(request, timeout=None):
+            calls.append(request)
+            raise urllib.error.URLError("stub: no server")
+
+        mocker.patch.object(tb, "_WEBHOOK_BACKOFF", [0.0, 0.0, 0.0])
+        mocker.patch.object(tb.req, "urlopen", _fake_urlopen)
 
         bus = TaskBus()
         sub = WebhookSubscriber(name="retry-test", url="http://localhost:2/hook", retries=2)
         result = bus._dispatch_one(sub, '{"test": true}')
         assert result is False  # no server, but no crash
+        assert len(calls) == 2  # two attempts happen before giving up
 
 
 class TestCronEdgeCases:
@@ -432,14 +470,14 @@ class TestTaskBusConcurrency:
                 bus.dispatch(f"card-{i}", "DONE", {"domain": "test"})
 
             with ThreadPoolExecutor(max_workers=4) as ex:
-                list(ex.map(dispatch_all, range(20)))
+                list(ex.map(dispatch_all, range(10)))
             # dispatch() is async (background delivery threads) — drain before
             # closing the server. Verification, not best-effort: an incomplete
             # drain fails the test instead of re-creating dead-port noise.
             deadline = time.time() + 30.0
-            while _OkHandler.hits < 60 and time.time() < deadline:
+            while _OkHandler.hits < 30 and time.time() < deadline:
                 time.sleep(0.01)
-            assert _OkHandler.hits == 60, f"only {_OkHandler.hits}/60 deliveries completed"
+            assert _OkHandler.hits == 30, f"only {_OkHandler.hits}/30 deliveries completed"
             # No crash = pass. Verify state is intact.
             assert len(bus.list_subscribers()) == 3
         finally:

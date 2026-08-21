@@ -1,8 +1,10 @@
 """Tests for .githooks/commit-msg — the commit governance gate.
 
-Drives the bash hook with synthetic commit messages and asserts its exit code,
-so the rules (English, Co-Authored-By, Conventional-Commits type, Merge
-exemption) are machine-verified rather than trusted by convention.
+Drives the Node.js validation script with synthetic commit messages and
+asserts its exit code, so the rules (English, Co-Authored-By,
+Conventional-Commits type, Merge exemption) are machine-verified rather than
+trusted by convention. The Node.js script replaces the previous Python-based
+commit_scan.py + detect_agent.py, removing the Python runtime dependency.
 """
 
 from __future__ import annotations
@@ -12,6 +14,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = ROOT / ".githooks" / "commit-msg"
@@ -30,9 +34,8 @@ def run_hook(message: str) -> int:
             {
                 "PRAXIS_AUTHOR": "AtomCode",
                 "PRAXIS_MODEL": "deepseek-v4-flash",
-                # Pin the interpreter so commit_scan.py (needs PyYAML) runs
-                # even where the system `python3` lacks it.
-                "PRAXIS_PYTHON": sys.executable,
+                # Pin the Node.js interpreter so the hook finds it reliably.
+                "PRAXIS_NODE": "/home/guiling/.nvm/versions/node/v24.19.0/bin/node",
             }
         )
         result = subprocess.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env)

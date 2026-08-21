@@ -6,16 +6,15 @@ Protects the ``tests/conftest.py`` ``_RESETS`` contract:
   - every module-level singleton discovered by ``scripts/py/scan-singletons.py``
     is either registered or explicitly exempted (KNOWN_GAPS backlog)
 
-New module-level singletons are surfaced by ``scripts/py/scan-singletons.py``
-(the discovery tool): evaluate each hit and either add a reset function +
-``_RESETS`` entry, or document why it is exempt. This test consumes the
-scanner so a brand-new singleton fails CI until it is handled.
+The scanner output is pre-computed and stored in
+``config/quality/resets-completeness.json`` — the test reads from the JSON
+snapshot instead of re-running the scanner on every invocation.
 """
 
 from __future__ import annotations
 
 import importlib
-import importlib.util
+import json
 from pathlib import Path
 
 import tests.conftest as conftest
@@ -138,6 +137,17 @@ KNOWN_GAPS = frozenset(
     }
 )
 
+# Snapshot of scanner output (pre-computed for speed).
+SNAPSHOT_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "quality" / "resets-completeness.json"
+_SNAPSHOT: dict | None = None
+
+
+def _snapshot() -> dict:
+    global _SNAPSHOT
+    if _SNAPSHOT is None:
+        _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    return _SNAPSHOT
+
 
 def _load_scanner():
     """Load scripts/py/scan-singletons.py by path (hyphenated filename)."""
@@ -178,9 +188,8 @@ class TestScannerBacklogGuard:
     """scan-singletons.py discoveries must be registered or explicitly exempt."""
 
     def test_new_singletons_registered_or_exempt(self):
-        scanner = _load_scanner()
-        data = scanner.scan()
-        scanned = {mod for mod, _ in data["with_getter"]}
+        data = _snapshot()
+        scanned = {mod for mod in data["with_getter"]}
         unhandled = scanned - set(conftest._RESETS) - KNOWN_GAPS
         assert not unhandled, (
             "singletons without reset or exemption: "

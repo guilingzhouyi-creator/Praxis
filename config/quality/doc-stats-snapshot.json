@@ -1,0 +1,119 @@
+{
+  "layers": {
+    "L1 Kernel": [
+      69,
+      18624
+    ],
+    "L2 Shell": [
+      46,
+      7432
+    ],
+    "L3 Cell": [
+      349,
+      77995
+    ],
+    "L4 Bridge": [
+      113,
+      23576
+    ],
+    "L5 User": [
+      2,
+      599
+    ]
+  },
+  "sub": {
+    "L3A (peers)": [
+      26,
+      7026
+    ],
+    "L3 Memory": [
+      46,
+      10771
+    ],
+    "L3 Card": [
+      27,
+      6451
+    ],
+    "L3 Services": [
+      46,
+      11707
+    ],
+    "L3 Bus": [
+      17,
+      4396
+    ],
+    "L3 Agent": [
+      37,
+      8690
+    ],
+    "L4 Handlers": [
+      34,
+      6419
+    ]
+  },
+  "routes": 368,
+  "params_modules": 8,
+  "params_constants": 1206,
+  "domains": {
+    "memory": 37,
+    "skill": 29,
+    "system": 18,
+    "security": 18,
+    "provider": 17,
+    "l3a": 14,
+    "approval": 14,
+    "fs": 14,
+    "session": 12,
+    "card": 11,
+    "subagent": 11,
+    "agent": 10,
+    "log": 10,
+    "lifecycle": 9,
+    "shell": 8,
+    "discussion": 8,
+    "ci": 7,
+    "diff": 7,
+    "tool": 7,
+    "profile": 7,
+    "cell": 6,
+    "config": 6,
+    "mcp": 6,
+    "loop": 6,
+    "lsp": 6,
+    "identity": 6,
+    "monitor": 6,
+    "plugin": 5,
+    "constitution": 5,
+    "stats": 5,
+    "search": 5,
+    "cluster": 4,
+    "records": 4,
+    "prompt": 4,
+    "buffer": 4,
+    "token": 3,
+    "cron": 3,
+    "credential": 3,
+    "misc": 2,
+    "scout": 2,
+    "r4": 2,
+    "convention": 2,
+    "comm": 2,
+    "cache": 1,
+    "rollback": 1,
+    "sse": 1
+  },
+  "commands_yaml": 51,
+  "commands_code": 17,
+  "tools_impl": 22,
+  "cell_components": 26,
+  "test_files": 549,
+  "test_cases": 4817,
+  "long_functions": 3,
+  "comment_ratio": 0.0407,
+  "third_party_imports": [
+    "cryptography",
+    "jinja2",
+    "websockets",
+    "zstandard"
+  ]
+}
