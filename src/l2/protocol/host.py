@@ -185,14 +185,25 @@ class ProtocolHost:
         }
 
     def handle(self, line: str) -> list[dict]:
-        """Handle one input line; returns zero or more output envelopes."""
+        """Handle one input line; returns zero or more output envelopes.
+
+        TS counterpart: bridge.ts ``roundTrip`` — the encoded JSONL line a
+        transport delivers lands here and is decoded once (validate inside
+        ``decode_message``), then dispatched without a second validation.
+        """
         msg, err = decode_message(line)
         if err is not None:
             return [self._emit(KIND_RESULT, {"success": False, "error": err}, "-")]
         return self._handle_validated(msg)
 
     def handle_message(self, msg: dict[str, Any]) -> list[dict]:
-        """Handle one decoded envelope dict; shared by stdio and web modes."""
+        """Handle one decoded envelope dict; shared by stdio and web modes.
+
+        In-memory entry with no JSON round-trip — used by the WS bridge
+        envelope branch after ``json.loads``. TS counterpart: the host-side
+        dispatch the ProtocolBridge's command/attach/ack/replay envelopes
+        feed into (validate once via ``validateMessage``, then dispatch).
+        """
         violations = validate_message(msg)
         if violations:
             return [self._emit(KIND_RESULT, {"success": False, "error": "; ".join(violations)}, "-")]
