@@ -4,30 +4,37 @@ The script filename has a hyphen, so it is loaded by path with importlib
 (the same pattern the script itself uses to load gen-doc-stats). Gate the
 read-only surface (snapshot_rows / parse_readme / check); fix() mutates the
 real README, so it is exercised only against a synthetic snapshot.
+
+The full codebase scan (``collect_stats``) is replaced by a committed JSON
+snapshot (``config/quality/doc-stats-snapshot.json``) — the test verifies
+structure, not live counts. Lightweight helpers (``parse_readme``, ``check``,
+``snapshot_rows``) are loaded from the module.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+SNAPSHOT_PATH = ROOT / "config" / "quality" / "doc-stats-snapshot.json"
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
 _spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "scripts" / "py" / "check_doc_stats.py")
 check_doc_stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_doc_stats)
 
-# Cache the full stats scan so repeated calls don't re-scan the codebase.
-_stats_cache: dict | None = None
+# Load the snapshot once at module level (fast, no Python script execution).
+_STATS: dict | None = None
 
 
 def _get_stats() -> dict:
-    global _stats_cache
-    if _stats_cache is None:
-        _stats_cache = check_doc_stats.collect_stats()
-    return _stats_cache
+    global _STATS
+    if _STATS is None:
+        _STATS = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    return _STATS
 
 
 def test_snapshot_rows_format():

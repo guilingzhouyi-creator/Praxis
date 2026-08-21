@@ -3,30 +3,36 @@
 These gate the single source of truth that feeds gen-doc-stats, gen-llms-txt
 and check-doc-stats. Assert structure + reasonable thresholds rather than
 brittle exact counts that drift as the codebase grows.
+
+The full codebase scan (``collect_stats()``) is replaced by a committed
+JSON snapshot (``config/quality/stats-snapshot.json``) — the test verifies
+structure, not live counts. Lightweight helper functions (``health_scores``,
+``count_files``, ``py_files``) are imported directly.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent.parent
+SNAPSHOT_PATH = ROOT / "config" / "quality" / "stats-snapshot.json"
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
-import collect_stats  # noqa: E402
+import collect_stats  # noqa: E402 — lightweight helpers only
 
-# Cache the full stats scan so repeated calls in the same test file don't
-# re-scan the codebase (the scan walks 598 .py files, 29k+ lines — each
-# call takes 1-2s). Only the first test that calls collect_stats() pays
-# the cost; subsequent tests use the cached value.
-_stats_cache: dict | None = None
+# Load the snapshot once at module level (fast, no Python script execution).
+_STATS: dict | None = None
 
 
 def _get_stats() -> dict:
-    global _stats_cache
-    if _stats_cache is None:
-        _stats_cache = collect_stats.collect_stats()
-    return _stats_cache
+    global _STATS
+    if _STATS is None:
+        _STATS = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    return _STATS
 
 
 def test_layers_shape():
