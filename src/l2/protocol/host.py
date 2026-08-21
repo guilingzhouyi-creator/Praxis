@@ -296,7 +296,9 @@ class ProtocolHost:
                 continue
             for out in self.handle(line):
                 stdout.write(encode_message(out) + "\n")
-                stdout.flush()
+            # Flush once per input line so a burst of outputs batches
+            # syscalls instead of flushing per envelope.
+            stdout.flush()
             count += 1
         return count
 

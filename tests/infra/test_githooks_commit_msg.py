@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -25,7 +26,15 @@ def run_hook(message: str) -> int:
         path = f.name
     try:
         env = os.environ.copy()
-        env.update({"PRAXIS_AUTHOR": "AtomCode", "PRAXIS_MODEL": "deepseek-v4-flash"})
+        env.update(
+            {
+                "PRAXIS_AUTHOR": "AtomCode",
+                "PRAXIS_MODEL": "deepseek-v4-flash",
+                # Pin the interpreter so commit_scan.py (needs PyYAML) runs
+                # even where the system `python3` lacks it.
+                "PRAXIS_PYTHON": sys.executable,
+            }
+        )
         result = subprocess.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env)
         return result.returncode
     finally:
