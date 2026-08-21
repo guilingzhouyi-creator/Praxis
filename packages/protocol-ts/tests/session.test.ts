@@ -18,7 +18,7 @@ const EVENTS: Message[] = [
 
 /** Fake host: answers attach with a session.attached event + identity, recovery with a replay. */
 function sessionHost(received: string[]): Transport {
-  return (line: string) => {
+  return async (line: string) => {
     received.push(line);
     const message = decodeMessage(line).message;
     if (!message) return [];
@@ -74,15 +74,15 @@ describe("session projection", () => {
 });
 
 describe("SessionView end-to-end", () => {
-  it("attaches, replays and projects through the bridge", () => {
+  it("attaches, replays and projects through the bridge", async () => {
     const received: string[] = [];
     const bridge = new ProtocolBridge({ sessionId: "s-1", transport: sessionHost(received) });
     const view = new SessionView("v-1", bridge);
 
-    const identity = view.attach("s-9");
+    const identity = await view.attach("s-9");
     expect(identity.role).toBe("operator");
 
-    const state = view.state("s-9");
+    const state = await view.state("s-9");
     expect(state.events).toHaveLength(2);
     expect(state.events[0].payload.name).toBe("replayed-1");
 

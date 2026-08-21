@@ -63,8 +63,9 @@
 | `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay，transport 注入） |
 | `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop`（与 Python `projection.py` 三形状对齐） |
 | `builtins.ts` | ✅ `registerBuiltins`（lang/help/clear 本地纯展示命令） |
-| transport 适配器 | ⏳ stdio/HTTP/WS/SSH（待做；注：真实 stdio 需异步 Transport，当前同步接口为已知债） |
-| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例 + `tests/session.test.ts` 7 例（Vitest 21 passed，tsc 干净） |
+| transport 适配器 | ✅ `transports/stdio.ts`（Node readline 请求-响应，按 ack 行定边界）+ `transports/http.ts`（POST `/api/v2/shell` → `envelopes`）；**异步契约** `(line) => Promise<string[]>`；WS/SSH 按同目录同接口扩展 |
+| 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python `ProtocolHost`（`python -m l2.protocol`）打通：command 往返 + attach/replay |
+| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例 + `tests/session.test.ts` 7 例 + `tests/e2e.stdio.test.ts` 2 例（Vitest 23 passed，tsc 干净） |
 
 协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python 逐字段对齐，§2.4）。
 
@@ -109,10 +110,18 @@
 
 - [x] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python `projection.py` 三形状一致（含未知前端回退 web）。
 - [x] `builtins.ts`：`lang`/`help`/`clear` 纯展示命令本地实现（`registerBuiltins` + `dispatcher.listCommands`）。
-- [ ] transport 适配器：stdio（JSONL 往返，需异步 Transport 改造）、HTTP（`/api/v2/shell` 双模式）、WS/SSH 线格式。
-- [ ] 端到端真实链路：TS 引擎 + Python ProtocolHost 打通（当前 fake-host 链路已覆盖 parser→dispatcher→bridge→SessionView，真实 transport 待续）。
-- [ ] 测试：Vitest 全绿（当前 21 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py`）不回归。
-- [x] L3 零改动：本轮 TS 引擎增量仅 `packages/protocol-ts/`（Python 零触碰）。
+- [x] transport 适配器：**异步 Transport 契约**（`(line) => Promise<string[]>`）；`stdio.ts`（Node readline + ack 边界 + 超时/上限）+ `http.ts`（fetch `/api/v2/shell` 双模式）——**WS/SSH 按同目录同接口扩展**（`src/engine/transports/`）。
+- [x] 端到端真实链路：TS 引擎 + 真实 Python ProtocolHost 打通（`tests/e2e.stdio.test.ts` spawn `python -m l2.protocol`；command 往返 + attach/replay）。
+- [x] 测试：Vitest 全绿（23 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py` 等 53 passed）不回归。
+- [x] L3 零改动：TS 引擎增量仅 `packages/protocol-ts/`（Python 零触碰）。
+
+### 2.6 Transport 适配器标准（后续 Agent 扩展 WS/SSH 时遵循）
+
+1. **接口**：实现 `Transport = (line: string) => Promise<string[]>`（发一行 JSONL envelope，resolve 响应行）。
+2. **位置**：`packages/protocol-ts/src/engine/transports/<name>.ts`，并在 `index.ts` 导出。
+3. **响应边界**：每请求返回该请求的响应行（stdio 按 ack 行；HTTP 按 `envelopes` 数组）；**禁止跨请求混合**（并发请求应拒绝或排队）。
+4. **健壮性**：超时（`timeoutMs`）+ 行数上限（`maxLines`），失败快返回错误（host 卡死不挂死调用方）。
+5. **测试**：真实适配器配 fake/本地宿主测试；端到端配真实 Python host（参考 `tests/e2e.stdio.test.ts`）。
 
 ## 3. 已知坑与运行环境（必读）
 

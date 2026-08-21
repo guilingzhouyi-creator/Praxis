@@ -82,8 +82,8 @@ export class SessionView {
   ) {}
 
   /** Attach the view and capture the host's identity snapshot. */
-  attach(sessionId: string): Record<string, unknown> {
-    const responses = this.bridge.attach(sessionId, this.viewId);
+  async attach(sessionId: string): Promise<Record<string, unknown>> {
+    const responses = await this.bridge.attach(sessionId, this.viewId);
     const attached = responses.find(
       (message) => message.kind === "event" && message.payload.name === "session.attached",
     );
@@ -92,13 +92,13 @@ export class SessionView {
   }
 
   /** Pull the unacked replay window for this view's cursor. */
-  replay(sessionId: string, lastAcked = -1): Message[] {
+  async replay(sessionId: string, lastAcked = -1): Promise<Message[]> {
     this.lastAcked = lastAcked;
     return this.bridge.replay(sessionId, this.viewId, lastAcked);
   }
 
   /** Compose the projection input (identity + unacked events). */
-  state(sessionId: string): SessionState {
-    return { identity: this.identity, events: this.replay(sessionId, this.lastAcked) };
+  async state(sessionId: string): Promise<SessionState> {
+    return { identity: this.identity, events: await this.replay(sessionId, this.lastAcked) };
   }
 }

@@ -37,7 +37,7 @@ describe("dispatcher", () => {
 
 /** Minimal fake Python host: answers commands with a result, control with an event. */
 function fakeHost(received: string[]): Transport {
-  return (line: string) => {
+  return async (line: string) => {
     received.push(line);
     const decoded = decodeMessage(line);
     const message = decoded.message;
@@ -57,10 +57,10 @@ function fakeHost(received: string[]): Transport {
 }
 
 describe("ProtocolBridge", () => {
-  it("sends a command envelope and decodes the host result", () => {
+  it("sends a command envelope and decodes the host result", async () => {
     const received: string[] = [];
     const bridge = new ProtocolBridge({ sessionId: "s-1", transport: fakeHost(received) });
-    const responses = bridge.command("lang", ["-v"]);
+    const responses = await bridge.command("lang", ["-v"]);
     expect(responses).toHaveLength(1);
     expect(responses[0].kind).toBe("result");
     expect(responses[0].payload.success).toBe(true);
@@ -71,22 +71,22 @@ describe("ProtocolBridge", () => {
     expect(outgoing?.payload.args).toEqual(["-v"]);
   });
 
-  it("emits attach control with an optional view id", () => {
+  it("emits attach control with an optional view id", async () => {
     const received: string[] = [];
     const bridge = new ProtocolBridge({ sessionId: "s-1", transport: fakeHost(received) });
-    bridge.attach("s-9", "v-1");
+    await bridge.attach("s-9", "v-1");
     const outgoing = decodeMessage(received[0]).message;
     expect(outgoing?.kind).toBe("control");
     expect(outgoing?.payload.op).toBe("attach");
     expect(outgoing?.payload.view_id).toBe("v-1");
   });
 
-  it("acks per view and requests replays from a cursor", () => {
+  it("acks per view and requests replays from a cursor", async () => {
     const received: string[] = [];
     const bridge = new ProtocolBridge({ sessionId: "s-1", transport: fakeHost(received) });
-    bridge.ack(5, "v-1");
+    await bridge.ack(5, "v-1");
     expect(decodeMessage(received[0]).message?.payload).toMatchObject({ ack_seq: 5, view_id: "v-1" });
-    bridge.replay("s-9", "v-1", 3);
+    await bridge.replay("s-9", "v-1", 3);
     expect(decodeMessage(received[1]).message?.payload).toMatchObject({
       op: "recovery",
       session_id: "s-9",
