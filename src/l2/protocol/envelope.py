@@ -15,6 +15,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from l1.kernel.params.api import PROTOCOL_OUTBOX_MAXLEN
+
 PROTOCOL_VERSION: int = 1
 
 KIND_INTENT = "intent"
@@ -31,8 +33,11 @@ KINDS: frozenset[str] = frozenset(
 ENVELOPE_FIELDS: tuple[str, ...] = ("v", "session_id", "seq", "ts", "kind", "payload")
 
 # Bounded replay window per session (recovery reads this, never the past).
-OUTBOX_MAXLEN: int = 1024
+# Registered in params/api.py — TS mirror: envelope.ts OUTBOX_MAXLEN.
+OUTBOX_MAXLEN: int = PROTOCOL_OUTBOX_MAXLEN
 
+# Control ops — TS mirror: packages/protocol-ts/src/envelope.ts
+# CONTROL_KINDS / ControlKind (same five values).
 CONTROL_ATTACH = "attach"
 CONTROL_DETACH = "detach"
 CONTROL_RESUME = "resume"

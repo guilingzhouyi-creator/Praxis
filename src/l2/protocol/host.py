@@ -39,9 +39,13 @@ from l2.protocol.envelope import (
 from l2.protocol.records import SessionIdentity
 
 _DISPATCH_LOCK = threading.Lock()
+# Lazily resolved ShellSession class — every command/control hits
+# _get_session, so cache the class after the first import instead of
+# re-running the import statement on each call.
+_SHELL_SESSION: type | None = None
 
 
-def _dispatch_text(text: str, session) -> dict:
+def _dispatch_text(text: str, session, args: list[str] | None = None) -> dict:
     """Route one input line through the existing engine (unchanged).
 
     Legacy handler ``print()`` output (e.g. status/clear rendering) is
@@ -55,7 +59,7 @@ def _dispatch_text(text: str, session) -> dict:
     buf = io.StringIO()
     try:
         with _DISPATCH_LOCK, contextlib.redirect_stdout(buf):
-            result = dispatch(text, session)
+            result = dispatch(text, session, args=args)
     except Exception as e:  # pragma: no cover - defensive bridge boundary
         return {"success": False, "error": str(e)}
     out = dict(result) if isinstance(result, dict) else {"success": False, "error": str(result)}
@@ -122,9 +126,12 @@ class ProtocolHost:
     def _get_session(self, session_id: str) -> object:
         """Return the in-process ShellSession for an id, creating it lazily."""
         if session_id not in self._sessions:
-            from l2.shells.session import ShellSession
+            global _SHELL_SESSION
+            if _SHELL_SESSION is None:
+                from l2.shells.session import ShellSession
 
-            self._sessions[session_id] = ShellSession(shell="protocol", session_id=session_id)
+                _SHELL_SESSION = ShellSession
+            self._sessions[session_id] = _SHELL_SESSION(shell="protocol", session_id=session_id)
             self._identities[session_id] = SessionIdentity(
                 session_id=session_id,
                 terminal_id="",
@@ -230,7 +237,7 @@ class ProtocolHost:
                 )
             else:
                 text = "/" + name + (" " + shlex.join(args) if args else "")
-                result = _dispatch_text(text, self._get_session(session_id))
+                result = _dispatch_text(text, self._get_session(session_id), args=args)
                 out.append(self._emit(KIND_RESULT, result, session_id, trace_id))
         elif kind == KIND_INTENT:
             text = str(payload.get("text", ""))
@@ -261,7 +268,15 @@ class ProtocolHost:
         return out
 
     def _handle_control(self, payload: dict, session_id: str, trace_id: str) -> list[dict]:
-        """Process control envelopes (attach/detach/resume/recovery)."""
+        """Process control envelopes (attach/detach/resume/recovery).
+
+        Session-flow steps (TS SessionView counterpart in session.ts):
+          attach            → session.attached event (identity snapshot)
+          resume / recovery → replay window from last_acked (view cursor)
+          ack               → advance the view cursor + shared watermark
+          detach            → session.detached event, view leaves the
+                              shared watermark (per-session view index)
+        """
         op = str(payload.get("op", ""))
         target = str(payload.get("session_id", session_id))
         view_id = str(payload.get("view_id", target))

@@ -374,6 +374,7 @@ services:
   mcp_bridge_timeout: 10         # MCP bridge timeout (s)
   mcp_bridge_long_timeout: 30    # MCP bridge long timeout (s)
   shell_session_timeout: 3       # Shell session kill timeout (s)
+  ws_port: 8081                  # WS bridge port (consumed by l4/params.py API_WS_PORT)
   pool_queue_timeout: 1          # Pool queue poll timeout (s)
   term_handler_timeout: 15       # Terminal handler timeout (s)
   term_handler_long_timeout: 30  # Terminal handler long timeout (s)

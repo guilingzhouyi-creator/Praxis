@@ -7,6 +7,8 @@
 import { canonicalJson, JsonObject } from "./records.ts";
 
 export const PROTOCOL_VERSION = 1 as const;
+// Bounded replay window per session. Python source (single truth):
+// src/l1/kernel/params/api.py PROTOCOL_OUTBOX_MAXLEN.
 export const OUTBOX_MAXLEN = 1024;
 export const KINDS = ["ack", "command", "control", "event", "intent", "result", "stream_chunk"] as const;
 export type MessageKind = (typeof KINDS)[number];

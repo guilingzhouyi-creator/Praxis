@@ -134,7 +134,7 @@ def _history_kind(text: str) -> str:
     return "intent"
 
 
-def dispatch(text: str, session: ShellSession | None = None) -> dict:
+def dispatch(text: str, session: ShellSession | None = None, args: list[str] | None = None) -> dict:
     """Route user input to the active shell mode.
 
     Parser order:
@@ -146,6 +146,11 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
     ``session`` is the per-session ShellSession (shell family); when None,
     the deprecated process-global shell state is used for backward
     compatibility.
+
+    ``args`` is the protocol host's pre-parsed argument list (command
+    envelope path): when provided, the ``/`` command branch skips the
+    ``shlex.split`` round-trip — behavior is identical, one less parse per
+    command (see host.py ``_handle_validated``).
     """
     state = session if session is not None else get_state()
     if text and text.strip():
@@ -157,9 +162,14 @@ def dispatch(text: str, session: ShellSession | None = None) -> dict:
             return _pipeline(segments)
 
     if text.startswith("/"):
-        parts = shlex.split(text)
-        cmd = parts[0][1:]
-        args = parts[1:]
+        if args is None:
+            parts = shlex.split(text)
+            cmd = parts[0][1:]
+            args = parts[1:]
+        else:
+            # Protocol host already parsed the args; extract the name from
+            # the "/name" prefix text (command names carry no spaces).
+            cmd = text[1:].split()[0]
         # Single authoritative handler lookup (a handler exists iff the
         # command is registered); avoids a second registry lock+scan.
         handler = get_handler(cmd)
