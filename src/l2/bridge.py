@@ -356,6 +356,25 @@ def cell_territory(cell_id: str) -> list[str]:
     return list(getattr(get_cell(cell_id), "territory", []) or [])
 
 
+def cell_agent_ids(cell_id: str) -> list[str]:
+    """Return one cell's registered agent ids (dict-safe data, no object leak)."""
+    from l3.cell import get_cell
+
+    agents = getattr(get_cell(cell_id), "_agents", None)
+    return list(agents.keys()) if isinstance(agents, dict) else []
+
+
+def llm_provider_health(provider: str = "") -> dict:
+    """Return LLM provider health via the L4 engine adapter (no object leak)."""
+    from l3.services.adapter_bridge import get_llm_engine
+
+    engine = get_llm_engine()
+    provider_obj = getattr(engine, "_provider", None)
+    if provider_obj is not None and hasattr(provider_obj, "health"):
+        return provider_obj.health()
+    return {}
+
+
 def acb_set_slot(identity: str, key: str, value: Any) -> dict:
     """Write one ACB slot through the L3 ACB service (single write authority)."""
     from l3.scheduler.acb import get_service

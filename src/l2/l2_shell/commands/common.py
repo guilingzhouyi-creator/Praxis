@@ -125,10 +125,9 @@ def resolve_agents(scope: str, scope_id: str) -> list[str]:
         return [scope_id] if scope_id in terms else []
     if scope == "cell":
         try:
-            from l2.bridge import cell as _get_cell
+            from l2.bridge import cell_agent_ids
 
-            cell = _get_cell(scope_id)
-            return list(cell._agents.keys()) if hasattr(cell, "_agents") else []
+            return cell_agent_ids(scope_id)
         except Exception:
             return []
     return list(terms.keys())

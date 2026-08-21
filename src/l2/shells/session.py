@@ -31,6 +31,7 @@ class ShellSession:
         self.cell_id: str = DEFAULT_CELL_ID
         self.agent_id: str = ""
         self.session_id: str = session_id
+        self.tool_mode: str = "read"
         self._preconnect_cache: dict = {}
         self._history: deque[dict] = deque(maxlen=SHELL_HISTORY_MAX_LIMIT)
 
@@ -64,6 +65,12 @@ class ShellSession:
             self.agent_id = ""
             self.session_id = ""
 
+    def set_tool_mode(self, mode: str) -> str:
+        """Persist the per-session tool mode (read|write); return the value."""
+        with self._lock:
+            self.tool_mode = "write" if mode == "write" else "read"
+            return self.tool_mode
+
     def as_dict(self) -> dict:
         """Return a snapshot of the session state as a plain dict."""
         with self._lock:
@@ -73,4 +80,5 @@ class ShellSession:
                 "cell_id": self.cell_id,
                 "agent_id": self.agent_id,
                 "session_id": self.session_id,
+                "tool_mode": self.tool_mode,
             }

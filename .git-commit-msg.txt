@@ -1,11 +1,11 @@
-perf(l2): unblock concurrent dispatch and single-scan preselect
+refactor(l2): single help source, bridge-only reach-ins, honest modes
 
-protocol host captures legacy prints through a thread-local stdout
-proxy instead of a process-global redirect lock, so sessions dispatch
-in parallel; host indexes gained an RLock for threaded web mode; the
-role-index builder reuses the liveness snapshots preselect already
-fetched (one scan per cell, not two); status/vfs/clear handlers return
-data instead of writing stdout, keeping the dict contract the TS
-frontend renders from.
+the duplicate /help body collapses to a forward to connect.py (its
+pipeline tip now describes the real behavior); cell agent resolution
+and provider health cross through l2.bridge dict functions instead of
+touching _agents/_provider internals; card/session display caps move
+into params; /kill reports unknown agents instead of silent success;
+/connect routes bare ids across cells via the selector; /mode tool
+persists read/write on the session instead of discarding it.
 
 Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>

@@ -264,8 +264,10 @@ def _cmd_memory(args: list[str], session=None) -> dict:
 
 def _card_dispatch(sub: str, args: list[str], cr) -> dict:
     """Dispatch a card subcommand to its registry operation."""
+    from l1.kernel.params.system import CARD_LIST_MAX_LIMIT
+
     if sub == "list":
-        return {"success": True, "data": {"cards": cr.list(state=None)[:20]}}
+        return {"success": True, "data": {"cards": cr.list(state=None)[:CARD_LIST_MAX_LIMIT]}}
     if sub == "submit" and len(args) >= 2:
         return cr.submit(" ".join(args[1:]), ".")
     if sub == "cancel" and len(args) >= 2:
@@ -282,11 +284,12 @@ def _card_dispatch(sub: str, args: list[str], cr) -> dict:
 
 
 def _cmd_card(args: list[str], session=None) -> dict:
+    from l1.kernel.params.system import CARD_LIST_DEFAULT_LIMIT
     from l2.bridge import card_registry as get_registry
 
     cr = get_registry()
     if not args:
-        return {"success": True, "data": {"cards": cr.list(state=None)[:10]}}
+        return {"success": True, "data": {"cards": cr.list(state=None)[:CARD_LIST_DEFAULT_LIMIT]}}
     return _card_dispatch(args[0].lower(), args, cr)
 
 
@@ -316,9 +319,10 @@ def _cmd_kill(args: list[str], session=None) -> dict:
     from l2.bridge import terminals as get_terminals
 
     terms = get_terminals()
-    if args[0] in terms:
-        terms[args[0]].shutdown()
-    return {"success": True}
+    if args[0] not in terms:
+        return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=args[0])}
+    terms[args[0]].shutdown()
+    return {"success": True, "agent": args[0]}
 
 
 def _cmd_destroy(args: list[str], session=None) -> dict:

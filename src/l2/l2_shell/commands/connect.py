@@ -64,6 +64,8 @@ def _cmd_help(args: list[str], session=None) -> dict:
                 lines.append(f"    {c['command']:25s} {c.get('help', '')}{alias_str}")
             lines.append("")
         lines.append("  Tip: /help <command> for details & examples")
+        lines.append("  Tip: cmd1 | cmd2 pipes the previous output as the next command's first argument")
+        lines.append("  Tip: --cell or --agent for scoped operations")
         return {"success": True, "output": "\n".join(lines), "format": "table"}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -83,6 +85,7 @@ def _cmd_connect(args: list[str], session=None) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_connect")}
     from l1.kernel.params.agent import DEFAULT_CELL_ID
     from l2.bridge import cell as _get_cell
+    from l2.selector import select as _select
 
     from ..state import get_state
 
@@ -91,7 +94,10 @@ def _cmd_connect(args: list[str], session=None) -> dict:
     if agent_id not in terms:
         return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
     state = session if session is not None else get_state()
-    cell_id = DEFAULT_CELL_ID
+    # Route through the selector so bare agent ids resolve across cells
+    # instead of pinning to the default cell.
+    resolved = _select(agent_id=agent_id)
+    cell_id = resolved["cell_id"] if resolved.get("success") else DEFAULT_CELL_ID
     try:
         cell = _get_cell(cell_id)
         r = cell.send_direct_message(agent_id, "")
@@ -100,7 +106,7 @@ def _cmd_connect(args: list[str], session=None) -> dict:
     except Exception as e:
         logger.warning("connect: send_direct_message failed: %s", e)
     state.switch_to_direct(cell_id, agent_id)
-    return {"success": True, "agent": agent_id}
+    return {"success": True, "agent": agent_id, "cell_id": cell_id}
 
 
 def _cmd_disconnect(args: list[str], session=None) -> dict:
@@ -130,10 +136,27 @@ def _cmd_mode(args: list[str], session=None) -> dict:
             if not state.agent_id:
                 return {"success": False, "error": _t("shell.app_error.no_agent_connected")}
             state.switch_to_direct(state.cell_id, state.agent_id)
-            return {"success": True, "mode": "DIRECT", "cell_id": state.cell_id, "current_tool_mode": "read"}
+            return {
+                "success": True,
+                "mode": "DIRECT",
+                "cell_id": state.cell_id,
+                "current_tool_mode": getattr(state, "tool_mode", "read"),
+            }
         if sub == "tool":
-            tool_mode = args[1].lower() if len(args) > 1 else "toggle"
-            current = "write" if tool_mode == "write" else "read"
-            return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": current}
+            requested = args[1].lower() if len(args) > 1 else "toggle"
+            current = getattr(state, "tool_mode", "read")
+            if requested == "toggle":
+                new_mode = "write" if current == "read" else "read"
+            elif requested in ("read", "write"):
+                new_mode = requested
+            else:
+                return {"success": False, "error": _t("shell.render.unknown_error")}
+            persisted = state.set_tool_mode(new_mode)
+            return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": persisted}
         return {"success": False, "error": _t("shell.app_error.unknown_mode_subcommand", sub=sub)}
-    return {"success": True, "mode": state.mode, "cell_id": state.cell_id, "current_tool_mode": "read"}
+    return {
+        "success": True,
+        "mode": state.mode,
+        "cell_id": state.cell_id,
+        "current_tool_mode": getattr(state, "tool_mode", "read"),
+    }

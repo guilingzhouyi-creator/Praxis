@@ -696,59 +696,7 @@ def _cmd_tools(args: list[str], session=None) -> dict:
 
 
 def _cmd_help(args: list[str], session=None) -> dict:
-    """Show help for commands (/help <cmd>) or list all commands."""
-    from l1.kernel.commands import get_command
-    from l2.l2_shell.commands import list_commands
+    """Backward-compat alias — the canonical /help lives in commands/connect.py."""
+    from l2.l2_shell.commands.connect import _cmd_help as _canonical
 
-    if args:
-        cmd_name = args[0].lower().lstrip("/")
-        cmd = get_command(cmd_name)
-        if not cmd:
-            return {"success": False, "error": _t("shell.app_error.unknown_command", cmd_name=cmd_name)}
-        lines = [f"/{cmd_name}  — {cmd.get('help', '')}"]
-        if cmd.get("aliases"):
-            lines.append(f"  aliases: {', '.join('/' + a for a in cmd['aliases'])}")
-        if cmd.get("args"):
-            lines.append("  args:")
-            for a in cmd["args"]:
-                opt = " (optional)" if a.get("optional") else ""
-                lines.append(f"    {a['name']}{opt} — {a.get('description', '')}")
-        if cmd.get("examples"):
-            lines.append("  examples:")
-            for e in cmd["examples"]:
-                lines.append(f"    {e}")
-        lines.append(f"  category: {cmd.get('category', 'other')}")
-        return {"success": True, "output": "\n".join(lines), "format": "table"}
-    cmds = list_commands()
-    groups: dict[str, list] = {}
-    for c in cmds:
-        cat = c.get("category", "other")
-        groups.setdefault(cat, []).append(c)
-    cat_labels = {
-        "session": _t("shell.render.cat_session"),
-        "control": _t("shell.render.cat_control"),
-        "memory": _t("shell.render.cat_memory"),
-        "system": _t("shell.render.cat_system"),
-        "agent": _t("shell.render.cat_agent"),
-        "audit": _t("shell.render.cat_audit"),
-        "ext": _t("shell.render.cat_ext"),
-    }
-    lines = [_t("shell.render.available"), ""]
-    for cat in ["session", "control", "memory", "system", "agent", "audit", "ext"]:
-        items = groups.get(cat, [])
-        if not items:
-            continue
-        label = cat_labels.get(cat, cat)
-        lines.append(f"  ── {label} ──")
-        for c in items:
-            name = c.get("command", "")
-            help_text = c.get("help", "")
-            alias_str = ""
-            if c.get("aliases"):
-                alias_str = f" ({', '.join('/' + a for a in c['aliases'])})"
-            lines.append(f"    {name:25s} {help_text}{alias_str}")
-        lines.append("")
-    lines.append("  Tip: /help <command> for details & examples")
-    lines.append("  Tip: cmd1 | cmd2 for pipeline (auto Map/Chain/Passthrough)")
-    lines.append("  Tip: --cell or --agent for scoped operations")
-    return {"success": True, "output": "\n".join(lines), "format": "table"}
+    return _canonical(args, session=session)
