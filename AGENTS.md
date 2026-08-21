@@ -19,11 +19,27 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 | 分支/堆积门禁 | `docs/workflow/branching.md` | `## 2 Branch model` + `## 4 Double-green` + `## 8 Branch accumulation` | `read docs/workflow/branching.md 20 70` |
 | 工作树/豁免/DoD | `docs/workflow/code-of-conduct.md` | `## Worktree gate` + `## Gate waivers` + `## Definition of done` | `read docs/workflow/code-of-conduct.md 9 42` |
 | 并行协作 | `docs/workflow/collaboration.md` | `## Parallel collaboration` | `read docs/workflow/collaboration.md 1 60` |
-| 测试/切片/单测污染 | `tests/runner.py:28-60` + `tests/conftest.py:_RESETS` + `pyproject.toml:78-93` | `SLICES`/`FULL_ORDER`/`addopts -n auto --dist loadfile` | `python tests/runner.py --list-slices` |
+| 测试/切片/单测污染 | `tests/runner.py:28-60` + `tests/conftest.py:_RESETS` + `pyproject.toml:78-93` | `SLICES`/`FULL_ORDER`/`addopts -n auto --dist loadfile` **切片优先，禁 `pytest -n 0`/全量单线程** | `python tests/runner.py --list-slices` |
 | Lint/钩子/门禁形态 | `.githooks/pre-commit:1-69` + `.githooks/commit-msg:100-207` + `Makefile:6-35` | staged ruff、Conventional、Co-Authored-By | `read .githooks/commit-msg 132 173` |
 | 多语言构建 | `crates/l1-kernel-rs/Cargo.toml` + `packages/protocol-ts/README.md` + `.github/workflows/multilang.yml` | Rust 契约 / TS 镜像消费 `tests/fixtures/protocol_v1_records.json` | `make language-check` |
 | 配置/参数治理 | `docs/configuration/overview.md` + `src/l1/kernel/settings.py:DEFAULTS` | 三层配置：params→commits.yaml→praxis.yaml | `grep DEFAULTS src/l1/kernel/settings.py` |
 | 关键入口 | `src/main.py` · `src/l5/cli.py` · `src/l1/kernel/os.py` · `src/l3/tool_system/tool_pipeline.py` · `src/l3/card/card_registry.py` · `src/l3/boot/boot.py:7步` | — | `read src/main.py 1 40` |
+
+## 测试 — 切片优先（禁 `pytest -n 0` / 全量单线程，反复提示）
+
+> **切片优先**：改哪层跑哪 slice；全量仅 `G2 CompletionJudge` 前最终验证。`pyproject.toml:78-93` 已设 `-n auto --dist loadfile`（并行），`-n 0` 为 CI 显式 pin，本地禁单线程；WSL 用 `--no-xdist`。
+
+| 改动路径 | 跑此 slice | 工具 |
+|---|---|---|
+| `src/l1/**` | `l1` | `python tests/runner.py --slice l1 --no-xdist` |
+| `src/l2/**` | `l2` | `python tests/runner.py --slice l2 --no-xdist` |
+| `src/l3/cell/**` 等快速域 | `l3-fast` | `python tests/runner.py --slice l3-fast` |
+| `src/l3/**` 慢域 | `l3-slow`（=`make test-extended` 仅此） | `python tests/runner.py --slice l3-slow` |
+| `src/l4/**` | `l4-fast` / `l4-lsp` | `python tests/runner.py --slice l4-fast` |
+| `tests/**` / `infra` | `infra` 或对应域 | `python tests/runner.py --slice infra` |
+| 不确定 | `--list-slices` 查表；`python -m pytest <单文件> -x -q` 仅单文件 | `python tests/runner.py --list-slices` |
+
+- **反复提示模板**（每步 echo，未勾不进下一步）：`切片: <slice> ☐未跑/✅已跑 → 全量 ⛔禁 | 门禁: G2 未绿→G3/G4 阻断`
 
 ## 命令 — 极简（其余查 `Makefile:行` / `pyproject.toml:行`）
 
@@ -31,9 +47,12 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 pip install -e ".[test]"                                          # via .venv/bin/python，worktree 复用主树 .venv
 python src/main.py boot|health|status|ps|card                     # 1-2
 python -m l2.l2_shell                                             # 3  (package with __main__.py)
-python -m pytest tests/l1/test_kernel.py -x -q                   # 单文件
-python tests/runner.py --slice l3-fast --no-xdist                  # 单 slice，WSL 用 --no-xdist
-make test|test-extended|test-all  # runner.py 切片；test=除l3-slow，extended=仅l3-slow
+python tests/runner.py --list-slices                              # 查可用 slice
+python tests/runner.py --slice l3-fast --no-xdist                  # 单 slice（WSL 并行启动慢，推荐 --no-xdist）
+python -m pytest tests/l1/test_kernel.py -x -q                   # 单文件（禁 `pytest tests/ -n 0` 全量单线程）
+make test  # = batch1 除 l3-slow
+make test-extended  # = batch2 仅 l3-slow
+make test-all  # 全量仅最终门禁前
 make lint|format|typecheck|coverage  # coverage 阈值 60，忽略 bench_card.py
 make precommit  # style only；治理门在 .githooks/；PR CI 仅 lint 变更文件，全量在 nightly
 make doc-stats  # 改文件/常量/路由后必跑，否则 CI doc-stats 漂移失败
@@ -47,9 +66,9 @@ make hooks && make push-both  # worktree 后必设 hooks；主干推送必双远
 - [ ] 1 定向 — 从上表选 1 行，read 指定段（例：`read docs/workflow/commits.md 8 44`）
 - [ ] 2 探针 — grep/read ≤3 文件定位入口/参数/用例（例：`grep trace_id src/l3/error_bus`）
 - [ ] 3 改码 — 小步改，不硬编码：魔数进 `src/l1/kernel/params/`，新工具注册 `config/tools.yaml:ToolSpec`
-- [ ] 4 自检 — `make lint` + `python tests/runner.py --slice <name> --no-xdist` + `make coverage`
-- [ ] 5 门禁 — `bash scripts/sh/verify-completion.sh` → 需 COMPLETE（11维）才算 done
-- [ ] 6 合并 — `bash scripts/sh/verify-local-merge.sh` → `git merge --no-ff` → 触架构则同 commit 更 `docs/architecture/README.md`
+- [ ] 4 自检 — 切片优先：`python tests/runner.py --slice <映射> --no-xdist`（禁 `pytest -n 0` 全量），`make lint` + `make coverage`；贴 `切片: l3-fast ✅ 已跑 → 全量 ⛔禁` 反馈
+- [ ] 5 门禁 — `bash scripts/sh/verify-completion.sh` → 需 COMPLETE（11维）才算 done；G2 未绿则 G3/G4 自动红
+- [ ] 6 合并 — `bash scripts/sh/verify-local-merge.sh` → `git merge --no-ff` → 触架构则同 commit 更 `docs/architecture/README.md`；每步 echo `切片/门禁` 状态
 ```
 
 ## 脚手架 — 门禁联动（前一门未绿，后一门自动红；任一 `✗/VIOLATIONS/INCOMPLETE/REJECTED` 即阻断）
@@ -57,10 +76,11 @@ make hooks && make push-both  # worktree 后必设 hooks；主干推送必双远
 ```
 G0 pre-commit (staged ruff --fix + size + snake_case) 
   → G1 commit-msg (Conventional ≤72 + Co-Authored-By=`python scripts/py/detect_agent.py --json` 真值校验) 
-  → G2 CompletionJudge (11维 `verify-completion.sh`) 
+  → G2 CompletionJudge (11维 `verify-completion.sh`；需先切片绿，全量单线程禁) 
   → G3 net-delta (≥1000，3锁：去注释/对称删除/卫生天花板) 
   → G4 doc-stats/CI/multilang (变更文件未跑 `make doc-stats` 即漂移失败) 
   → G5 push-both (origin GitCode + github 三方一致)
+  切片联动：改 `src/l1/**`→`G2:l1` 未跑则 G3 阻断；改 `l3/**`→`G2:l3-fast/mid/slow` 未跑则阻断；反复提示 `切片: <slice> ☐/✅ → 全量 ⛔禁`
 ```
 
 - 反馈格式固定：`门禁: Gx 绿/红 — 原因 — fix: <命令>`，便于模型 `grep "VIOLATIONS|INCOMPLETE|REJECTED|✗"` 快速定位
