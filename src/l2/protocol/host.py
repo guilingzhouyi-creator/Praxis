@@ -66,7 +66,13 @@ def _dispatch_text(text: str, session) -> dict:
 
 
 class ProtocolHost:
-    """Process one input envelope into output envelopes (injectable, no globals)."""
+    """Process one input envelope into output envelopes (injectable, no globals).
+
+    TS counterpart: ``src/engine/bridge.ts`` ProtocolBridge — its
+    command/attach/ack/replay methods map onto ``handle_message`` and the
+    control ops here; the TS client speaks this host's protocol v1 and never
+    re-implements the session/outbox authority it owns.
+    """
 
     def __init__(self) -> None:
         self._sessions: dict[str, object] = {}

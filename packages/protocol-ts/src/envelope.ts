@@ -1,4 +1,8 @@
-/** TypeScript mirror of the Python protocol v1 envelope and replay cursors. */
+/**
+ * TypeScript mirror of the Python protocol v1 envelope and replay cursors.
+ * Python reference (single source of truth): src/l2/protocol/envelope.py —
+ * keep fields, kinds and the non-destructive ack semantics in sync (§2.4).
+ */
 
 import { canonicalJson, JsonObject } from "./records.ts";
 

@@ -4,6 +4,7 @@
  * Writes one encoded envelope line and reads response lines until the host
  * answers with an ack envelope (the per-input response boundary the Python
  * ProtocolHost emits), with a line/time budget so a stalled host fails fast.
+ * Host entry: `python -m l2.protocol` (see tests/e2e.stdio.test.ts).
  */
 
 import * as readline from "node:readline";

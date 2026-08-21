@@ -6,6 +6,10 @@
  * to one JSONL line, and sent over an injected async transport. The TS side
  * never owns runtime state — the host's ProtocolHost keeps the outbox and
  * ack cursors, so this client only emits and decodes messages.
+ *
+ * Python counterpart: src/l2/protocol/host.py ProtocolHost — command maps
+ * to handle_message, attach/ack/replay to the control ops; never re-implement
+ * the session/outbox authority here.
  */
 
 import { decodeMessage, encodeMessage, makeMessage, type Message } from "../envelope.ts";
