@@ -15,6 +15,11 @@ in ``bridge.ts`` and never re-implements the L3 authority behind them.
 The per-call lazy import is a Python boot optimization only — the TS
 client imports modules eagerly (no import-statement cost per call), so
 the rewrite drops this pattern entirely.
+
+Binding rule: every L3 access is fetch-on-demand (``get_*()``) and the
+result is never cached — L2 holds no upper-layer instance, so an upper
+software restart (fresh ``get_*()`` results) needs zero L2 changes (see
+handoff §1.10).
 """
 
 from __future__ import annotations
