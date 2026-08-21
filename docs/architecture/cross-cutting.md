@@ -107,7 +107,7 @@ register_port(name, adapter) / get_port(name)   # duck-typed
 Adapters: `auth` (AuthService), `fs` (FsAdapter), `profile`
 (UserProfileService), `rpc` (RpcServer); LLM/i18n/worker/channel/event-bus/
 card-registry/monitor-bus/transport. The kernel never imports upper layers —
-swapping the Python kernel for another language only changes adapters.
+swapping the Python3 kernel for another language only changes adapters.
 
 ## Agent efficiency evaluation (cross-layer)
 

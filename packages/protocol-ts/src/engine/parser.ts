@@ -6,7 +6,7 @@ export interface ParsedCommand {
 }
 
 /**
- * Tokenize on whitespace with double-quote grouping, mirroring the Python
+ * Tokenize on whitespace with double-quote grouping, mirroring the Python3
  * shell's split semantics for the TS engine's parser module.
  */
 export function tokenize(input: string): string[] {

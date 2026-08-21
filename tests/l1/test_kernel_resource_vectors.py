@@ -1,4 +1,4 @@
-"""Validate shared ResourceLimiter vectors against the Python reference."""
+"""Validate shared ResourceLimiter vectors against the Python3 reference."""
 
 from __future__ import annotations
 

@@ -3,7 +3,7 @@
 TS rewrite reference: the shapes pinned here are transport-visible. The
 TS engine dispatches sessions concurrently (no global lock) and receives
 pure-data handler results; these tests freeze that contract on the
-Python reference peer.
+Python3 reference peer.
 """
 
 from __future__ import annotations

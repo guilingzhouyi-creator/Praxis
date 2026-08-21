@@ -1,4 +1,4 @@
-"""Python-only process manager — background process lifecycle.
+"""Python3-only process manager — background process lifecycle.
 
 Manages dev servers, build watchers, file watchers, etc.
 Unlike TerminalService (interactive), these are headless daemon processes.

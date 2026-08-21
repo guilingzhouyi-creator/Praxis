@@ -1,7 +1,7 @@
 //! Provider-neutral memory-ring swap planning candidate for the L1 kernel.
 //!
 //! MemoryService I/O, allocator pressure sampling, clocks, worker threads,
-//! and persistence remain Python-owned. This module only plans ring actions
+//! and persistence remain Python3-owned. This module only plans ring actions
 //! from explicit entry and pressure snapshots.
 
 use serde::{Deserialize, Serialize};

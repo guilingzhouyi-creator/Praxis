@@ -1,4 +1,4 @@
-//! Rust process-table candidate behind the Python PCB contract.
+//! Rust process-table candidate behind the Python3 PCB contract.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Mutex as StdMutex, MutexGuard, PoisonError};
@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub use crate::contract::ProcessState;
 use serde_json::{Value, json};
 
-/// Dictionary-shaped process value retained for the Python adapter seam.
+/// Dictionary-shaped process value retained for the Python3 adapter seam.
 pub type WireMap = BTreeMap<String, Value>;
 
 /// Deployment values supplied to the process-table mechanism.
@@ -201,7 +201,7 @@ impl Pcb {
         self.resources.record_scout(delta);
     }
 
-    /// Return the stable dictionary shape consumed by Python callers.
+    /// Return the stable dictionary shape consumed by Python3 callers.
     pub fn snapshot(&self) -> WireMap {
         let mut snapshot = BTreeMap::from([
             ("pid".to_owned(), json!(self.pid)),
@@ -354,7 +354,7 @@ impl ProcessTable {
             .cloned()
     }
 
-    /// Set a state directly, matching the Python administrative setter.
+    /// Set a state directly, matching the Python3 administrative setter.
     pub fn set_state(&self, pid: u64, next: ProcessState) -> bool {
         let mut state = self.lock_state();
         let Some(pcb) = state.processes.get_mut(&pid) else {
@@ -484,7 +484,7 @@ impl ProcessTable {
         pid.is_some_and(|pid| self.exit(pid, exit_code, reason))
     }
 
-    /// Remove a process and return its Python-compatible snapshot.
+    /// Remove a process and return its Python3-compatible snapshot.
     pub fn reap(&self, pid: u64) -> Option<WireMap> {
         let mut state = self.lock_state();
         let pcb = state.processes.remove(&pid)?;

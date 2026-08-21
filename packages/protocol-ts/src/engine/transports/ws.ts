@@ -1,7 +1,7 @@
 /**
  * WebSocket transport — one JSONL envelope per message.
  *
- * Python counterpart: reserved — no /api/v2/ws endpoint exists yet, so this
+ * Python3 counterpart: reserved — no /api/v2/ws endpoint exists yet, so this
  * adapter follows the §2.6 line contract (same ack boundary as every
  * adapter) and a future host WS endpoint can be attached without touching
  * the bridge or the engine. Uses the Node native WebSocket; the class is

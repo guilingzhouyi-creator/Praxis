@@ -27,7 +27,7 @@ pub enum LifecycleState {
 }
 
 impl LifecycleState {
-    /// Return the stable Python-compatible state spelling.
+    /// Return the stable Python3-compatible state spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Halted => "halted",

@@ -1,6 +1,6 @@
 # Praxis Protocol TypeScript Mirror
 
-This package is a read-only TypeScript parity implementation of the Python
+This package is a read-only TypeScript parity implementation of the Python3
 L2 protocol v1 reference. It consumes the shared fixture at
 `tests/fixtures/protocol_v1_records.json` and does not own L2, L3A, AgentLoop,
 tool, memory, or workflow state.

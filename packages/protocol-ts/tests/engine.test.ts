@@ -35,7 +35,7 @@ describe("dispatcher", () => {
   });
 });
 
-/** Minimal fake Python host: answers commands with a result, control with an event. */
+/** Minimal fake Python3 host: answers commands with a result, control with an event. */
 function fakeHost(received: string[]): Transport {
   return async (line: string) => {
     received.push(line);

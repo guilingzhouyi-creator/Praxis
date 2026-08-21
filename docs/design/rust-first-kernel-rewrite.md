@@ -5,13 +5,13 @@
 
 ## 1. Decision
 
-The future Praxis kernel is a **clean-break Rust build**, not a Python
+The future Praxis kernel is a **clean-break Rust build**, not a Python3
 drop-in replacement and not a user-data migration project. There are no
-production users whose persisted Python state must be read by the new kernel.
+production users whose persisted Python3 state must be read by the new kernel.
 The rewrite may choose new state directories, schemas, scheduling algorithms,
 allocation strategies, error taxonomy, and internal APIs.
 
-The current Python kernel is still useful as an architectural reference. It is
+The current Python3 kernel is still useful as an architectural reference. It is
 not the authority for Rust implementation details and its quirks are not
 automatically requirements. Rust becomes the authority only in the separate
 rewrite build after the security, performance, and cutover gates in this
@@ -28,7 +28,7 @@ did the new kernel preserve the invariants that must remain true?
 | Security invariants | Must match | fail-closed authorization, terminal cancellation, audit causality |
 | Observable control semantics | Match unless explicitly redesigned | lifecycle terminal states, bounded history, resource totals |
 | Wire boundaries | Match only for a retained protocol; otherwise version a new boundary | TS bridge records, health/evidence records |
-| Python behavior | Reference only | dict ordering, exception text, reaper timing, singleton layout |
+| Python3 behavior | Reference only | dict ordering, exception text, reaper timing, singleton layout |
 | Performance workload | Must be reproducible, not byte-compatible | fixed work, queue pressure, lock contention, tail latency |
 
 The existing `tests/fixtures/kernel_*_vectors.json` files therefore serve as
@@ -40,7 +40,7 @@ runtime replacement.
 ## 3. Rust-Native Performance Shape
 
 The rewrite is optimized around ownership and data movement, not around
-mechanically reproducing Python classes:
+mechanically reproducing Python3 classes:
 
 1. Keep hot-path values typed and compact. Serialize to JSON or another wire
    format only at process/IPC/TS edges; do not put `serde_json::Value` in inner
@@ -65,15 +65,15 @@ mechanically reproducing Python classes:
 
 | Gate | Deliverable | Exit condition |
 |---|---|---|
-| R0 semantic map | Map Python modules to Rust responsibilities and mark preserved/redesigned/removed semantics | Every removed Python behavior has an owner or explicit non-goal |
+| R0 semantic map | Map Python3 modules to Rust responsibilities and mark preserved/redesigned/removed semantics | Every removed Python3 behavior has an owner or explicit non-goal |
 | R1 native skeleton | Rust workspace with typed IDs, state ownership, bounded queues, wire adapters, and counters | `cargo test`, fmt, Clippy, and stress smoke are reproducible |
-| R2 performance baseline | Rust fixed-work benchmark plus Python reference measurements | Throughput, p95/p99, CPU, memory, queue/lock waits, and drop counts are recorded |
+| R2 performance baseline | Rust fixed-work benchmark plus Python3 reference measurements | Throughput, p95/p99, CPU, memory, queue/lock waits, and drop counts are recorded |
 | R3 mechanism closure | Process, event, allocator, capability, audit, persistence, and IPC mechanisms | Security vectors and Rust-native invariants are green; intentional divergences are documented |
-| R4 kernel assembly | Rust-owned boot/config/state layout and versioned protocol boundary | No Python import or FFI is required by the new kernel |
-| R5 clean cutover | New build entrypoint, fresh state initialization, recovery/rollback procedure | Cutover can start empty and recover from Rust-owned state without Python runtime authority |
+| R4 kernel assembly | Rust-owned boot/config/state layout and versioned protocol boundary | No Python3 import or FFI is required by the new kernel |
+| R5 clean cutover | New build entrypoint, fresh state initialization, recovery/rollback procedure | Cutover can start empty and recover from Rust-owned state without Python3 runtime authority |
 
 The current branch is between R0 and R1. Its parity tests are evidence for
-semantic mapping, not evidence that the final Rust kernel must retain Python's
+semantic mapping, not evidence that the final Rust kernel must retain Python3's
 class layout or runtime behavior.
 
 ## 5. Immediate Work
@@ -93,15 +93,15 @@ The `notify` candidate now supplies a bounded side-channel buffer without
 EventBus or transport authority. The repeatable report export slice is now
 available with validated platform metadata and external-runner checks; the
 `BenchmarkEvidence` envelope and `make rust-benchmark` exporter now provide
-that slice. This remains R1 evidence only: CPU/memory sampling, Python
+that slice. This remains R1 evidence only: CPU/memory sampling, Python3
 reference comparison, and workload-specific drop analysis are still required
 for R2. The first R3 mechanism closure slice is now the Rust-native
 `identity_binding` metadata registry: it freezes the write gate, binding cap,
 stable identity ID, revision, and snapshot invariants while explicitly leaving
-prompt content, persistence, events, and API routing in adapters. No Python
+prompt content, persistence, events, and API routing in adapters. No Python3
 FFI, boot integration, Port replacement, or production state migration is part
 of this work. Its shared vector intentionally covers only authorization and
-mutation lifecycle, not prompt bytes, random UID bodies, or Python persistence.
+mutation lifecycle, not prompt bytes, random UID bodies, or Python3 persistence.
 The following R3 mechanism slice is the transport-neutral `network::PeerBook`:
 clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus
@@ -111,8 +111,8 @@ The next assembly-preparation slice is the declarative `boot::BootPlan`. It
 owns only validated step metadata, explicit replacement, a pre-execution lock,
 and dependency-first ordering. Missing dependencies, invalid names, duplicate
 registrations, and cycles fail closed. The shared
-`kernel_boot_plan_vectors.json` fixture is consumed by Rust and Python tests;
-Python's historical omission of missing dependencies is recorded as an
+`kernel_boot_plan_vectors.json` fixture is consumed by Rust and Python3 tests;
+Python3's historical omission of missing dependencies is recorded as an
 intentional reference difference. This slice does not execute callbacks, read
 configuration, start workers, mutate lifecycle state, or provide boot
 authority. R4 still requires a separate Rust-owned config/state layout and
@@ -123,7 +123,7 @@ It defines a new Rust-owned root with a versioned manifest, canonical relative
 entries, parent-directory coverage, and explicit fresh-state paths. A
 `StateProbe` supplied by the host is reduced to `initialize`, `resume`,
 `recover`, `migrate`, or fail-closed `reject`. The candidate performs no
-filesystem I/O, imports no Python state, and runs no migration callback; those
+filesystem I/O, imports no Python3 state, and runs no migration callback; those
 effects remain behind the future R4 adapter boundary.
 
 The mechanism port boundary is now represented by `ports::PortRegistry` and
@@ -136,6 +136,6 @@ sockets, subprocesses, threads, or hardware monitors.
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, port, and lifecycle candidates.
 The standalone `rust-kernel` binary emits a deterministic JSON snapshot and
-has no Python or FFI dependency. This is an assembly proof, not yet a complete
+has no Python3 or FFI dependency. This is an assembly proof, not yet a complete
 runtime: fresh-root creation, protocol serving, durable recovery, and provider
 side effects are the next R4 obligations.

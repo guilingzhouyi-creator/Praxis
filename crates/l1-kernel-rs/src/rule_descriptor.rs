@@ -32,7 +32,7 @@ pub enum CheckResult {
     Block,
 }
 
-/// Convert a Python-compatible severity name, defaulting unknown values to MAY.
+/// Convert a Python3-compatible severity name, defaulting unknown values to MAY.
 pub fn str_to_severity(value: &str) -> RuleSeverity {
     match value {
         "MUST" => RuleSeverity::Must,

@@ -150,7 +150,7 @@ projects the same stream into its own view. The wire format is language-agnostic
 
 ### Reference implementation & contract pins (landed)
 
-The protocol is not just a design: a pure Python reference, machine-readable
+The protocol is not just a design: a pure Python3 reference, machine-readable
 schemas, contract-pin tests, and a stdio host are already in the tree. All
 are **additive** - no existing engine behavior was changed.
 
@@ -159,7 +159,7 @@ are **additive** - no existing engine behavior was changed.
 | Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay) + `SessionCursor`; stdlib-only, zero singletons, zero I/O |
 | JSON Schemas | `src/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
 | TS-neutral records | `src/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
-| Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
+| Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python3 tests and the planned TypeScript/vitest mirror |
 | TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
@@ -177,7 +177,7 @@ $ printf '%s\n' '{"v":1,"session_id":"s-1","seq":1,"ts":0.0,"kind":"command","pa
 TS mirror strategy: `packages/protocol-ts` ports `envelope.py` and `records.py`
 semantics 1:1 into `envelope.ts` and `records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
-Vitest. The Python tests and fixture double as the TS spec; this package is
+Vitest. The Python3 tests and fixture double as the TS spec; this package is
 read-only until the P0 recovery gates are complete.
 The host is the integration seam: `bridge.ts` spawns it as a child process
 (or connects over WebSocket later) and only ever speaks protocol v1.
@@ -236,14 +236,14 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 
 ## TS rewrite mapping
 
-| Today (Python) | TS module | Notes |
+| Today (Python3) | TS module | Notes |
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
 | `ShellSession` / `ShellFamily` | `session.ts` (state machine) | JSON-serializable |
 | `shells/*` | `adapters/*.ts` | per frontend |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
-| execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |
+| execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python3 L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python3** |
 | `i18n.py` | `i18n.ts` | same locale data |
 
 The TS engine is a *host-agnostic frontend of L3*: it never re-implements

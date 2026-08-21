@@ -1,7 +1,7 @@
 //! Cross-language contract tests for the Rust L1 candidate boundary.
 //!
 //! These tests intentionally live outside `src/`: they consume public Rust
-//! APIs and the shared Python/Rust fixture without reaching private internals.
+//! APIs and the shared Python3/Rust fixture without reaching private internals.
 
 use std::collections::BTreeMap;
 

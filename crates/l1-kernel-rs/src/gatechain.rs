@@ -41,7 +41,7 @@ pub const GATECHAIN_REPUTATION_LOW: f64 = 0.7;
 /// Default reputation supplied when the provider is outside the candidate.
 pub const GATECHAIN_DEFAULT_REPUTATION: f64 = 0.85;
 
-/// Stable four-state gate verdict mirrored from Python `GateResult`.
+/// Stable four-state gate verdict mirrored from Python3 `GateResult`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum GateDecision {
@@ -56,7 +56,7 @@ pub enum GateDecision {
 }
 
 impl GateDecision {
-    /// Return the stable wire spelling used by Python gate results.
+    /// Return the stable wire spelling used by Python3 gate results.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Pass => "PASS",

@@ -38,7 +38,7 @@ see *Kernel surface boundary* below).
 
 The kernel’s semantic surface is frozen for the Rust rewrite (`l1_kernel_rs`):
 security/control invariants and explicitly retained wire fields are evidence;
-Python class layout and user-data formats are not migration requirements.
+Python3 class layout and user-data formats are not migration requirements.
 
 The staged Rust build boundary lives in `crates/l1-kernel-rs/`. Its primitive
 value contracts are mirrored and isolated mechanism candidates now cover
@@ -49,7 +49,7 @@ deployment path derivation, lifecycle FSM, schema versioning, ordered migration
 runner, pure load-adaptive control law, metadata-only registry base and summary,
 deterministic device bookkeeping, explicit health-result aggregation, memory-ring swap planning, and tool-call fingerprint chaining, but it remains candidate-only until a
 fixed-work performance evidence, semantic invariant vectors, and a
-cutover/recovery decision; the preflight branch keeps the Python kernel as its
+cutover/recovery decision; the preflight branch keeps the Python3 kernel as its
 runtime implementation until the independent Rust build reaches R4/R5.
 
 The Rust-first R1 substrate now provides generation-tagged process handles,
@@ -77,7 +77,7 @@ revision, and runner metadata and rejects invalid or incomplete JSON on both
 construction and ingestion. `make rust-benchmark` emits one release-mode
 evidence document; runtime attribution can be supplied through
 `PRAXIS_RUST_RUNTIME`, `PRAXIS_GIT_REVISION`, and `PRAXIS_RUST_RUNNER`. The
-runner still does not measure CPU or memory and does not replace the Python
+runner still does not measure CPU or memory and does not replace the Python3
 reference baseline, so this output cannot by itself close R2.
 
 The `state_queue` candidate gives each shard ownership of its slot map and
@@ -93,7 +93,7 @@ identity ID, metadata revisions are monotonic, and snapshots are deterministic.
 Prompt fragments and definitions, JSON persistence, EventBus notifications,
 singleton ownership, and API/L2Shell policy remain adapter-owned. The Rust
 candidate therefore gives the future kernel a typed metadata boundary without
-making prompt content or Python state layout a compatibility requirement.
+making prompt content or Python3 state layout a compatibility requirement.
 The shared `kernel_identity_binding_vectors.json` fixture covers only the
 authorization and mutation lifecycle; prompt text, random UID bodies, and
 persistence bytes remain deliberately outside the contract.
@@ -111,16 +111,16 @@ The Rust `boot` candidate is limited to declarative assembly metadata. Its
 replacement is requested, locks before execution wiring, and resolves a
 deterministic dependency-first order. Missing dependencies and cycles fail
 closed. It does not execute boot callbacks, read settings, start threads,
-change lifecycle state, or replace the Python boot registry. The shared
+change lifecycle state, or replace the Python3 boot registry. The shared
 `kernel_boot_plan_vectors.json` fixture freezes only this ordering/error
-boundary; Python's omission of missing dependencies remains a documented
+boundary; Python3's omission of missing dependencies remains a documented
 reference behavior rather than a Rust requirement.
 
 The Rust `state_layout` candidate starts the R4 state-ownership boundary. It
 validates a versioned manifest for a fresh Rust state root, canonical relative
 entries, and declared parent directories. Given explicit host observations it
 returns `initialize`, `resume`, `recover`, `migrate`, or fail-closed `reject`.
-It does not inspect the filesystem, create directories, import Python state,
+It does not inspect the filesystem, create directories, import Python3 state,
 or execute migration callbacks. The shared
 `kernel_state_layout_vectors.json` fixture freezes only the manifest and
 decision values; a future R4 adapter owns probes and side effects.
@@ -137,7 +137,7 @@ values and metadata; provider side effects remain an R4 adapter concern.
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 port metadata, and halted lifecycle into a deterministic `KernelAssembly`.
 `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent entrypoint that
-emits this snapshot as JSON with no Python import. The entrypoint does not read
+emits this snapshot as JSON with no Python3 import. The entrypoint does not read
 configuration, create directories, run callbacks, or instantiate providers;
 R4 filesystem initialization, versioned protocol serving, and recovery effects
 remain to be implemented behind this seam.
@@ -162,7 +162,7 @@ remain to be implemented behind this seam.
 - **Discovery boundary** — the Rust `discovery` candidate mirrors the three-tier
   defaults/source/runtime registry, parsed section overrides, object shallow merge,
   scalar replacement, null-section default retention, and tool/service fallbacks.
-  YAML parsing, directory scanning, logging, and boot registration remain Python
+  YAML parsing, directory scanning, logging, and boot registration remain Python3
   adapter responsibilities.
 
 ## Core mechanisms
@@ -254,7 +254,7 @@ the completion half missing from fire-and-forget `submit()`.
 
 > **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` fixes which L1
 > surfaces a Rust sink may replace (mechanism only) and which must be sealed
-> first in Python — single execution authority (invoke-capability gate), a
+> first in Python3 — single execution authority (invoke-capability gate), a
 > populated G1 whitelist, closed-by-default auth, and the B1/B2/B3 bypass paths.
 
 The roadmap sinks hot modules to Rust **one at a time, interface unchanged,
@@ -273,8 +273,8 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 `ProcessPort` is deliberately limited to bounded, non-interactive commands.
 Interactive shell sessions, LSP stdio servers, and supervised daemon processes
-hold Python `Popen` handles with live pipes and lifecycle callbacks; they are
-Python-only runtime implementations, not an FFI-clean port surface.
+hold Python3 `Popen` handles with live pipes and lifecycle callbacks; they are
+Python3-only runtime implementations, not an FFI-clean port surface.
 
 `ProcessResult.error_kind` is empty for every command that actually started,
 including a child that exits with a negative signal code. Adapter failures use
@@ -291,7 +291,7 @@ VFS mount/cache mechanics, and SystemBus dependency planning. These are
 build-only candidates; posture/approval/
 reputation providers, socket transport, SQLite replay, the
 named registry, adaptive worker control, real filesystem/system providers,
-and runtime routing remain Python-owned in the preflight branch. The future
+and runtime routing remain Python3-owned in the preflight branch. The future
 Rust-first build may own a redesigned implementation after its semantic
 invariants, performance evidence, and clean cutover/recovery path are frozen.
 
@@ -305,36 +305,36 @@ unmounted or direct OS path, preserving a fail-closed Rust boundary.
 
 The shared policy fixture `tests/fixtures/kernel_policy_vectors.json` covers
 the stable GateChain and Constitution block/pass branches in both languages.
-It is a semantic baseline, not a runtime routing switch; Python provider and
+It is a semantic baseline, not a runtime routing switch; Python3 provider and
 side-effect behavior remains outside the fixture and is not automatically a
 Rust compatibility requirement.
 
 The lifecycle and schema candidates use
 `tests/fixtures/kernel_lifecycle_vectors.json` and
-`tests/fixtures/kernel_versioning_vectors.json` for deterministic Python/Rust
+`tests/fixtures/kernel_versioning_vectors.json` for deterministic Python3/Rust
 parity. Checkpoint bytes, timestamps, settings registration, and migration
 side effects remain provider-owned; the Rust code only validates and transforms
 primitive values.
 
 The discovery candidate uses
 `tests/fixtures/kernel_discovery_vectors.json` for deterministic registry
-parity. It accepts an already parsed document and preserves Python's defaults,
+parity. It accepts an already parsed document and preserves Python3's defaults,
 source snapshots, object shallow merge, scalar replacement, null-section rule,
 unknown-section ignore behavior, runtime overrides, and tool/service fallback
 queries. It does not scan directories, parse YAML, emit logs, register boot
-sources, or mutate the Python runtime registry.
+sources, or mutate the Python3 runtime registry.
 
 The load-adaptive candidate uses
 `tests/fixtures/kernel_load_adaptive_vectors.json` to freeze EWMA smoothing,
 hysteresis, target-band hold, growth/shrink clamping, slow-task fast growth,
 cooldown, and reset behavior. The timestamp is an explicit caller value so the
-candidate performs no clock or thread-pool I/O; Python retains sampling,
+candidate performs no clock or thread-pool I/O; Python3 retains sampling,
 `WorkerPort` mutation, adaptive enablement, and runtime worker ownership.
 
 The schema candidate uses `tests/fixtures/kernel_schema_vectors.json` to freeze
 owner-conflict rejection, same-owner idempotent updates, sorted snapshots,
 membership checks, and reset. It does not load the L3 event catalog, emit
-signals, or decide event ownership at boot; those remain Python-owned policy
+signals, or decide event ownership at boot; those remain Python3-owned policy
 and registration inputs.
 
 The rule-descriptor candidate uses
@@ -348,7 +348,7 @@ The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative
 descriptor defaults, duplicate rejection/overwrite policy, registration order,
 category filtering, public serialization, and counters. Rust callbacks are
-local adapter hooks only; Python handler closures, domain registries, source
+local adapter hooks only; Python3 handler closures, domain registries, source
 discovery, and runtime routing remain outside the candidate.
 
 The registry candidate uses `tests/fixtures/kernel_registry_vectors.json` to
@@ -356,12 +356,12 @@ freeze name-sorted opaque section snapshots and explicit summary aggregation
 (healthy module count, process/device/syscall counts, and caller-supplied time).
 It accepts JSON values and explicit counts only; section producers, singleton
 queries, syscall discovery, clocks, and runtime registry ownership remain
-Python adapter responsibilities.
+Python3 adapter responsibilities.
 
 The tool-chain candidate uses `tests/fixtures/kernel_tool_chain_vectors.json`
 to freeze call-field normalization, HMAC-SHA256 truncation, the `GENESIS`
 fallback, and root-first fingerprint-chain verification. Key provisioning,
-call storage, trimming/re-rooting, and tool execution remain Python-owned; the
+call storage, trimming/re-rooting, and tool execution remain Python3-owned; the
 candidate has no runtime singleton or capability authority.
 
 Rust parity tests for this boundary run as an integration test from
@@ -371,25 +371,25 @@ colocated with their Rust modules so they can assert internal invariants.
 The identity-UID candidate uses
 `tests/fixtures/kernel_identity_uid_vectors.json` to freeze the readable prefix,
 bounded body length, collision tracking, retry budget, reset, and validation
-shape. Entropy candidates are explicit inputs; Python `secrets`, persisted
+shape. Entropy candidates are explicit inputs; Python3 `secrets`, persisted
 bindings, and identity issuance authority remain outside Rust.
 
 The device candidate uses `tests/fixtures/kernel_device_vectors.json` to freeze
 explicit device records, sliding-window rate checks, strict degraded/down
 thresholds, call counters, health updates, summaries, and aggregate stats.
 SettingsCenter defaults, external connections, system time, health threads, and
-provider calls remain Python adapter responsibilities.
+provider calls remain Python3 adapter responsibilities.
 
 The SystemBus candidate uses `tests/fixtures/kernel_bus_vectors.json` to freeze
 component metadata defaults, in-place duplicate replacement, parent-available
 dependency filtering, stable topological ordering, cycle rejection, and state
 labels. It consumes only already-resolved metadata and dependency names;
 callbacks, event routing, child-bus mounting, health/stats providers, logging,
-and runtime lifecycle ownership remain Python adapter responsibilities.
+and runtime lifecycle ownership remain Python3 adapter responsibilities.
 
 The ResourceLimiter candidate uses `tests/fixtures/kernel_resource_vectors.json`
 to freeze injected profile values, fallback lookup, signed check/release costs,
-usage and all-usage snapshots, unknown-resource handling, and cleanup. Python
+usage and all-usage snapshots, unknown-resource handling, and cleanup. Python3
 role/profile discovery remains the adapter input; allocator OOM reclamation,
 interrupt delivery, process termination, worker ownership, and durable swap
 persistence remain outside this value candidate.
@@ -397,27 +397,27 @@ persistence remain outside this value candidate.
 The health candidate uses `tests/fixtures/kernel_health_vectors.json` to freeze
 explicit subsystem-result aggregation, `DOWN`/`DEGRADED`/`OK` precedence,
 status counts, subsystem retention, and elapsed-time rounding. Module imports,
-clocks, singleton probes, logging, and runtime provider checks remain Python
+clocks, singleton probes, logging, and runtime provider checks remain Python3
 adapter responsibilities; the candidate does not invoke `safe_system_check()`
 or own health authority.
 
 The swapper candidate uses `tests/fixtures/kernel_swapper_vectors.json` to
 freeze importance-based ring routing, expired short-ring compaction filters,
 and explicit pressure action flags. It consumes no MemoryService objects,
-allocator samples, clocks, worker threads, or persistence; the Python
+allocator samples, clocks, worker threads, or persistence; the Python3
 `Swapper` remains the runtime owner of all mutations and scheduling.
 
 The platform candidate uses
 `tests/fixtures/kernel_platform_vectors.json` for deterministic POSIX/Windows
 shell and grep command construction, URL joining, temporary-directory
 derivation, and TCP endpoint parsing. It does not perform subprocess, directory,
-filesystem, or socket I/O; the Python platform adapter retains those effects.
+filesystem, or socket I/O; the Python3 platform adapter retains those effects.
 
 The paths candidate uses
 `tests/fixtures/kernel_paths_vectors.json` for deployment-mode and child-path
 derivation. `PathInputs` carries host/environment values explicitly; Rust does
 not inspect environment or home directories, create layout directories, or
-alter the Python singleton in the preflight branch; the future Rust-first
+alter the Python3 singleton in the preflight branch; the future Rust-first
 build may use a fresh state root after its cutover/recovery contract is
 approved.
 
@@ -426,18 +426,18 @@ The territory candidate uses
 subtree checks. Relative path resolution accepts an explicit working directory;
 the candidate never reads the process working directory, follows symlinks, or
 touches the filesystem. GateChain and Constitution continue to call the same
-boundary helper while Python retains the runtime adapter and policy authority.
+boundary helper while Python3 retains the runtime adapter and policy authority.
 
 The interrupt candidate uses
 `tests/fixtures/kernel_interrupt_vectors.json` for the five stable IRQ kinds,
 per-kind sequence counters, empty-payload normalization, and bounded recent
 history. It records values behind a mutex but does not execute callbacks, emit
 signals, write the event journal, or terminate processes; those dispatch and
-replay effects remain Python-owned.
+replay effects remain Python3-owned.
 
 The errors candidate uses
 `tests/fixtures/kernel_error_vectors.json` for the built-in error catalog,
-unknown-code fallback, Python-compatible failure responses, bounded causes,
+unknown-code fallback, Python3-compatible failure responses, bounded causes,
 and explicit trace-id attachment. Locale lookup, ErrorBus capture, stack/source
 inspection, and log persistence remain outside the candidate.
 
@@ -450,8 +450,8 @@ additional `tests/fixtures/kernel_sync_vectors.json` freezes reentrant reads,
 zero-timeout writer failure, status snapshots, and missing-owner unlock errors;
 it does not claim queued-writer fairness or cancellation semantics.
 
-The event bus tracks its own in-flight counter (no CPython
-`ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
+The event bus tracks its own in-flight counter (no CPython3
+`ThreadPoolExecutor` private access), so a non-CPython3 worker backend drops in
 cleanly. Its dispatch counters are cumulative: `submitted` counts successful
 executor submissions, `completed` counts those tasks after callback dispatch
 finishes, and `dropped` counts bounded-queue overload or executor submission
@@ -476,7 +476,7 @@ The deterministic process parity fixture
 `tests/fixtures/kernel_process_vectors.json` freezes PID/PCB registration,
 READY/RUNNING transitions, identity verification, cancellation terminality,
 exit-to-ZOMBIE and reap, resource totals, and timestamp-independent audit
-ordering. It does not freeze the Python zombie reaper, interrupt delivery,
+ordering. It does not freeze the Python3 zombie reaper, interrupt delivery,
 allocator/limiter cleanup, long-lived OS handles, or runtime process routing;
 those remain adapter-owned effects.
 

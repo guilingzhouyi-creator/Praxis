@@ -1,6 +1,6 @@
 //! Thread-safe metadata registry candidate for the L1 kernel.
 //!
-//! The candidate mirrors the value and lifecycle rules of Python's
+//! The candidate mirrors the value and lifecycle rules of Python3's
 //! `registry_base.MapRegistry`. Handler closures and domain-specific policy
 //! remain adapter-owned; only declarative metadata crosses this boundary.
 
@@ -47,7 +47,7 @@ fn default_version() -> String {
 }
 
 impl RegisterableSpec {
-    /// Build a descriptor with Python-compatible defaults.
+    /// Build a descriptor with Python3-compatible defaults.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),

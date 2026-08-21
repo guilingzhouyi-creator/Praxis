@@ -1,7 +1,7 @@
 //! Deterministic device bookkeeping candidate for the L1 kernel.
 //!
 //! External connections, SettingsCenter defaults, health threads, and provider
-//! calls remain Python-owned. This module accepts device records and explicit
+//! calls remain Python3-owned. This module accepts device records and explicit
 //! timestamps, then mirrors rate-window and health-threshold mechanics.
 
 use std::collections::BTreeMap;
@@ -156,7 +156,7 @@ impl DeviceTable {
         json!({"allowed": true, "remaining": remaining, "reset_after": 0})
     }
 
-    /// Re-evaluate all device health labels using strict Python thresholds.
+    /// Re-evaluate all device health labels using strict Python3 thresholds.
     pub fn refresh_health(&self) {
         let mut state = self.lock_state();
         for device in state.devices.values_mut() {
@@ -185,7 +185,7 @@ impl DeviceTable {
         true
     }
 
-    /// Return Python-compatible public summaries, optionally filtered by type.
+    /// Return Python3-compatible public summaries, optionally filtered by type.
     pub fn list(&self, device_type: Option<&str>) -> Vec<Value> {
         self.lock_state()
             .devices

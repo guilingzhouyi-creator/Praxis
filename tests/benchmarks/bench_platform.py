@@ -39,7 +39,7 @@ ROUNDS_DEFAULT: int = 3
 
 
 def collect_platform_info() -> dict[str, Any]:
-    """Return a dict describing the host OS, Python, and CPU."""
+    """Return a dict describing the host OS, Python3, and CPU."""
     info: dict[str, Any] = {
         "system": platform.system(),
         "release": platform.release(),

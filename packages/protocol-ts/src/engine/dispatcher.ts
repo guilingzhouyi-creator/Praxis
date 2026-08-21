@@ -8,7 +8,7 @@ export interface DispatchContext {
 
 /**
  * Local handlers return a "local" result; anything unregistered falls back
- * to the bridge marker so the Python L3 host stays the authority (the TS
+ * to the bridge marker so the Python3 L3 host stays the authority (the TS
  * shell never re-implements agent loop / tool pipeline / scheduler).
  */
 export type CommandResult =

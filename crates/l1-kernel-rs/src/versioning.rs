@@ -7,27 +7,27 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-/// Current snapshot schema version mirrored from Python.
+/// Current snapshot schema version mirrored from Python3.
 pub const SNAPSHOT_VERSION: u64 = 3;
-/// Current checkpoint schema version mirrored from Python.
+/// Current checkpoint schema version mirrored from Python3.
 pub const CHECKPOINT_VERSION: u64 = 2;
-/// Current settings schema version mirrored from Python.
+/// Current settings schema version mirrored from Python3.
 pub const SETTINGS_VERSION: u64 = 2;
-/// Current workspace schema version mirrored from Python.
+/// Current workspace schema version mirrored from Python3.
 pub const WORKSPACE_VERSION: u64 = 2;
-/// Current log schema version mirrored from Python.
+/// Current log schema version mirrored from Python3.
 pub const LOG_VERSION: u64 = 2;
-/// Current card registry schema version mirrored from Python.
+/// Current card registry schema version mirrored from Python3.
 pub const CARD_REGISTRY_VERSION: u64 = 1;
-/// Current todo table schema version mirrored from Python.
+/// Current todo table schema version mirrored from Python3.
 pub const TODO_TABLE_VERSION: u64 = 1;
-/// Current transaction area schema version mirrored from Python.
+/// Current transaction area schema version mirrored from Python3.
 pub const TRANSACTION_AREA_VERSION: u64 = 1;
-/// Current dialogue session schema version mirrored from Python.
+/// Current dialogue session schema version mirrored from Python3.
 pub const DIALOGUE_SESSION_VERSION: u64 = 1;
-/// Current execution result schema version mirrored from Python.
+/// Current execution result schema version mirrored from Python3.
 pub const EXECUTION_RESULT_VERSION: u64 = 1;
-/// Current capability gate schema version mirrored from Python.
+/// Current capability gate schema version mirrored from Python3.
 pub const CAPABILITY_GATE_VERSION: u64 = 1;
 
 /// JSON migration callback accepted by the isolated candidate.
@@ -103,7 +103,7 @@ pub struct VersionRegistry {
 }
 
 impl VersionRegistry {
-    /// Create a registry populated with Python's current persistence kinds.
+    /// Create a registry populated with Python3's current persistence kinds.
     pub fn new() -> Self {
         let registry = Self {
             entries: Mutex::new(BTreeMap::new()),

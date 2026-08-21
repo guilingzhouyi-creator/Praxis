@@ -14,7 +14,7 @@ The framework is LANGUAGE-AGNOSTIC by construction: a ``CodeLanguageBackend``
 aggregates everything one language needs for the transport — SDK rendering
 (``render_sdk``), usage instructions (``render_usage``), the program file
 suffix (``file_suffix``), and execution (``execute``). The framework calls
-``get_language_backend(language)`` and never hardcodes a language. Python is
+``get_language_backend(language)`` and never hardcodes a language. Python3 is
 the first shipped backend; TypeScript / Rust backends are slots to be added
 per the multi-language roadmap
 (``docs/roadmaps/frontend-kernel-roadmap.md``) — see
@@ -97,8 +97,8 @@ class CodeLanguageBackend(ABC):
         """
 
 
-class PythonLanguageBackend(CodeLanguageBackend):
-    """Python backend — the first language on the multi-language roadmap."""
+class Python3LanguageBackend(CodeLanguageBackend):
+    """Python3 backend — the first language on the multi-language roadmap."""
 
     @property
     def language(self) -> str:
@@ -111,7 +111,7 @@ class PythonLanguageBackend(CodeLanguageBackend):
         return ".py"
 
     def render_sdk(self, tools: list[dict]) -> str:
-        """Render a Python SDK: one typed callable per visible tool.
+        """Render a Python3 SDK: one typed callable per visible tool.
 
         Each binding routes through the injected ``_praxis_call`` global,
         which the run_code executor wires to the tool pipeline (every call
@@ -137,9 +137,9 @@ class PythonLanguageBackend(CodeLanguageBackend):
         return "\n".join(lines)
 
     def render_usage(self) -> str:
-        """Render the fixed run_code usage instructions for Python."""
+        """Render the fixed run_code usage instructions for Python3."""
         return (
-            "Write a Python program that calls the SDK bindings above to "
+            "Write a Python3 program that calls the SDK bindings above to "
             "compose multi-step tool calls (loops, conditionals, fan-out are "
             "allowed). Only the program's print() output and return value are "
             "returned to the conversation; every binding call is recorded on "
@@ -147,7 +147,7 @@ class PythonLanguageBackend(CodeLanguageBackend):
         )
 
     def execute(self, program_path: Path, timeout: float) -> Any:
-        """Execute a Python program via the interpreter with a hard timeout."""
+        """Execute a Python3 program via the interpreter with a hard timeout."""
         import sys
 
         from l1.kernel.ports import get_process_port
@@ -312,6 +312,6 @@ def cell_program_dir(cell_id: str) -> Path:
     return root / (cell_id or "default")
 
 
-# Register the first-party Python backend at import time so the framework
+# Register the first-party Python3 backend at import time so the framework
 # always has a default for the shipped language.
-register_language_backend(PythonLanguageBackend())
+register_language_backend(Python3LanguageBackend())

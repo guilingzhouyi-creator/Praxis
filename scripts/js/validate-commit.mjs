@@ -6,8 +6,8 @@
  * and validates it against config/discovery/commits.json. Exits 0 on
  * success, 1 on failure (error message on stderr).
  *
- * This replaces the Python-based commit_scan.py + detect_agent.py calls
- * from the .githooks/commit-msg hook, removing the Python runtime dependency.
+ * This replaces the Python3-based commit_scan.py + detect_agent.py calls
+ * from the .githooks/commit-msg hook, removing the Python3 runtime dependency.
  */
 
 import { readFileSync, existsSync } from "fs";

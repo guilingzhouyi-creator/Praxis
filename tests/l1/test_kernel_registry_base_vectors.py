@@ -1,4 +1,4 @@
-"""Validate shared registry-base vectors against the Python reference."""
+"""Validate shared registry-base vectors against the Python3 reference."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_registry_b
 
 
 def _spec(raw: dict) -> RegisterableSpec:
-    """Build a Python descriptor from a fixture object."""
+    """Build a Python3 descriptor from a fixture object."""
     return RegisterableSpec(**raw)
 
 

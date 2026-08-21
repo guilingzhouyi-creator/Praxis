@@ -238,7 +238,7 @@ JSON-shaped schema (`id`, `fingerprint`, `binding`, `evidence`, `validation`,
 `state`, and timestamps). Lifecycle state names and limits come from `params/`
 and remain the single source of truth. Publication intent and LLM orchestration
 stay in L3 above the port. A future Rust ledger can therefore replace indexed
-storage and transition checks through the same typed port while the Python L3
+storage and transition checks through the same typed port while the Python3 L3
 orchestration, API, L2 shell, and callers remain unchanged. The Rust adapter
 must preserve atomic transition semantics, bounded evidence, and best-effort
 persistence behavior.
@@ -255,7 +255,7 @@ background writer, so ordinary journal and compaction I/O never run while the
 candidate-state lock is held. `CandidateStore.flush()`/`close()` provide the
 explicit durability barrier for shutdown and tests; normal evidence capture
 remains best-effort. `CandidateLedgerPort` carries typed primitive-only
-evidence, snapshot, status, and lifecycle values so its Python adapter can be
+evidence, snapshot, status, and lifecycle values so its Python3 adapter can be
 replaced by a Rust implementation without changing memory, API, or shell
 callers.
 

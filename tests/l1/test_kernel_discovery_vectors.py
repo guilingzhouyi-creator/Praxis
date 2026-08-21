@@ -1,4 +1,4 @@
-"""Validate shared config-discovery vectors against the Python reference."""
+"""Validate shared config-discovery vectors against the Python3 reference."""
 
 from __future__ import annotations
 

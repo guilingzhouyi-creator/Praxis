@@ -11,7 +11,7 @@ pub struct PlatformSnapshot {
     pub is_mac: bool,
     /// Shell executable selected by the host environment.
     pub shell_path: String,
-    /// Python executable exposed to bounded command adapters.
+    /// Python3 executable exposed to bounded command adapters.
     pub python_exe: String,
     /// Whether `rg` is available for search command construction.
     pub rg_available: bool,
@@ -77,7 +77,7 @@ pub struct PlatformDescriptor {
     pub default_shell: String,
     /// Platform-specific ping count flag.
     pub ping_param: String,
-    /// Host Python executable.
+    /// Host Python3 executable.
     pub python_exe: String,
     /// Explicit subprocess encoding policy.
     pub default_encoding: String,
@@ -210,7 +210,7 @@ impl PlatformDescriptor {
         command
     }
 
-    /// Join URL components while preserving the Python helper's slash rules.
+    /// Join URL components while preserving the Python3 helper's slash rules.
     pub fn join_url<'a, I>(&self, parts: I) -> String
     where
         I: IntoIterator<Item = &'a str>,
@@ -387,7 +387,7 @@ mod tests {
     fn windows_fallback_and_endpoint_are_provider_neutral() {
         let descriptor = PlatformDescriptor::from_snapshot(PlatformSnapshot::windows(
             "C:\\Windows\\System32\\cmd.exe",
-            "C:\\Python\\python.exe",
+            "C:\\Python3\\python.exe",
             false,
         ))
         .unwrap();

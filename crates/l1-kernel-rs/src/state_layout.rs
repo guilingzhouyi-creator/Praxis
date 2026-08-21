@@ -2,7 +2,7 @@
 //!
 //! This candidate defines only the versioned layout manifest and the
 //! observation-to-decision boundary. It does not create directories, read
-//! files, import Python state, or perform migration side effects.
+//! files, import Python3 state, or perform migration side effects.
 
 use std::collections::BTreeSet;
 

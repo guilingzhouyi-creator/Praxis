@@ -6,7 +6,7 @@ use std::sync::{Mutex, PoisonError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-/// A parsed discovery document supplied by the Python/YAML adapter.
+/// A parsed discovery document supplied by the Python3/YAML adapter.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryDocument {
     /// Top-level section name to override value.
@@ -47,7 +47,7 @@ impl DiscoveryRegistry {
     /// Apply parsed YAML values and return the number of registered sections applied.
     ///
     /// Unknown sections are ignored. A null value keeps the registered defaults,
-    /// matching Python `discover()`'s empty-section rule.
+    /// matching Python3 `discover()`'s empty-section rule.
     pub fn apply_document(&self, document: &DiscoveryDocument) -> usize {
         let mut state = self.lock();
         let mut applied = 0;

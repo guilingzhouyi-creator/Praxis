@@ -12,7 +12,7 @@ TS rewrite reference: functions are grouped by domain (error bus /
 memory / system / model / selector / injection / settings — see the
 ``# ── <domain> ──`` markers); the TS side reuses the same domain grouping
 in ``bridge.ts`` and never re-implements the L3 authority behind them.
-The per-call lazy import is a Python boot optimization only — the TS
+The per-call lazy import is a Python3 boot optimization only — the TS
 client imports modules eagerly (no import-statement cost per call), so
 the rewrite drops this pattern entirely.
 

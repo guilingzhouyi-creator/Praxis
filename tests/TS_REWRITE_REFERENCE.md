@@ -348,7 +348,7 @@ phases:
 
 **这些文件**：`snake_card.yaml`, `snake_complete.yaml`, `self_bootstrap.yaml`, `self_host.yaml`, `self_host_write.yaml`, `self_constantize.yaml`
 - 不是 pytest 测试文件，而是 **Card 定义文件**
-- TS 重写后保持 YAML 格式不变，只更新引用的 Python 模块路径
+- TS 重写后保持 YAML 格式不变，只更新引用的 Python3 模块路径
 - 加载方式在 TS 中可用 `yaml` npm 包解析
 
 ### 3.8 轮询等待模式
@@ -534,9 +534,9 @@ async function waitForAgent(
 
 ## 五、TS 重写关键映射表
 
-### 5.1 Python → TypeScript 概念映射
+### 5.1 Python3 → TypeScript 概念映射
 
-| Python | TypeScript | 备注 |
+| Python3 | TypeScript | 备注 |
 |--------|-----------|------|
 | `def test_xxx(self):` | `it("...", () => { ... })` | 方法名 → 描述字符串 |
 | `class TestXxx:` | `describe("Xxx", () => { ... })` | 类 → describe 块 |
@@ -552,7 +552,7 @@ async function waitForAgent(
 
 ### 5.2 项目特有 API 映射
 
-| Python API | TS 等价物 | 备注 |
+| Python3 API | TS 等价物 | 备注 |
 |-----------|----------|------|
 | `get_constitution()` | `getConstitution()` | 单例获取 |
 | `reset_constitution()` | `resetConstitution()` | 单例重置 |
@@ -572,7 +572,7 @@ async function waitForAgent(
 
 ### 5.3 命名约定转换
 
-| Python 风格 | TS 风格 | 示例 |
+| Python3 风格 | TS 风格 | 示例 |
 |-------------|--------|------|
 | `snake_case` | `camelCase` | `get_paths()` → `getPaths()` |
 | `UPPER_SNAKE` | `UPPER_SNAKE`（常量保留） | `IRQ_TABLE_SIZE` 不变 |
@@ -640,9 +640,9 @@ const RESET_MAP: Map<string, () => void> = new Map([
 
 ---
 
-## 八、完整注释示例（从 Python 到 TS）
+## 八、完整注释示例（从 Python3 到 TS）
 
-### Python 原始（`test_interrupt.py`）
+### Python3 原始（`test_interrupt.py`）
 
 ```python
 # ── Built-in IRQ tests ──

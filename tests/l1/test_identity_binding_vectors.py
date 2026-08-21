@@ -1,4 +1,4 @@
-"""Cross-language control vectors for the Python identity-binding adapter."""
+"""Cross-language control vectors for the Python3 identity-binding adapter."""
 
 from __future__ import annotations
 

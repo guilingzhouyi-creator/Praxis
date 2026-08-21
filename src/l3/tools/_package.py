@@ -14,7 +14,7 @@ def _get_mgr():
 
 
 def pip_install(args: dict, agent_id: str) -> dict:
-    """Install a Python package via pip."""
+    """Install a Python3 package via pip."""
     pkg = args.get("package", "")
     if not pkg:
         return {"success": False, "error": "package is required"}
@@ -23,12 +23,12 @@ def pip_install(args: dict, agent_id: str) -> dict:
 
 
 def pip_list(args: dict, agent_id: str) -> dict:
-    """List installed Python packages."""
+    """List installed Python3 packages."""
     return _get_mgr().pip_list()
 
 
 def pip_uninstall(args: dict, agent_id: str) -> dict:
-    """Uninstall a Python package."""
+    """Uninstall a Python3 package."""
     pkg = args.get("package", "")
     if not pkg:
         return {"success": False, "error": "package is required"}

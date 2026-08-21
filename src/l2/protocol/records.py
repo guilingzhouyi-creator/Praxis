@@ -2,7 +2,7 @@
 
 The records are pure data objects with deterministic JSON serialization. They
 are deliberately narrower than the internal session files: chain-of-thought,
-mutable runtime handles, and Python-specific implementation details do not
+mutable runtime handles, and Python3-specific implementation details do not
 cross this boundary.
 """
 

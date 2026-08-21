@@ -26,7 +26,7 @@ _spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "script
 check_doc_stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_doc_stats)
 
-# Load the snapshot once at module level (fast, no Python script execution).
+# Load the snapshot once at module level (fast, no Python3 script execution).
 _STATS: dict | None = None
 
 

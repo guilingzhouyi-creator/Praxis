@@ -2,7 +2,7 @@
 
 Runs as a module (python -m l2.protocol.host): reads protocol v1 envelopes
 from stdin (one JSON object per line), writes result/ack envelopes to
-stdout. This is the Python reference peer for the planned TypeScript
+stdout. This is the Python3 reference peer for the planned TypeScript
 bridge.ts; it reuses the existing l2.l2_shell.dispatch unchanged - no
 engine modification, no behavior change, purely additive transport.
 """

@@ -78,10 +78,10 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 | `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `shell_completer` (legacy `l2.shell_session` Popen manager removed — dead code, P0) | Python-only lifecycle | — (not an FFI-clean one-shot port) |
+| Terminal dialing (interactive) | `shell_completer` (legacy `l2.shell_session` Popen manager removed — dead code, P0) | Python3-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
-never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is
+never raw `os`/`subprocess` — so swapping the adapter (Python3 → Rust) is
 invisible to `dispatch` and every shell dialect.
 
 L2 current status (protocol v1, TS engine, boundary migration) is tracked

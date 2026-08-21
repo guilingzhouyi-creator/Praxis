@@ -10,7 +10,7 @@
 2. 涉及跨语言契约改动（envelope/records/kind）→ 必读 §2.4 镜像同步要求。
 3. 涉及 P3 TS 引擎 → 必读 §2 全部（重写标准）。
 4. 提交前：`make precommit`（ruff + size + attribution）+ commit-scan（scope 注册表，见 §3.4）。
-5. 测试：Python 走 WSL venv（§3.2 命令），TS 走 WSL nvm node（§3.1）。
+5. 测试：Python3 走 WSL venv（§3.2 命令），TS 走 WSL nvm node（§3.1）。
 
 ## 1. L2 能力地图（模块 → 文件 → 关键符号 → 状态）
 
@@ -61,13 +61,13 @@
 | `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize` |
 | `dispatcher.ts` | ✅ 注册表 + `listCommands` + 未注册回退桥标记 |
 | `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay，transport 注入） |
-| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop`（与 Python `projection.py` 三形状对齐） |
+| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop`（与 Python3 `projection.py` 三形状对齐） |
 | `builtins.ts` | ✅ `registerBuiltins`（lang/help/clear 本地纯展示命令） |
 | transport 适配器 | ✅ `transports/`——**共享引擎** `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio（Node readline）/ http（fetch `/api/v2/shell`）/ ws（原生 WebSocket，实例可注入）/ ssh（ssh2 channel，客户端可注入）；**异步契约** `(line) => Promise<string[]>` |
-| 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python `ProtocolHost`（`python -m l2.protocol`）打通：command 往返 + attach/replay |
+| 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost`（`python -m l2.protocol`）打通：command 往返 + attach/replay |
 | 测试 | ✅ engine 8 + protocol 6 + session 7 + e2e 2 + transports 6（Vitest 29 passed，tsc 干净） |
 
-协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python 逐字段对齐，§2.4）。
+协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python3 逐字段对齐，§2.4）。
 
 ### 1.6 Shell 命令域 — ✅ 完成
 
@@ -89,7 +89,7 @@
 | `src/l2/l2_shell/__main__.py` | REPL 路由（/命令、\| 管道、纯文本→L3A） | `engine/parser.ts` + `dispatcher.ts` 路由模型 |
 | `src/l2/l2_shell/commands/*.py` | 20+ 命令模块（memory / connect / extra...） | dispatcher 注册组（未注册回退桥标记） |
 | `src/l2/l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） |
-| `src/l2/l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python） |
+| `src/l2/l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python3） |
 | `src/l2/l2_shell/state.py` | 状态访问器 | `SessionView` 快照（attach/replay） |
 
 ### 1.8 协议会话边界（L2 作为上层会话统一协议承载面）
@@ -101,7 +101,7 @@
 
 ### 1.9 协议优化全景与 TS 架构预留（2026-08-21）
 
-**性能优化（Python 侧，已合入 main）**：
+**性能优化（Python3 侧，已合入 main）**：
 
 | 优化 | 文件 | TS 重写对应 |
 |---|---|---|
@@ -110,11 +110,11 @@
 | ws 桥 dict 直入（省 JSON 往返） | `host.py`/`ws_bridge.py` | TS 天然无 JSON 往返（对象直传） |
 | command args 直入（省 shlex.split） | `host.py`/`l2_shell/__init__.py` | TS 天然无 shlex——命令名/参数已结构化 |
 | `_get_session` 会话类缓存 | `host.py` | TS 类导入零成本（无需该模式） |
-| 常量化（OUTBOX_MAXLEN→params）+ 配置驱动（WS 端口） | `params/api.py`/`l4/params.py` | TS 常量/配置来自 Python 真相源（镜像注释） |
+| 常量化（OUTBOX_MAXLEN→params）+ 配置驱动（WS 端口） | `params/api.py`/`l4/params.py` | TS 常量/配置来自 Python3 真相源（镜像注释） |
 
 **TS 架构预留（模块划分预案——重写直接采用）**：
 
-| Python 职责（host） | TS 模块 | 说明 |
+| Python3 职责（host） | TS 模块 | 说明 |
 |---|---|---|
 | `handle(line)`（JSONL 行解析 + 路由） | `protocol.ts` 行解析 + `bridge.ts` 路由 | 行协议解析独立模块 |
 | `handle_message(dict)`（envelope 校验 + 分发） | `envelope.ts`（validate）+ `bridge.ts`（dispatch） | 校验与分发分离 |
@@ -124,9 +124,9 @@
 | `_get_session`/`_get_outbox`/`_cursors` | `session.ts` 状态容器 | per-session 状态单一容器 |
 
 架构预留要点：
-- **单一协议入口**：TS 只经 `bridge.ts`（零运行时状态）——一切命令经协议 v1 envelope 转发 Python 宿主。
-- **权威留 Python**：TS 永不重实现 AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning。
-- **契约单一真相**：envelope / records / params 的 TS 镜像注释均指向 Python 源文件。
+- **单一协议入口**：TS 只经 `bridge.ts`（零运行时状态）——一切命令经协议 v1 envelope 转发 Python3 宿主。
+- **权威留 Python3**：TS 永不重实现 AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning。
+- **契约单一真相**：envelope / records / params 的 TS 镜像注释均指向 Python3 源文件。
 - **架构基线**：`docs/architecture/l2-shell-engine.md`（引擎层）+ `l2-shell.md`（家族层）为本文档的稳定契约；本表与 §1.7/§1.8 为路线图视角。
 
 ### 1.10 L2 不绑定上层易失状态（架构原则，2026-08-21）
@@ -142,39 +142,39 @@
 
 - envelope 字段：`v / session_id / seq / ts / trace_id? / kind / payload`；七类 kind：`ack / command / control / event / intent / result / stream_chunk`。
 - 校验语义：command 需非空 `name` + 字符串数组 `args`；control 的 `op ∈ attach/detach/resume/recovery/ack`；ack 需非负 `ack_seq`。
-- **Python 侧为参考实现**（`src/l2/protocol/envelope.py`），TS 侧为镜像（`packages/protocol-ts/src/envelope.ts`）——任何契约改动两边同步（§2.4）。
+- **Python3 侧为参考实现**（`src/l2/protocol/envelope.py`），TS 侧为镜像（`packages/protocol-ts/src/envelope.ts`）——任何契约改动两边同步（§2.4）。
 
-### 2.2 桥 API 对应表（Python bridge ↔ TS bridge.ts）
+### 2.2 桥 API 对应表（Python3 bridge ↔ TS bridge.ts）
 
-| 语义 | Python（`src/l2/bridge.py`） | TS（`src/engine/bridge.ts`） |
+| 语义 | Python3（`src/l2/bridge.py`） | TS（`src/engine/bridge.ts`） |
 |---|---|---|
-| 发命令 | `settings_set` 等 92 函数（直接调用） | `bridge.command(name, args)` → 协议消息给 Python 宿主 |
+| 发命令 | `settings_set` 等 92 函数（直接调用） | `bridge.command(name, args)` → 协议消息给 Python3 宿主 |
 | 附视图 | `attach_view(view_id, session_id)` | `bridge.attach(sessionId, viewId?)` |
 | 确认 | `cursor.ack(seq)` + `_advance_shared_cursor` | `bridge.ack(ackSeq, viewId?)` |
 | 重放 | `outbox.unacked(after_seq)` | `bridge.replay(sessionId, viewId?, lastAcked)` |
 
-**原则**：Python 桥是进程内直接调用；TS 桥是协议客户端（经 transport 发消息）。两者是**同一概念边界的两种传输**，不是逐行移植。
+**原则**：Python3 桥是进程内直接调用；TS 桥是协议客户端（经 transport 发消息）。两者是**同一概念边界的两种传输**，不是逐行移植。
 
 ### 2.3 铁律（TS 侧红线）
 
-1. TS **不拥有最终 authority**：outbox/ack/会话状态在 Python ProtocolHost。
+1. TS **不拥有最终 authority**：outbox/ack/会话状态在 Python3 ProtocolHost。
 2. TS **绝不重实现** AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning——一律经 bridge.ts 转发。
 3. 本地 handler（dispatcher + builtins）只做纯解析/展示/格式转换。
 
 ### 2.4 镜像同步要求（改动协议必做）
 
-1. Python `envelope.py` 改动 → 同步 `packages/protocol-ts/src/envelope.ts`（逐字段/逐语义）。
-2. 同步补测试：Python `tests/l2/test_protocol_v1.py` 与 TS `tests/protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
-3. 验收：`tsc --noEmit` + `vitest run` + Python 契约钉全绿。
+1. Python3 `envelope.py` 改动 → 同步 `packages/protocol-ts/src/envelope.ts`（逐字段/逐语义）。
+2. 同步补测试：Python3 `tests/l2/test_protocol_v1.py` 与 TS `tests/protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
+3. 验收：`tsc --noEmit` + `vitest run` + Python3 契约钉全绿。
 
 ### 2.5 P3 验收清单
 
-- [x] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python `projection.py` 三形状一致（含未知前端回退 web）。
+- [x] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python3 `projection.py` 三形状一致（含未知前端回退 web）。
 - [x] `builtins.ts`：`lang`/`help`/`clear` 纯展示命令本地实现（`registerBuiltins` + `dispatcher.listCommands`）。
 - [x] transport 适配器：**异步 Transport 契约**（`(line) => Promise<string[]>`）+ 共享 `line-transport.ts` 引擎；`stdio.ts`（Node readline）/ `http.ts`（fetch 双模式）/ `ws.ts`（原生 WebSocket）/ `ssh.ts`（ssh2 channel）**四适配器全落地**（fake/mock 测试覆盖，`tests/transports.test.ts` 6 例）。
-- [x] 端到端真实链路：TS 引擎 + 真实 Python ProtocolHost 打通（`tests/e2e.stdio.test.ts` spawn `python -m l2.protocol`；command 往返 + attach/replay）。
-- [x] 测试：Vitest 全绿（29 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py` 等 53 passed）不回归。
-- [x] L3 零改动：TS 引擎增量仅 `packages/protocol-ts/`（Python 零触碰）。
+- [x] 端到端真实链路：TS 引擎 + 真实 Python3 ProtocolHost 打通（`tests/e2e.stdio.test.ts` spawn `python -m l2.protocol`；command 往返 + attach/replay）。
+- [x] 测试：Vitest 全绿（29 passed）+ Python3 联动测试（`tests/l4/test_shell_protocol.py` 等 53 passed）不回归。
+- [x] L3 零改动：TS 引擎增量仅 `packages/protocol-ts/`（Python3 零触碰）。
 
 ### 2.6 Transport 适配器标准（后续 Agent 扩展 WS/SSH 时遵循）
 
@@ -182,7 +182,7 @@
 2. **位置**：`packages/protocol-ts/src/engine/transports/<name>.ts`，并在 `index.ts` 导出。
 3. **响应边界**：每请求返回该请求的响应行（stdio 按 ack 行；HTTP 按 `envelopes` 数组）；**禁止跨请求混合**（并发请求应拒绝或排队）。
 4. **健壮性**：超时（`timeoutMs`）+ 行数上限（`maxLines`），失败快返回错误（host 卡死不挂死调用方）。
-5. **测试**：真实适配器配 fake/本地宿主测试；端到端配真实 Python host（参考 `tests/e2e.stdio.test.ts`）。
+5. **测试**：真实适配器配 fake/本地宿主测试；端到端配真实 Python3 host（参考 `tests/e2e.stdio.test.ts`）。
 
 ## 3. 已知坑与运行环境（必读）
 
@@ -191,7 +191,7 @@
 - node 在 `~/.nvm/versions/node/v24.19.0/bin`；用**显式最小 PATH**（`export PATH=...:/usr/bin:/bin`）——Windows 中文括号路径（`（x86）`）会炸 bash 引号。
 - 验证：`cd packages/protocol-ts && ./node_modules/.bin/tsc --noEmit && ./node_modules/.bin/vitest run`（先 `npm ci` 一次）。
 
-### 3.2 Python 测试（WSL 内）
+### 3.2 Python3 测试（WSL 内）
 
 - 主树 venv：`/home/guiling/dev/praxis/.venv/bin/python`（worktree 无 `.venv`）。
 - 必须 `-o addopts=""` 串行（默认 `-n auto` 在 WSL 极慢）。

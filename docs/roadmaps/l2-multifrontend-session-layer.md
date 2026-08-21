@@ -47,7 +47,7 @@
 
 ## 3. 统一会话数据层协议 v1（核心交付）
 
-目标：**把任意前端的任意输入转换/统一为一个数据流**，同时把向内核的操作收敛为同一桥。协议为语言无关 JSON Lines（TS 重写与 Python L3 可互操作）。
+目标：**把任意前端的任意输入转换/统一为一个数据流**，同时把向内核的操作收敛为同一桥。协议为语言无关 JSON Lines（TS 重写与 Python3 L3 可互操作）。
 
 ```json
 {"v":1,"session_id":"s-…","seq":42,"ts":1723812345.678,"trace_id":"tr-…","kind":"intent","payload":{…}}
@@ -73,13 +73,13 @@
 
 ## 5. TS 重写路径
 
-| 现 Python 模块 | TS 模块（已落地） | 说明 |
+| 现 Python3 模块 | TS 模块（已落地） | 说明 |
 |---|---|---|
 | `dispatch` + `shlex` | `engine/parser.ts` + `engine/dispatcher.ts` ✅ | 纯函数，无副作用 |
 | `ShellSession` / `ShellFamily` | `engine/session.ts`（SessionView + 三形状投影）✅ | JSON 可序列化 |
 | `shells/*` | `engine/transports/*`（stdio/http/ws/ssh）+ `session.ts` 投影形状 ✅ | 每前端一个适配器 |
 | 内置命令 | `engine/builtins.ts`（lang/help/clear）✅ | 本地纯展示，其余回退桥 |
-| 执行调用 | `engine/bridge.ts`（单一客户端）+ `line-transport.ts` ✅ | 向 Python L3 宿主说协议 v1（stdio/WS/HTTP/SSH）；**L3 Agent 逻辑保持 Python 不动** |
+| 执行调用 | `engine/bridge.ts`（单一客户端）+ `line-transport.ts` ✅ | 向 Python3 L3 宿主说协议 v1（stdio/WS/HTTP/SSH）；**L3 Agent 逻辑保持 Python3 不动** |
 | `i18n.py` | locale 数据 + `lang` builtin ✅ | 同 locale 数据（locales/*.yaml） |
 
 硬约束：TS L2 是 L3 的**纯投影器 + 分派器 + 桥客户端**，绝不重实现 AgentLoop/Tool Pipeline/Workflow/Scheduler/Memory/Planning。
@@ -87,7 +87,7 @@
 构建外围边界：`scripts/py/praxis_automation.py` 及其 manifest/性能 runner 不属于
 L2 协议和 TS 引擎迁移面。P3 只迁移 `parser/dispatcher/session/builtins/bridge.ts`；
 自动化脚手架继续在宿主构建环境运行，并通过 `ProcessPort` 调用基准/质量命令。
-TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议事件；需要展示时，
+TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协议事件；需要展示时，
 只能通过协议 v1 的结果/事件投影消费版本化报告。
 
 ## 6. 阶段路线图
@@ -120,15 +120,15 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 - **参考实现**：`src/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`packages/protocol-ts/`（共享 fixture + Vitest）。
 - **接入**：web 端点双模式（`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层 `SessionIdentity`；多前端统一调用（`SessionCursor` 每视图游标 + 单一 ProtocolHost 入口，前端只做线格式适配）。
 - **multiplexing**：Outbox 非破坏性 ack + 共享水位按落后视图（`_advance_shared_cursor`）；3 个补丁：共享水位恒 -1 修复、host stdout 捕获（防污染 JSONL）、stdio 单次校验。
-- **投影与镜像**：event projection（web/TUI/desktop 三形状 + 未知回退 web）；TS 镜像同步（Outbox 非破坏性/unacked(after_seq)/SessionCursor.ack 与 Python 逐字段对齐）；dispatch 热路径优化（`/lang` -7%、`/history` -22%）。
-- 验收：多前端（五前端矩阵任一组合）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿；TS 仍不拥有运行时状态。
+- **投影与镜像**：event projection（web/TUI/desktop 三形状 + 未知回退 web）；TS 镜像同步（Outbox 非破坏性/unacked(after_seq)/SessionCursor.ack 与 Python3 逐字段对齐）；dispatch 热路径优化（`/lang` -7%、`/history` -22%）。
+- 验收：多前端（五前端矩阵任一组合）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python3 契约钉同绿；TS 仍不拥有运行时状态。
 
 ### 6.4 P3 TS 引擎 — ✅ 基本完成（2026-08-21）
 
 - **已落地（2026-08-21，全部合入 main）**：
   - 引擎 6 模块：`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 回退桥标记）、`bridge.ts`（**异步 Transport 契约**）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）、`line-transport.ts`（共享引擎：ack 边界 + 超时/上限 + 并发拒绝）。
   - 四 transport 适配器：`stdio.ts`（Node readline）/ `http.ts`（fetch `/api/v2/shell`）/ `ws.ts`（原生 WebSocket）/ `ssh.ts`（ssh2 channel）——五前端矩阵适配器全部就位。
-  - 真实端到端：`tests/e2e.stdio.test.ts`（spawn Python host：command 往返 + attach/replay）+ `tests/transports.test.ts` 6 例（Vitest 29 passed，tsc 干净）。
+  - 真实端到端：`tests/e2e.stdio.test.ts`（spawn Python3 host：command 往返 + attach/replay）+ `tests/transports.test.ts` 6 例（Vitest 29 passed，tsc 干净）。
   - WS 端点对接：`l4/ws/ws_bridge.py` 协议 v1 envelope 分支（与 RPC 双模式共存，`ws://host:8081`；`tests/l4/test_ws_bridge.py` 往返测试 2 例）。
 - **剩余**：真实 SSH 端点（远端 stdio host 已通——按需接入）+ 五前端矩阵真实接入。
 - **重写标准**：见 [l2-agent-handoff.md](l2-agent-handoff.md) §2（跨语言契约 / 桥 API 对应 / 铁律 / 镜像同步 / 验收清单）。
@@ -145,7 +145,7 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 
 1. ✅ 先合入 WT 边界硬化（工具单门）——否则一切协议/TS 工作都建立在旁路之上。（P0，已合入）
 2. ✅ L3 command bridge 与 L2 边界迁移并行（P1），其完成是 TS 重写（P3）的前置。（P1/P3 已完成并合入）
-3. 与 `kernel-boundary-audit.md` 的衔接点：进程/事件/配置双权威收敛由 L1 路线图负责，L2 只要求"单一桥 + 单一写面"；L1 Rust 化完成后，协议 v1 的 bridge 目标地址变为 Rust kernel 的 capability 边界，Python/TS 两侧均无感。
+3. 与 `kernel-boundary-audit.md` 的衔接点：进程/事件/配置双权威收敛由 L1 路线图负责，L2 只要求"单一桥 + 单一写面"；L1 Rust 化完成后，协议 v1 的 bridge 目标地址变为 Rust kernel 的 capability 边界，Python3/TS 两侧均无感。
 4. 自动化外围只通过 `ProcessPort`、版本化报告和未来的 evidence/observability Port
    与宿主连接；不得新增 L2→L3 直连或把 runner 嵌入 TS Shell。
 5. 全程保持：**L2 不拥有任何最终 authority**——安全/调度/业务/Agent/LLM/模型/工具治理逻辑一律不得塞入 Shell。
@@ -156,7 +156,7 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 
 完整映射见 handoff §1.7（L2 全层）与 §1.9（host 职责 → TS 模块）；本节为路线图视角摘要：
 
-| 域 | Python | TS（已落地/预留） |
+| 域 | Python3 | TS（已落地/预留） |
 |---|---|---|
 | 协议契约 | `protocol/envelope.py`、`records.py` | `protocol-ts/src/{envelope,records}.ts` ✅ |
 | 引擎 | `l2_shell` 路由语义 | `engine/{parser,dispatcher,builtins}.ts` ✅ |
@@ -166,10 +166,10 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 
 ### 8.2 优化继承表
 
-Python 侧协议优化的 TS 对应见 handoff §1.9 表——TS 侧**天然继承全部**（无 shlex / import 语句 / JSON 往返成本），唯一需保持一致的是 outbox 窗口与配置默认值（来自 params / praxis.yaml 真相源）。
+Python3 侧协议优化的 TS 对应见 handoff §1.9 表——TS 侧**天然继承全部**（无 shlex / import 语句 / JSON 往返成本），唯一需保持一致的是 outbox 窗口与配置默认值（来自 params / praxis.yaml 真相源）。
 
 ### 8.3 后续里程碑
 
 - **P3 收尾**：真实 SSH 端点接入（适配器已按 §2.6 标准预留）+ 五前端矩阵真实接入（web / TUI / desktop / SSH / 移动）。
-- **TS 重写阶段**：①协议层（envelope / records / line-transport——已落地）→ ②引擎（parser / dispatcher / session / builtins——已落地）→ ③host 对端（Python 保持权威——TS 只作客户端）→ ④前端矩阵真实接入。
+- **TS 重写阶段**：①协议层（envelope / records / line-transport——已落地）→ ②引擎（parser / dispatcher / session / builtins——已落地）→ ③host 对端（Python3 保持权威——TS 只作客户端）→ ④前端矩阵真实接入。
 - **文档基线**：handoff §1.7 / §1.8 / §1.9 + §2 标准为重写期间唯一参考；代码内 TS 参考注释为第二层指引。

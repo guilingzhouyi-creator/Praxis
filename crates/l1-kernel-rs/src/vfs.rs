@@ -34,7 +34,7 @@ pub enum MountType {
 }
 
 impl MountType {
-    /// Return the stable Python-compatible enum spelling.
+    /// Return the stable Python3-compatible enum spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Project => "PROJECT",
@@ -66,7 +66,7 @@ pub struct MountPoint {
 }
 
 impl MountPoint {
-    /// Construct a mount with the same defaults as the Python VFS.
+    /// Construct a mount with the same defaults as the Python3 VFS.
     pub fn new(name: impl Into<String>, mount_type: MountType) -> Self {
         Self {
             name: name.into(),
@@ -124,7 +124,7 @@ pub enum VfsErrorCode {
 }
 
 impl VfsErrorCode {
-    /// Return the stable wire error code used by Python adapters.
+    /// Return the stable wire error code used by Python3 adapters.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::InvalidPath => "EINVAL",

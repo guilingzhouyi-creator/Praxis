@@ -295,7 +295,7 @@ agent flow.
 
 ```python
 src/l1/kernel/discovery.py
-  register(name, defaults)       # Register a config section with Python-side defaults
+  register(name, defaults)       # Register a config section with Python3-side defaults
   register_discovery_dir(path)   # Add a directory to scan for YAML snippets
   discover()                     # Scan YAML files and merge into registry
   get_config(name, default)      # Read merged config

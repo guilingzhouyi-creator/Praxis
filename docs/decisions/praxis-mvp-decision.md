@@ -13,14 +13,14 @@ relations: [ARCHIVE-decisions-002, ARCHIVE-design-001]
 
 ## Core Decisions
 
-Five resolutions converged: GUI=pywebview, kernel=pure Python, territory=by layer (A/B/C), L3=pure rule engine, MVP=4 days 5 tools.
+Five resolutions converged: GUI=pywebview, kernel=pure Python3, territory=by layer (A/B/C), L3=pure rule engine, MVP=4 days 5 tools.
 
 ## Design Rules
 
-1. GUI must use Python webview (pywebview)——startup <500ms, package <50MB, three-platform native WebView.
-2. Kernel must remain pure Python——bottleneck is LLM API (500ms-5s), not computation (microsecond level), must not introduce Rust/C++.
+1. GUI must use Python3 webview (pywebview)——startup <500ms, package <50MB, three-platform native WebView.
+2. Kernel must remain pure Python3——bottleneck is LLM API (500ms-5s), not computation (microsecond level), must not introduce Rust/C++.
 3. Territory must be divided by layer——Agent A (HTTP layer: routes/params/middleware/auth/i18n), Agent B (business layer: pages/services/visa/cache/config), Agent C (quality and security layer: tests/security/nomos_mcp/memories/scripts).
-4. L3 must use a pure rule engine ~100 lines of Python——Task Card already structures intent, must not introduce LLM for routing.
+4. L3 must use a pure rule engine ~100 lines of Python3——Task Card already structures intent, must not introduce LLM for routing.
 5. MVP scope must be limited to 4 days——Intent Card + L3 + 1 Agent + 5 Tools + Dual Ring Panel + pywebview window.
 6. Development phase uses `python run.py` (Flask browser debugging), production phase uses `python run.py --gui` (Praxis window), no need to maintain two APIs.
 

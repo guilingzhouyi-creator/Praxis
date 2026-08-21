@@ -3,7 +3,7 @@
 Every test here drives a handler through mocked bridge/L1 accessors and
 pins its dict contract (success/error keys, passthrough of L3 data).
 These are exactly the shapes the TS dispatcher consumes, so drift here
-is a wire-contract break, not just a Python regression.
+is a wire-contract break, not just a Python3 regression.
 """
 
 from __future__ import annotations

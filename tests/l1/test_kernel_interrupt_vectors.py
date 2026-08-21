@@ -1,4 +1,4 @@
-"""Validate shared interrupt bookkeeping vectors against the Python reference."""
+"""Validate shared interrupt bookkeeping vectors against the Python3 reference."""
 
 from __future__ import annotations
 

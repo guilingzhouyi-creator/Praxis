@@ -1,7 +1,7 @@
 """ConfigDiscovery — auto-discovery & declarative config registry.
 
 Allows structural configuration to be declared in YAML files and
-auto-discovered at boot, rather than hardcoded in Python modules.
+auto-discovered at boot, rather than hardcoded in Python3 modules.
 
 Three-tier merging (lowest to highest priority):
   1. Params defaults (via discovery() defaults)
@@ -47,7 +47,7 @@ _DISCOVERY_DIRS: list[str] = []
 
 
 def register(name: str, defaults: Any) -> None:
-    """Register a config section with its Python-side defaults.
+    """Register a config section with its Python3-side defaults.
 
     Args:
         name: Config section name (e.g. ``"build_detectors"``).
@@ -186,7 +186,7 @@ def register_from_params(params_module: object, section_map: dict[str, str]) -> 
     """Register config sections from a params module using a mapping.
 
     Args:
-        params_module: A Python module with constant attributes.
+        params_module: A Python3 module with constant attributes.
         section_map: ``{section_name: [attr_names...]}`` mapping.
 
     Example::

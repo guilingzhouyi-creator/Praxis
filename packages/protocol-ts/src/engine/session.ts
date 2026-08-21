@@ -1,7 +1,7 @@
 /**
  * Session view projection — one session state, per-frontend shapes.
  *
- * Mirrors the Python projection registry (src/l2/protocol/projection.py):
+ * Mirrors the Python3 projection registry (src/l2/protocol/projection.py):
  * web pass-through, TUI table rows, desktop rich-text blocks, and an
  * unknown-frontend fallback to web. A SessionView binds one frontend view
  * to a session via the bridge and keeps its own ack cursor — the TS side

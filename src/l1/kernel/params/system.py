@@ -285,7 +285,7 @@ ENGINEERING_DEBUG_LOGGING_COMPONENTS: Final[tuple[str, ...]] = (
 # Runtime provider-probe capability keys understood by the cache-strategy
 # refresh loop: a probe reporting one of these keys refreshes the
 # per-provider strategy idempotently (fingerprint-compared) without any
-# Python code change. Pure data contract — TS-equivalent portable.
+# Python3 code change. Pure data contract — TS-equivalent portable.
 CACHE_CAP_PREFIX_CACHE: Final[str] = "supports_prefix_cache"
 CACHE_CAP_STATEFUL: Final[str] = "supports_stateful"
 CACHE_CAP_USER_ID: Final[str] = "supports_user_id"

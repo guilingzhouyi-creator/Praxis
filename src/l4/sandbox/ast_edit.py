@@ -96,7 +96,7 @@ class Node:
 
 
 def parse_tree(source: str) -> Node | None:
-    """Parse Python source into a normalized Node tree (None on syntax error)."""
+    """Parse Python3 source into a normalized Node tree (None on syntax error)."""
     try:
         module = ast.parse(source)
     except SyntaxError:
@@ -379,7 +379,7 @@ def _decode_path(data: bytes, offset: int) -> tuple[list[int], int]:
 
 
 def tree_edit_script(old_source: str, new_source: str) -> bytes | None:
-    """Compute + encode a tree-edit script between two Python sources.
+    """Compute + encode a tree-edit script between two Python3 sources.
 
     Returns None when either source fails to parse (caller falls back to
     row-level hunks — the declarative language contract).

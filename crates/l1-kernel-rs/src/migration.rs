@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
-/// Current archive/schema version mirrored from the Python migration module.
+/// Current archive/schema version mirrored from the Python3 migration module.
 pub const SCHEMA_VERSION: &str = "20260730.1";
 
 /// Migration callback with no interpreter objects crossing the boundary.
@@ -34,7 +34,7 @@ struct MigrationEntry {
     function: MigrationFn,
 }
 
-/// Ordered migration registry matching Python's append-on-registration behavior.
+/// Ordered migration registry matching Python3's append-on-registration behavior.
 pub struct MigrationRunner {
     entries: Mutex<Vec<MigrationEntry>>,
 }

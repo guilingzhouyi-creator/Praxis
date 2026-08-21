@@ -1,4 +1,4 @@
-//! Rust resource-accounting candidates behind the Python allocator contracts.
+//! Rust resource-accounting candidates behind the Python3 allocator contracts.
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex as StdMutex, MutexGuard, PoisonError};
@@ -404,7 +404,7 @@ pub struct ResourceLimiter {
 }
 
 impl ResourceLimiter {
-    /// Create a limiter without importing Python role policy.
+    /// Create a limiter without importing Python3 role policy.
     pub fn new(
         default_profile: ResourceProfile,
         fallback_agent: impl Into<String>,

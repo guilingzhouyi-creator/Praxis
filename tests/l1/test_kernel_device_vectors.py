@@ -1,4 +1,4 @@
-"""Validate deterministic device bookkeeping vectors against Python."""
+"""Validate deterministic device bookkeeping vectors against Python3."""
 
 from __future__ import annotations
 

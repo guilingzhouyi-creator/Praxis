@@ -10,7 +10,7 @@ pub enum DeployMode {
     /// Local source checkout.
     #[serde(rename = "cli")]
     CliProject,
-    /// Installed Python package.
+    /// Installed Python3 package.
     #[serde(rename = "pip")]
     PipPackage,
     /// IDE plugin install.
@@ -44,7 +44,7 @@ impl DeployMode {
         }
     }
 
-    /// Return the stable Python wire value.
+    /// Return the stable Python3 wire value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::CliProject => "cli",
@@ -149,7 +149,7 @@ impl PathInputs {
     }
 }
 
-/// Flattened runtime path set mirroring the Python `PraxisPaths` fields.
+/// Flattened runtime path set mirroring the Python3 `PraxisPaths` fields.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PraxisPaths {
     /// Selected deployment mode.

@@ -61,7 +61,7 @@ and xdist can expose SQLite audit-journal lock contention.
 P0 exit criteria: two concurrent sessions remain independently addressable;
 restart/reload restores the same identity and cursor; a truncated or locked
 store fails closed without silently losing records; protocol fixtures pass in
-Python and the planned TypeScript mirror.
+Python3 and the planned TypeScript mirror.
 
 ### P1 — production operation and lifecycle closure
 
@@ -126,8 +126,8 @@ The TypeScript work may begin as a read-only protocol mirror after the P0
 contract fixtures exist. It may not become the default L2/session runtime until
 all of the following are true:
 
-- P0.1-P0.6 exit criteria are met and the Python baseline is green.
-- JSON Lines envelopes round-trip identically in Python and TypeScript,
+- P0.1-P0.6 exit criteria are met and the Python3 baseline is green.
+- JSON Lines envelopes round-trip identically in Python3 and TypeScript,
   including unknown-field and version handling.
 - Session recovery proves no duplicate `session_id`, no terminal overwrite,
   monotonic `input_seq`, and no lost acknowledged events.
