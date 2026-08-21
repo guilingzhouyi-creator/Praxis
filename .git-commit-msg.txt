@@ -1,7 +1,3 @@
-fix(kernel,ws): clear two pre-existing mypy errors and refresh changelog
-
-event bus stats annotate the mixed int-or-float counter dict; the ws
-bridge unsubscribe loop renames its variable out of the except-name
-shadow; changelog unreleased entries regenerate for the branch.
+docs(stats): regenerate changelog and doc snapshots for the branch
 
 Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>
