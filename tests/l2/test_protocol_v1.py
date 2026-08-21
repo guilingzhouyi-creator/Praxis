@@ -305,14 +305,34 @@ class TestHost:
         for line in lines:
             assert isinstance(json.loads(line), dict)
 
-    def test_handler_stdout_captured_into_rendered(self, capsys) -> None:
-        """Legacy handler prints are captured, keeping the JSONL stream clean."""
+    def test_clear_command_returns_data_not_stdout(self, capsys) -> None:
+        """Built-in handlers write no stdout — /clear returns a render flag."""
         host = ProtocolHost()
         out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "clear", "args": []}))
         result = next(env for env in out if env["kind"] == KIND_RESULT)
         assert result["payload"]["success"] is True
-        # The ANSI clear rendered by the handler lands in the payload, not stdout.
-        assert "\x1b[2J" in result["payload"]["rendered"]
+        assert result["payload"]["clear"] is True
+        assert "rendered" not in result["payload"]
         assert capsys.readouterr().out == ""
         # The enriched result still survives the canonical JSONL encode.
         assert encode_message(result)
+
+    def test_legacy_printing_handler_still_captured(self, capsys) -> None:
+        """Runtime-registered print() handlers land in ``rendered``, not stdout."""
+        from l1.kernel.commands import get_registry
+
+        registry = get_registry()
+
+        def _noisy(args, session=None):
+            print("hello-noise")
+            return {"success": True}
+
+        registry.register_system("noisy_probe", _noisy)
+        try:
+            host = ProtocolHost()
+            out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "noisy_probe", "args": []}))
+        finally:
+            registry.unregister("noisy_probe")
+        result = next(env for env in out if env["kind"] == KIND_RESULT)
+        assert result["payload"]["rendered"].strip() == "hello-noise"
+        assert capsys.readouterr().out == ""

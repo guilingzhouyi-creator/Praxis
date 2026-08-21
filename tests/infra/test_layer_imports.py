@@ -44,6 +44,7 @@ ALLOWLIST = {
     ("l2/bridge.py", "l3.memory.premise_guard"),
     ("l2/bridge.py", "l3.memory.r4_agent"),
     ("l2/bridge.py", "l3.memory.r4_skill_retrieval"),
+    ("l2/bridge.py", "l3.scheduler.acb"),
     ("l2/bridge.py", "l3.memory.skill_retriever"),
     ("l2/bridge.py", "l3.resource_buffer.manager"),
     ("l2/bridge.py", "l3.scheduler.scheduler"),

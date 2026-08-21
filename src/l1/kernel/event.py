@@ -283,6 +283,7 @@ class EventBus:
 
     def stats(self) -> dict:
         """Return event bus listener and queue counters."""
+        base: dict[str, int | float]
         with self._lock:
             base = {
                 "signal_types": len(self._listeners),

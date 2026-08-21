@@ -125,17 +125,23 @@ def resolve_agents(scope: str, scope_id: str) -> list[str]:
         return [scope_id] if scope_id in terms else []
     if scope == "cell":
         try:
-            from l2.bridge import cell as _get_cell
+            from l2.bridge import cell_agent_ids
 
-            cell = _get_cell(scope_id)
-            return list(cell._agents.keys()) if hasattr(cell, "_agents") else []
+            return cell_agent_ids(scope_id)
         except Exception:
             return []
     return list(terms.keys())
 
 
-def _pipeline(segments: list[str]) -> dict:
-    """Execute a command pipeline: cmd1 | cmd2."""
+def _pipeline(segments: list[str], session=None) -> dict:
+    """Execute a command pipeline: cmd1 | cmd2.
+
+    ``session`` is forwarded to every step so session-aware handlers
+    (e.g. /history) behave identically inside and outside a pipeline.
+
+    TS rewrite reference: the TS dispatcher forwards the same session
+    identity to each pipeline stage — steps never run stateless.
+    """
     segment_results: list[dict] = []
     for i, segment in enumerate(segments):
         segment = segment.strip()
@@ -151,7 +157,7 @@ def _pipeline(segments: list[str]) -> dict:
         handler = _gh(cmd)
         if handler:
             try:
-                result = handler(args)
+                result = handler(args, session=session)
                 segment_results.append(result)
             except Exception as e:
                 return {"success": False, "error": _t("shell.app_error.pipeline_step_failed", step=i, cmd=cmd, error=e)}

@@ -28,6 +28,7 @@ shell:
   # ── Shell errors ──
   error:
     unknown_command: "不明なコマンド: /{cmd}"
+    parse_failed: "コマンドの解析に失敗しました: {error}"
     no_session: "アクティブなダイレクトセッションがありません"
     connect_usage: "使用方法: /connect <agent_id>"
     connect_blocked: "セキュリティにより接続がブロックされました"

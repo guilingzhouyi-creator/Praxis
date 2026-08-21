@@ -193,14 +193,12 @@ def _model_status() -> dict:
 
 
 def _model_health(provider: str = "") -> dict:
-    from l2.bridge import model_providers
+    from l2.bridge import llm_provider_health, model_providers
 
     try:
-        from l4.llm.llm import get_engine
-
-        engine = get_engine()
-        if hasattr(engine._provider, "health"):
-            return engine._provider.health()
+        health = llm_provider_health(provider)
+        if health:
+            return health
     except Exception:
         capture("model: health check failed", error_code="E_CMD", component="l2")
     return {"success": True, "providers": model_providers()}

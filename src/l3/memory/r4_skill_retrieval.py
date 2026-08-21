@@ -21,26 +21,6 @@ from l1.kernel.params.agent import (
 from l1.kernel.params.system import SKILL_LIST_SCAN_LIMIT, SKILL_POSTURE_DEFAULT
 
 
-def _system_permits_posture(skill_posture: str) -> bool:
-    """Return whether the current system posture permits injecting a skill.
-
-    Posture linkage (§11.4): under the productive posture only productive
-    skills are exposed; offensive skills require the attack posture
-    (security-test, confirmed). Read-only, best-effort — if the security
-    posture cannot be resolved we fail closed (productive filter applies).
-    """
-    try:
-        from l3.tool_system.security_mode import get_posture
-
-        posture = get_posture()
-        classification = str(posture.get("classification", "productive"))
-    except Exception:
-        classification = "productive"
-    if skill_posture == "offensive":
-        return classification == "attack"
-    return True
-
-
 def link_registered_skill_graph(sm, name: str, scope: str, tags: list[str]) -> dict:
     """Register-time R5 linkage (L3 entry point).
 
@@ -194,8 +174,11 @@ class SkillRetrievalMixin:
                                 continue
                             if not _passes_card_tags(s, tags):
                                 continue
-                            if not _system_permits_posture(str(s.get("posture", SKILL_POSTURE_DEFAULT))):
-                                continue
+                            # Posture is NOT pre-filtered here: the injection
+                            # consumer (AgentLoop._inject_extra_context) owns
+                            # the offensive gate (runtime policy + card
+                            # nature), so an authorized nature or a disabled
+                            # policy must still surface the skill.
                             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                                 continue
                             evolved.append(
@@ -234,8 +217,10 @@ class SkillRetrievalMixin:
                 continue
             if not _passes_card_tags(s, tags):
                 continue
-            if not _system_permits_posture(str(s.get("posture", SKILL_POSTURE_DEFAULT))):
-                continue
+            # Posture is NOT pre-filtered here: the injection consumer
+            # (AgentLoop._inject_extra_context) owns the offensive gate
+            # (runtime policy + card nature), so an authorized nature or a
+            # disabled policy must still surface the skill.
             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                 continue
             if s.get("prompt"):
