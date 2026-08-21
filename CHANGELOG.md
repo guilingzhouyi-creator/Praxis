@@ -5,153 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
-- **Fix (l2)**: pin six dispatch-path defects behind regression tests
-- **Fix (ws)**: isolate envelope errors and advertise envelope support
-- **Fix (infra)**: guard empty python and warn on merge-gate skip
-- **Fix (l2)**: restore coauth gate and batch the stdio host flush
-- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
-- **Fix (l2)**: repair memory filter bridge symbol and params baseline
-- **Fix (l2)**: capture handler stdout in protocol host
-- **Fix (l2)**: advance shared outbox watermark on ack
-- **Fix (l2)**: localize all bare f-string shell errors
-- **Fix (l2)**: localize skills update-speed usage string
-- **Fix (llm)**: make cache refresh cheap and effective
-- **Fix (git)**: relax refactor type-content rules to allow scripts/
-- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
-- **Fix (l3)**: clear mypy debt and layer-baseline drift
-- **Fix (skill)**: address code review findings on tier/scope/cadence
-- **Fix (skill)**: persist register to custom tier, protect it, add update API
-- **Fix (kernel)**: isolate audit persist tests from shared event store
-- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
-- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
-- **Fix (kernel)**: add busy_timeout to persist write connection
-- **Fix (api)**: coerce identity definition input to str
-- **Fix (cell)**: exclude disabled departments from lookup indexes
-- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
-- **Fix (l3)**: violation-monitor switch lands on the settings key
-- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
-- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
-- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
-- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
-- **Fix (memory)**: comply with truncation constants and layer-import allowlist
-- **Fix (judge)**: count only full-mode records as COMPLETE in stats
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
-### 变更
-
-- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
-- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
-- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
-- **Refactor (l2)**: converge settings writes on the l3 bridge
-- **Refactor (l2)**: move injection policy into l3 injection guard
-- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
-- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
-- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
-- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
-- **Refactor (l2)**: funnel model commands through the l3 bridge
-- **Refactor (l2)**: funnel system commands through the l3 bridge
-- **Refactor (l2)**: funnel memory commands through the l3 bridge
-- **Refactor (l2)**: pass explicit session to command handlers
-- **Refactor (l2)**: remove dead shell_session terminal manager
-- **Chore (docs)**: sync kernel contract golden for InputSourcePort
-- **Refactor (judge)**: trim committed dashboard to quantitative standards
-- **Test (skill)**: cover scope/priority round-trip and layer imports
-- **Style (l2)**: fold scout permission guard to one line
-- **Refactor (l2)**: unify bang commands into /intent and /scout
-- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
-- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
-- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
-- **Chore**: format fs_adapter_vfs test and refresh changelog
-- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
-- **Test (infra)**: split runner into per-layer slices
-- **Chore**: ignore atomcode runtime config
-- **Test (infra)**: isolate durable capability fixtures
-- **Test (memory)**: document candidate rewrite seam and boundaries
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
-### 性能
-
-- **Perf (l2)**: unblock concurrent dispatch and single-scan preselect
-- **Perf (l2)**: cache the session class and document the protocol boundary
-- **Perf (l2)**: skip the shlex round-trip on protocol command dispatch
-- **Perf (l2)**: skip the json round-trip on the ws bridge envelope path
-- **Perf (l2)**: index views per session for the shared watermark
-- **Perf (l2)**: single registry lookup in dispatch and single host validation
-- **Perf (llm)**: strip hot-path overhead from capability refresh
-- **Perf (l3)**: add compression-ratio benchmark and baseline
-- **Perf (bench)**: add unified sampling and L2 baseline
-- **Perf (l3)**: indexed dept lookups, cached identity/violation paths
-- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
-- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
-- **Perf (memory)**: interruptible thread shutdown via Event.wait
-- **Perf (agent)**: event-driven pool, preview truncation, harness cache
-- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
-- **Perf (memory)**: decouple candidate journal writes
-- **Perf (bench)**: fix L1 Amdahl evidence
-- **Perf (memory)**: index and journal candidate ledger
-- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
-
 ### 文档
 
+- **Docs (stats)**: regenerate changelog and doc snapshots for the branch
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (tests)**: add the ts rewrite reference for test code
 - **Docs (stats)**: refresh judge dashboard
@@ -301,6 +157,151 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 修复
+
+- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
+- **Fix (l2)**: pin six dispatch-path defects behind regression tests
+- **Fix (ws)**: isolate envelope errors and advertise envelope support
+- **Fix (infra)**: guard empty python and warn on merge-gate skip
+- **Fix (l2)**: restore coauth gate and batch the stdio host flush
+- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
+- **Fix (l2)**: repair memory filter bridge symbol and params baseline
+- **Fix (l2)**: capture handler stdout in protocol host
+- **Fix (l2)**: advance shared outbox watermark on ack
+- **Fix (l2)**: localize all bare f-string shell errors
+- **Fix (l2)**: localize skills update-speed usage string
+- **Fix (llm)**: make cache refresh cheap and effective
+- **Fix (git)**: relax refactor type-content rules to allow scripts/
+- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
+- **Fix (l3)**: clear mypy debt and layer-baseline drift
+- **Fix (skill)**: address code review findings on tier/scope/cadence
+- **Fix (skill)**: persist register to custom tier, protect it, add update API
+- **Fix (kernel)**: isolate audit persist tests from shared event store
+- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
+- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
+- **Fix (kernel)**: add busy_timeout to persist write connection
+- **Fix (api)**: coerce identity definition input to str
+- **Fix (cell)**: exclude disabled departments from lookup indexes
+- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
+- **Fix (l3)**: violation-monitor switch lands on the settings key
+- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
+- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
+- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
+- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
+- **Fix (memory)**: comply with truncation constants and layer-import allowlist
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
+
+### 变更
+
+- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
+- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
+- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
+- **Refactor (l2)**: converge settings writes on the l3 bridge
+- **Refactor (l2)**: move injection policy into l3 injection guard
+- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
+- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
+- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
+- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
+- **Refactor (l2)**: funnel model commands through the l3 bridge
+- **Refactor (l2)**: funnel system commands through the l3 bridge
+- **Refactor (l2)**: funnel memory commands through the l3 bridge
+- **Refactor (l2)**: pass explicit session to command handlers
+- **Refactor (l2)**: remove dead shell_session terminal manager
+- **Chore (docs)**: sync kernel contract golden for InputSourcePort
+- **Refactor (judge)**: trim committed dashboard to quantitative standards
+- **Test (skill)**: cover scope/priority round-trip and layer imports
+- **Style (l2)**: fold scout permission guard to one line
+- **Refactor (l2)**: unify bang commands into /intent and /scout
+- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
+- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
+- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
+- **Chore**: format fs_adapter_vfs test and refresh changelog
+- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
+- **Test (infra)**: split runner into per-layer slices
+- **Chore**: ignore atomcode runtime config
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
+
+### 性能
+
+- **Perf (l2)**: unblock concurrent dispatch and single-scan preselect
+- **Perf (l2)**: cache the session class and document the protocol boundary
+- **Perf (l2)**: skip the shlex round-trip on protocol command dispatch
+- **Perf (l2)**: skip the json round-trip on the ws bridge envelope path
+- **Perf (l2)**: index views per session for the shared watermark
+- **Perf (l2)**: single registry lookup in dispatch and single host validation
+- **Perf (llm)**: strip hot-path overhead from capability refresh
+- **Perf (l3)**: add compression-ratio benchmark and baseline
+- **Perf (bench)**: add unified sampling and L2 baseline
+- **Perf (l3)**: indexed dept lookups, cached identity/violation paths
+- **Perf (tests)**: --no-xdist for WSL slices; shrink l1 fixed waits
+- **Perf (tests)**: eliminate fixed-wait hotspots; CI matrix smoke
+- **Perf (memory)**: interruptible thread shutdown via Event.wait
+- **Perf (agent)**: event-driven pool, preview truncation, harness cache
+- **Perf (memory)**: cache retrieval vectors, tag index, semantic concurrency
+- **Perf (memory)**: decouple candidate journal writes
+- **Perf (bench)**: fix L1 Amdahl evidence
+- **Perf (memory)**: index and journal candidate ledger
+- **Perf (generalize)**: P0-P2 performance + TS-portability (mtime throttle, ring index, atomic counters, single-pass verify gate, storage/lock ports)
 
 ### 新增
 
