@@ -134,7 +134,7 @@
 - **按需获取、永不持有**：bridge 对 L3 的一切访问都是延迟 import + 按需 `get_*()`（`get_scheduler`/`get_cell`/`get_r4_agent`…）——函数返回即弃，**不缓存实例引用**；上层软件重启后 `get_*()` 返回新实例，L2 代码零改动。
 - **协议会话 = 运行期承载**：host 的 `_sessions`/`_outboxes`/`_cursors`/`_session_views` 是 L2 自有进程内存态——**随软件关闭而关闭是语义**（协议 v1 不持久化会话——与 L3 的 R1-R4 持久记忆明确区分，见 §1.8）。
 - **不依赖上层持久/具体实例**：L2 的优化与功能不得假设上层（L3/L4）存在某个具体单例/实例（进程内存态）；一切跨层交互走稳定契约（bridge 函数 / 协议 v1 envelope / ports）。
-- **存量例外**：`extra_mcp.py`/`ci.py` 的 L2→L4 引用为 allowlisted 存量（层方向向上——TS 重写时随命令域迁移消除，见 §1.6/§2.5）。
+- **存量例外**：`extra_mcp.py`/`ci.py` 的 L2→L4 引用为 allowlisted 存量（层方向向上——TS 重写时随命令域迁移消除，见 §1.6；该消除不依赖 P3 验收清单 §2.5——验收不覆盖存量）。
 
 ## 2. TS 重写标准（P3 翻译规范）
 
@@ -211,9 +211,10 @@
 ## 4. 下一步清单（按依赖顺序）
 
 1. **P3 收尾**：真实 SSH 端点接入（远端 stdio host 已通，按需）+ 五前端矩阵真实接入。
-2. **协议 host 优化**（`feature/python-perf` 分支进行中）：per-session 水位索引、ws 桥 dict 直入（合入时同步本文件 §1 状态列）。
+2. ✅ **协议 host 优化**（python-perf + l2-perf-hotpath 已合入 main）：per-session 水位索引、ws 桥 dict 直入、command args 直入、会话类缓存、常量化配置驱动——全景见 §1.9。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
 4. **合入/推送**：双绿后 `MERGE_GATE_SKIP` 决策由用户授权；`make push-both` 双推前确认网络。
+5. **文档/架构预留合入**（`feature/l2-ts-arch` 分支）：§1.9/§1.10 与路线图 §8 预留——双绿后合入 main。
 
 ---
 
