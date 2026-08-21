@@ -22,7 +22,7 @@ Behavior is driven by praxis.yaml → llm.cache section:
       ollama:
         optimize_prompt: false
 
-New providers can be added in YAML without any Python code change.
+New providers can be added in YAML without any Python3 code change.
 Plugins can still register custom strategies via register_strategy().
 Runtime provider probes (``refresh_strategy``) refresh the per-provider
 strategy idempotently from the capability keys in ``params/system.py``.

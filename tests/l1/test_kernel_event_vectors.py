@@ -1,4 +1,4 @@
-"""Validate deterministic EventBus history vectors against Python."""
+"""Validate deterministic EventBus history vectors against Python3."""
 
 from __future__ import annotations
 

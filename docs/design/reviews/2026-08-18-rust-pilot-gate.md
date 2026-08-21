@@ -3,7 +3,7 @@
 > Status: blocked pending G3/G6. This record defines the semantic decisions
 > that must be frozen before a Rust mechanism can receive runtime authority.
 > Isolated Rust candidates are allowed, but this record does not authorize a
-> runtime cutover or change the Python default path.
+> runtime cutover or change the Python3 default path.
 
 ## Scope
 
@@ -14,12 +14,12 @@ intentionally contract-first. Performance alone does not select a Rust
 candidate when delivery, ownership, persistence, or execution semantics are
 unresolved.
 
-The isolated Rust synchronization slice now mirrors the five Python primitive
+The isolated Rust synchronization slice now mirrors the five Python3 primitive
 shapes (`Mutex`, `Semaphore`, `Barrier`, `Condition`, and `RWLock`) and passes
-its own concurrency tests plus the Python contract regression slice. This is a
+its own concurrency tests plus the Python3 contract regression slice. This is a
 candidate implementation only; no runtime route or Port adapter points at it.
 
-The following Python-only behavior is deliberately deferred from this slice:
+The following Python3-only behavior is deliberately deferred from this slice:
 
 - Mutex deadlock-cycle detection and the optional IPC lock channel;
 - the bounded global named-object registry and eviction behavior;
@@ -35,14 +35,14 @@ pilot.
 The isolated Rust process slice mirrors PCB snapshots, the declared lifecycle
 FSM, cancellation flags/reasons, resource counters, and bounded process audit
 rows. It deliberately leaves zombie-reaper scheduling, interrupt delivery,
-allocator/limiter cleanup, and long-lived OS handles to the Python adapter
+allocator/limiter cleanup, and long-lived OS handles to the Python3 adapter
 until those seams have language-neutral contracts.
 
 The isolated Rust EventBus slice mirrors synchronous history insertion,
 typed/wildcard callback snapshots, bounded in-flight delivery, explicit
 submitted/completed/dropped counters, shutdown draining, and bounded dynamic
 signal registration. Callback failures are contained at the candidate seam;
-Python SSE/WS fan-out and event policy remain outside it.
+Python3 SSE/WS fan-out and event policy remain outside it.
 
 The isolated Rust channel slice mirrors the JSON-safe `ChannelPort` behavior:
 fixed capacity, blocking put/get with deadlines, overwrite-oldest mode,
@@ -52,7 +52,7 @@ interpreter objects or transport-specific framing.
 The isolated Rust allocator/resource slice mirrors configuration-injected
 allocation/free counters, expired and observe reclamation, bounded OOM victim
 selection, pressure snapshots, swap accounting, profile limits, and cleanup.
-It intentionally does not fire Python interrupts, terminate Python PCBs, or
+It intentionally does not fire Python3 interrupts, terminate Python3 PCBs, or
 append persistence records; those require language-neutral audit and lifecycle
 ports before a pilot.
 
@@ -60,13 +60,13 @@ The ResourceLimiter sub-slice now consumes `kernel_resource_vectors.json` on
 both sides. It freezes profile injection and fallback, signed check/release
 costs, usage/all-usage reports, arbitrary-resource release, and cleanup. Role
 configuration discovery and the allocator's OOM/interrupt/process side effects
-remain Python-owned and are not pilot authority.
+remain Python3-owned and are not pilot authority.
 
 The isolated Rust WorkerPort slice mirrors bounded pending work, FIFO eviction
 under backpressure, result-handle completion, panic-to-error conversion,
 graceful draining, and idle shrink to the configured worker floor. It accepts
 already-bound JSON-returning closures. Adaptive sampling, task argument
-binding, cancellation/task timeouts, and Python exception mapping remain
+binding, cancellation/task timeouts, and Python3 exception mapping remain
 outside this candidate and require a port-level decision before pilot routing.
 
 The isolated Rust IPC slice mirrors lock message values, bounded historical
@@ -74,10 +74,10 @@ backlog, synchronous handler replies, request/response wakeups, timeout
 cleanup, and resettable named-channel registration. It intentionally does not
 open sockets, transfer interpreter objects, or decide cross-process ownership.
 
-The isolated Rust journal slice mirrors the Python event row shape and
+The isolated Rust journal slice mirrors the Python3 event row shape and
 monotonic sequence contract with JSONL storage, batch append, type-filtered
 queries, reopen recovery, and durable flush. It deliberately does not replay
-events into Python process/device/interrupt state, replace SQLite in the
+events into Python3 process/device/interrupt state, replace SQLite in the
 runtime, or decide checkpoint policy.
 
 The isolated Rust audit/capability slice adds two adjacent mechanisms without
@@ -87,7 +87,7 @@ filters by agent identity, truncates detail, and can best-effort append
 failures. `CapabilityAuthority` is the sole candidate invocation entry point:
 unwired calls fail closed, wired executor panics become structured failures,
 and successful or denied calls are audited. G1-G5 policy, boot wiring, and the
-Python L3 executor remain outside this slice.
+Python3 L3 executor remain outside this slice.
 
 The isolated Rust GateChain slice is the first pure policy-engine candidate. It
 consumes a frozen request snapshot and data-only thresholds, then emits
@@ -113,12 +113,12 @@ invalidation for content supplied by an external provider. Real filesystem
 access, system mounts (`/proc`, `/sys`, `/skills`, `/dev`), symlink/provider
 policy, and adapter writes remain outside the candidate. Non-virtual operations
 fail closed with `EADAPTER`; the slice does not inspect unmounted paths or
-replace Python's VFS runtime.
+replace Python3's VFS runtime.
 
 The isolated Rust lifecycle/versioning/migration slice now mirrors the
-provider-neutral lifecycle FSM, checkpoint record validation, Python's six
+provider-neutral lifecycle FSM, checkpoint record validation, Python3's six
 registered schema kinds, ordered JSON migration callbacks, and install-time
-runner failure semantics. Python/Rust shared fixtures cover valid and invalid
+runner failure semantics. Python3/Rust shared fixtures cover valid and invalid
 state transitions, install/recovery decisions, stamping, identity migration,
 future versions, and missing migration paths. It does not persist files,
 generate authoritative timestamps, register settings, or run boot/install
@@ -137,7 +137,7 @@ discovery and directory creation remain outside the candidate.
 
 The isolated Rust territory slice mirrors component-aware lexical containment
 with explicit working-directory input. `kernel_territory_vectors.json` covers
-the Python boundary cases; filesystem and symlink resolution remain outside the
+the Python3 boundary cases; filesystem and symlink resolution remain outside the
 candidate and are not pilot authority.
 
 The isolated Rust interrupt slice mirrors IRQ names, sequence numbers, payload
@@ -155,23 +155,23 @@ registered defaults and source snapshots, three-tier runtime state, object
 shallow merge, scalar replacement, null-section retention, unknown-section
 ignore behavior, runtime key updates, and tool/service fallback reads.
 `kernel_discovery_vectors.json` is consumed by both languages. YAML parsing,
-directory scanning, boot registration, logging, and Python singleton mutation
+directory scanning, boot registration, logging, and Python3 singleton mutation
 remain outside the candidate and are not pilot authority.
 
 The 2026-08-19 contract re-audit found and closed one migration mismatch:
-Python's install runner appends duplicate target-version registrations and runs
+Python3's install runner appends duplicate target-version registrations and runs
 them in registration order; the Rust candidate now preserves that behavior and
 has a matching regression test. Rust still exposes structured errors and owns
-values rather than Python's exception/object-identity surface; an adapter must
+values rather than Python3's exception/object-identity surface; an adapter must
 map those details before any G6 pilot. File persistence, install authority,
-and callback side effects remain Python-owned.
+and callback side effects remain Python3-owned.
 
-The isolated Rust load-adaptive slice mirrors the pure Python control law.
+The isolated Rust load-adaptive slice mirrors the pure Python3 control law.
 `kernel_load_adaptive_vectors.json` freezes EWMA, hysteresis, target-band
 boundaries, growth/shrink clamping, slow-task `GROW_FAST`, cooldown, reset, and
 stable decision reasons. It accepts an explicit timestamp and never samples a
 clock, changes a worker pool, or reads the adaptive feature flag; those remain
-Python/WorkerPort responsibilities and are not pilot authority.
+Python3/WorkerPort responsibilities and are not pilot authority.
 
 The isolated Rust schema slice mirrors the kernel string-event registry:
 owner-conflict rejection, same-owner replacement, sorted snapshots, membership,
@@ -197,26 +197,26 @@ The isolated Rust system-registry slice mirrors only name-sorted opaque section
 snapshots and explicit summary aggregation. The shared
 `kernel_registry_vectors.json` passes on both sides. Section producers,
 module/process/device/syscall queries, clock reads, and runtime ownership stay
-Python-owned and are not pilot authority.
+Python3-owned and are not pilot authority.
 
 The isolated Rust identity-UID slice mirrors prefix/length validation,
 caller-supplied entropy candidates, bounded collision retries, reset, and
 restore tracking. `kernel_identity_uid_vectors.json` passes on both sides;
 random entropy, persisted bindings, and identity issuance authority remain
-Python-owned and are not pilot authority.
+Python3-owned and are not pilot authority.
 
 The isolated Rust device slice mirrors explicit records, sliding rate windows,
 strict degraded/down threshold transitions, counters, summaries, and aggregate
 stats using injected time and policy. `kernel_device_vectors.json` passes on
 both sides; provider connections, SettingsCenter defaults, health threads, and
-system time remain Python-owned and are not pilot authority.
+system time remain Python3-owned and are not pilot authority.
 
 The isolated Rust SystemBus slice mirrors declarative component metadata,
 in-place duplicate replacement, parent-available dependency filtering, stable
 topological planning, cycle rejection, and explicit registration/inited/
 started/stopped labels. `kernel_bus_vectors.json` passes on both sides.
 Component callbacks, event routing, child-bus ownership, health/stats providers,
-logging, and actual lifecycle side effects remain Python-owned and are not pilot
+logging, and actual lifecycle side effects remain Python3-owned and are not pilot
 authority.
 
 Those items are migration blockers for a runtime pilot, not reasons to expose
@@ -225,7 +225,7 @@ versioned contract decision before routing is considered.
 
 ## EventBus contract
 
-The current Python implementation establishes these observable rules:
+The current Python3 implementation establishes these observable rules:
 
 1. Emitting a signal records history synchronously.
 2. Listener callbacks are dispatched asynchronously through a bounded
@@ -244,7 +244,7 @@ explicit adapter mode.
 
 ## RWLock contract review
 
-The Python implementation currently provides:
+The Python3 implementation currently provides:
 
 - shared readers and one exclusive writer;
 - writer preference once a writer is queued;
@@ -269,7 +269,7 @@ not authorize replacing it.
 
 ## WorkerPort contract review
 
-The Python adapter currently provides:
+The Python3 adapter currently provides:
 
 - bounded pending work with FIFO eviction when the queue is full;
 - deterministic completion for accepted, rejected, evicted, failed, and
@@ -286,8 +286,8 @@ an adapter can claim parity:
 |---|---|---|
 | Task cancellation | No token crosses `TaskFn` | Freeze timeout-only behavior, or define a shared cancellation token |
 | Task timeout | No Rust-side forced termination | Keep timeout as caller-side waiting semantics, or define cooperative cancellation |
-| Error mapping | Structured `TaskHandleError` | Define the Python exception/result mapping in the adapter contract |
-| Adaptive control | Static grow-on-queue heuristic only | Keep adaptive sampling Python-owned, or version a metrics/control port |
+| Error mapping | Structured `TaskHandleError` | Define the Python3 exception/result mapping in the adapter contract |
+| Adaptive control | Static grow-on-queue heuristic only | Keep adaptive sampling Python3-owned, or version a metrics/control port |
 
 Until these choices have vectors on both sides, WorkerPort is an isolated
 candidate and not a runtime replacement.
@@ -295,10 +295,10 @@ candidate and not a runtime replacement.
 ## IPC and journal contract review
 
 The Rust IPC candidate is intentionally limited to the in-process mechanism
-that Python `ipc.py` exposes. Socket creation, framing, peer authentication,
+that Python3 `ipc.py` exposes. Socket creation, framing, peer authentication,
 and lock ownership across OS processes remain open seams. The journal keeps
 the language-neutral event record and query semantics, but its JSONL backend is
-not yet a drop-in replacement for Python's SQLite file and is single-instance
+not yet a drop-in replacement for Python3's SQLite file and is single-instance
 only. Before pilot routing, the adapter must choose one versioned persistence
 format or provide a tested SQLite-compatible adapter, define cross-process
 coordination and crash-tail recovery, and freeze replay authority.
@@ -317,22 +317,22 @@ coordination and crash-tail recovery, and freeze replay authority.
   and a feature-flagged rollback path is written. The WorkerPort slice is
   evidence for candidate review only; it does not close G6.
 - The audit/capability slice is also evidence for contract review only. It does
-  not close G1 or G6 until the Rust audit row vectors match Python persistence,
+  not close G1 or G6 until the Rust audit row vectors match Python3 persistence,
   executor registration is proven single-owner, and a rollback-capable port
   pilot exists.
-- GateChain is contract evidence only until Python/Rust vectors cover every
+- GateChain is contract evidence only until Python3/Rust vectors cover every
   block and warning branch, provider inputs are authenticated at the adapter
   boundary, and a feature-flagged rollback path exists.
 - Constitution is contract evidence only until custom-rule and built-in-rule
-  vectors match Python, including category filtering and boundary-safe paths.
+  vectors match Python3, including category filtering and boundary-safe paths.
 - The shared `kernel_policy_vectors.json` now covers stable GateChain and
   Constitution branches in both languages. It deliberately does not claim
-  parity for provider side effects or the known Python `write_file` category
+  parity for provider side effects or the known Python3 `write_file` category
   gap; those remain pre-pilot review items.
 - The shared `kernel_lifecycle_vectors.json` and
   `kernel_versioning_vectors.json` now cover the deterministic lifecycle and
   schema mechanisms. They are contract evidence only; persistence adapters,
-  install authority, and runtime routing remain Python-owned.
+  install authority, and runtime routing remain Python3-owned.
 - The shared `kernel_bus_vectors.json` now covers SystemBus metadata,
   registration order, parent dependency filtering, topology, cycle rejection,
   and state labels. It does not claim parity for callbacks, event delivery,
@@ -343,7 +343,7 @@ coordination and crash-tail recovery, and freeze replay authority.
 
 ## Next permitted action
 
-Add the missing Python vectors and their contract fixtures, rerun the bounded
+Add the missing Python3 vectors and their contract fixtures, rerun the bounded
 EventBus and lock evidence, then record one candidate decision. Only after that
 decision may a module-specific Rust pilot branch implement a mechanism behind
-the existing Port with Python fallback.
+the existing Port with Python3 fallback.

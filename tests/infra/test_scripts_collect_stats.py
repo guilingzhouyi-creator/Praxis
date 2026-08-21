@@ -16,15 +16,13 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent.parent
 SNAPSHOT_PATH = ROOT / "config" / "quality" / "stats-snapshot.json"
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
 import collect_stats  # noqa: E402 — lightweight helpers only
 
-# Load the snapshot once at module level (fast, no Python script execution).
+# Load the snapshot once at module level (fast, no Python3 script execution).
 _STATS: dict | None = None
 
 

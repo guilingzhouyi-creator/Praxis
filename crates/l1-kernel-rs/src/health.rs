@@ -1,7 +1,7 @@
 //! Provider-neutral health-result aggregation candidate for the L1 kernel.
 //!
 //! Module imports, clocks, singleton probes, and runtime subsystem providers
-//! remain Python-owned. This module only aggregates explicit check results.
+//! remain Python3-owned. This module only aggregates explicit check results.
 
 use std::collections::BTreeMap;
 
@@ -19,7 +19,7 @@ pub struct HealthCheck {
     pub detail: String,
 }
 
-/// Aggregated health result with the Python wire shape.
+/// Aggregated health result with the Python3 wire shape.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HealthSummary {
     /// Overall status, with `DOWN` taking precedence over `DEGRADED`.

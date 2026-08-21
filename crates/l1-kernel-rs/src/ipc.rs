@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 
 /// Default priority used by lock messages.
 pub const IPC_DEFAULT_PRIORITY: f64 = 5.0;
-/// Generated message-id width retained by the Python IPC contract.
+/// Generated message-id width retained by the Python3 IPC contract.
 pub const IPC_MSG_ID_LENGTH: usize = 12;
 /// Default request/response wait bound.
 pub const IPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -59,7 +59,7 @@ pub struct LockMessage {
 }
 
 impl LockMessage {
-    /// Construct a message with Python-compatible defaults.
+    /// Construct a message with Python3-compatible defaults.
     pub fn new(op: LockOp, lock_name: impl Into<String>) -> Self {
         Self {
             op,

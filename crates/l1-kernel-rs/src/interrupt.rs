@@ -5,7 +5,7 @@ use std::sync::{Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
-/// Maximum history retained by the Python interrupt table.
+/// Maximum history retained by the Python3 interrupt table.
 pub const INTERRUPT_MAX_HISTORY: usize = 200;
 /// Default recent-history query limit.
 pub const INTERRUPT_QUERY_LIMIT: usize = 20;
@@ -31,7 +31,7 @@ pub enum InterruptType {
 }
 
 impl InterruptType {
-    /// Parse the Python enum name without accepting unknown kinds.
+    /// Parse the Python3 enum name without accepting unknown kinds.
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "AGENT_CRASH" => Some(Self::AgentCrash),
@@ -43,7 +43,7 @@ impl InterruptType {
         }
     }
 
-    /// Return the stable Python enum name.
+    /// Return the stable Python3 enum name.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::AgentCrash => "AGENT_CRASH",
@@ -58,7 +58,7 @@ impl InterruptType {
 /// Serializable interrupt history row.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Interrupt {
-    /// Interrupt kind (`type` on the Python history wire).
+    /// Interrupt kind (`type` on the Python3 history wire).
     #[serde(rename = "type")]
     pub interrupt_type: InterruptType,
     /// Agent or process identity associated with the interrupt.
@@ -87,7 +87,7 @@ struct InterruptState {
 }
 
 impl InterruptTable {
-    /// Create a table with the Python defaults.
+    /// Create a table with the Python3 defaults.
     pub fn new() -> Self {
         Self::with_limits(INTERRUPT_MAX_HISTORY, INTERRUPT_QUERY_LIMIT)
     }

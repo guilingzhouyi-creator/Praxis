@@ -2,7 +2,7 @@
 
 TS rewrite reference: this REPL routing (``/`` commands → registry,
 ``|`` pipelines, plain text → L3A intent) is the semantic model the TS
-engine's parser + dispatcher re-implements; the authority stays in Python.
+engine's parser + dispatcher re-implements; the authority stays in Python3.
 
 Starts a REPL that routes input through ``l2.l2_shell.dispatch``: ``/``-prefixed
 commands hit the CommandRegistry, pipelines split on ``|``, and plain text falls

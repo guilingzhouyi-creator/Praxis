@@ -1,4 +1,4 @@
-"""Validate the independent Rust assembly fixture at the Python reference boundary."""
+"""Validate the independent Rust assembly fixture at the Python3 reference boundary."""
 
 from __future__ import annotations
 

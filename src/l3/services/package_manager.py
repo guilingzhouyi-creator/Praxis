@@ -81,7 +81,7 @@ class PackageManager(BaseService):
     # ── Pip ──
 
     def pip_install(self, package: str, version: str = "") -> dict:
-        """Install a Python package with pip (optionally pinned to a version); returns the run result."""
+        """Install a Python3 package with pip (optionally pinned to a version); returns the run result."""
         cmd = ["pip", "install"] + ([f"{package}=={version}"] if version else [package])
         return self._run(cmd, TOOL_PIP_INSTALL_TIMEOUT)
 
@@ -99,7 +99,7 @@ class PackageManager(BaseService):
         return r
 
     def pip_uninstall(self, package: str) -> dict:
-        """Uninstall a Python package with pip; returns the run result."""
+        """Uninstall a Python3 package with pip; returns the run result."""
         return self._run(["pip", "uninstall", "-y", package], TOOL_PACKAGE_LIST_TIMEOUT)
 
     # ── Npm ──

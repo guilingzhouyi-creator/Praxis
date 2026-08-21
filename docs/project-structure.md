@@ -13,8 +13,8 @@ keep every new file in the layer it belongs to:
 | `locales/` | i18n: en, zh-CN, ja, ko |
 | `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
 | `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
-| `packages/` | Language migration workspaces; `packages/protocol-ts/` is a read-only TypeScript mirror of the v1 protocol and is not imported by the Python runtime |
-| `crates/` | Rust migration workspace; `crates/l1-kernel-rs/` is currently a contract-only L1 boundary and is not imported by the Python runtime |
+| `packages/` | Language migration workspaces; `packages/protocol-ts/` is a read-only TypeScript mirror of the v1 protocol and is not imported by the Python3 runtime |
+| `crates/` | Rust migration workspace; `crates/l1-kernel-rs/` is currently a contract-only L1 boundary and is not imported by the Python3 runtime |
 
 ## 构建环境 (build environment) — external tooling that guides the build
 

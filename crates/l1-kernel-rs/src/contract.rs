@@ -1,4 +1,4 @@
-//! Language-neutral value contracts mirrored from the Python L1 ports.
+//! Language-neutral value contracts mirrored from the Python3 L1 ports.
 
 use std::collections::BTreeMap;
 
@@ -51,7 +51,7 @@ pub enum ProcessState {
 }
 
 impl ProcessState {
-    /// Return the stable wire spelling used by Python snapshots.
+    /// Return the stable wire spelling used by Python3 snapshots.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Ready => "READY",
@@ -62,7 +62,7 @@ impl ProcessState {
         }
     }
 
-    /// Parse a Python process-state snapshot without accepting unknown values.
+    /// Parse a Python3 process-state snapshot without accepting unknown values.
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "READY" => Some(Self::Ready),
@@ -103,7 +103,7 @@ impl Default for ProcessResult {
 }
 
 impl ProcessResult {
-    /// Return whether the process completed successfully under Python semantics.
+    /// Return whether the process completed successfully under Python3 semantics.
     pub fn ok(&self) -> bool {
         self.returncode == 0 && !self.timed_out && self.error_kind.is_empty()
     }
@@ -122,7 +122,7 @@ pub struct ProcessOptions {
     pub executable: Option<String>,
 }
 
-/// Dynamic signal record mirrored from the Python EventBus.
+/// Dynamic signal record mirrored from the Python3 EventBus.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Signal {
     /// Stable built-in or registered event name.

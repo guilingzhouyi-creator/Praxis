@@ -34,7 +34,7 @@
       "is_windows": true,
       "is_mac": false,
       "shell_path": "C:\\Windows\\System32\\cmd.exe",
-      "python_exe": "C:\\Python\\python.exe",
+      "python_exe": "C:\\Python3\\python.exe",
       "rg_available": false,
       "path_separator": "\\"
     },

@@ -2,7 +2,7 @@
 
 Covers the native/code/both three-state runtime switch, the language-agnostic
 CodeLanguageBackend composite (SDK render / usage / file suffix / execute),
-the shipped Python backend (deterministic SDK output), the graceful rejection
+the shipped Python3 backend (deterministic SDK output), the graceful rejection
 of unregistered languages, and the per-Cell program cache directory.
 """
 

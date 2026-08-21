@@ -159,7 +159,7 @@ class EmbeddingSkillRetriever(SkillRetriever):
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    """Cosine similarity between two equal-length vectors (pure Python)."""
+    """Cosine similarity between two equal-length vectors (pure Python3)."""
     if not a or not b or len(a) != len(b):
         return 0.0
     dot = sum(x * y for x, y in zip(a, b, strict=False))

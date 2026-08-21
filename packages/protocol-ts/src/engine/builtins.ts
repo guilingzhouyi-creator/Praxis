@@ -2,7 +2,7 @@
  * Local built-in commands — pure parsing/display only.
  *
  * These never touch L3: they resolve entirely inside the TS shell. Anything
- * else routes through the dispatcher's bridge fallback to the Python host.
+ * else routes through the dispatcher's bridge fallback to the Python3 host.
  */
 
 import type { Dispatcher } from "./dispatcher.ts";

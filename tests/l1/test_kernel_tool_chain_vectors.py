@@ -1,4 +1,4 @@
-"""Validate shared tool-chain fingerprint vectors against Python."""
+"""Validate shared tool-chain fingerprint vectors against Python3."""
 
 from __future__ import annotations
 

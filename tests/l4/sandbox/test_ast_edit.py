@@ -43,7 +43,7 @@ def test_parse_tree_and_canonical():
 
 
 def test_parse_tree_syntax_error_none():
-    """Invalid Python yields None (caller falls back to row hunks)."""
+    """Invalid Python3 yields None (caller falls back to row hunks)."""
     assert parse_tree("def foo(:") is None
 
 
@@ -75,7 +75,7 @@ def test_apply_script_round_trip():
     """apply_script replays and re-renders (canonical equality).
 
     apply_script returns the canonical text form of the replayed tree (not
-    Python source — the tree renderer is canonical, not a code generator),
+    Python3 source — the tree renderer is canonical, not a code generator),
     so the assertion compares that canonical text to the new tree's.
     """
     old_src, new_src = _CASES[2]

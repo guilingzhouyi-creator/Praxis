@@ -6,7 +6,7 @@ daemon threads, so a lingering pool never blocks interpreter exit.
 
 ``concurrent.futures.ThreadPoolExecutor`` workers are non-daemon: after
 ``boot()`` (or any MonitorBus init) the process keeps ``mon_*`` / ``boot_*``
-threads alive, and Python's ``threading._shutdown`` joins them indefinitely
+threads alive, and Python3's ``threading._shutdown`` joins them indefinitely
 — CLI exits hang, and pytest runs after boot tests hang non-deterministically
 (threads racing the fixtures). This pool keeps the same ``submit`` /
 ``shutdown`` / ``_work_queue`` surface while workers die with the process.

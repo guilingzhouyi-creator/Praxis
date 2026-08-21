@@ -2,7 +2,7 @@
 //!
 //! This module only normalizes explicit call fields, computes HMAC fingerprints,
 //! and verifies a root-first chain. Key provisioning, call storage, trimming,
-//! and runtime tool execution remain Python-owned adapter responsibilities.
+//! and runtime tool execution remain Python3-owned adapter responsibilities.
 
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};

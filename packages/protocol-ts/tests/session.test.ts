@@ -56,7 +56,7 @@ describe("session projection", () => {
     expect(out.headers).toEqual(["seq", "kind", "summary"]);
     expect(out.rows).toEqual([
       { seq: 1, kind: "event", summary: "session.attached" },
-      // An empty error string mirrors the Python summarize fallback ("").
+      // An empty error string mirrors the Python3 summarize fallback ("").
       { seq: 2, kind: "result", summary: "" },
     ]);
   });

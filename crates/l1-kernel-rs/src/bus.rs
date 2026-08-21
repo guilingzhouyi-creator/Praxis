@@ -1,7 +1,7 @@
 //! Provider-neutral SystemBus metadata, dependency planning, and state values.
 //!
 //! Component callbacks, event routing, health providers, child-bus ownership,
-//! and thread or process lifecycle remain Python adapter responsibilities.
+//! and thread or process lifecycle remain Python3 adapter responsibilities.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
@@ -16,7 +16,7 @@ fn default_version() -> String {
 /// Declarative metadata for one bus-managed component.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComponentSpec {
-    /// Stable component name supplied by the Python adapter.
+    /// Stable component name supplied by the Python3 adapter.
     pub name: String,
     /// Component version.
     #[serde(default = "default_version")]
@@ -48,21 +48,21 @@ impl Default for ComponentSpec {
     }
 }
 
-/// Lifecycle state mirrored from Python's SystemBus state map.
+/// Lifecycle state mirrored from Python3's SystemBus state map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComponentState {
     /// Registered but not initialized.
     Registered,
-    /// `bus_init` completed in the Python owner.
+    /// `bus_init` completed in the Python3 owner.
     Inited,
-    /// `bus_start` completed in the Python owner.
+    /// `bus_start` completed in the Python3 owner.
     Started,
-    /// `bus_stop` completed in the Python owner.
+    /// `bus_stop` completed in the Python3 owner.
     Stopped,
 }
 
 impl ComponentState {
-    /// Return the Python-compatible state spelling.
+    /// Return the Python3-compatible state spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Registered => "registered",
@@ -223,7 +223,7 @@ impl ComponentRegistry {
         true
     }
 
-    /// Return Python-compatible state labels keyed by component name.
+    /// Return Python3-compatible state labels keyed by component name.
     pub fn state_map(&self) -> BTreeMap<String, String> {
         self.lock_state()
             .states

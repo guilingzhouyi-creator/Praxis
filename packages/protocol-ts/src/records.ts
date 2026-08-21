@@ -1,4 +1,4 @@
-/** Versioned TypeScript mirror of the Python TS-neutral protocol records. */
+/** Versioned TypeScript mirror of the Python3 TS-neutral protocol records. */
 
 export const RECORD_SCHEMA_VERSION = 1 as const;
 export const RECORD_TYPES = [
@@ -294,7 +294,7 @@ function sortJson(value: unknown): JsonValue {
 }
 
 export function canonicalJson(value: unknown): string {
-  /** Serialize JSON values with recursively sorted keys for Python parity. */
+  /** Serialize JSON values with recursively sorted keys for Python3 parity. */
   const encoded = JSON.stringify(sortJson(value));
   if (encoded === undefined) throw new RecordValidationError("value cannot be encoded as JSON");
   return encoded;
@@ -306,7 +306,7 @@ export function toRecordEnvelope(record: AnyRecord): AnyRecord {
 }
 
 export function encodeRecord(record: AnyRecord): string {
-  /** Serialize a record using the Python reference's canonical JSON rules. */
+  /** Serialize a record using the Python3 reference's canonical JSON rules. */
   return canonicalJson(toRecordEnvelope(record));
 }
 

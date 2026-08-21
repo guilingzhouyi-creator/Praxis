@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// EWMA smoothing factor mirrored from Python `params.api`.
+/// EWMA smoothing factor mirrored from Python3 `params.api`.
 pub const LOAD_ADAPTIVE_EWMA_ALPHA: f64 = 0.3;
 /// Queue ratio below which the controller shrinks.
 pub const LOAD_ADAPTIVE_LOW_RATIO: f64 = 0.2;
@@ -197,7 +197,7 @@ impl LoadAdaptiveController {
         })
     }
 
-    /// Create a controller with the Python parameter defaults.
+    /// Create a controller with the Python3 parameter defaults.
     pub fn with_defaults() -> Self {
         Self::new(ControllerConfig::default()).expect("default controller config is valid")
     }

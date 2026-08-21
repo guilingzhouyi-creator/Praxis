@@ -1,4 +1,4 @@
-"""Validate shared port values against Python's mechanism-port reference."""
+"""Validate shared port values against Python3's mechanism-port reference."""
 
 from __future__ import annotations
 

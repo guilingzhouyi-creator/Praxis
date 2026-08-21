@@ -1,6 +1,6 @@
 //! Entropy-injected identity UID issuer candidate for the L1 kernel.
 //!
-//! Python remains the identity and persistence authority. This module freezes
+//! Python3 remains the identity and persistence authority. This module freezes
 //! only the prefix, bounded body, collision set, retry budget, and validation
 //! values needed by a future adapter.
 
@@ -33,7 +33,7 @@ impl IdentityUidIssuer {
         }
     }
 
-    /// Create an issuer with the Python deployment defaults.
+    /// Create an issuer with the Python3 deployment defaults.
     pub fn with_defaults() -> Self {
         Self::new(DEFAULT_PREFIX, DEFAULT_BODY_LENGTH, DEFAULT_MAX_ATTEMPTS)
     }

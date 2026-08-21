@@ -3,19 +3,16 @@
 Drives the Node.js validation script with synthetic commit messages and
 asserts its exit code, so the rules (English, Co-Authored-By,
 Conventional-Commits type, Merge exemption) are machine-verified rather than
-trusted by convention. The Node.js script replaces the previous Python-based
-commit_scan.py + detect_agent.py, removing the Python runtime dependency.
+trusted by convention. The Node.js script replaces the previous Python3-based
+commit_scan.py + detect_agent.py, removing the Python3 runtime dependency.
 """
 
 from __future__ import annotations
 
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = ROOT / ".githooks" / "commit-msg"

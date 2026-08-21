@@ -1,4 +1,4 @@
-"""Validate shared platform command and endpoint vectors against Python."""
+"""Validate shared platform command and endpoint vectors against Python3."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_platform_v
 
 
 def test_shared_platform_vectors_match_python_reference(monkeypatch) -> None:
-    """Keep Rust platform values aligned with the Python reference helpers."""
+    """Keep Rust platform values aligned with the Python3 reference helpers."""
     vectors = json.loads(_VECTORS.read_text(encoding="utf-8"))
     original_windows = platform.IS_WINDOWS
     original_shell = platform.SHELL_PATH

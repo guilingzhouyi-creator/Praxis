@@ -7,7 +7,7 @@ Agents can call LSP tools instead of relying on grep/read:
   - diagnostics: get file errors/warnings
   - workspace_symbols: search for symbols across the workspace
 
-Backend: AST-based for Python (no external server needed).
+Backend: AST-based for Python3 (no external server needed).
 Pyright integration: attempted if `pyright` is on PATH.
 Multi-language: basic file-type detection for JS/TS/Go/Rust.
 """
@@ -77,7 +77,7 @@ class LocalAnalyzer:
             return None
 
     def _walk_python(self, file_path: str = "") -> list[tuple[str, ast.AST]]:
-        """Walk Python files under root, return (rel_path, tree) pairs.
+        """Walk Python3 files under root, return (rel_path, tree) pairs.
 
         A ``file_path`` pointing at a single file parses just that file; a
         directory (or empty) walks everything under it.

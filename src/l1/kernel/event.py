@@ -143,7 +143,7 @@ class EventBus:
         """Max in-flight tasks; beyond this, new tasks are dropped."""
         # In-flight task counter (submitted, not yet finished). Replaces reaching
         # into the executor's private _work_queue/_threads — keeps the bus
-        # portable to a non-CPython worker backend. The condition also lets
+        # portable to a non-CPython3 worker backend. The condition also lets
         # shutdown() drain within a deadline without touching executor internals.
         self._inflight = 0
         self._inflight_cv = _Condition()
@@ -317,7 +317,7 @@ class EventBus:
         self._shutdown = True
         # ThreadPoolExecutor.shutdown() has no timeout kwarg — stop accepting
         # new work, then drain the in-flight counter under an explicit deadline
-        # (no reach into executor internals, so a non-CPython backend works too).
+        # (no reach into executor internals, so a non-CPython3 backend works too).
         self._executor.shutdown(wait=False)
         if wait:
             deadline = None if timeout is None else _time.monotonic() + timeout

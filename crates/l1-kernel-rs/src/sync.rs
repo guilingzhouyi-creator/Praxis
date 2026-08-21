@@ -1,4 +1,4 @@
-//! Rust synchronization mechanisms staged behind the Python L1 contract.
+//! Rust synchronization mechanisms staged behind the Python3 L1 contract.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, MutexGuard, PoisonError};
@@ -7,13 +7,13 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-/// Dictionary-shaped result kept compatible with Python sync methods.
+/// Dictionary-shaped result kept compatible with Python3 sync methods.
 pub type WireMap = BTreeMap<String, Value>;
 
 /// Priority-inheritance callback invoked when a waiter lowers the holder's priority.
 pub type BoostCallback = Arc<dyn Fn(&str, f64, f64) + Send + Sync>;
 
-/// Mutex state exposed by the Python `status()` contract.
+/// Mutex state exposed by the Python3 `status()` contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LockState {
     /// No owner and no queued waiters.
@@ -25,7 +25,7 @@ pub enum LockState {
 }
 
 impl LockState {
-    /// Return the stable Python enum spelling.
+    /// Return the stable Python3 enum spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Free => "FREE",
@@ -85,7 +85,7 @@ impl Mutex {
         self
     }
 
-    /// Acquire the mutex, preserving Python reentrancy and timeout semantics.
+    /// Acquire the mutex, preserving Python3 reentrancy and timeout semantics.
     pub fn acquire(&self, agent_id: &str, priority: f64, blocking: bool) -> WireMap {
         let started = Instant::now();
         let deadline = started + self.timeout;
@@ -219,7 +219,7 @@ impl Mutex {
         ok([])
     }
 
-    /// Return a stable state snapshot matching Python `Mutex.status()`.
+    /// Return a stable state snapshot matching Python3 `Mutex.status()`.
     pub fn status(&self) -> WireMap {
         let state = self.lock_state();
         let waiters: Vec<Value> = state

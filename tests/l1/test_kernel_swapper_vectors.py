@@ -1,4 +1,4 @@
-"""Validate shared memory-ring planning vectors against the Python reference."""
+"""Validate shared memory-ring planning vectors against the Python3 reference."""
 
 from __future__ import annotations
 

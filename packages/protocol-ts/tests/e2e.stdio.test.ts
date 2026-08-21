@@ -1,9 +1,9 @@
 /**
  * Real end-to-end: TS bridge over the stdio transport against the actual
- * Python ProtocolHost (python -m l2.protocol), proving the protocol v1
+ * Python3 ProtocolHost (python -m l2.protocol), proving the protocol v1
  * contract round-trips across languages.
  *
- * Python path is overridable via PRAXIS_PYTHON; the host runs from the
+ * Python3 path is overridable via PRAXIS_PYTHON; the host runs from the
  * repo src/ directory so `l2` and `l3` packages resolve on sys.path.
  */
 
@@ -34,7 +34,7 @@ describe("e2e stdio host", () => {
     proc.kill();
   });
 
-  it("round-trips a command through the real Python ProtocolHost", async () => {
+  it("round-trips a command through the real Python3 ProtocolHost", async () => {
     const responses = await bridge.command("lang");
     const result = responses.find((message) => message.kind === "result");
     expect(result).toBeDefined();

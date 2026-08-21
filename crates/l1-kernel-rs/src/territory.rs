@@ -37,7 +37,7 @@ pub fn is_within(target: &str, bases: &[String]) -> bool {
 /// Return whether `target` is within one of `bases` relative to `working_dir`.
 ///
 /// The function performs no filesystem or symlink resolution. An empty base list
-/// preserves the Python contract and matches every target; empty bases inside a
+/// preserves the Python3 contract and matches every target; empty bases inside a
 /// non-empty list are ignored. Component-aware prefix matching prevents
 /// `/project/foo_secret` from matching `/project/foo`.
 pub fn is_within_at(target: &str, bases: &[String], working_dir: &Path) -> bool {

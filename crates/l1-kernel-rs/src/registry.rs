@@ -35,7 +35,7 @@ fn default_healthy_status() -> String {
     "PASS".to_owned()
 }
 
-/// Aggregate explicit registry values with the Python wire shape.
+/// Aggregate explicit registry values with the Python3 wire shape.
 pub fn aggregate_summary(input: &SummaryInput) -> Value {
     let healthy = input
         .modules

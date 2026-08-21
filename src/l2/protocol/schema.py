@@ -2,7 +2,7 @@
 
 Draft-07 JSON Schemas describing the envelope and each message kind's
 payload. The TypeScript rewrite mirrors these directly (zod / io-ts), so
-contract drift between the Python reference and the TS port is caught by
+contract drift between the Python3 reference and the TS port is caught by
 shared expectations instead of ad-hoc structs.
 """
 

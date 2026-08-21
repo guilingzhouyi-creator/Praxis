@@ -9,7 +9,7 @@ TS rewrite reference: the selector consumes the bridge's dict data API
 (cell_ids / cell_liveness / cell_agent_reachable / cell_territory) so no
 L3 cell object handle ever leaks into L2; the TS side mirrors this as a
 local projection fed by the same bridge calls — selection logic stays in
-Python, TS only renders the outcome.
+Python3, TS only renders the outcome.
 """
 
 from __future__ import annotations

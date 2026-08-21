@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::gatechain::path_within;
 
-/// Default sandbox directory name used by the Python parameter layer.
+/// Default sandbox directory name used by the Python3 parameter layer.
 pub const CONSTITUTION_SANDBOX_DIR: &str = "praxis-sandbox";
 /// Default constitution filename suffix.
 pub const CONSTITUTION_FILE_EXT: &str = ".praxis-rules.md";
@@ -20,7 +20,7 @@ pub const CONSTITUTION_SHARED_KEYWORD: &str = "shared";
 /// Target keyword that identifies the constitution itself.
 pub const CONSTITUTION_KEYWORD: &str = "constitution";
 
-/// Stable rule severity mirrored from Python `RuleSeverity`.
+/// Stable rule severity mirrored from Python3 `RuleSeverity`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum RuleSeverity {
@@ -180,7 +180,7 @@ impl ConstitutionInput {
     }
 }
 
-/// One non-pass rule report, matching Python `CheckReport` semantics.
+/// One non-pass rule report, matching Python3 `CheckReport` semantics.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckReport {
     /// Rule that produced the result.
@@ -197,7 +197,7 @@ pub struct CheckReport {
 pub struct ConstitutionDecision {
     /// Whether no rule blocked the action.
     pub allowed: bool,
-    /// Lowercase compatibility spelling used by Python API responses.
+    /// Lowercase compatibility spelling used by Python3 API responses.
     pub decision: String,
     /// Number of blocking reports.
     pub blocks: usize,
@@ -359,7 +359,7 @@ impl ConstitutionEngine {
             .collect()
     }
 
-    /// Return the Python-compatible aggregate decision shape.
+    /// Return the Python3-compatible aggregate decision shape.
     pub fn is_allowed(&self, input: &ConstitutionInput) -> ConstitutionDecision {
         let reports = self.check(input);
         let blocks = reports

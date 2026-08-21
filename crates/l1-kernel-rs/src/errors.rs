@@ -79,7 +79,7 @@ impl KernelError {
         self
     }
 
-    /// Convert to the Python-compatible failure response shape.
+    /// Convert to the Python3-compatible failure response shape.
     pub fn to_response(&self) -> ErrorResponse {
         ErrorResponse {
             success: false,
@@ -154,7 +154,7 @@ pub struct ErrorCatalog {
 }
 
 impl ErrorCatalog {
-    /// Build the built-in catalog used by the Python kernel.
+    /// Build the built-in catalog used by the Python3 kernel.
     pub fn builtin() -> Self {
         let mut catalog = Self {
             entries: BTreeMap::new(),

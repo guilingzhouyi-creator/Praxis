@@ -1,13 +1,13 @@
 /**
- * TypeScript mirror of the Python protocol v1 envelope and replay cursors.
- * Python reference (single source of truth): src/l2/protocol/envelope.py —
+ * TypeScript mirror of the Python3 protocol v1 envelope and replay cursors.
+ * Python3 reference (single source of truth): src/l2/protocol/envelope.py —
  * keep fields, kinds and the non-destructive ack semantics in sync (§2.4).
  */
 
 import { canonicalJson, JsonObject } from "./records.ts";
 
 export const PROTOCOL_VERSION = 1 as const;
-// Bounded replay window per session. Python source (single truth):
+// Bounded replay window per session. Python3 source (single truth):
 // src/l1/kernel/params/api.py PROTOCOL_OUTBOX_MAXLEN.
 export const OUTBOX_MAXLEN = 1024;
 export const KINDS = ["ack", "command", "control", "event", "intent", "result", "stream_chunk"] as const;
@@ -51,7 +51,7 @@ export function makeMessage(
   traceId = "",
   ts = nowSeconds(),
 ): Message {
-  /** Build a protocol v1 message with the same defaults as Python. */
+  /** Build a protocol v1 message with the same defaults as Python3. */
   return { v: PROTOCOL_VERSION, session_id: sessionId, seq, ts, trace_id: traceId, kind, payload };
 }
 
@@ -129,7 +129,7 @@ export function decodeMessage(line: string): DecodedMessage {
 }
 
 export class Outbox {
-  /** Maintain the bounded per-session replay window (Python mirror). */
+  /** Maintain the bounded per-session replay window (Python3 mirror). */
   private readonly items: Message[] = [];
   private acknowledged = -1;
 
@@ -143,7 +143,7 @@ export class Outbox {
   }
 
   /**
-   * Non-destructive ack, mirroring the Python host: only the acknowledged
+   * Non-destructive ack, mirroring the Python3 host: only the acknowledged
    * cursor advances; retained messages let a lagging view keep replaying.
    */
   ack(seq: number): void {
@@ -178,7 +178,7 @@ export class SessionCursor {
     this.attached = false;
   }
 
-  /** Advance this view's acknowledged position (Python mirror). */
+  /** Advance this view's acknowledged position (Python3 mirror). */
   ack(seq: number): void {
     this.lastAcked = Math.max(this.lastAcked, seq);
   }

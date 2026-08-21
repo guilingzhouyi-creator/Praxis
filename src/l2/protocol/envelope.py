@@ -1,7 +1,7 @@
 """Protocol v1 envelope — pure reference implementation (side-effect free).
 
 Language-agnostic wire contract for the L2 Unified Session Data Layer. This
-module is the Python reference for the planned TypeScript mirror
+module is the Python3 reference for the planned TypeScript mirror
 (parser/dispatcher/session): it imports only stdlib, keeps no module-level
 singletons, and performs no I/O — every function is a pure transform, so the
 TS port can be tested against identical expectations.

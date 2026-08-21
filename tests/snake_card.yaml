@@ -3,7 +3,7 @@
 
 card:
   id: "snake-001"
-  intent: "Write a production-grade Snake game in Python with tkinter.
+  intent: "Write a production-grade Snake game in Python3 with tkinter.
            Must follow PEP 8, include type hints, docstrings, unit tests,
            and a README. Use multiple rounds of self-review and scout verification."
   domain: "."
@@ -20,7 +20,7 @@ phases:
         agent: scout
 
       - action: scout
-        target: "Check if tkinter is available. Search for existing Python game code in this project."
+        target: "Check if tkinter is available. Search for existing Python3 game code in this project."
         agent: scout
 
   # ─── Phase 2: Plan — LLM autonomously designs architecture ───
@@ -78,7 +78,7 @@ phases:
             - Game over conditions
             - PEP 8, type hints, docstrings
 
-            Output ONLY the complete Python code.
+            Output ONLY the complete Python3 code.
 
       - action: think
         target: "Write test_snake.py — unit tests"
