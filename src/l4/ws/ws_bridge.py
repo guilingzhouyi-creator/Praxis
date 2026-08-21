@@ -191,6 +191,18 @@ def handle_client(conn: Any) -> None:
             except (TypeError, ValueError):
                 _send(client, {"type": "error", "message": "invalid JSON"})
                 continue
+            # Protocol v1 envelope (kind + v fields) — same dual-mode
+            # detection as the HTTP shell endpoint. Forward the line to the
+            # shared ProtocolHost and stream response envelopes back; the
+            # TS client is packages/protocol-ts/src/engine/transports/ws.ts.
+            if msg.get("kind") and "v" in msg:
+                from l2.protocol.envelope import encode_message
+                from l2.protocol.host import get_protocol_host
+
+                host = get_protocol_host()
+                for out in host.handle(json.dumps(msg)):
+                    _send(client, json.loads(encode_message(out)))
+                continue
             mtype = msg.get("type")
             if mtype == "subscribe":
                 client["types"].update(msg.get("events") or [])
