@@ -15,9 +15,22 @@ sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
 import collect_stats  # noqa: E402
 
+# Cache the full stats scan so repeated calls in the same test file don't
+# re-scan the codebase (the scan walks 598 .py files, 29k+ lines — each
+# call takes 1-2s). Only the first test that calls collect_stats() pays
+# the cost; subsequent tests use the cached value.
+_stats_cache: dict | None = None
+
+
+def _get_stats() -> dict:
+    global _stats_cache
+    if _stats_cache is None:
+        _stats_cache = collect_stats.collect_stats()
+    return _stats_cache
+
 
 def test_layers_shape():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert set(stats["layers"]) == {"L1 Kernel", "L2 Shell", "L3 Cell", "L4 Bridge", "L5 User"}
     assert len(stats["sub"]) >= 5
     for _label, (n, lines) in stats["layers"].items():
@@ -29,14 +42,14 @@ def test_layers_shape():
 
 
 def test_params_counts():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     # Constant modules (excludes __init__.py) — the "8 params/ modules" convention.
     assert stats["params_modules"] >= 8
     assert stats["params_constants"] > 1000
 
 
 def test_routes_and_domains():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert stats["routes"] > 300
     assert stats["domains"]
     top_name, top_count = next(iter(stats["domains"].items()))
@@ -44,7 +57,7 @@ def test_routes_and_domains():
 
 
 def test_command_counts():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     assert stats["commands_yaml"] >= 40
     assert stats["commands_code"] >= 0
 
@@ -65,7 +78,7 @@ def test_py_files_excludes_pycache(tmp_path):
 
 
 def test_health_scores_bounds_and_keys():
-    stats = collect_stats.collect_stats()
+    stats = _get_stats()
     h = collect_stats.health_scores(stats)
     assert set(h["scores"]) == {"test_density", "long_functions", "comment_ratio", "third_party"}
     for v in h["scores"].values():

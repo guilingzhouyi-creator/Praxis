@@ -19,9 +19,19 @@ _spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "script
 check_doc_stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_doc_stats)
 
+# Cache the full stats scan so repeated calls don't re-scan the codebase.
+_stats_cache: dict | None = None
+
+
+def _get_stats() -> dict:
+    global _stats_cache
+    if _stats_cache is None:
+        _stats_cache = check_doc_stats.collect_stats()
+    return _stats_cache
+
 
 def test_snapshot_rows_format():
-    stats = check_doc_stats.collect_stats()
+    stats = _get_stats()
     rows = check_doc_stats.snapshot_rows(stats)
     assert "L1 Kernel" in rows
     assert rows["L1 Kernel"].startswith("| L1 Kernel |")
@@ -38,13 +48,13 @@ def test_parse_readme_extracts_snapshot():
 
 
 def test_check_passes_when_in_sync():
-    stats = check_doc_stats.collect_stats()
+    stats = _get_stats()
     good = check_doc_stats.snapshot_rows(stats)
     assert check_doc_stats.check(stats, good) == []
 
 
 def test_check_detects_drift():
-    stats = check_doc_stats.collect_stats()
+    stats = _get_stats()
     good = check_doc_stats.snapshot_rows(stats)
     bad = dict(good)
     first = next(iter(bad))
@@ -53,7 +63,7 @@ def test_check_detects_drift():
 
 
 def test_fix_rewrites_snapshot(tmp_path):
-    stats = check_doc_stats.collect_stats()
+    stats = _get_stats()
     rows = check_doc_stats.snapshot_rows(stats)
     # Simulate a stale README whose rows the fix() search-replace can update.
     stale = {label: "| STALE | 0 files / 0 lines |" for label in rows}

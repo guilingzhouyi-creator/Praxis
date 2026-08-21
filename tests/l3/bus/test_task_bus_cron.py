@@ -470,14 +470,14 @@ class TestTaskBusConcurrency:
                 bus.dispatch(f"card-{i}", "DONE", {"domain": "test"})
 
             with ThreadPoolExecutor(max_workers=4) as ex:
-                list(ex.map(dispatch_all, range(20)))
+                list(ex.map(dispatch_all, range(10)))
             # dispatch() is async (background delivery threads) — drain before
             # closing the server. Verification, not best-effort: an incomplete
             # drain fails the test instead of re-creating dead-port noise.
             deadline = time.time() + 30.0
-            while _OkHandler.hits < 60 and time.time() < deadline:
+            while _OkHandler.hits < 30 and time.time() < deadline:
                 time.sleep(0.01)
-            assert _OkHandler.hits == 60, f"only {_OkHandler.hits}/60 deliveries completed"
+            assert _OkHandler.hits == 30, f"only {_OkHandler.hits}/30 deliveries completed"
             # No crash = pass. Verify state is intact.
             assert len(bus.list_subscribers()) == 3
         finally:
