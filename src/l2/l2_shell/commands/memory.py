@@ -206,6 +206,7 @@ def _memory_compression_guard(rest: list[str]) -> dict:
 
 
 _MEMORY_GLOBAL_OPS: dict[str, Callable[[list[str]], dict]] = {
+    "filter": lambda rest: _cmd_memory_filter(rest[1:]),
     "corpus": _memory_corpus,
     "digest": _memory_digest,
     "tool-result": _memory_tool_result,
@@ -258,10 +259,6 @@ def _cmd_memory(args: list[str], session=None) -> dict:
     kwargs: dict[str, object] = {"agent_ids": agents}
     if len(rest) >= 2:
         kwargs["query"] = " ".join(rest[1:])
-    # Phase 3 M1: /memory filter [on|off] [fine|coarse] — memory domain
-    # filter operator switches (never code-embedded auto-enable).
-    if op == "filter":
-        return _cmd_memory_filter(rest[1:])
     return _memory_agent_op(op, agents, kwargs)
 
 

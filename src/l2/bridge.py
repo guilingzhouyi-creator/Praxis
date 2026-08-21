@@ -356,6 +356,28 @@ def cell_territory(cell_id: str) -> list[str]:
     return list(getattr(get_cell(cell_id), "territory", []) or [])
 
 
+def acb_set_slot(identity: str, key: str, value: Any) -> dict:
+    """Write one ACB slot through the L3 ACB service (single write authority)."""
+    from l3.scheduler.acb import get_service
+
+    return get_service().set_slot(identity, key, value, source="shell")
+
+
+def acb_snapshot(identity: str) -> dict:
+    """Return one identity's full ACB snapshot (dict data only)."""
+    from l3.scheduler.acb import get_service
+
+    return get_service().snapshot(identity)
+
+
+def cell_subagent_pool_stats(cell_id: str) -> dict:
+    """Return one cell's SubAgentPool statistics (dict data only, no object leak)."""
+    from l3.cell import get_cell
+
+    pool = getattr(get_cell(cell_id), "_subagent_pool", None)
+    return pool.stats() if pool is not None and hasattr(pool, "stats") else {}
+
+
 # ── injection guard domain ──
 def injection_scan(message: str) -> float:
     """Scan a message for injection patterns; returns risk score 0.0-1.0."""

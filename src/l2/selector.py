@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any
 
 from l1.kernel.params.system import TLB_DEFAULT_RING
 from l2.bridge import capture
@@ -288,25 +287,27 @@ def _select_best(role: str, domain: str) -> dict:
                     best_score = score
                     best = (cell_id, aid)
     else:
-        # Index hit: only score candidates matching the role
-        cell_cache: dict[str, Any] = {}
+        # Index hit: only score candidates matching the role.
+        # Cache key is the cell id; the local value name must never shadow
+        # the ``cell_territory`` bridge function imported above (a previous
+        # shadowing bug silently zeroed territory scoring for the 2nd+ cell).
+        territory_cache: dict[str, list[str]] = {}
         for cell_id, aid in candidates:
-            if cell_id not in cell_cache:
+            if cell_id not in territory_cache:
                 try:
-                    cell_cache[cell_id] = cell_territory(cell_id)
+                    territory_cache[cell_id] = cell_territory(cell_id)
                 except Exception as e:
-                    logger.warning("cell_cache territory for %s: %s", cell_id, e)
+                    logger.warning("territory cache for %s: %s", cell_id, e)
                     capture(
-                        "cell_cache territory failed",
+                        "cell territory cache failed",
                         error_code="E_CACHE",
                         component="l2",
                         context={"cell_id": cell_id},
                     )
-                    cell_cache[cell_id] = []
-            cell_territory = cell_cache[cell_id]
+                    territory_cache[cell_id] = []
             score = 2  # role match
             if domain:
-                for t in cell_territory:
+                for t in territory_cache[cell_id]:
                     if domain.startswith(t):
                         score += 1
             if score > best_score:

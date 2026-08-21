@@ -26,6 +26,7 @@ shell:
     think: "管理 Think 配额 (config/cell/stats)"
   error:
     unknown_command: "未知命令：/{cmd}"
+    parse_failed: "命令解析失败：{error}"
     no_session: "没有活跃的直连会话"
     connect_usage: "用法：/connect <agent_id>"
     connect_blocked: "连接被安全系统拦截"

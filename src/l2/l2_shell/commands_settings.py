@@ -7,13 +7,13 @@ Usage:
   /settings cell <cell_id> set <k> <v>   — set cell setting
   /settings agent <agent_id>             — list agent settings
   /settings agent <agent_id> set <k> <v> — set agent setting
-  /settings pool scout <cell_id>         — list scout pool config
-  /settings pool subagent <cell_id>      — list subagent pool config
+  /settings pool scout [cell_id]         — scout pool config
+  /settings pool subagent <cell_id>      — subagent pool config
 
-TS rewrite reference: every settings write funnels through
-``l2.bridge.settings_set`` → L3 settings_center (single write authority);
-the TS side routes /settings via the dispatcher's bridge fallback and
-never owns config state.
+TS rewrite reference: every settings read/write funnels through
+``l2.bridge`` (settings_set / acb_get_slot / acb_set_slot /
+scout_pool / cell_subagent_pool_stats) — the TS side routes /settings via
+the dispatcher's bridge fallback and never owns config state.
 """
 
 from __future__ import annotations
@@ -27,13 +27,6 @@ from .commands.common import _coerce
 logger = logging.getLogger(__name__)
 
 
-def _get_center():
-    """Get SettingsCenter singleton."""
-    from l2.bridge import settings_center
-
-    return settings_center()
-
-
 def _cmd_settings(args: list[str], session=None) -> dict:
     """Multi-level settings query and configuration.
 
@@ -45,7 +38,7 @@ def _cmd_settings(args: list[str], session=None) -> dict:
       5. /settings cell <id> set k=v  → set cell (ACB)
       6. /settings agent <id>         → list agent settings
       7. /settings agent <id> set k=v → set agent (ACB)
-      8. /settings pool scout <id>    → scout pool config
+      8. /settings pool scout [id]    → scout pool config
       9. /settings pool subagent <id> → subagent pool config
     """
     if not args:
@@ -71,84 +64,80 @@ def _cmd_settings(args: list[str], session=None) -> dict:
 
 def _settings_global(args: list[str]) -> dict:
     """Global scope — list or set SettingsCenter keys."""
-    from l2.bridge import settings_set
+    from l2.bridge import settings_center, settings_set
 
-    center = _get_center()
+    center = settings_center()
     if args and args[0] == "set" and len(args) >= 3:
         key, value = args[1], _coerce(args[2])
         settings_set(key, value)
         return {"success": True, "scope": "global", "key": key, "value": value}
-    # List all L3 (runtime) overrides
-    raw = center._dump_l3() if hasattr(center, "_dump_l3") else {}
-    return {"success": True, "scope": "global", "settings": raw}
+    # Public diff surface: which keys deviate from L1 defaults.
+    return {"success": True, "scope": "global", "settings": center.diff()}
 
 
 def _settings_cell(cell_id: str, args: list[str]) -> dict:
     """Cell scope — manage settings via ACB (Agent Control Block)."""
-    from ..scheduler.acb import get_service as get_acb
+    from l2.bridge import acb_set_slot, acb_snapshot
 
-    acb = get_acb()
     if args and args[0] == "set" and len(args) >= 3:
         key, value = args[1], _coerce(args[2])
-        acb.set_slot(cell_id, key, value)
+        r = acb_set_slot(cell_id, key, value)
+        if not r.get("success"):
+            return r
         return {"success": True, "scope": "cell", "cell_id": cell_id, "key": key, "value": value}
 
-    slot = acb.get_slot(cell_id)
-    if slot:
-        return {"success": True, "scope": "cell", "cell_id": cell_id, "slots": slot}
+    snap = acb_snapshot(cell_id)
+    if snap.get("success"):
+        return {"success": True, "scope": "cell", "cell_id": cell_id, "slots": snap.get("snapshot", {})}
     return {"success": False, "error": _t("shell.app_error.cell_not_found_acb", cell_id=cell_id)}
 
 
 def _settings_agent(agent_id: str, args: list[str]) -> dict:
     """Agent scope — manage settings via ACB."""
-    from ..scheduler.acb import get_service as get_acb
+    from l2.bridge import acb_set_slot, acb_snapshot
 
-    acb = get_acb()
     if args and args[0] == "set" and len(args) >= 3:
         key, value = args[1], _coerce(args[2])
-        acb.set_slot(agent_id, key, value)
+        r = acb_set_slot(agent_id, key, value)
+        if not r.get("success"):
+            return r
         return {"success": True, "scope": "agent", "agent_id": agent_id, "key": key, "value": value}
 
-    slot = acb.get_slot(agent_id)
-    if slot:
-        return {"success": True, "scope": "agent", "agent_id": agent_id, "slots": slot}
+    snap = acb_snapshot(agent_id)
+    if snap.get("success"):
+        return {"success": True, "scope": "agent", "agent_id": agent_id, "slots": snap.get("snapshot", {})}
     return {"success": False, "error": _t("shell.app_error.agent_not_found_acb", agent_id=agent_id)}
 
 
 def _settings_pool(pool_type: str, args: list[str]) -> dict:
     """Pool scope — Scout or SubAgent pool config."""
     if pool_type == "scout":
-        return _settings_scout_pool(*args) if args else _settings_scout_pool()
+        return _settings_scout_pool(args[0] if args else "")
     if pool_type == "subagent":
-        return _settings_subagent_pool(*args) if args else _settings_subagent_pool()
+        if not args:
+            return {"success": False, "error": _t("shell.app_error.usage_settings_pool")}
+        return _settings_subagent_pool(args[0])
     return {"success": False, "error": _t("shell.app_error.usage_settings_pool")}
 
 
 def _settings_scout_pool(cell_id: str = "") -> dict:
-    """Query ScoutPool configuration."""
-    try:
-        from ..agent.scout import get_pool
+    """Query ScoutPool configuration via the bridge."""
+    from l2.bridge import scout_pool
 
-        pool = get_pool()
+    try:
+        pool = scout_pool()
         stats = pool.stats() if hasattr(pool, "stats") else {}
         return {"success": True, "scope": "pool", "pool_type": "scout", "cell_id": cell_id or "default", "stats": stats}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def _settings_subagent_pool(cell_id: str = "") -> dict:
-    """Query SubAgentPool configuration."""
-    try:
-        from ..agent.subagent_pool import get_pool
+def _settings_subagent_pool(cell_id: str) -> dict:
+    """Query one cell's SubAgentPool configuration via the bridge."""
+    from l2.bridge import cell_subagent_pool_stats
 
-        pool = get_pool()
-        stats = pool.stats() if hasattr(pool, "stats") else {}
-        return {
-            "success": True,
-            "scope": "pool",
-            "pool_type": "subagent",
-            "cell_id": cell_id or "default",
-            "stats": stats,
-        }
+    try:
+        stats = cell_subagent_pool_stats(cell_id)
+        return {"success": True, "scope": "pool", "pool_type": "subagent", "cell_id": cell_id, "stats": stats}
     except Exception as e:
         return {"success": False, "error": str(e)}

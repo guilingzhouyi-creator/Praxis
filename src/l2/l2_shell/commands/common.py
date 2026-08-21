@@ -134,8 +134,15 @@ def resolve_agents(scope: str, scope_id: str) -> list[str]:
     return list(terms.keys())
 
 
-def _pipeline(segments: list[str]) -> dict:
-    """Execute a command pipeline: cmd1 | cmd2."""
+def _pipeline(segments: list[str], session=None) -> dict:
+    """Execute a command pipeline: cmd1 | cmd2.
+
+    ``session`` is forwarded to every step so session-aware handlers
+    (e.g. /history) behave identically inside and outside a pipeline.
+
+    TS rewrite reference: the TS dispatcher forwards the same session
+    identity to each pipeline stage — steps never run stateless.
+    """
     segment_results: list[dict] = []
     for i, segment in enumerate(segments):
         segment = segment.strip()
@@ -151,7 +158,7 @@ def _pipeline(segments: list[str]) -> dict:
         handler = _gh(cmd)
         if handler:
             try:
-                result = handler(args)
+                result = handler(args, session=session)
                 segment_results.append(result)
             except Exception as e:
                 return {"success": False, "error": _t("shell.app_error.pipeline_step_failed", step=i, cmd=cmd, error=e)}

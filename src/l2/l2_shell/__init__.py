@@ -124,6 +124,27 @@ def _command_names() -> list[str]:
     return _COMMAND_NAMES_CACHE
 
 
+def _looks_like_pipeline(segments: list[str]) -> bool:
+    """Decide whether pipe-split text is a command pipeline or prose.
+
+    A pipeline's first segment must be a ``/``-command or resolve to a
+    registered command/alias; anything else is natural language that
+    happens to contain ``|`` and belongs to Direct/L3A routing. Keeps the
+    same resolution order as the ``/`` branch (handler first, then alias
+    reverse index) so both paths agree on what counts as a command.
+    """
+    head = segments[0]
+    if head.startswith("/"):
+        return True
+    words = head.split()
+    if not words:
+        return False
+    if get_handler(words[0]):
+        return True
+    resolved = _lookup_alias(words[0])
+    return bool(resolved and get_handler(resolved))
+
+
 def _history_kind(text: str) -> str:
     """Classify an input line for the session history (command/pipeline/intent)."""
     stripped = text.lstrip()
@@ -132,6 +153,23 @@ def _history_kind(text: str) -> str:
     if "|" in text:
         return "pipeline"
     return "intent"
+
+
+def _alias_handler(cmd: str):
+    """Resolve an alias to its registered handler (None when unresolved)."""
+    resolved = _lookup_alias(cmd)
+    return get_handler(resolved) if resolved else None
+
+
+def t_parse_error(error: Exception) -> str:
+    """Translate a command parse failure (locale key falls back gracefully)."""
+    try:
+        from l2.i18n import t as _t
+
+        return _t("shell.error.parse_failed", error=str(error))
+    except Exception:
+        logger.warning("i18n translation failed for shell.error.parse_failed")
+        return f"command parse failed: {error}"
 
 
 def dispatch(text: str, session: ShellSession | None = None, args: list[str] | None = None) -> dict:
@@ -158,29 +196,29 @@ def dispatch(text: str, session: ShellSession | None = None, args: list[str] | N
 
     if "|" in text:
         segments = [s.strip() for s in text.split("|")]
-        if len(segments) >= 2:
-            return _pipeline(segments)
+        if len(segments) >= 2 and _looks_like_pipeline(segments):
+            return _pipeline(segments, session=state)
 
     if text.startswith("/"):
         if args is None:
-            parts = shlex.split(text)
+            try:
+                parts = shlex.split(text)
+            except ValueError as e:
+                # Unbalanced quotes etc. must degrade to an error dict, never
+                # escape dispatch (protocol/API callers have no REPL guard).
+                return {"success": False, "error": t_parse_error(e)}
             cmd = parts[0][1:]
             args = parts[1:]
         else:
             # Protocol host already parsed the args; extract the name from
             # the "/name" prefix text (command names carry no spaces).
             cmd = text[1:].split()[0]
-        # Single authoritative handler lookup (a handler exists iff the
-        # command is registered); avoids a second registry lock+scan.
-        handler = get_handler(cmd)
+        # Single authoritative handler lookup: direct name first, then the
+        # alias reverse index (O(1)); a handler exists iff the command is
+        # registered — avoids a second registry lock+scan per path.
+        handler = get_handler(cmd) or _alias_handler(cmd)
         if handler:
             return handler(args, session=state)
-        # Check aliases via reverse index (O(1) instead of O(n))
-        resolved = _lookup_alias(cmd)
-        if resolved:
-            handler = get_handler(resolved)
-            if handler:
-                return handler(args, session=state)
         try:
             from l2.i18n import t as _t
 

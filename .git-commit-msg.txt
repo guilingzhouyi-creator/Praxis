@@ -1,0 +1,10 @@
+fix(l2): pin six dispatch-path defects behind regression tests
+
+selector territory scoring no longer loses domain points for cells
+after the first candidate; /settings cell/agent/pool route through
+l2.bridge instead of phantom l2.scheduler/l2.agent imports; /memory
+filter runs before agent resolution; pipeline steps receive the
+session; unbalanced quotes degrade to an error dict; prose containing
+a pipe char falls through to L3A instead of the pipeline.
+
+Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>
