@@ -78,6 +78,10 @@ class ProtocolHost:
         self._sessions: dict[str, object] = {}
         self._identities: dict[str, SessionIdentity] = {}
         self._cursors: dict[str, SessionCursor] = {}
+        # Per-session view index (session_id -> view_ids) so the shared
+        # watermark scan touches only the session's own views, not every
+        # cursor across all sessions.
+        self._session_views: dict[str, set[str]] = {}
         self._outboxes: dict[str, Outbox] = {}
         self._seqs: dict[str, int] = {}
 
@@ -103,9 +107,9 @@ class ProtocolHost:
         letting a fresh view replay the whole window from its own cursor.
         """
         min_acked = None
-        for cursor in self._cursors.values():
-            if cursor.attached and cursor.session_id == session_id:
-                min_acked = cursor.last_acked if min_acked is None else min(min_acked, cursor.last_acked)
+        for view_id in self._session_views.get(session_id, ()):
+            cursor = self._cursors[view_id]
+            min_acked = cursor.last_acked if min_acked is None else min(min_acked, cursor.last_acked)
         if min_acked is not None:
             self._get_outbox(session_id).ack(min_acked)
 
@@ -152,6 +156,7 @@ class ProtocolHost:
         if cursor is None:
             cursor = SessionCursor(view_id=view_id)
             self._cursors[view_id] = cursor
+        self._session_views.setdefault(session_id, set()).add(view_id)
         cursor.attach(session_id)
         return self.session_identity(session_id)
 
@@ -159,7 +164,11 @@ class ProtocolHost:
         """Unbind a frontend view from its session."""
         cursor = self._cursors.get(view_id)
         if cursor is not None:
+            session_id = cursor.session_id
             cursor.detach()
+            views = self._session_views.get(session_id)
+            if views:
+                views.discard(view_id)
 
     def view_cursor(self, view_id: str) -> dict[str, Any] | None:
         """Return the per-view cursor snapshot (attachment + ack position)."""
