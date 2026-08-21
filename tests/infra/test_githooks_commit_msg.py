@@ -64,3 +64,38 @@ def test_unknown_type_rejected():
 def test_merge_message_exempt():
     # Merge subjects skip the English/CoAuth/type checks (git-generated).
     assert run_hook("Merge branch 'feature/x'\n") == 0
+
+
+# ── must_include gate (commit-time type-to-file matching) ────────────────
+
+
+def _stage(paths: list[str]) -> None:
+    """Stage tracked files for the type-to-file gate (restored afterwards)."""
+    import subprocess as _sp
+
+    for p in paths:
+        _sp.run(["git", "add", p], cwd=ROOT, check=True)
+
+
+def _unstage(paths: list[str]) -> None:
+    import subprocess as _sp
+
+    _sp.run(["git", "restore", "--staged", *paths], cwd=ROOT, check=True)
+
+
+def test_perf_type_with_only_tests_files_rejected():
+    # perf must touch src/crates/packages — a tests/-only change is now
+    # blocked at commit time (mirrors commit_scan.py, previously push-time).
+    _stage(["tests/infra/test_githooks_commit_msg.py"])
+    try:
+        assert run_hook(f"perf(tests): parameterize gate scan\n\n{COAUTH}\n") == 1
+    finally:
+        _unstage(["tests/infra/test_githooks_commit_msg.py"])
+
+
+def test_perf_type_with_src_file_passes():
+    _stage(["src/l2/bridge.py"])
+    try:
+        assert run_hook(f"perf(l2): optimize dispatch\n\n{COAUTH}\n") == 0
+    finally:
+        _unstage(["src/l2/bridge.py"])
