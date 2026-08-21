@@ -97,7 +97,7 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 | P0 止血 | ✅ |
 | P1 边界迁移 | ✅ |
 | P2 协议 v1 | ✅ |
-| P3 TS 引擎 | 🟡 骨架 |
+| P3 TS 引擎 | ✅ 引擎+四 transport+WS 对接（合入 main） |
 | P4 重型/移动 | ⏳ |
 
 ### 6.1 P0 止血 — ✅（2026-08-20）
@@ -121,9 +121,9 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 - **投影与镜像**：event projection（web/TUI/desktop 三形状 + 未知回退 web）；TS 镜像同步（Outbox 非破坏性/unacked(after_seq)/SessionCursor.ack 与 Python 逐字段对齐）；dispatch 热路径优化（`/lang` -7%、`/history` -22%）。
 - 验收：多前端（五前端矩阵任一组合）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿；TS 仍不拥有运行时状态。
 
-### 6.4 P3 TS 引擎 — 🟡 骨架（2026-08-21）
+### 6.4 P3 TS 引擎 — ✅ 基本完成（2026-08-21）
 
-- **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端，**异步 Transport 契约** `(line) => Promise<string[]>`）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）；`transports/stdio.ts`（Node readline + ack 边界）+ `transports/http.ts`（fetch `/api/v2/shell`）；**真实端到端打通**（`tests/e2e.stdio.test.ts` spawn Python host：command 往返 + attach/replay）；Vitest 23 passed，tsc 干净。
+- **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端，**异步 Transport 契约** `(line) => Promise<string[]>`）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）；`transports/stdio.ts`（Node readline + ack 边界）+ `transports/http.ts`（fetch `/api/v2/shell`）；**真实端到端打通**（`tests/e2e.stdio.test.ts` spawn Python host：command 往返 + attach/replay）；Vitest 29 passed，tsc 干净。
 - **已落地**：WS/SSH transport 适配器（2026-08-21：`transports/ws.ts` 原生 WebSocket + `transports/ssh.ts` ssh2 channel，共享 `line-transport.ts` 引擎；`tests/transports.test.ts` 6 例，Vitest 29 passed）——**五前端矩阵适配器全部就位**。
 - **已落地**：真实 WS 端点对接（2026-08-21：`l4/ws/ws_bridge.py` 加协议 v1 envelope 分支——与 RPC 双模式共存，`ws://host:8081` 承载 `subscribe|unsubscribe|rpc|envelope`；`tests/l4/test_ws_bridge.py` 往返测试 2 例）。
 - **剩余**：真实 SSH 端点（远端 stdio host 已通——按需接入）+ 五前端矩阵真实接入。
