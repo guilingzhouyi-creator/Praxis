@@ -1,0 +1,196 @@
+{
+  "types": [
+    "feat",
+    "fix",
+    "perf",
+    "docs",
+    "refactor",
+    "style",
+    "test",
+    "chore",
+    "build",
+    "ci",
+    "revert",
+    "sync"
+  ],
+  "scope_dirs": {
+    "kernel": "src/l1/kernel/",
+    "l2": "src/l2/",
+    "l3": "src/l3/",
+    "l3a": "src/l3/cell/peers/l3a/",
+    "l4": "src/l4/",
+    "api": "src/l4/api/",
+    "llm": "src/l4/llm/",
+    "sandbox": "src/l4/sandbox/",
+    "l5": "src/l5/",
+    "cli": "src/l5/",
+    "docs": "docs/",
+    "tests": "tests/",
+    "scripts": "scripts/",
+    "config": "config/",
+    "ci": ".github/",
+    "judge": "docs/",
+    "git": "scripts/",
+    "hooks": ".githooks/"
+  },
+  "agents": [
+    {
+      "name": "AtomCode",
+      "models": [
+        "deepseek-v4-flash"
+      ],
+      "email": "noreply@atomgit.com"
+    },
+    {
+      "name": "OpenCode",
+      "models": [
+        "deepseek-v4-flash"
+      ],
+      "email": "noreply@opencode.ai"
+    },
+    {
+      "name": "Claude",
+      "models": [
+        "claude",
+        "claude-sonnet",
+        "claude-opus"
+      ],
+      "email": "noreply@anthropic.com"
+    },
+    {
+      "name": "DeepSeek",
+      "models": [
+        "deepseek-v4-flash",
+        "deepseek-chat"
+      ],
+      "email": "noreply@deepseek.com"
+    },
+    {
+      "name": "GPT",
+      "models": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-5",
+        "gpt-5-mini"
+      ],
+      "email": "noreply@openai.com"
+    }
+  ],
+  "scopes": [
+    "kernel",
+    "sync",
+    "event",
+    "constitution",
+    "gatechain",
+    "vfs",
+    "ipc",
+    "process",
+    "allocator",
+    "params",
+    "ports",
+    "prompts",
+    "l2",
+    "shell",
+    "i18n",
+    "l3",
+    "cell",
+    "agent",
+    "agents",
+    "memory",
+    "cards",
+    "card",
+    "scheduler",
+    "discussion",
+    "subagent",
+    "l3a",
+    "session",
+    "skill",
+    "tools",
+    "tool",
+    "error-bus",
+    "bus",
+    "api",
+    "llm",
+    "sandbox",
+    "mcp",
+    "search",
+    "lsp",
+    "vault",
+    "ws",
+    "rpc",
+    "sse",
+    "supervisor",
+    "security",
+    "harness",
+    "l5",
+    "cli",
+    "docs",
+    "config",
+    "scripts",
+    "tests",
+    "infra",
+    "ci",
+    "deps",
+    "docker",
+    "bench",
+    "judge",
+    "stats",
+    "release",
+    "git",
+    "hooks",
+    "agents-doc",
+    "roadmaps",
+    "core",
+    "tool-presentation",
+    "push-both",
+    "opencode",
+    "atomcode",
+    "generalize",
+    "slim",
+    "opt",
+    "nightly",
+    "reset",
+    "readme",
+    "commit-msg",
+    "changelog",
+    "audit",
+    "attack"
+  ],
+  "placeholder": {
+    "reject_empty_summary": true,
+    "reject_cjk_summary": true,
+    "min_summary_chars": 10
+  },
+  "max_subject_chars": 72,
+  "body": {
+    "require_sections": true,
+    "require_bullets": true,
+    "require_keywords": true
+  },
+  "strictness": "strict",
+  "branch_policy": {
+    "patterns": [
+      {
+        "pattern": "fix*",
+        "allowed_types": [
+          "fix"
+        ]
+      },
+      {
+        "pattern": "feature/*",
+        "allowed_types": [
+          "feat",
+          "fix",
+          "perf",
+          "docs",
+          "refactor",
+          "style",
+          "test",
+          "chore",
+          "build",
+          "ci"
+        ]
+      }
+    ]
+  }
+}

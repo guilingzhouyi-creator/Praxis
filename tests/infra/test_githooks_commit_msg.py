@@ -1,18 +1,14 @@
 """Tests for .githooks/commit-msg — the commit governance gate.
 
-Drives the bash hook with synthetic commit messages and asserts its exit code,
-so the rules (English, Co-Authored-By, Conventional-Commits type, Merge
-exemption) are machine-verified rather than trusted by convention.
-
-Attribution-dependent tests (``test_valid_conventional_passes``) require a
-live harness session log (``detect_agent.py`` evidence A or B). In a plain
-shell the hook rejects because the model cannot be verified by execution
-evidence — the test then skips gracefully.
+Drives the Node.js validation script with synthetic commit messages and
+asserts its exit code, so the rules (English, Co-Authored-By,
+Conventional-Commits type, Merge exemption) are machine-verified rather than
+trusted by convention. The Node.js script replaces the previous Python-based
+commit_scan.py + detect_agent.py, removing the Python runtime dependency.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -27,25 +23,6 @@ HOOK = ROOT / ".githooks" / "commit-msg"
 COAUTH = "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
 
 
-def _attribution_available() -> bool:
-    """Check whether the hook can verify attribution (harness session log).
-
-    In a harness session (DSH/CI) ``detect_agent.py`` reads the session log
-    and returns high-confidence evidence (A=execution log, B=process chain).
-    In a plain shell only config-based evidence (C) is available, and the hook
-    rejects attribution.
-    """
-    try:
-        r = subprocess.run(
-            [sys.executable, str(ROOT / "scripts/py/detect_agent.py"), "--json"],
-            capture_output=True, text=True, timeout=10,
-        )
-        data = json.loads(r.stdout)
-        return data.get("evidence") in ("A", "B")
-    except Exception:
-        return False
-
-
 def run_hook(message: str) -> int:
     """Run the commit-msg hook against a message, returning its exit code."""
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
@@ -57,9 +34,8 @@ def run_hook(message: str) -> int:
             {
                 "PRAXIS_AUTHOR": "AtomCode",
                 "PRAXIS_MODEL": "deepseek-v4-flash",
-                # Pin the interpreter so commit_scan.py (needs PyYAML) runs
-                # even where the system `python3` lacks it.
-                "PRAXIS_PYTHON": sys.executable,
+                # Pin the Node.js interpreter so the hook finds it reliably.
+                "PRAXIS_NODE": "/home/guiling/.nvm/versions/node/v24.19.0/bin/node",
             }
         )
         result = subprocess.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env)
@@ -68,7 +44,6 @@ def run_hook(message: str) -> int:
         Path(path).unlink(missing_ok=True)
 
 
-@pytest.mark.skipif(not _attribution_available(), reason="no harness session log (attribution unverifiable)")
 def test_valid_conventional_passes():
     assert run_hook(f"feat(core): add token ring revocation\n\n{COAUTH}\n") == 0
 

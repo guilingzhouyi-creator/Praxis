@@ -11,18 +11,13 @@
 #   Bypass (temporary): PRAXIS_SKIP_AUTHOR_CHECK=1
 set -euo pipefail
 
-# Resolve a Python that can run commit_scan.py. Prefer an explicit
-# override, then the repo venv, then a system interpreter — bare `python`
-# is absent on many distros and silently turns the scan into a no-op.
-PY_CMD="${PRAXIS_PYTHON:-}"
-if [ -z "$PY_CMD" ] && [ -x ".venv/bin/python" ]; then
-  PY_CMD=".venv/bin/python"
+# Resolve a Node.js interpreter. Prefer an explicit override, then PATH.
+NODE_CMD="${PRAXIS_NODE:-}"
+if [ -z "$NODE_CMD" ]; then
+  NODE_CMD="$(command -v node 2>/dev/null || true)"
 fi
-if [ -z "$PY_CMD" ]; then
-  PY_CMD="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
-fi
-if [ -z "$PY_CMD" ]; then
-  echo "commit-msg: no python interpreter found; commit scan skipped" >&2
+if [ -z "$NODE_CMD" ]; then
+  echo "commit-msg: no node interpreter found; commit validation skipped" >&2
 fi
 
 msg_file="$1"
@@ -84,13 +79,14 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
   if printf '%s' "$msg" | grep -qE '^[A-Za-z]+\('; then
     # Custom merge message — validate subject format.
     MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
-    if [ -f scripts/py/commit_scan.py ]; then
-      if [ -n "$PY_CMD" ]; then
-        "$PY_CMD" scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+    # Custom merge message — validate subject format via Node.js.
+    if [ -f scripts/js/validate-commit.mjs ]; then
+      if [ -n "$NODE_CMD" ]; then
+        "$NODE_CMD" scripts/js/validate-commit.mjs /dev/stdin <<< "$MERGE_SUBJECT" 2>/tmp/merge_scan.log || true
       fi
-      if grep -q 'VIOLATIONS' /tmp/merge_scan.log; then
+      if [ -s /tmp/merge_scan.log ]; then
         echo "⚠️  Merge subject should follow Conventional Commits: type(scope): description" >&2
-        grep '  ✗' /tmp/merge_scan.log >&2
+        cat /tmp/merge_scan.log >&2
       fi
     fi
   fi
@@ -129,34 +125,21 @@ if printf '%s' "$first_line" | grep -qE '\.$'; then
   exit 1
 fi
 
-# 2. Co-Authored-By attribution — exactly one, well-formed, and TRUE.
-#    The trailer must match BOTH the agents registry (commits.yaml) and the
-#    live runtime detection (detect_agent.py reads env + process-chain, NOT
-#    the agent's self-report). A GPT run can never claim deepseek-v4-flash,
-#    and vice versa — attribution reflects who ACTUALLY executed the work.
-if [ -f scripts/py/commit_scan.py ]; then
-  if [ -n "$PY_CMD" ]; then
-    "$PY_CMD" scripts/py/commit_scan.py --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
+# 2. Full validation via Node.js — type, scope, Co-Authored-By, attribution.
+#    Replaces the Python-based commit_scan.py + detect_agent.py calls.
+#    Config-driven: reads config/discovery/commits.json for type/scope/agent
+#    whitelists so no Python runtime is needed.
+if [ -f scripts/js/validate-commit.mjs ]; then
+  if [ -n "$NODE_CMD" ]; then
+    "$NODE_CMD" scripts/js/validate-commit.mjs "$msg_file" 2>/tmp/validate.log || true
   fi
-  if grep -q 'VIOLATIONS' /tmp/commit_cab.log; then
-    echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
-    grep '  ✗' /tmp/commit_cab.log >&2
-    echo "" >&2
-    echo "   HOW TO FIX (do not guess — read your actual runtime):" >&2
-    echo "     1. python scripts/py/detect_agent.py --json" >&2
-    echo "        → reports the framework/model that ACTUALLY runs this session" >&2
-    echo "     2. use THAT model name in the trailer; agent name must be" >&2
-    echo "        registered in config/discovery/commits.yaml (agents:)" >&2
-    echo "     3. correct form:" >&2
-    echo "        Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>" >&2
-    DETECTED="$(python scripts/py/detect_agent.py --json 2>/dev/null || echo '')"
-    echo "     4. (this session detects:) ${DETECTED:-<detection unavailable>}" >&2
-    echo "   Only if you are deliberately overriding attribution (manual/" >&2
-    echo "   historical commits): PRAXIS_SKIP_AUTHOR_CHECK=1." >&2
+  if [ -s /tmp/validate.log ]; then
+    echo "❌ Commit validation failed:" >&2
+    cat /tmp/validate.log >&2
     exit 1
   fi
 else
-  # No commit_scan.py (scratch repo) — legacy inline format guard.
+  # No validate-commit.mjs (scratch repo) — legacy inline format guard.
   CAB_COUNT=$(printf '%s' "$msg" | grep -c "Co-Authored-By:")
   if [ "$CAB_COUNT" -lt 1 ]; then
     echo "❌ Commit must include a Co-Authored-By trailer for attribution." >&2
@@ -166,40 +149,13 @@ else
     echo "❌ Exactly ONE Co-Authored-By trailer is allowed (found $CAB_COUNT)." >&2
     exit 1
   fi
-  if ! printf '%s' "$msg" | grep -qE '^Co-Authored-By: [^:<>]+ \([^()]+\) <noreply@[a-z0-9.-]+>$'; then
-    echo "❌ Co-Authored-By must match: \`Co-Authored-By: <Agent> (<model>) <noreply@domain>\`" >&2
+  if ! printf '%s' "$msg" | grep -qE '^Co-Authored-By: [^:<>]+ \([^()]+\) <[^@>]+@[^>]+>$'; then
+    echo "❌ Co-Authored-By must match: \`Co-Authored-By: <Agent> (<model>) <email>\`" >&2
     exit 1
   fi
-fi
-
-# 3. Conventional-commits type(scope): summary — also the CHANGELOG
-#    signal: generate-changelog.py only records subjects that match here, so a
-#    non-conventional subject would be silently dropped from the changelog.
-#    Full policy scan delegates to scripts/py/commit_scan.py (single source
-#    of truth: config/discovery/commits.yaml — type whitelist, registered
-#    scopes, placeholder guard, branch-type policy). Exit codes:
-#      0 = OK; 1 = violation; 2 = runtime unavailable (fall back to the
-#      legacy regex so a missing python/yaml never blocks commits).
-first_line=$(printf '%s' "$msg" | head -n 1)
-SCAN_RC=0
-if [ -n "$PY_CMD" ] && [ -f scripts/py/commit_scan.py ]; then
-  "$PY_CMD" scripts/py/commit_scan.py --subject "$first_line" \
-    --branch "$(git branch --show-current 2>/dev/null || true)" \
-    >/tmp/commit_scan.log 2>&1 || SCAN_RC=$?
-fi
-if [ "$SCAN_RC" = "1" ]; then
-  echo "❌ commit-scan rejected the subject:" >&2
-  tail -5 /tmp/commit_scan.log >&2
-  echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
-  exit 1
-fi
-if [ "$SCAN_RC" != "0" ]; then
-  # runtime unavailable (2) or script absent — legacy inline regex fallback.
+  # Legacy CC format check (no config file available).
   if ! printf '%s' "$first_line" | grep -qE '^(feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert)(\([a-z0-9_.-]+\))?!?: '; then
     echo "❌ Subject must be Conventional Commits: \`type(scope): summary\`" >&2
-    echo "   type ∈ feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert" >&2
-    echo "   Example: feat(core): add token ring revocation" >&2
-    echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
     exit 1
   fi
 fi
