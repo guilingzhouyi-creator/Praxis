@@ -21,6 +21,9 @@ fi
 if [ -z "$PY_CMD" ]; then
   PY_CMD="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
 fi
+if [ -z "$PY_CMD" ]; then
+  echo "commit-msg: no python interpreter found; commit scan skipped" >&2
+fi
 
 msg_file="$1"
 msg=$(cat "$msg_file")
@@ -47,6 +50,9 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
   # Worktrees under some hosts fail to resolve the git dir (exit 128); an
   # empty MERGE_ROOT simply skips the dependabot gate instead of aborting.
   MERGE_ROOT="$(git rev-parse --git-dir 2>/dev/null || true)"
+  if [ -z "$MERGE_ROOT" ]; then
+    echo "commit-msg: dependabot merge gate skipped — cannot resolve git dir" >&2
+  fi
   if [ -f "$MERGE_ROOT/MERGE_HEAD" ]; then
     SECOND="$(cat "$MERGE_ROOT/MERGE_HEAD" 2>/dev/null || true)"
   else
@@ -79,7 +85,9 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
     # Custom merge message — validate subject format.
     MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
     if [ -f scripts/py/commit_scan.py ]; then
-      "$PY_CMD" scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+      if [ -n "$PY_CMD" ]; then
+        "$PY_CMD" scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+      fi
       if grep -q 'VIOLATIONS' /tmp/merge_scan.log; then
         echo "⚠️  Merge subject should follow Conventional Commits: type(scope): description" >&2
         grep '  ✗' /tmp/merge_scan.log >&2
@@ -127,7 +135,9 @@ fi
 #    the agent's self-report). A GPT run can never claim deepseek-v4-flash,
 #    and vice versa — attribution reflects who ACTUALLY executed the work.
 if [ -f scripts/py/commit_scan.py ]; then
-  "$PY_CMD" scripts/py/commit_scan.py --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
+  if [ -n "$PY_CMD" ]; then
+    "$PY_CMD" scripts/py/commit_scan.py --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
+  fi
   if grep -q 'VIOLATIONS' /tmp/commit_cab.log; then
     echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
     grep '  ✗' /tmp/commit_cab.log >&2
@@ -172,7 +182,7 @@ fi
 #      legacy regex so a missing python/yaml never blocks commits).
 first_line=$(printf '%s' "$msg" | head -n 1)
 SCAN_RC=0
-if [ -f scripts/py/commit_scan.py ]; then
+if [ -n "$PY_CMD" ] && [ -f scripts/py/commit_scan.py ]; then
   "$PY_CMD" scripts/py/commit_scan.py --subject "$first_line" \
     --branch "$(git branch --show-current 2>/dev/null || true)" \
     >/tmp/commit_scan.log 2>&1 || SCAN_RC=$?
