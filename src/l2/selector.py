@@ -9,21 +9,10 @@ Flow:
 from __future__ import annotations
 
 import logging
-import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from l1.kernel.params.agent import (
-    INJECTION_HIGH_RISK_THRESHOLD,
-    INJECTION_LENGTH_BOOST,
-    INJECTION_LENGTH_THRESHOLD,
-    INJECTION_MEDIUM_RISK_THRESHOLD,
-    INJECTION_PATTERN_ZH1,
-    INJECTION_PATTERN_ZH2,
-    INJECTION_REVIEW_BOOST,
-    INJECTION_REVIEW_REWARD,
-)
 from l1.kernel.params.system import TLB_DEFAULT_RING
 from l2.bridge import capture
 from l2.i18n import t as _t
@@ -36,40 +25,8 @@ _role_index: dict[str, list[tuple[str, str]]] = {}
 _role_index_stale: bool = True
 _role_index_lock = threading.Lock()
 
-# ── Known injection patterns (rule-based, expand over time) ──
-
-# ── External LLM reviewer callback ──
-# Set via set_llm_reviewer(callable). Called when preconnect detects
-# medium-risk messages (0.3 < score < 0.7) for a second opinion.
-_llm_reviewer: Any = None
-_llm_reviewer_lock = threading.Lock()
-
-
-def set_llm_reviewer(callback: Any) -> None:
-    """Register an external LLM reviewer for prompt injection.
-
-    The callback receives (message: str) and should return
-    {"safe": bool, "reason": str, "confidence": float}.
-    Called by preconnect() when rule-based score is inconclusive.
-    """
-    with _llm_reviewer_lock:
-        global _llm_reviewer
-        _llm_reviewer = callback
-    logger.info("llm_reviewer registered")
-
-
-_INJECTION_PATTERNS: list[tuple[re.Pattern, float]] = [
-    (re.compile(r"ignore\s+(all\s+)?(previous|above|system)\s+(instructions|prompts)", re.I), 0.5),
-    (re.compile(r"forget\s+(all\s+)?(previous|above|system)", re.I), 0.5),
-    (re.compile(INJECTION_PATTERN_ZH1, re.I), 0.5),
-    (re.compile(r"disregard\s+(all\s+)?(previous|above)", re.I), 0.4),
-    (re.compile(INJECTION_PATTERN_ZH2, re.I), 0.4),
-    (re.compile(r"new\s+instructions?:?\s*$", re.I), 0.3),
-    (re.compile(r"system\s+(prompt|message):", re.I), 0.2),
-    (re.compile(r"<\s*system\s*>", re.I), 0.2),
-    (re.compile(r"role\s*:\s*system", re.I), 0.2),
-]
-
+# Injection policy (patterns, thresholds, reviewer) lives in L3:
+# l3.services.injection_guard — reached via l2.bridge.injection_verify.
 
 # ── Agent identity ──
 
@@ -220,26 +177,14 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
     except Exception as e:
         reasons.append(f"agent_check: {e}")
 
-    # 3. Prompt injection scan
+    # 3. Prompt injection scan (policy lives in L3 injection_guard)
     if message:
-        injection_risk = _scan_injection(message)
-        if injection_risk > INJECTION_HIGH_RISK_THRESHOLD:
-            reasons.append("prompt_injection_suspected")
-        elif injection_risk > INJECTION_MEDIUM_RISK_THRESHOLD:
-            with _llm_reviewer_lock:
-                reviewer = _llm_reviewer
-            if reviewer:
-                # Medium risk: call external LLM reviewer for second opinion
-                try:
-                    review = reviewer(message)
-                    if not review.get("safe", False):
-                        reasons.append(f"llm_review: {review.get('reason', 'unsafe')}")
-                        injection_risk = min(1.0, injection_risk + INJECTION_REVIEW_BOOST)
-                    else:
-                        injection_risk = max(0.0, injection_risk - INJECTION_REVIEW_REWARD)
-                except Exception as e:
-                    logger.warning("llm_review failed: %s", e)
-                    capture("llm_review failed", error_code="E_LLM_REVIEW", component="l2")
+        from l2.bridge import injection_verify
+
+        verdict = injection_verify(message)
+        if not verdict["allowed"]:
+            reasons.append(verdict["reason"])
+        injection_risk = verdict["injection_risk"]
 
     return {
         "allowed": len(reasons) == 0,
@@ -365,17 +310,3 @@ def _select_best(role: str, domain: str) -> dict:
     if best:
         return {"success": True, "cell_id": best[0], "agent_id": best[1]}
     return {"success": False, "error": _t("shell.app_error.no_matching_agent")}
-
-
-def _scan_injection(message: str) -> float:
-    """Scan message for prompt injection patterns. Returns risk score 0.0-1.0."""
-    if not message:
-        return 0.0
-    score = 0.0
-    for pattern, weight in _INJECTION_PATTERNS:
-        if pattern.search(message):
-            score += weight
-    # Length heuristic: very long messages with injection-like patterns
-    if len(message) > INJECTION_LENGTH_THRESHOLD and score > 0:
-        score = min(1.0, score + INJECTION_LENGTH_BOOST)
-    return min(1.0, score)

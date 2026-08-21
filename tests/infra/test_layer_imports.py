@@ -51,6 +51,7 @@ ALLOWLIST = {
     ("l2/bridge.py", "l3.services.adapter_bridge"),
     ("l2/bridge.py", "l3.services.central_plugin"),
     ("l2/bridge.py", "l3.services.central_security"),
+    ("l2/bridge.py", "l3.services.injection_guard"),
     ("l2/bridge.py", "l3.services.model_service"),
     ("l2/bridge.py", "l3.services.stats_center"),
     ("l2/bridge.py", "l3.tool_system.tool_config"),
