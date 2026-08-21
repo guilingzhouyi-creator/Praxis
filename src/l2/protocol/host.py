@@ -9,7 +9,6 @@ engine modification, no behavior change, purely additive transport.
 
 from __future__ import annotations
 
-import contextlib
 import dataclasses
 import io
 import shlex
@@ -38,30 +37,97 @@ from l2.protocol.envelope import (
 )
 from l2.protocol.records import SessionIdentity
 
-_DISPATCH_LOCK = threading.Lock()
 # Lazily resolved ShellSession class — every command/control hits
 # _get_session, so cache the class after the first import instead of
 # re-running the import statement on each call.
 _SHELL_SESSION: type | None = None
 
 
+class _ThreadCaptureStdout(io.TextIOBase):
+    """Process stdout proxy routing writes to per-thread capture buffers.
+
+    Installed lazily by ``_dispatch_text``: a thread inside an armed
+    dispatch window receives its writes in its own buffer; every other
+    thread passes through to the real stream untouched. This replaces the
+    process-global dispatch serialization that ``contextlib.redirect_stdout``
+    forced on threaded frontends — sessions now dispatch concurrently while
+    legacy ``print()`` output still lands in each caller's ``rendered``
+    payload (same JSONL contract, no cross-session head-of-line blocking).
+
+    TS note: TS handlers return data and never print, so the TS bridge
+    needs no counterpart for this capture layer.
+    """
+
+    def __init__(self, real: TextIO) -> None:
+        self._real = real
+        self._tls = threading.local()
+
+    def arm(self) -> io.StringIO:
+        """Start capturing this thread's writes; return the buffer."""
+        buf = io.StringIO()
+        self._tls.buf = buf
+        return buf
+
+    def disarm(self) -> None:
+        """Stop capturing this thread's writes (passthrough resumes)."""
+        self._tls.buf = None
+
+    def retarget(self, real: TextIO) -> None:
+        """Point passthrough at a new underlying stream."""
+        self._real = real
+
+    def write(self, s: str) -> int:
+        buf = getattr(self._tls, "buf", None)
+        if buf is not None:
+            return buf.write(s)
+        return self._real.write(s)
+
+    def flush(self) -> None:
+        self._real.flush()
+
+
+_CAPTURE_STDOUT: _ThreadCaptureStdout | None = None
+
+
+def _install_capture_stdout() -> _ThreadCaptureStdout:
+    """Install (or re-anchor) the process-wide capture proxy exactly once."""
+    global _CAPTURE_STDOUT
+    proxy = _CAPTURE_STDOUT
+    if proxy is None:
+        proxy = _ThreadCaptureStdout(sys.stdout)
+        _CAPTURE_STDOUT = proxy
+    current = sys.stdout
+    if current is proxy:
+        return proxy
+    # An external redirect replaced our proxy (pytest capsys, CLI plumbing):
+    # adopt that stream as the passthrough target and re-install.
+    proxy.retarget(current)
+    sys.stdout = proxy
+    return proxy
+
+
 def _dispatch_text(text: str, session, args: list[str] | None = None) -> dict:
     """Route one input line through the existing engine (unchanged).
 
     Legacy handler ``print()`` output (e.g. status/clear rendering) is
-    captured into a ``rendered`` payload field so the JSONL stream stays
-    clean and the text reaches protocol clients as data. The capture lock
-    serializes dispatches because ``redirect_stdout`` is process-global and
-    web mode is threaded.
+    captured per-thread into a ``rendered`` payload field so the JSONL
+    stream stays clean and text reaches protocol clients as data. No
+    global lock is held: concurrent sessions dispatch in parallel, and
+    only threads whose handlers actually print pay for buffering.
+
+    TS counterpart: ``bridge.ts`` roundTrip — the TS engine returns data
+    directly, so its transport has no capture step at all.
     """
     from l2.l2_shell import dispatch
 
-    buf = io.StringIO()
+    proxy = _install_capture_stdout()
+    buf = proxy.arm()
     try:
-        with _DISPATCH_LOCK, contextlib.redirect_stdout(buf):
-            result = dispatch(text, session, args=args)
+        result = dispatch(text, session, args=args)
     except Exception as e:  # pragma: no cover - defensive bridge boundary
         return {"success": False, "error": str(e)}
+    finally:
+        proxy.disarm()
     out = dict(result) if isinstance(result, dict) else {"success": False, "error": str(result)}
     rendered = buf.getvalue()
     if rendered:
@@ -79,6 +145,10 @@ class ProtocolHost:
     """
 
     def __init__(self) -> None:
+        # RLock guards every index below; web mode is threaded, and the
+        # dispatch path no longer serializes (thread-local stdout capture),
+        # so envelope handling is the only shared-state choke point left.
+        self._lock = threading.RLock()
         self._sessions: dict[str, object] = {}
         self._identities: dict[str, SessionIdentity] = {}
         self._cursors: dict[str, SessionCursor] = {}
@@ -91,15 +161,17 @@ class ProtocolHost:
 
     def _next_seq(self, session_id: str) -> int:
         """Return the next outbound sequence id for a session."""
-        next_seq = self._seqs.get(session_id, 0) + 1
-        self._seqs[session_id] = next_seq
-        return next_seq
+        with self._lock:
+            next_seq = self._seqs.get(session_id, 0) + 1
+            self._seqs[session_id] = next_seq
+            return next_seq
 
     def _get_outbox(self, session_id: str) -> Outbox:
         """Return the bounded replay window for a session."""
-        if session_id not in self._outboxes:
-            self._outboxes[session_id] = Outbox()
-        return self._outboxes[session_id]
+        with self._lock:
+            if session_id not in self._outboxes:
+                self._outboxes[session_id] = Outbox()
+            return self._outboxes[session_id]
 
     def _advance_shared_cursor(self, session_id: str) -> None:
         """Advance the shared outbox watermark to the lagging attached view.
@@ -125,19 +197,20 @@ class ProtocolHost:
 
     def _get_session(self, session_id: str) -> object:
         """Return the in-process ShellSession for an id, creating it lazily."""
-        if session_id not in self._sessions:
-            global _SHELL_SESSION
-            if _SHELL_SESSION is None:
-                from l2.shells.session import ShellSession
+        with self._lock:
+            if session_id not in self._sessions:
+                global _SHELL_SESSION
+                if _SHELL_SESSION is None:
+                    from l2.shells.session import ShellSession
 
-                _SHELL_SESSION = ShellSession
-            self._sessions[session_id] = _SHELL_SESSION(shell="protocol", session_id=session_id)
-            self._identities[session_id] = SessionIdentity(
-                session_id=session_id,
-                terminal_id="",
-                process_id="",
-            )
-        return self._sessions[session_id]
+                    _SHELL_SESSION = ShellSession
+                self._sessions[session_id] = _SHELL_SESSION(shell="protocol", session_id=session_id)
+                self._identities[session_id] = SessionIdentity(
+                    session_id=session_id,
+                    terminal_id="",
+                    process_id="",
+                )
+            return self._sessions[session_id]
 
     def session_identity(self, session_id: str) -> dict[str, Any]:
         """Return the protocol-shaped identity snapshot for a session.
@@ -147,8 +220,9 @@ class ProtocolHost:
         snapshot carries the stable identity fields consumed by events and
         bridges. terminal/process ownership is injected by the host later.
         """
-        self._get_session(session_id)
-        return dataclasses.asdict(self._identities[session_id])
+        with self._lock:
+            self._get_session(session_id)
+            return dataclasses.asdict(self._identities[session_id])
 
     def attach_view(self, view_id: str, session_id: str) -> dict[str, Any]:
         """Bind one frontend view to a session; returns the identity snapshot.
@@ -158,38 +232,41 @@ class ProtocolHost:
         is shared. ``view_id`` defaults to the session id for single-view
         transports.
         """
-        self._get_session(session_id)
-        cursor = self._cursors.get(view_id)
-        if cursor is None:
-            cursor = SessionCursor(view_id=view_id)
-            self._cursors[view_id] = cursor
-        self._session_views.setdefault(session_id, set()).add(view_id)
-        cursor.attach(session_id)
+        with self._lock:
+            self._get_session(session_id)
+            cursor = self._cursors.get(view_id)
+            if cursor is None:
+                cursor = SessionCursor(view_id=view_id)
+                self._cursors[view_id] = cursor
+            self._session_views.setdefault(session_id, set()).add(view_id)
+            cursor.attach(session_id)
         return self.session_identity(session_id)
 
     def detach_view(self, view_id: str) -> None:
         """Unbind a frontend view from its session."""
-        cursor = self._cursors.get(view_id)
-        if cursor is not None:
-            session_id = cursor.session_id
-            cursor.detach()
-            views = self._session_views.get(session_id)
-            if views:
-                views.discard(view_id)
+        with self._lock:
+            cursor = self._cursors.get(view_id)
+            if cursor is not None:
+                session_id = cursor.session_id
+                cursor.detach()
+                views = self._session_views.get(session_id)
+                if views:
+                    views.discard(view_id)
 
     def view_cursor(self, view_id: str) -> dict[str, Any] | None:
         """Return the per-view cursor snapshot (attachment + ack position)."""
-        cursor = self._cursors.get(view_id)
+        with self._lock:
+            cursor = self._cursors.get(view_id)
         if cursor is None:
             return None
         return dataclasses.asdict(cursor)
 
     def session_state(self, session_id: str) -> dict[str, Any]:
         """Return the protocol-shaped session snapshot consumed by projections."""
-        return {
-            "identity": self.session_identity(session_id),
-            "events": self._get_outbox(session_id).unacked(),
-        }
+        with self._lock:
+            identity = self.session_identity(session_id)
+            events = self._get_outbox(session_id).unacked()
+        return {"identity": identity, "events": events}
 
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes.
@@ -250,10 +327,11 @@ class ProtocolHost:
             # shared outbox watermark follows the lagging view, so messages
             # another view still needs are never erased.
             view_id = str(payload.get("view_id", session_id))
-            cursor = self._cursors.get(view_id)
-            if cursor is not None:
-                cursor.ack(payload["ack_seq"])
-                self._advance_shared_cursor(session_id)
+            with self._lock:
+                cursor = self._cursors.get(view_id)
+                if cursor is not None:
+                    cursor.ack(payload["ack_seq"])
+                    self._advance_shared_cursor(session_id)
             return []
         else:
             out.append(
@@ -294,21 +372,23 @@ class ProtocolHost:
                 )
             ]
         if op == CONTROL_ACK:
-            cursor = self._cursors.get(view_id)
-            if cursor is not None:
-                cursor.ack(payload.get("last_acked", -1))
-                self._advance_shared_cursor(target)
+            with self._lock:
+                cursor = self._cursors.get(view_id)
+                if cursor is not None:
+                    cursor.ack(payload.get("last_acked", -1))
+                    self._advance_shared_cursor(target)
             return []
         if op in (CONTROL_RESUME, CONTROL_RECOVERY):
-            self._get_session(target)
-            outbox = self._get_outbox(target)
-            cursor = self._cursors.get(view_id)
-            if cursor is not None:
-                cursor.ack(payload.get("last_acked", -1))
-                self._advance_shared_cursor(target)
-                replay = outbox.unacked(cursor.last_acked)
-            else:
-                replay = outbox.unacked(payload.get("last_acked", -1))
+            with self._lock:
+                self._get_session(target)
+                outbox = self._get_outbox(target)
+                cursor = self._cursors.get(view_id)
+                if cursor is not None:
+                    cursor.ack(payload.get("last_acked", -1))
+                    self._advance_shared_cursor(target)
+                    replay = outbox.unacked(cursor.last_acked)
+                else:
+                    replay = outbox.unacked(payload.get("last_acked", -1))
             return [
                 self._emit(
                     KIND_EVENT,

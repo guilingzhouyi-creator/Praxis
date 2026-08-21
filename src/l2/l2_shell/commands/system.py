@@ -11,23 +11,28 @@ logger = logging.getLogger(__name__)
 
 
 def _cmd_status(args: list[str], session=None) -> dict:
+    """Return kernel health enriched with shell mode/cell context.
+
+    Renders nothing to stdout: the human-readable block rides in
+    ``result["output"]`` so frontends (REPL/protocol/TS) all consume data.
+    """
     from l1.kernel.healthcheck import safe_system_check as _health
     from l1.kernel.process import get_table
     from l2.bridge import terminals as get_terminals
     from l2.i18n import t
 
     h = _health()
-    print(t("shell.status.kernel_health", status=h.get("status", "?"), modules=h.get("module_count", 0)))
+    lines = [t("shell.status.kernel_health", status=h.get("status", "?"), modules=h.get("module_count", 0))]
     for name, r in h.get("subsystems", {}).items():
-        print(f"  [{r['status']}] {name}")
-    print(f"\n{t('shell.status.processes', count=len(get_table().list_processes()))}")
-    print(t("shell.status.terminals", count=len(get_terminals())))
+        lines.append(f"  [{r['status']}] {name}")
+    lines.append(f"\n{t('shell.status.processes', count=len(get_table().list_processes()))}")
+    lines.append(t("shell.status.terminals", count=len(get_terminals())))
     try:
         from l1.kernel.lifecycle import get_lifecycle
 
         lc = get_lifecycle()
         rec = lc.load()
-        print(
+        lines.append(
             t(
                 "shell.status.lifecycle",
                 state=lc.state().value,
@@ -49,6 +54,7 @@ def _cmd_status(args: list[str], session=None) -> dict:
             result["agent_id"] = st.agent_id
     except Exception:
         logger.debug("system: shell state enrichment failed", exc_info=True)
+    result["output"] = "\n".join(lines)
     return result
 
 
@@ -622,12 +628,13 @@ def _cmd_process(args: list[str], session=None) -> dict:
 
 
 def _cmd_vfs(args: list[str], session=None) -> dict:
+    """Read one VFS path; content rides in the dict (no stdout writes)."""
     from l1.kernel.vfs import get_vfs
 
     path = args[0] if args else "/"
     r = get_vfs().read(path)
     if r.get("success"):
-        print(r["content"])
+        r["output"] = r.get("content", "")
     return r
 
 
@@ -645,7 +652,7 @@ def _cmd_sysinfo(args: list[str], session=None) -> dict:
 
 
 def _cmd_clear(args: list[str], session=None) -> dict:
-    print("\033[2J\033[H", end="")
+    """Signal a screen clear; frontends render it (handlers write no stdout)."""
     return {"success": True, "clear": True}
 
 

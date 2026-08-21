@@ -1,10 +1,11 @@
-fix(l2): pin six dispatch-path defects behind regression tests
+perf(l2): unblock concurrent dispatch and single-scan preselect
 
-selector territory scoring no longer loses domain points for cells
-after the first candidate; /settings cell/agent/pool route through
-l2.bridge instead of phantom l2.scheduler/l2.agent imports; /memory
-filter runs before agent resolution; pipeline steps receive the
-session; unbalanced quotes degrade to an error dict; prose containing
-a pipe char falls through to L3A instead of the pipeline.
+protocol host captures legacy prints through a thread-local stdout
+proxy instead of a process-global redirect lock, so sessions dispatch
+in parallel; host indexes gained an RLock for threaded web mode; the
+role-index builder reuses the liveness snapshots preselect already
+fetched (one scan per cell, not two); status/vfs/clear handlers return
+data instead of writing stdout, keeping the dict contract the TS
+frontend renders from.
 
 Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>
