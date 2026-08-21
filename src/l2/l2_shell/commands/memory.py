@@ -1,4 +1,10 @@
-"""L2 Shell: memory and agent control commands (audit, card, memory, spawn, kill, plugins, tokens)."""
+"""L2 Shell: memory and agent control commands (audit, card, memory, spawn, kill, plugins, tokens).
+
+TS rewrite reference: every command in this module forwards through
+``l2.bridge`` (memory domain — see bridge.py); the TS side maps them to
+dispatcher entries whose unregistered fallback routes to the bridge
+marker. Never re-implement the L3 memory/card authority here.
+"""
 
 from __future__ import annotations
 

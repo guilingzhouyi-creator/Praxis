@@ -17,6 +17,11 @@ class ShellSession:
     owns one or more sessions, so concurrent frontends never share mutable
     state.  The engine's ``dispatch()`` accepts a session for direct-mode
     routing; legacy callers fall back to the deprecated global singleton.
+
+    TS rewrite reference: per-session state maps onto the protocol v1
+    identity snapshot (SessionIdentity) the TS SessionView attaches to —
+    the TS side holds no ShellSession; it reads identity + events through
+    the bridge (attach/replay) and leaves mutation to the Python host.
     """
 
     def __init__(self, shell: str = "", session_id: str = "") -> None:
