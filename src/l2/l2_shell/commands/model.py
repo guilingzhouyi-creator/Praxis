@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 
 def _cmd_config(args: list[str], session=None) -> dict:
     from l1.kernel.settings import get_settings
+    from l2.bridge import settings_set
 
     s = get_settings()
     if not args:
         return {"success": True, "settings": s.all()}
     if args[0] == "set" and len(args) >= 3:
         key, value = args[1], _coerce_str(args[2])
-        s.set(key, value)
+        settings_set(key, value)
         return {"success": True, "key": key, "value": value}
     v = s.get(args[0])
     return {"success": True, args[0]: v}
