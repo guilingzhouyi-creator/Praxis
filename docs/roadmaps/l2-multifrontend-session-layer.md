@@ -90,13 +90,50 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 
 ## 6. 阶段路线图
 
-| 阶段 | 内容 | 验收 |
-|---|---|---|
-| **P0 止血** | ✅ 已完成：工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）、G1 fail-closed、`_execute_tool_spec` 私有化、`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）、删除 `shell_session.py` 死代码（2026-08-20） | 门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen |
-| **P1 边界迁移** | L3 command bridge ✅ L2→L3 直连清零（2026-08-20：`src/l2/bridge.py`——L2→L3 唯一受控边界，对应 TS `bridge.ts` 移植点；**92 个桥函数 / 49 条 bridge allowlist**）。已迁文件（allowlist 条目清零）：**memory、system、model、commands_settings、ci、departments、extra_resources、extra_security、extra_stats、extra_cluster、extra_mcp(L3 部分)、connect、common、selector、completer、shell_completer、l3ac、l3a、harness、engineering_debug、input_activity、presentation、test_auto、shells/terminal、l2_shell/__init__、commands/__init__**；**非桥 L2→L3 直连 44 → 0**（仅余 8 条 L2→L4：ci_review/mcp_bridge/api_handlers/llm/cron/i18n 独立边界）；selector 升级为 dict 数据 API（cell_ids/cell_liveness/cell_agent_reachable/cell_territory——对象句柄零泄漏，TS 直接消费）；selector 注入策略已迁 L3 ✅（2026-08-21：`l3/services/injection_guard.py`——模式表/阈值裁决/LLM reviewer 回调下沉 L3，L2 经桥调 `injection_verify`/`injection_scan`，安全裁决策略收敛 L3 单一模块）；配置权威收敛 ✅（2026-08-21：L2 配置写面统一经桥 `settings_set` → L3 settings_center——`/config`、`/settings global`、`/ci set`、`/ci toggle` 4 处写点收敛，L1 kernel.settings 只作默认值只读面，ACB 槽位写属绑定域保留）——P1 全部完成；i18n 全面收编 ✅（2026-08-20：47 处 f-string error 串全部改走 `shell.app_error.*` key（31 个，含 {var} 插值，4 locale），`test_i18n_l2_regression` 正则已补 f-string 盲区） | L2→L3 直连导入清零 ✅（业务文件零直连，仅 bridge.py 保留）；策略写操作全部经桥——部分达成 |
-| **P2 协议 v1** | Python 参考实现已落地：`src/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；只读 TS parity mirror 已落地：`packages/protocol-ts/`（共享 fixture + Vitest）；web 端点已双模式接入协议（2026-08-20：`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层已规范化（2026-08-20：`SessionIdentity` 接入 host 会话池，attach 事件携带完整身份快照；terminal/process 归属为宿主注入、可空）；多前端统一调用已就绪（2026-08-20：`SessionCursor` 每视图游标接入 host——多视图共享会话、各自独立 ack，`view_id` 为 control payload 可选扩展字段，无 view_id 的单视图 transport 默认以 session_id 为视图；**单一 ProtocolHost 是所有前端 transport 的统一入口**，前端只做 stdio/HTTP/WS/SSH 线格式适配）；multiplexing 完整实现（2026-08-20：Outbox 改为非破坏性 ack——一视图 ack 不再抹除他视图重放窗口，恢复/重放按视图游标过滤）；⚠️ 补丁：共享 Outbox 水位现按"落后视图"推进（2026-08-20 修复——此前 `outbox.ack()` 从未被调用，共享水位恒 -1，`session_state` 快照永不收敛），见 `_advance_shared_cursor`；⚠️ 补丁：host 侧 stdout 捕获（2026-08-20 修复——`/status` 等 handler 的 `print()` 直接污染 JSONL 流，现捕获进 `rendered` 字段并加锁串行化）；⚠️ 补丁：host 单次校验（2026-08-20 优化——stdio 路径 `decode_message` 与 `handle_message` 各校验一次，现合并为一次）；event projection 已落地（2026-08-20：`projection.py` 纯函数注册表，web/TUI/desktop 三形状 + 未知前端回退 web）；TS 镜像同步（2026-08-21：Outbox 非破坏性 ack / `unacked(after_seq)` / `SessionCursor.ack` 与 Python 契约逐字段对齐——多视图重放语义跨语言一致，`bridge.ts` 直接复用镜像）；dispatch 热路径优化（2026-08-20：`/` 命令改为单次 `get_handler` 查找，去除冗余 `get_command` 加锁扫描——`/lang` -7%、`/history` -22%） | 多前端（五前端矩阵任一组合）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿；TS 仍不拥有运行时状态 |
-| **P3 TS 引擎** | 🟡 骨架落地（2026-08-21：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）/`dispatcher.ts`（注册表 + 未注册回退桥标记）/`bridge.ts`（ProtocolBridge 协议客户端——command/attach/ack/replay，transport 注入，复用协议 v1 envelope，TS 侧零运行时状态）；`tests/engine.test.ts` 8 例，Vitest 13 passed）；剩余：`session.ts`（视图投影）、`builtins.ts`（本地纯展示命令）、transport 适配器（stdio/HTTP/WS/SSH）；Python L3 不动；协议 v1 作为唯一跨语言契约 | TS 引擎跑通 web/TUI/轻量桌面；L3 零改动 |
-| **P4 重型/移动** | VSCode 级共生平台（事件投影 + diff 流 + 多路会话）与移动 SSH 适配器 | 五前端矩阵全部接入协议 v1 |
+### 6.0 状态总览
+
+| 阶段 | 状态 |
+|---|---|
+| P0 止血 | ✅ |
+| P1 边界迁移 | ✅ |
+| P2 协议 v1 | ✅ |
+| P3 TS 引擎 | 🟡 骨架 |
+| P4 重型/移动 | ⏳ |
+
+### 6.1 P0 止血 — ✅（2026-08-20）
+
+- 工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）；G1 fail-closed；`_execute_tool_spec` 私有化；`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）；删除 `shell_session.py` 死代码。
+- 验收：门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen。
+
+### 6.2 P1 边界迁移 — ✅（2026-08-20/21）
+
+- **L3 command bridge 清零**：`src/l2/bridge.py` 为 L2→L3 唯一受控边界（92 函数 / 49 allowlist）；26 个文件 allowlist 条目清零；非桥 L2→L3 直连 44 → 0（余 8 条 L2→L4 独立边界：ci_review/mcp_bridge/api_handlers/llm/cron/i18n）。
+- **selector**：dict 数据 API（`cell_ids`/`cell_liveness`/`cell_agent_reachable`/`cell_territory`，对象句柄零泄漏）；注入策略迁 L3（`l3/services/injection_guard.py`——模式表/阈值裁决/LLM reviewer 下沉）。
+- **配置权威收敛**：L2 配置写面统一经桥 `settings_set` → L3 settings_center（`/config`、`/settings global`、`/ci set`、`/ci toggle`）；L1 kernel.settings 只作默认值只读面；ACB 槽位写属绑定域保留。
+- **i18n 收编**：47 处 f-string error 串 → `shell.app_error.*`（31 key × 4 locale）；`test_i18n_l2_regression` 正则已补 f-string 盲区。
+- 验收：业务文件零直连（仅 bridge.py 保留）；策略写操作全部经桥。
+
+### 6.3 P2 协议 v1 — ✅（2026-08-20/21）
+
+- **参考实现**：`src/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`packages/protocol-ts/`（共享 fixture + Vitest）。
+- **接入**：web 端点双模式（`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层 `SessionIdentity`；多前端统一调用（`SessionCursor` 每视图游标 + 单一 ProtocolHost 入口，前端只做线格式适配）。
+- **multiplexing**：Outbox 非破坏性 ack + 共享水位按落后视图（`_advance_shared_cursor`）；3 个补丁：共享水位恒 -1 修复、host stdout 捕获（防污染 JSONL）、stdio 单次校验。
+- **投影与镜像**：event projection（web/TUI/desktop 三形状 + 未知回退 web）；TS 镜像同步（Outbox 非破坏性/unacked(after_seq)/SessionCursor.ack 与 Python 逐字段对齐）；dispatch 热路径优化（`/lang` -7%、`/history` -22%）。
+- 验收：多前端（五前端矩阵任一组合）同会话并发可恢复；断线重放无丢失；TS 镜像测试与 Python 契约钉同绿；TS 仍不拥有运行时状态。
+
+### 6.4 P3 TS 引擎 — 🟡 骨架（2026-08-21）
+
+- **已落地**：`packages/protocol-ts/src/engine/`——`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + 未注册回退桥标记）、`bridge.ts`（ProtocolBridge 客户端：command/attach/ack/replay，transport 注入，复用协议 v1 envelope，TS 侧零运行时状态）；`tests/engine.test.ts` 8 例（Vitest 14 passed，tsc 干净）。
+- **剩余**：`session.ts`（视图投影）、`builtins.ts`（本地纯展示命令）、transport 适配器（stdio/HTTP/WS/SSH）。
+- **重写标准**：见 [l2-agent-handoff.md](l2-agent-handoff.md) §2（跨语言契约 / 桥 API 对应 / 铁律 / 镜像同步 / 验收清单）。
+- 验收：TS 引擎跑通 web/TUI/轻量桌面；L3 零改动；协议 v1 作为唯一跨语言契约。
+
+### 6.5 P4 重型/移动 — ⏳
+
+- VSCode 级共生平台（事件投影 + diff 流 + 多路会话）与移动 SSH 适配器。
+- 验收：五前端矩阵全部接入协议 v1。
+
+> 详细文件/符号级索引、运行环境与已知坑：→ [l2-agent-handoff.md](l2-agent-handoff.md)
 
 ## 7. 落地顺序（与内核审计衔接）
 

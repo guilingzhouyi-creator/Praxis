@@ -1,0 +1,149 @@
+# L2 Shell — 后续 Agent 交接索引与 TS 重写标准
+
+> 供后续 Agent 审阅/接手 L2 层工作时的**精确索引参考与重写标准**。
+> 与 `docs/roadmaps/l2-multifrontend-session-layer.md`（进程状态）配套：本文档是**操作性手册**（在哪、怎么改、验收什么），路线图是状态记录。
+> 分支：`feature/l2-cleanup`（未合入 main，工作区干净，HEAD 见 `git log`）。
+
+## 0. 阅读指南（给后续 Agent）
+
+1. 先看本文档 §1 能力地图 → 找到要动的模块 → 读对应源码（**禁止未读先改**）。
+2. 涉及跨语言契约改动（envelope/records/kind）→ 必读 §2.4 镜像同步要求。
+3. 涉及 P3 TS 引擎 → 必读 §2 全部（重写标准）。
+4. 提交前：`make precommit`（ruff + size + attribution）+ commit-scan（scope 注册表，见 §3.4）。
+5. 测试：Python 走 WSL venv（§3.2 命令），TS 走 WSL nvm node（§3.1）。
+
+## 1. L2 能力地图（模块 → 文件 → 关键符号 → 状态）
+
+状态图例：✅ 完成 · 🟡 骨架/部分 · ⏳ 未开始
+
+### 1.1 协议 v1（统一会话契约）— ✅ 完成
+
+| 模块 | 关键符号 | 状态 |
+|---|---|---|
+| `src/l2/protocol/envelope.py` | `KINDS`（七类）、`make_message`、`validate_message`、`encode/decode_message`、`Outbox`（非破坏性 ack + `unacked(after_seq)`）、`SessionCursor`（`ack(seq)`） | ✅ |
+| `src/l2/protocol/host.py` | `ProtocolHost.handle_message`（stdio/web 共享入口）、`_handle_validated`、`_handle_control`、`_advance_shared_cursor`（共享水位=落后视图）、`attach_view`/`view_cursor`/`session_state`、`_emit` | ✅ |
+| `src/l2/protocol/records.py` | `SessionIdentity`（terminal/process 可空） | ✅ |
+| `src/l2/protocol/schema.py` | `ENVELOPE_JSON_SCHEMA`（契约钉） | ✅ |
+| `src/l2/protocol/projection.py` | `register_projection`/`project`/`available_frontends`（web/TUI/desktop + 未知回退） | ✅ |
+| 契约钉测试 | `tests/l2/test_protocol_v1.py`、`tests/l2/test_protocol_records.py`、`tests/l2/test_projection.py`、`tests/l4/test_shell_protocol.py` | ✅ 53 passed |
+
+联动语义（**改动前必读**）：命令/意图 → `_emit` 写共享 outbox → 每视图按 `cursor.last_acked` 重放；`KIND_ACK`/control `resume/recovery` 均按 `view_id` 推进游标并 `_advance_shared_cursor`；**一视图 ack 永不抹除他视图重放窗口**。
+
+### 1.2 L3 command bridge — ✅ 完成（92 函数 / 49 条 allowlist）
+
+| 项 | 位置 |
+|---|---|
+| 桥模块（L2→L3 唯一边界） | `src/l2/bridge.py`（按域：memory/system/model/selector/injection/card/plugin/cell/terminal） |
+| allowlist | `tests/infra/test_layer_imports.py` 中 `("l2/bridge.py", ...)` 条目（**业务文件零 L3 直连**） |
+| 已迁文件（allowlist 清零） | memory、system、model、commands_settings、ci、departments、extra_*、connect、common、selector、completer、l3ac、l3a、harness、terminal、`__init__` 等 26 个 |
+
+**TS 对应**：桥函数按协议命令语义命名、dict 返回优先（`think_registry_stats`↔`/intents`、`cell_liveness`↔cell 查询）；对象句柄零泄漏（cell 用 `cell_ids`/`cell_liveness`/`cell_agent_reachable`/`cell_territory`）。
+
+### 1.3 注入策略（安全）— ✅ 完成
+
+| 项 | 位置 |
+|---|---|
+| L3 守卫 | `src/l3/services/injection_guard.py`（模式表/阈值裁决/`set_llm_reviewer`/`reset_injection_guard`） |
+| 桥函数 | `l2.bridge.injection_verify`/`injection_scan`/`set_llm_reviewer` |
+| 消费方 | `src/l2/selector.py` `preconnect`（注入段单次 `injection_verify` 调用） |
+| 测试 | `tests/l2/test_selector.py`（经桥 `injection_scan`） |
+
+### 1.4 配置写面 — ✅ 完成（P1 收尾）
+
+- 唯一权威写面：L3 `settings_center`（经桥 `settings_set(key, value)`）。
+- L1 `kernel.settings` 只作默认值只读面；ACB 槽位写属绑定域保留。
+- 收敛点：`/config`、`/settings global`、`/ci set`、`/ci toggle`。
+
+### 1.5 TS 引擎（P3）— 🟡 骨架
+
+| 模块（`packages/protocol-ts/src/engine/`） | 状态 |
+|---|---|
+| `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize` |
+| `dispatcher.ts` | ✅ 注册表 + 未注册回退桥标记 |
+| `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay，transport 注入） |
+| `session.ts` | ⏳ 视图投影（待做） |
+| `builtins.ts` | ⏳ 本地纯展示命令（待做） |
+| transport 适配器 | ⏳ stdio/HTTP/WS/SSH（待做） |
+| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例（Vitest 14 passed，tsc 干净） |
+
+协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python 逐字段对齐，§2.4）。
+
+### 1.6 Shell 命令域 — ✅ 完成
+
+- `src/l2/l2_shell/commands/*.py`（66 个 handler，签名 `(args, session=None)`）。
+- i18n：47 处 f-string 全收编 `shell.app_error.*`（31 key × 4 locale），`test_i18n_l2_regression` 正则含 f-string 盲区。
+- `/history` 真实现（在途 Agent 提交 `6cb40f5`）：`src/l2/shells/session.py` + `l2_shell/__init__.py`。
+
+## 2. TS 重写标准（P3 翻译规范）
+
+### 2.1 跨语言契约（协议 v1 是唯一契约）
+
+- envelope 字段：`v / session_id / seq / ts / trace_id? / kind / payload`；七类 kind：`ack / command / control / event / intent / result / stream_chunk`。
+- 校验语义：command 需非空 `name` + 字符串数组 `args`；control 的 `op ∈ attach/detach/resume/recovery/ack`；ack 需非负 `ack_seq`。
+- **Python 侧为参考实现**（`src/l2/protocol/envelope.py`），TS 侧为镜像（`packages/protocol-ts/src/envelope.ts`）——任何契约改动两边同步（§2.4）。
+
+### 2.2 桥 API 对应表（Python bridge ↔ TS bridge.ts）
+
+| 语义 | Python（`src/l2/bridge.py`） | TS（`src/engine/bridge.ts`） |
+|---|---|---|
+| 发命令 | `settings_set` 等 92 函数（直接调用） | `bridge.command(name, args)` → 协议消息给 Python 宿主 |
+| 附视图 | `attach_view(view_id, session_id)` | `bridge.attach(sessionId, viewId?)` |
+| 确认 | `cursor.ack(seq)` + `_advance_shared_cursor` | `bridge.ack(ackSeq, viewId?)` |
+| 重放 | `outbox.unacked(after_seq)` | `bridge.replay(sessionId, viewId?, lastAcked)` |
+
+**原则**：Python 桥是进程内直接调用；TS 桥是协议客户端（经 transport 发消息）。两者是**同一概念边界的两种传输**，不是逐行移植。
+
+### 2.3 铁律（TS 侧红线）
+
+1. TS **不拥有最终 authority**：outbox/ack/会话状态在 Python ProtocolHost。
+2. TS **绝不重实现** AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning——一律经 bridge.ts 转发。
+3. 本地 handler（dispatcher + builtins）只做纯解析/展示/格式转换。
+
+### 2.4 镜像同步要求（改动协议必做）
+
+1. Python `envelope.py` 改动 → 同步 `packages/protocol-ts/src/envelope.ts`（逐字段/逐语义）。
+2. 同步补测试：Python `tests/l2/test_protocol_v1.py` 与 TS `tests/protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
+3. 验收：`tsc --noEmit` + `vitest run` + Python 契约钉全绿。
+
+### 2.5 P3 验收清单
+
+- [ ] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），复用 `projection.ts` 语义（TS 侧若建投影，需与 Python `projection.py` 形状一致）。
+- [ ] `builtins.ts`：`lang`/`help`/纯展示命令本地实现。
+- [ ] transport 适配器：stdio（JSONL 往返）、HTTP（`/api/v2/shell` 双模式）、WS/SSH 线格式。
+- [ ] 端到端：TS 引擎跑通 web/TUI 轻量桌面，**L3 零改动**（Python L3 是唯一运行面）。
+- [ ] 测试：Vitest 全绿 + Python 联动测试（`tests/l4/test_shell_protocol.py`）不回归。
+
+## 3. 已知坑与运行环境（必读）
+
+### 3.1 TS 工具链（WSL 无 node）
+
+- node 在 `~/.nvm/versions/node/v24.19.0/bin`；用**显式最小 PATH**（`export PATH=...:/usr/bin:/bin`）——Windows 中文括号路径（`（x86）`）会炸 bash 引号。
+- 验证：`cd packages/protocol-ts && ./node_modules/.bin/tsc --noEmit && ./node_modules/.bin/vitest run`（先 `npm ci` 一次）。
+
+### 3.2 Python 测试（WSL 内）
+
+- 主树 venv：`/home/guiling/dev/praxis/.venv/bin/python`（worktree 无 `.venv`）。
+- 必须 `-o addopts=""` 串行（默认 `-n auto` 在 WSL 极慢）。
+- 例：`wsl -d Ubuntu -- bash -c 'cd /home/guiling/dev/praxis-l2-cleanup && /home/guiling/dev/praxis/.venv/bin/python -m pytest tests/l2/ -o addopts="" -q'`。
+
+### 3.3 Git（worktree 怪癖）
+
+- WSL 侧 git 解析不了 worktree 的 `.git` 引用（exit 128）——**提交/查看走 Git Bash 侧**（bash 工具默认 shell）。
+- 新建 worktree 后先 `git config --global --add safe.directory '%(prefix)///wsl.localhost/Ubuntu/home/guiling/dev/praxis-<name>'`。
+
+### 3.4 提交门禁
+
+- commit-scan：`type(scope):` 的 scope **必须在 `config/discovery/commits.yaml` 注册**（`l2`/`shell`/`i18n` 已注册；`ts` 未注册——用 `l2`）。
+- pre-commit：ruff → ruff format → size → attribution；无会话证据时用 `PRAXIS_AUTHOR=AtomCode PRAXIS_MODEL=deepseek-v4-flash`。
+- 提交 message 必须含 Co-Authored-By trailer（`Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`）。
+
+## 4. 下一步清单（按依赖顺序）
+
+1. **P3 续建**（本轮优先）：`session.ts` 视图投影 → `builtins.ts` 本地命令 → transport 适配器（stdio 先行）。
+2. **P3 端到端**：TS 引擎 + Python ProtocolHost 打通（stdio transport + fake host 已有测试基础）。
+3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
+4. **合入/推送**：双绿后 `MERGE_GATE_SKIP` 决策由用户授权；`make push-both` 双推前确认网络。
+
+---
+
+*索引随分支演进更新；改动本文件时同步刷新 §1 状态列与 §2 验收清单。*
