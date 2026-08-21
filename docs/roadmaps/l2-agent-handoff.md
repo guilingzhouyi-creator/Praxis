@@ -99,6 +99,35 @@
 - **≠ 全系统会话**：不承载内核/服务生命周期会话。
 - **内部接入**：L2 REPL（`python -m l2.l2_shell`）直连 `dispatch()`（交互式本地优化，全局默认 state）；**外部前端一律经协议 v1**（envelope → ProtocolHost）——统一协议承载面覆盖外部，内部 REPL 为直连例外（如需协议承载可经 host 的 REPL 会话改造）。
 
+### 1.9 协议优化全景与 TS 架构预留（2026-08-21）
+
+**性能优化（Python 侧，已合入 main）**：
+
+| 优化 | 文件 | TS 重写对应 |
+|---|---|---|
+| `run()` 批量 flush（stdio I/O） | `host.py` | TS 无等价——直接批量写（天然继承） |
+| `_advance_shared_cursor` per-session 索引 | `host.py` | `session.ts` 视图索引同构（attach 即入索引） |
+| ws 桥 dict 直入（省 JSON 往返） | `host.py`/`ws_bridge.py` | TS 天然无 JSON 往返（对象直传） |
+| command args 直入（省 shlex.split） | `host.py`/`l2_shell/__init__.py` | TS 天然无 shlex——命令名/参数已结构化 |
+| `_get_session` 会话类缓存 | `host.py` | TS 类导入零成本（无需该模式） |
+| 常量化（OUTBOX_MAXLEN→params）+ 配置驱动（WS 端口） | `params/api.py`/`l4/params.py` | TS 常量/配置来自 Python 真相源（镜像注释） |
+
+**TS 架构预留（模块划分预案——重写直接采用）**：
+
+| Python 职责（host） | TS 模块 | 说明 |
+|---|---|---|
+| `handle(line)`（JSONL 行解析 + 路由） | `protocol.ts` 行解析 + `bridge.ts` 路由 | 行协议解析独立模块 |
+| `handle_message(dict)`（envelope 校验 + 分发） | `envelope.ts`（validate）+ `bridge.ts`（dispatch） | 校验与分发分离 |
+| `_handle_validated`（KIND 分支） | `dispatcher.ts`（kind 路由） | command/control/intent/event 分支同构 |
+| `_handle_control`（会话流） | `session.ts`（attach/replay/ack/detach） | 会话流步骤注释见 §1.7 |
+| `_emit`（envelope 构造 + outbox 追加） | `envelope.ts`（Outbox——非破坏性 ack） | outbox 窗口 1024 来自 params |
+| `_get_session`/`_get_outbox`/`_cursors` | `session.ts` 状态容器 | per-session 状态单一容器 |
+
+架构预留要点：
+- **单一协议入口**：TS 只经 `bridge.ts`（零运行时状态）——一切命令经协议 v1 envelope 转发 Python 宿主。
+- **权威留 Python**：TS 永不重实现 AgentLoop / Tool Pipeline / Workflow / Scheduler / Memory / Planning。
+- **契约单一真相**：envelope / records / params 的 TS 镜像注释均指向 Python 源文件。
+
 ## 2. TS 重写标准（P3 翻译规范）
 
 ### 2.1 跨语言契约（协议 v1 是唯一契约）
