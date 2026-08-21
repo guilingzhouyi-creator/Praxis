@@ -115,6 +115,7 @@ def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str, _admin
 
 def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci set <key> <value> [--cell X] [--agent Y] [--admin]` — set a review setting."""
+    from l2.bridge import settings_set
     from l4.ci_review import CI_SETTING_SUFFIXES, _is_allowed_key, _is_control_key
 
     if len(rest) < 3:
@@ -132,12 +133,13 @@ def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bo
     elif not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     value = _parse_value(" ".join(rest[2:]))
-    center.set(full_key, value)
+    settings_set(full_key, value)
     return {"success": True, "key": full_key, "value": value}
 
 
 def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci toggle [--cell X] [--agent Y] [--admin]` — flip the enabled switch."""
+    from l2.bridge import settings_set
     from l4.ci_review import _is_control_key
 
     full_key = _resolve_scope_key("enabled", cell_id, agent_id)
@@ -146,7 +148,7 @@ def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin:
     if not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     enabled = not bool(center.get(full_key, True))
-    center.set(full_key, enabled)
+    settings_set(full_key, enabled)
     return {"success": True, "key": full_key, "enabled": enabled}
 
 

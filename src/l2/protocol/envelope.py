@@ -165,6 +165,9 @@ class Outbox:
     acknowledging a sequence never erases messages another view still needs
     to replay. Messages beyond ``maxlen`` are evicted oldest-first, which is
     the hard bound any view must tolerate.
+
+    TS mirror: ``packages/protocol-ts/src/envelope.ts`` Outbox — identical
+    non-destructive ack and ``unacked(after_seq)`` semantics.
     """
 
     maxlen: int = OUTBOX_MAXLEN
@@ -194,7 +197,11 @@ class Outbox:
 
 @dataclass
 class SessionCursor:
-    """Per-frontend-view cursor: attachment + acknowledged position."""
+    """Per-frontend-view cursor: attachment + acknowledged position.
+
+    TS mirror: ``packages/protocol-ts/src/envelope.ts`` SessionCursor — each
+    view keeps its own ``last_acked`` and advances independently via ``ack``.
+    """
 
     view_id: str
     session_id: str = ""

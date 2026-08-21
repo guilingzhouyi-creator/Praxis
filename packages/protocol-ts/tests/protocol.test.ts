@@ -73,4 +73,19 @@ describe("protocol v1 envelope", () => {
     cursor.detach();
     expect(cursor.attached).toBe(false);
   });
+
+  it("mirrors the Python non-destructive ack across views", () => {
+    const outbox = new Outbox();
+    for (const seq of [1, 2]) outbox.append(makeMessage("s-1", seq, "result", { success: true }, "", 0));
+    outbox.ack(1);
+    // The advancing view sees only its future; a lagging view replays all.
+    expect(outbox.unacked().map((message) => message.seq)).toEqual([2]);
+    expect(outbox.unacked(0).map((message) => message.seq)).toEqual([1, 2]);
+
+    const cursor = new SessionCursor("view-a");
+    cursor.ack(5);
+    expect(cursor.lastAcked).toBe(5);
+    cursor.ack(3);
+    expect(cursor.lastAcked).toBe(5);
+  });
 });

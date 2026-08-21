@@ -99,7 +99,12 @@ class _ProtocolRecord:
 
 @dataclass(frozen=True, slots=True)
 class SessionIdentity(_ProtocolRecord):
-    """Identify one session without conflating terminal or process ownership."""
+    """Identify one session without conflating terminal or process ownership.
+
+    TS mirror: ``packages/protocol-ts/src/records.ts`` SessionIdentity —
+    field names and nullability (terminal/process may be empty until the
+    host injects them) must stay in sync across languages.
+    """
 
     record_type: ClassVar[str] = "session_identity"
 

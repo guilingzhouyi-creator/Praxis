@@ -349,6 +349,28 @@ def cell_territory(cell_id: str) -> list[str]:
     return list(getattr(get_cell(cell_id), "territory", []) or [])
 
 
+# ── injection guard domain ──
+def injection_scan(message: str) -> float:
+    """Scan a message for injection patterns; returns risk score 0.0-1.0."""
+    from l3.services.injection_guard import injection_scan as _fn
+
+    return _fn(message)
+
+
+def injection_verify(message: str) -> dict:
+    """Adjudicate one message through the injection guard."""
+    from l3.services.injection_guard import injection_verify as _fn
+
+    return _fn(message)
+
+
+def set_llm_reviewer(callback: Any) -> None:
+    """Register an external LLM reviewer for prompt injection."""
+    from l3.services.injection_guard import set_llm_reviewer as _fn
+
+    _fn(callback)
+
+
 # ── card / plugin / cell / terminal domains ──
 def card_registry() -> Any:
     """Return the card registry."""

@@ -1,0 +1,42 @@
+/** Command registry + dispatcher for the TS engine shell. */
+
+import type { ParsedCommand } from "./parser.ts";
+
+export interface DispatchContext {
+  sessionId: string;
+}
+
+/**
+ * Local handlers return a "local" result; anything unregistered falls back
+ * to the bridge marker so the Python L3 host stays the authority (the TS
+ * shell never re-implements agent loop / tool pipeline / scheduler).
+ */
+export type CommandResult =
+  | { kind: "local"; data: Record<string, unknown> }
+  | { kind: "bridge"; command: string; args: string[] };
+
+export type CommandHandler = (args: string[], ctx: DispatchContext) => CommandResult;
+
+export class Dispatcher {
+  private readonly handlers = new Map<string, CommandHandler>();
+
+  register(name: string, handler: CommandHandler): void {
+    this.handlers.set(name, handler);
+  }
+
+  has(name: string): boolean {
+    return this.handlers.has(name);
+  }
+
+  /** Registered command names (stable, sorted) — feeds the help builtin. */
+  listCommands(): string[] {
+    return [...this.handlers.keys()].sort();
+  }
+
+  /** Dispatch a parsed command; unknown names route to the bridge. */
+  dispatch(cmd: ParsedCommand, ctx: DispatchContext): CommandResult {
+    const handler = this.handlers.get(cmd.name);
+    if (!handler) return { kind: "bridge", command: cmd.name, args: cmd.args };
+    return handler(cmd.args, ctx);
+  }
+}

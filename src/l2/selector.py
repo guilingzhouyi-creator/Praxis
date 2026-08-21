@@ -9,21 +9,10 @@ Flow:
 from __future__ import annotations
 
 import logging
-import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from l1.kernel.params.agent import (
-    INJECTION_HIGH_RISK_THRESHOLD,
-    INJECTION_LENGTH_BOOST,
-    INJECTION_LENGTH_THRESHOLD,
-    INJECTION_MEDIUM_RISK_THRESHOLD,
-    INJECTION_PATTERN_ZH1,
-    INJECTION_PATTERN_ZH2,
-    INJECTION_REVIEW_BOOST,
-    INJECTION_REVIEW_REWARD,
-)
 from l1.kernel.params.system import TLB_DEFAULT_RING
 from l2.bridge import capture
 from l2.i18n import t as _t
@@ -36,40 +25,8 @@ _role_index: dict[str, list[tuple[str, str]]] = {}
 _role_index_stale: bool = True
 _role_index_lock = threading.Lock()
 
-# ── Known injection patterns (rule-based, expand over time) ──
-
-# ── External LLM reviewer callback ──
-# Set via set_llm_reviewer(callable). Called when preconnect detects
-# medium-risk messages (0.3 < score < 0.7) for a second opinion.
-_llm_reviewer: Any = None
-_llm_reviewer_lock = threading.Lock()
-
-
-def set_llm_reviewer(callback: Any) -> None:
-    """Register an external LLM reviewer for prompt injection.
-
-    The callback receives (message: str) and should return
-    {"safe": bool, "reason": str, "confidence": float}.
-    Called by preconnect() when rule-based score is inconclusive.
-    """
-    with _llm_reviewer_lock:
-        global _llm_reviewer
-        _llm_reviewer = callback
-    logger.info("llm_reviewer registered")
-
-
-_INJECTION_PATTERNS: list[tuple[re.Pattern, float]] = [
-    (re.compile(r"ignore\s+(all\s+)?(previous|above|system)\s+(instructions|prompts)", re.I), 0.5),
-    (re.compile(r"forget\s+(all\s+)?(previous|above|system)", re.I), 0.5),
-    (re.compile(INJECTION_PATTERN_ZH1, re.I), 0.5),
-    (re.compile(r"disregard\s+(all\s+)?(previous|above)", re.I), 0.4),
-    (re.compile(INJECTION_PATTERN_ZH2, re.I), 0.4),
-    (re.compile(r"new\s+instructions?:?\s*$", re.I), 0.3),
-    (re.compile(r"system\s+(prompt|message):", re.I), 0.2),
-    (re.compile(r"<\s*system\s*>", re.I), 0.2),
-    (re.compile(r"role\s*:\s*system", re.I), 0.2),
-]
-
+# Injection policy (patterns, thresholds, reviewer) lives in L3:
+# l3.services.injection_guard — reached via l2.bridge.injection_verify.
 
 # ── Agent identity ──
 
@@ -101,17 +58,18 @@ def preselect() -> dict:
     cell_ids: list[str] = []
 
     try:
-        from l2.bridge import cells as _get_cells
+        from l2.bridge import cell_ids as list_cell_ids
+        from l2.bridge import cell_liveness
 
-        cells = _get_cells()
+        cell_id_list = list_cell_ids()
     except Exception as e:
         logger.warning("preselect: get_cells failed: %s", e)
         return {"agents": [], "cells": [], "total": 0, "error": _t("shell.app_error.cell_service_unavailable")}
 
-    for cell_id, cell in cells.items():
+    for cell_id in cell_id_list:
         cell_ids.append(cell_id)
         try:
-            liveness = cell.liveness()
+            liveness = cell_liveness(cell_id)
             for aid, ainfo in liveness.get("agents", {}).items():
                 agents.append(
                     {
@@ -129,18 +87,20 @@ def preselect() -> dict:
 
     # Build role index for O(1) subsequent lookups
     if agents:
-        _rebuild_role_index(cells)
+        _rebuild_role_index(cell_ids)
 
     return {"agents": agents, "cells": cell_ids, "total": len(agents)}
 
 
-def _rebuild_role_index(cells: dict) -> None:
+def _rebuild_role_index(cell_id_list: list[str]) -> None:
     """Build reverse index: role → [(cell_id, agent_id)] for O(1) lookup."""
+    from l2.bridge import cell_liveness
+
     global _role_index, _role_index_stale
     idx: dict[str, list[tuple[str, str]]] = {}
-    for cell_id, cell in cells.items():
+    for cell_id in cell_id_list:
         try:
-            liveness = cell.liveness()
+            liveness = cell_liveness(cell_id)
             for aid, ainfo in liveness.get("agents", {}).items():
                 role = ainfo.get("role", ainfo.get("status", "?")).lower()
                 idx.setdefault(role, []).append((cell_id, aid))
@@ -201,10 +161,9 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
 
     # 1. Cell liveness
     try:
-        from l2.bridge import cell as _get_cell
+        from l2.bridge import cell_agent_reachable, cell_liveness
 
-        cell = _get_cell(cell_id)
-        liveness = cell.liveness()
+        liveness = cell_liveness(cell_id)
         if liveness.get("overall") == "unreachable":
             return {"allowed": False, "reason": "cell_unreachable", "injection_risk": 0.0}
     except Exception as e:
@@ -212,32 +171,20 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
 
     # 2. Agent reachability
     try:
-        reachable = cell.agent_reachable(agent_id)
+        reachable = cell_agent_reachable(cell_id, agent_id)
         if not reachable.get("reachable"):
             reasons.append(reachable.get("reason", "unreachable"))
     except Exception as e:
         reasons.append(f"agent_check: {e}")
 
-    # 3. Prompt injection scan
+    # 3. Prompt injection scan (policy lives in L3 injection_guard)
     if message:
-        injection_risk = _scan_injection(message)
-        if injection_risk > INJECTION_HIGH_RISK_THRESHOLD:
-            reasons.append("prompt_injection_suspected")
-        elif injection_risk > INJECTION_MEDIUM_RISK_THRESHOLD:
-            with _llm_reviewer_lock:
-                reviewer = _llm_reviewer
-            if reviewer:
-                # Medium risk: call external LLM reviewer for second opinion
-                try:
-                    review = reviewer(message)
-                    if not review.get("safe", False):
-                        reasons.append(f"llm_review: {review.get('reason', 'unsafe')}")
-                        injection_risk = min(1.0, injection_risk + INJECTION_REVIEW_BOOST)
-                    else:
-                        injection_risk = max(0.0, injection_risk - INJECTION_REVIEW_REWARD)
-                except Exception as e:
-                    logger.warning("llm_review failed: %s", e)
-                    capture("llm_review failed", error_code="E_LLM_REVIEW", component="l2")
+        from l2.bridge import injection_verify
+
+        verdict = injection_verify(message)
+        if not verdict["allowed"]:
+            reasons.append(verdict["reason"])
+        injection_risk = verdict["injection_risk"]
 
     return {
         "allowed": len(reasons) == 0,
@@ -251,11 +198,12 @@ def preconnect(cell_id: str, agent_id: str, message: str = "") -> dict:
 
 def _select_by_id(agent_id: str) -> dict:
     """Find an agent by ID across all Cells.  Returns {"success", "cell_id", "agent_id"}."""
-    from l2.bridge import cells as _get_cells
+    from l2.bridge import cell_agent_reachable
+    from l2.bridge import cell_ids as list_cell_ids
 
-    for cell_id, cell in _get_cells().items():
+    for cell_id in list_cell_ids():
         try:
-            r = cell.agent_reachable(agent_id)
+            r = cell_agent_reachable(cell_id, agent_id)
             if r.get("reachable"):
                 return {
                     "success": True,
@@ -275,11 +223,10 @@ def _select_by_id(agent_id: str) -> dict:
 
 
 def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
-    from l2.bridge import cell as _get_cell
+    from l2.bridge import cell_liveness
 
     try:
-        cell = _get_cell(cell_id)
-        liveness = cell.liveness()
+        liveness = cell_liveness(cell_id)
         for aid, info in liveness.get("agents", {}).items():
             if info.get("role", info.get("status", "")).lower() == role.lower():
                 return {"success": True, "cell_id": cell_id, "agent_id": aid}
@@ -293,7 +240,8 @@ def _select_by_role(cell_id: str, role: str, domain: str) -> dict:
 
 def _select_best(role: str, domain: str) -> dict:
     global _role_index, _role_index_stale
-    from l2.bridge import cells as _get_cells
+    from l2.bridge import cell_ids as list_cell_ids
+    from l2.bridge import cell_liveness, cell_territory
 
     best = None
     best_score = -1
@@ -306,7 +254,7 @@ def _select_best(role: str, domain: str) -> dict:
             candidates = _role_index.get(role_lower, []) if not stale else []
         if stale:
             try:
-                _rebuild_role_index(_get_cells())
+                _rebuild_role_index(list_cell_ids())
             except Exception as e:
                 logger.warning("_rebuild_role_index failed: %s", e)
                 capture("_rebuild_role_index failed", error_code="E_PRESELECT", component="l2")
@@ -317,17 +265,17 @@ def _select_best(role: str, domain: str) -> dict:
 
     if not candidates:
         # Fallback: scan all cells × agents (O(C×A))
-        for cell_id, cell in _get_cells().items():
-            lv = cell.liveness()
+        for cell_id in list_cell_ids():
+            lv = cell_liveness(cell_id)
             agents_data = lv.get("agents", {})
-            cell_territory = getattr(cell, "territory", [])
+            territory_roots = cell_territory(cell_id)
             for aid, info_dict in agents_data.items():
                 score = 0
                 info_role = info_dict.get("role", "")
                 if role and info_role.lower() == role.lower():
                     score += 2
                 if domain:
-                    for t in cell_territory:
+                    for t in territory_roots:
                         if domain.startswith(t):
                             score += 1
                 if score > best_score:
@@ -339,8 +287,7 @@ def _select_best(role: str, domain: str) -> dict:
         for cell_id, aid in candidates:
             if cell_id not in cell_cache:
                 try:
-                    cell = _get_cells().get(cell_id)
-                    cell_cache[cell_id] = getattr(cell, "territory", []) if cell else []
+                    cell_cache[cell_id] = cell_territory(cell_id)
                 except Exception as e:
                     logger.warning("cell_cache territory for %s: %s", cell_id, e)
                     capture(
@@ -363,17 +310,3 @@ def _select_best(role: str, domain: str) -> dict:
     if best:
         return {"success": True, "cell_id": best[0], "agent_id": best[1]}
     return {"success": False, "error": _t("shell.app_error.no_matching_agent")}
-
-
-def _scan_injection(message: str) -> float:
-    """Scan message for prompt injection patterns. Returns risk score 0.0-1.0."""
-    if not message:
-        return 0.0
-    score = 0.0
-    for pattern, weight in _INJECTION_PATTERNS:
-        if pattern.search(message):
-            score += weight
-    # Length heuristic: very long messages with injection-like patterns
-    if len(message) > INJECTION_LENGTH_THRESHOLD and score > 0:
-        score = min(1.0, score + INJECTION_LENGTH_BOOST)
-    return min(1.0, score)

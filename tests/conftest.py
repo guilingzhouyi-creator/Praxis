@@ -60,6 +60,7 @@ _RESETS = {
     "l3.agent_terminal": ("reset_terminals", None),
     "l3.cell": ("reset_cells", None),
     "l3.error_bus": ("reset_bus", None),
+    "l3.services.injection_guard": ("reset_injection_guard", None),
     "l1.kernel.event": ("reset_bus", None),
     "l1.kernel.process": ("reset_table", None),
     "l4.lsp.lsp_manager": ("reset_manager", None),

@@ -66,10 +66,12 @@ def _cmd_settings(args: list[str], session=None) -> dict:
 
 def _settings_global(args: list[str]) -> dict:
     """Global scope — list or set SettingsCenter keys."""
+    from l2.bridge import settings_set
+
     center = _get_center()
     if args and args[0] == "set" and len(args) >= 3:
         key, value = args[1], _coerce(args[2])
-        center.set(key, value)
+        settings_set(key, value)
         return {"success": True, "scope": "global", "key": key, "value": value}
     # List all L3 (runtime) overrides
     raw = center._dump_l3() if hasattr(center, "_dump_l3") else {}

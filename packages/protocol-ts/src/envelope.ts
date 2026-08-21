@@ -1,4 +1,8 @@
-/** TypeScript mirror of the Python protocol v1 envelope and replay cursors. */
+/**
+ * TypeScript mirror of the Python protocol v1 envelope and replay cursors.
+ * Python reference (single source of truth): src/l2/protocol/envelope.py —
+ * keep fields, kinds and the non-destructive ack semantics in sync (§2.4).
+ */
 
 import { canonicalJson, JsonObject } from "./records.ts";
 
@@ -123,7 +127,7 @@ export function decodeMessage(line: string): DecodedMessage {
 }
 
 export class Outbox {
-  /** Maintain the bounded per-session replay window. */
+  /** Maintain the bounded per-session replay window (Python mirror). */
   private readonly items: Message[] = [];
   private acknowledged = -1;
 
@@ -136,13 +140,18 @@ export class Outbox {
     while (this.items.length > this.maxlen) this.items.shift();
   }
 
+  /**
+   * Non-destructive ack, mirroring the Python host: only the acknowledged
+   * cursor advances; retained messages let a lagging view keep replaying.
+   */
   ack(seq: number): void {
-    while (this.items.length > 0 && this.items[0].seq <= seq) this.items.shift();
     this.acknowledged = Math.max(this.acknowledged, seq);
   }
 
-  unacked(): Message[] {
-    return [...this.items];
+  /** Replay window for one view cursor (messages after afterSeq). */
+  unacked(afterSeq?: number): Message[] {
+    const after = afterSeq ?? this.acknowledged;
+    return this.items.filter((message) => message.seq > after);
   }
 
   get lastAcked(): number {
@@ -165,5 +174,10 @@ export class SessionCursor {
 
   detach(): void {
     this.attached = false;
+  }
+
+  /** Advance this view's acknowledged position (Python mirror). */
+  ack(seq: number): void {
+    this.lastAcked = Math.max(this.lastAcked, seq);
   }
 }
