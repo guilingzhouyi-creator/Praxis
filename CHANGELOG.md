@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (tests)**: format the ts rewrite reference snippet
 - **Docs (stats)**: regenerate changelog and doc snapshots for the branch
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (tests)**: add the ts rewrite reference for test code

@@ -1,3 +1,0 @@
-docs(changelog): regenerate unreleased section grouping
-
-Co-Authored-By: OpenCode (x-preview-f-free) <noreply@opencode.ai>
