@@ -1,4 +1,9 @@
-"""Tab completion for Agent OS terminal commands."""
+"""Tab completion for Agent OS terminal commands.
+
+TS rewrite reference: completion is local-only display logic in the TS
+shell — it renders candidates from the bridge-provided command list and
+never owns the registry or the runtime state behind it.
+"""
 
 from __future__ import annotations
 

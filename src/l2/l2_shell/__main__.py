@@ -1,5 +1,9 @@
 """L2 Shell — interactive entry point (`python -m l2.l2_shell`).
 
+TS rewrite reference: this REPL routing (``/`` commands → registry,
+``|`` pipelines, plain text → L3A intent) is the semantic model the TS
+engine's parser + dispatcher re-implements; the authority stays in Python.
+
 Starts a REPL that routes input through ``l2.l2_shell.dispatch``: ``/``-prefixed
 commands hit the CommandRegistry, pipelines split on ``|``, and plain text falls
 back to L3A intent processing.  Type ``exit`` (or ``q``) to quit.

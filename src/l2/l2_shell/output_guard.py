@@ -1,4 +1,9 @@
-"""Output guard — intercept dangerous responses before showing to user."""
+"""Output guard — intercept dangerous responses before showing to user.
+
+TS rewrite reference: the guard is a display-safety layer — the TS shell
+mirrors it locally for rendering, while the authoritative check stays in
+the Python host (forward via the bridge, never re-decided).
+"""
 
 import logging
 from typing import Any

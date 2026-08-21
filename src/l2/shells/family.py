@@ -1,4 +1,10 @@
-"""ShellFamily — config-loaded registry of shell dialects with frontend bindings."""
+"""ShellFamily — config-loaded registry of shell dialects with frontend bindings.
+
+TS rewrite reference: the family registry with frontend bindings
+corresponds to the TS frontend matrix — each binding maps to a
+``SessionView`` projection shape (web/TUI/desktop), resolved by frontend
+id with an unknown-frontend fallback.
+"""
 
 from __future__ import annotations
 
