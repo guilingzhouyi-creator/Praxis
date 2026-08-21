@@ -202,7 +202,10 @@ def handle_client(conn: Any) -> None:
 
                 try:
                     host = get_protocol_host()
-                    for out in host.handle(json.dumps(msg)):
+                    # Dict entry: the message is already parsed, so skip the
+                    # json.dumps + re-decode round-trip. handle_message is the
+                    # in-memory counterpart of the TS bridge envelope path.
+                    for out in host.handle_message(msg):
                         # Send the encoded JSON directly — no decode/re-encode.
                         client["conn"].send(encode_message(out))
                 except Exception as e:

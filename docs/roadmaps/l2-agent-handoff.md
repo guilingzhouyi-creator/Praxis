@@ -21,7 +21,7 @@
 | 模块 | 关键符号 | 状态 |
 |---|---|---|
 | `src/l2/protocol/envelope.py` | `KINDS`（七类）、`make_message`、`validate_message`、`encode/decode_message`、`Outbox`（非破坏性 ack + `unacked(after_seq)`）、`SessionCursor`（`ack(seq)`） | ✅ |
-| `src/l2/protocol/host.py` | `ProtocolHost.handle_message`（stdio/web 共享入口）、`_handle_validated`、`_handle_control`、`_advance_shared_cursor`（共享水位=落后视图）、`attach_view`/`view_cursor`/`session_state`、`_emit` | ✅ |
+| `src/l2/protocol/host.py` | `ProtocolHost.handle`（line 入口——TS `roundTrip` 对端）+ `handle_message`（dict 直入——stdio/ws/web 共享，validate-once）、`_handle_validated`、`_advance_shared_cursor`（per-session 索引 + 共享水位=落后视图）、`attach_view`/`view_cursor`/`session_state`、`_emit` | ✅ |
 | `src/l2/protocol/records.py` | `SessionIdentity`（terminal/process 可空） | ✅ |
 | `src/l2/protocol/schema.py` | `ENVELOPE_JSON_SCHEMA`（契约钉） | ✅ |
 | `src/l2/protocol/projection.py` | `register_projection`/`project`/`available_frontends`（web/TUI/desktop + 未知回退） | ✅ |
@@ -65,7 +65,7 @@
 | `builtins.ts` | ✅ `registerBuiltins`（lang/help/clear 本地纯展示命令） |
 | transport 适配器 | ✅ `transports/`——**共享引擎** `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio（Node readline）/ http（fetch `/api/v2/shell`）/ ws（原生 WebSocket，实例可注入）/ ssh（ssh2 channel，客户端可注入）；**异步契约** `(line) => Promise<string[]>` |
 | 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python `ProtocolHost`（`python -m l2.protocol`）打通：command 往返 + attach/replay |
-| 测试 | ✅ `tests/engine.test.ts` 8 例 + `tests/protocol.test.ts` 6 例 + `tests/session.test.ts` 7 例 + `tests/e2e.stdio.test.ts` 2 例（Vitest 23 passed，tsc 干净） |
+| 测试 | ✅ engine 8 + protocol 6 + session 7 + e2e 2 + transports 6（Vitest 29 passed，tsc 干净） |
 
 协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python 逐字段对齐，§2.4）。
 
@@ -112,7 +112,7 @@
 - [x] `builtins.ts`：`lang`/`help`/`clear` 纯展示命令本地实现（`registerBuiltins` + `dispatcher.listCommands`）。
 - [x] transport 适配器：**异步 Transport 契约**（`(line) => Promise<string[]>`）+ 共享 `line-transport.ts` 引擎；`stdio.ts`（Node readline）/ `http.ts`（fetch 双模式）/ `ws.ts`（原生 WebSocket）/ `ssh.ts`（ssh2 channel）**四适配器全落地**（fake/mock 测试覆盖，`tests/transports.test.ts` 6 例）。
 - [x] 端到端真实链路：TS 引擎 + 真实 Python ProtocolHost 打通（`tests/e2e.stdio.test.ts` spawn `python -m l2.protocol`；command 往返 + attach/replay）。
-- [x] 测试：Vitest 全绿（23 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py` 等 53 passed）不回归。
+- [x] 测试：Vitest 全绿（29 passed）+ Python 联动测试（`tests/l4/test_shell_protocol.py` 等 53 passed）不回归。
 - [x] L3 零改动：TS 引擎增量仅 `packages/protocol-ts/`（Python 零触碰）。
 
 ### 2.6 Transport 适配器标准（后续 Agent 扩展 WS/SSH 时遵循）
@@ -149,8 +149,8 @@
 
 ## 4. 下一步清单（按依赖顺序）
 
-1. **P3 续建**（本轮优先）：`session.ts` 视图投影 → `builtins.ts` 本地命令 → transport 适配器（stdio 先行）。
-2. **P3 端到端**：TS 引擎 + Python ProtocolHost 打通（stdio transport + fake host 已有测试基础）。
+1. **P3 收尾**：真实 SSH 端点接入（远端 stdio host 已通，按需）+ 五前端矩阵真实接入。
+2. **协议 host 优化**（`feature/python-perf` 分支进行中）：per-session 水位索引、ws 桥 dict 直入（合入时同步本文件 §1 状态列）。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
 4. **合入/推送**：双绿后 `MERGE_GATE_SKIP` 决策由用户授权；`make push-both` 双推前确认网络。
 

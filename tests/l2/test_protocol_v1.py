@@ -260,6 +260,30 @@ class TestHost:
         host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-b"}))
         assert host.session_state("s-mx")["events"] == []
 
+    def test_shared_watermark_is_per_session(self) -> None:
+        """Session A's acks never touch session B's shared watermark."""
+        host = ProtocolHost()
+        host._get_session("s-a")
+        host._get_session("s-b")
+        host.attach_view("a-1", "s-a")
+        host.attach_view("b-1", "s-b")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-a")
+        host._emit(KIND_EVENT, {"name": "e2"}, "s-b")
+        # a-1 acks past its own event; b-1 never acks — per-session isolation.
+        host.handle_message(make_message("s-a", 1, KIND_ACK, {"ack_seq": 1, "view_id": "a-1"}))
+        assert host.session_state("s-a")["events"] == []
+        assert len(host.session_state("s-b")["events"]) == 1
+
+    def test_detached_view_leaves_shared_watermark(self) -> None:
+        """A detached view stops contributing to the shared watermark."""
+        host = ProtocolHost()
+        host.attach_view("v-x", "s-d")
+        host._emit(KIND_EVENT, {"name": "e1"}, "s-d")
+        host.detach_view("v-x")
+        # No attached views left — the watermark holds, fresh views replay.
+        host.handle_message(make_message("s-d", 1, KIND_ACK, {"ack_seq": 1, "view_id": "v-x"}))
+        assert len(host.session_state("s-d")["events"]) == 1
+
     def test_run_reads_jsonl_stream(self) -> None:
         """run() consumes stdin lines and writes JSONL responses."""
         host = ProtocolHost()
