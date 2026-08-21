@@ -1,7 +1,7 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 172 | **COMPLETE**: 23 (13%) | **PARTIAL**: 21 (12%, fast mode — checks skipped) | **INCOMPLETE**: 128 (74%, machine 'not done')
-**Mode split**: full 62 / fast 110 (fast = at least one check skipped)
+**Runs**: 183 | **COMPLETE**: 25 (14%) | **PARTIAL**: 21 (11%, fast mode — checks skipped) | **INCOMPLETE**: 137 (75%, machine 'not done')
+**Mode split**: full 71 / fast 112 (fast = at least one check skipped)
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
@@ -12,39 +12,39 @@
 | 2026-08-18 | 23 | 4 | 17% |
 | 2026-08-19 | 22 | 10 | 45% |
 | 2026-08-20 | 8 | 4 | 50% |
-| 2026-08-21 | 5 | 0 | 0% |
+| 2026-08-21 | 16 | 2 | 12% |
 
 **Failures by check** (most frequent evidence gaps):
-- `changelog`: 108 (84% of incomplete)
-- `delta`: 58 (45% of incomplete)
-- `docs`: 44 (34% of incomplete)
-- `lint`: 40 (31% of incomplete)
-- `tests`: 20 (16% of incomplete)
+- `changelog`: 114 (83% of incomplete)
+- `delta`: 60 (44% of incomplete)
+- `docs`: 48 (35% of incomplete)
+- `lint`: 46 (34% of incomplete)
+- `tests`: 26 (19% of incomplete)
+- `coverage`: 21 (15% of incomplete)
 - `singleton`: 16 (12% of incomplete)
-- `coverage`: 15 (12% of incomplete)
+- `cycle`: 13 (9% of incomplete)
+- `audit`: 13 (9% of incomplete)
 - `complex`: 12 (9% of incomplete)
-- `cycle`: 12 (9% of incomplete)
 - `index`: 12 (9% of incomplete)
-- `audit`: 10 (8% of incomplete)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 158/168 (94%)
-- `changelog`: 61/169 (36%)
-- `complex`: 156/168 (93%)
-- `coverage`: 47/62 (76%)
-- `cycle`: 156/168 (93%)
-- `delta`: 110/168 (65%)
-- `docs`: 127/171 (74%)
-- `index`: 156/168 (93%)
-- `lint`: 131/171 (77%)
-- `singleton`: 152/168 (90%)
-- `tests`: 44/64 (69%)
+- `audit`: 166/179 (93%)
+- `changelog`: 66/180 (37%)
+- `complex`: 167/179 (93%)
+- `coverage`: 50/71 (70%)
+- `cycle`: 166/179 (93%)
+- `delta`: 119/179 (66%)
+- `docs`: 134/182 (74%)
+- `index`: 167/179 (93%)
+- `lint`: 136/182 (75%)
+- `singleton`: 163/179 (91%)
+- `tests`: 47/73 (64%)
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
-- `coverage_pct`: 68.0 / 66.07 / 0.0 / 68.0
-- `mega_funcs`: 3.0 / 15.74 / 0.0 / 256.0
-- `net_delta`: 640.0 / 2626.94 / -4.0 / 27424.0
-- `ruff_errors`: 6.0 / 2.78 / 2.0 / 6.0
-- `tests_failed`: 2.0 / 1.2 / 1.0 / 2.0
-- `tests_passed`: 4925.0 / 4767.19 / 4583.0 / 4925.0
+- `coverage_pct`: 69.0 / 66.48 / 0.0 / 69.0
+- `mega_funcs`: 3.0 / 14.9 / 0.0 / 256.0
+- `net_delta`: 8.0 / 2565.19 / -4.0 / 27424.0
+- `ruff_errors`: 2.0 / 2.7 / 2.0 / 6.0
+- `tests_failed`: 2.0 / 1.48 / 1.0 / 3.0
+- `tests_passed`: 5065.0 / 4807.0 / 4583.0 / 5065.0

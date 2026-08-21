@@ -149,3 +149,27 @@ TS L2 不应复制这些 Python CLI，也不应把性能报告当作会话协议
 4. 自动化外围只通过 `ProcessPort`、版本化报告和未来的 evidence/observability Port
    与宿主连接；不得新增 L2→L3 直连或把 runner 嵌入 TS Shell。
 5. 全程保持：**L2 不拥有任何最终 authority**——安全/调度/业务/Agent/LLM/模型/工具治理逻辑一律不得塞入 Shell。
+
+## 8. TS 重写架构预留（2026-08-21）
+
+### 8.1 模块映射（最终版）
+
+完整映射见 handoff §1.7（L2 全层）与 §1.9（host 职责 → TS 模块）；本节为路线图视角摘要：
+
+| 域 | Python | TS（已落地/预留） |
+|---|---|---|
+| 协议契约 | `protocol/envelope.py`、`records.py` | `protocol-ts/src/{envelope,records}.ts` ✅ |
+| 引擎 | `l2_shell` 路由语义 | `engine/{parser,dispatcher,builtins}.ts` ✅ |
+| 会话 | `shells/session.py` + host 状态容器 | `engine/session.ts`（SessionView）✅ |
+| 桥 | `bridge.py`（92 函数，域分组） | `engine/bridge.ts`（1:1 转发）✅ |
+| 传输 | `host.run()`（stdio）+ ws 桥 | `engine/transports/*`（stdio/http/ws/ssh）✅ |
+
+### 8.2 优化继承表
+
+Python 侧协议优化的 TS 对应见 handoff §1.9 表——TS 侧**天然继承全部**（无 shlex / import 语句 / JSON 往返成本），唯一需保持一致的是 outbox 窗口与配置默认值（来自 params / praxis.yaml 真相源）。
+
+### 8.3 后续里程碑
+
+- **P3 收尾**：真实 SSH 端点接入（适配器已按 §2.6 标准预留）+ 五前端矩阵真实接入（web / TUI / desktop / SSH / 移动）。
+- **TS 重写阶段**：①协议层（envelope / records / line-transport——已落地）→ ②引擎（parser / dispatcher / session / builtins——已落地）→ ③host 对端（Python 保持权威——TS 只作客户端）→ ④前端矩阵真实接入。
+- **文档基线**：handoff §1.7 / §1.8 / §1.9 + §2 标准为重写期间唯一参考；代码内 TS 参考注释为第二层指引。
