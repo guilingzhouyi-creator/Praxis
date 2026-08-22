@@ -123,7 +123,9 @@ Implementation is sliced into independently reviewable worktrees:
 4. **Slice D:** P1.1-P1.2 cache and prompt telemetry. **Complete**
    (`TieredCache.save/load` durable mirror + eviction/expiry/hit metrics;
    versioned prompt-usage ledger with RC-period `prompt_usage_report`)
-5. **Slice E:** P1.3-P1.6 evolution, canary, input, and provider lifecycle.
+5. **Slice E:** P1.3-P1.6 evolution, canary, input, and provider lifecycle. **Complete**
+   (`skill_promotion.py` transaction + canary quarantine; host input adapter
+   with deterministic unavailable states; transactional provider enablement)
 6. **Slice F:** P2 convergence and the TypeScript protocol mirror. A read-only
    mirror may start after Slice A; runtime replacement remains P0-gated.
 
