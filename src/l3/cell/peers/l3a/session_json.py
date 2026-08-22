@@ -40,6 +40,11 @@ _history_lock = threading.RLock()
 _CURSOR_FILE = ".input_seq_cursor.json"
 
 
+def sessions_dir() -> Path:
+    """Return the L3A per-session storage directory (public accessor)."""
+    return _session_dir()
+
+
 def _cursor() -> DurableJsonStore:
     """Return the durable input-seq cursor store for the sessions dir."""
     return DurableJsonStore(_session_dir() / _CURSOR_FILE, kind="l3a_input_seq")

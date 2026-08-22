@@ -202,6 +202,12 @@ class SessionPersistMixin:
             "todos": todo_state.get("tasks", []),
         }
         _archive.store_session(sid, metadata, ctx)
+        # P0.6: drop the live snapshot — closed sessions must not be
+        # resurrected by recovery (the R4 archive owns their history now).
+        try:
+            self._snapshot_store().reset()
+        except Exception:
+            logger.debug("l3a session: snapshot cleanup skipped")
         logger.info("l3a session: closed %s — %s (%d turns)", sid, title, self.turn_count)
         try:
             from l3.bus.log import get_service as _ls
@@ -290,15 +296,38 @@ class SessionPersistMixin:
         else:
             self.epoch = ContextEpoch.create(self.registry or ContextRegistry())
 
-    def _persist_state(self) -> None:
-        try:
-            from l3.agent.agent_persist import save_snapshot
+    def _snapshot_store(self) -> Any:
+        """Return the per-session durable snapshot store (P0.6)."""
+        from pathlib import Path
 
+        from l3.durable_store import DurableJsonStore
+
+        from .session_json import sessions_dir
+
+        return DurableJsonStore(Path(sessions_dir()) / f"{self.id}.snapshot.json", kind="l3a_session_snapshot")
+
+    def _persist_state(self) -> None:
+        """Persist this session's graph node — per-session keyed (P0.6).
+
+        The old single-AGENT_ID snapshot meant concurrent sessions overwrote
+        each other; the durable store keys by session_id and preserves the
+        identity/scope fields recovery needs.
+        """
+        try:
             payload = {
                 "session_id": self.id,
                 "title": self.title,
+                "status": self.status,
+                "created_at": self.created_at,
+                "last_active_at": self.last_active_at,
                 "turn_count": self.turn_count,
                 "card_count": self.card_count,
+                # P0.2 identity/scope fields ride on the snapshot so
+                # recovery reconstructs the SAME identity.
+                "user_id": self.user_id,
+                "memory_scope": self.memory_scope,
+                "cell_id": getattr(self, "_cell_id", "l3a"),
+                "role": getattr(self, "_role", "l3a"),
                 "model_config": self.model_config.show(),
             }
             if self._ask:
@@ -306,7 +335,9 @@ class SessionPersistMixin:
                     payload["ask"] = self._ask.to_dict()
                 except Exception:
                     logger.debug("l3a session: ask state serialize failed")
-            save_snapshot(_p.AGENT_ID, payload)
-        except Exception:
+            r = self._snapshot_store().write(payload)
+            if not r.get("success"):
+                raise RuntimeError(r.get("error", "snapshot write failed"))
+        except Exception as e:
             capture("l3a session: state persist failed", error_code="E_L3A_SESSION", component="l3a")
-            logger.warning("l3a session: state persist failed")
+            logger.warning("l3a session: state persist failed: %s", e)
