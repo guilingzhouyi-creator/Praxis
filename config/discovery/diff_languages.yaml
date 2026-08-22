@@ -9,10 +9,10 @@
 # Schema per language:
 #   extensions: [file suffixes that map to this language]
 #   symbol_backend: how AST symbols are extracted for review context:
-#     - python_ast : Python3 stdlib `ast` (functions/classes/methods)
+#     - python_ast : Python stdlib `ast` (functions/classes/methods)
 #     - none       : no symbol extraction (line-level diff only)
 #   tree_backend: how AST tree-edit deltas (Phase 3) are computed:
-#     - python_ast : Python3 stdlib `ast` — INS/DEL/MOV/UPD edit scripts
+#     - python_ast : Python stdlib `ast` — INS/DEL/MOV/UPD edit scripts
 #     - none       : no tree delta (row/hunk-level diff only)
 #   semantic: whether hunk semantic classification applies (line heuristic)
 #

@@ -7,7 +7,7 @@ automation:
     timeout_s: 180
   workflows:
     performance:
-      description: "Run the repeatable L2 protocol and per-layer performance scans."
+      description: "Run per-layer scans and the independent Rust/Python R2 evidence bundle."
       steps:
         - id: l2_protocol
           command:
@@ -29,3 +29,21 @@ automation:
             - scripts/py/perf_quality.py
             - --run-json
             - .praxis/automation/perf-quality.json
+        - id: r2_baseline_bundle
+          depends_on: [perf_quality]
+          timeout_s: 600
+          command:
+            - python
+            - scripts/py/r2_baseline_bundle.py
+            - --output
+            - .praxis/automation/r2-baseline-bundle.json
+        - id: r2_baseline_analysis
+          depends_on: [r2_baseline_bundle]
+          timeout_s: 60
+          command:
+            - python
+            - scripts/py/r2_baseline_analyze.py
+            - --input
+            - .praxis/automation/r2-baseline-bundle.json
+            - --output
+            - .praxis/automation/r2-baseline-analysis.json
