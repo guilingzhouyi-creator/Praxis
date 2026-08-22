@@ -101,6 +101,7 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 - **Local-merge gate**: `bash scripts/sh/verify-local-merge.sh` before merging into local main
 - **Branch accumulation quality gate**: ≥ 5 unmerged commits AND ≥ 4000 net lines vs main → BLOCKED until review clears
 - **Parallel collaboration**: one agent per domain, one worktree per agent, merge order K→M/T/S→C/B→A
+- **Shared handoff area**: read `docs/agent-handoff/ALIGNMENT.md` before committing and register shared-file changes there — never clobber another agent's merged work (see clobber warning)
 
 ## Build environment code of conduct
 
