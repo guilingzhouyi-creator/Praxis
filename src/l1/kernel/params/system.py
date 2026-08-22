@@ -1315,6 +1315,10 @@ DURABLE_JSON_SCHEMA_VERSION: Final[int] = 1
 DURABLE_JOURNAL_SUFFIX: Final[str] = ".journal"
 DURABLE_LOCK_SUFFIX: Final[str] = ".lock"
 
+# L3A session recovery (3.3 P0.6): max snapshots scanned on daemon boot;
+# excess is warned and truncated to bound startup cost.
+SESSION_RECOVERY_MAX_SNAPSHOTS: Final[int] = 200
+
 # Skill canary automation (P1.4): a promoted skill under canary observation
 # is auto-quarantined when any threshold trips (trials floor guards against
 # judging on noise; latency 0 disables the latency dimension).

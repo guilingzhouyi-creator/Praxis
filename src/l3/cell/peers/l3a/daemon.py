@@ -192,11 +192,14 @@ class L3ADaemon:
         self._lock = threading.RLock()
         self._running = False
         self._thread: threading.Thread | None = None
+        self.registry = _build_default_registry()
+        self.model_config = _active_model
         self.manager = SessionManager()
         # P0.6: rebuild active sessions from durable snapshots on boot —
         # idempotent, best-effort (failures log, never block daemon start).
+        # Registry is built BEFORE recovery so recovered sessions share it.
         try:
-            rec = self.manager.recover_from_store()
+            rec = self.manager.recover_from_store(registry=self.registry)
             if rec.get("recovered"):
                 logger.info(
                     "l3a daemon: recovered %d session(s) from store: %s",
@@ -205,8 +208,6 @@ class L3ADaemon:
                 )
         except Exception:
             logger.debug("l3a daemon: session recovery skipped", exc_info=True)
-        self.registry = _build_default_registry()
-        self.model_config = _active_model
         self._pmu: Any = None
         self._sa_pool: Any = None
         self._secretary: Any = None

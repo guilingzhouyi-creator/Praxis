@@ -145,6 +145,8 @@ class Session(
         self._resumed_from: str = ""
         self._resume_todos: list[dict] = []
         self._ask: Any = None
+        # P0.5: per-turn input_seq lives in SessionLoopMixin; instance mirror
+        self._turn_input_seq: int | None = None
 
     @classmethod
     def create(
@@ -313,7 +315,7 @@ class SessionManager:
         with self._lock:
             return len(self._sessions)
 
-    def recover_from_store(self) -> dict:
+    def recover_from_store(self, registry: Any | None = None) -> dict:
         """Rebuild active sessions from durable snapshots (P0.6).
 
         Idempotent: ids already registered are skipped, closed snapshots are
@@ -321,19 +323,33 @@ class SessionManager:
         sessions re-bind their terminal slot with the original identity and
         scope fields (user_id / memory_scope / cell_id / role).
 
+        Args:
+            registry: optional ContextRegistry to wire recovered sessions
+                into the daemon's shared registry (avoids orphan epoch).
+
         Returns:
             dict with recovered session ids and a skipped counter.
         """
         import time as _t
 
-        from l3.durable_store import DurableJsonStore
+        from l1.kernel.params.system import SESSION_RECOVERY_MAX_SNAPSHOTS  # noqa: I001
+        from l3.durable_store import DurableJsonStore  # noqa: I001
 
-        from .session_json import sessions_dir
+        from .session_json import sessions_dir  # noqa: I001
 
         recovered: list[str] = []
         skipped = 0
         try:
             paths = sorted(sessions_dir().glob("*.snapshot.json"))
+            if len(paths) > SESSION_RECOVERY_MAX_SNAPSHOTS:
+                total = len(paths)
+                logger.warning(
+                    "l3a session: recovery truncated %d → %d snapshots",
+                    total,
+                    SESSION_RECOVERY_MAX_SNAPSHOTS,
+                )
+                skipped += total - SESSION_RECOVERY_MAX_SNAPSHOTS
+                paths = paths[:SESSION_RECOVERY_MAX_SNAPSHOTS]
         except Exception:
             logger.debug("l3a session: recovery scan failed", exc_info=True)
             return {"success": True, "recovered": [], "skipped": 0}
@@ -359,12 +375,17 @@ class SessionManager:
                     memory_scope=str(snap.get("memory_scope") or "l3a"),
                     cell_id=str(snap.get("cell_id") or "l3a"),
                     role=str(snap.get("role") or "l3a"),
+                    registry=registry,
                 )
                 inst.created_at = float(snap.get("created_at") or inst.created_at)
                 inst.last_active_at = float(snap.get("last_active_at") or _t.time())
                 inst.turn_count = int(snap.get("turn_count", 0))
                 inst.card_count = int(snap.get("card_count", 0))
                 inst.status = "active"
+                # Wire to daemon's shared registry when provided; fallback to
+                # a fresh epoch otherwise (preserves old behavior for tests).
+                if registry is not None:
+                    inst.registry = registry
                 inst.epoch = ContextEpoch.create(inst.registry or ContextRegistry())
                 inst.inbox.reload()
                 with self._lock:

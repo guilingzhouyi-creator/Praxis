@@ -48,6 +48,7 @@ try:  # POSIX advisory locking; degraded (no cross-process lock) elsewhere.
 except ImportError:  # pragma: no cover — non-POSIX dev hosts only
     _fcntl = None  # type: ignore[assignment]
     _HAVE_FCNTL = False
+    logger.debug("durable_store: fcntl unavailable — cross-process flock degraded to noop")
 
 
 class DurableStoreError(RuntimeError):
@@ -105,7 +106,7 @@ class DurableJsonStore:
                     logger.warning("durable_store %s: locked by another writer", self._path.name)
                     return {"success": False, "error": "store locked"}
                 current = self._read_quiet()
-                if current == payload:
+                if _canonical(current) == canonical:
                     return {"success": True, "idempotent": True}
                 envelope = {
                     "v": DURABLE_JSON_SCHEMA_VERSION,
@@ -127,6 +128,60 @@ class DurableJsonStore:
             with self._flocked():
                 self._path.unlink(missing_ok=True)
                 self._journal_path().unlink(missing_ok=True)
+
+    def atomic_update(self, updater) -> dict:
+        """Atomically read-modify-write the payload under both locks.
+
+        The updater receives the current payload ({} when absent) and
+        returns the new payload. The whole read-modify-write holds the
+        in-process lock AND the advisory flock, so cross-process cursor
+        increments cannot interleave and allocate duplicates.
+
+        Fail-closed: if the main file is damaged beyond journal recovery,
+        the update aborts with ``{"success": False, "error": ...}`` so
+        callers (e.g. cursor) can raise instead of silently resetting.
+
+        Returns:
+            dict with success flag, payload, and idempotent marker.
+        """
+        from collections.abc import Callable as _Callable
+
+        _updater: _Callable[[dict], dict] = updater
+        with self._lock:
+            with self._flocked() as locked:
+                if not locked:
+                    logger.warning("durable_store %s: locked by another writer", self._path.name)
+                    return {"success": False, "error": "store locked"}
+                # Fail-closed read: distinguish absent ({}) from damaged beyond recovery.
+                payload = self._read_envelope_from(self._path)
+                if payload is not None:
+                    current = payload
+                else:
+                    recovered = self._read_journal_tail()
+                    if recovered is not None:
+                        current = recovered
+                    elif self._path.exists():
+                        return {
+                            "success": False,
+                            "error": f"durable store {self._path.name} damaged beyond journal recovery",
+                        }
+                    else:
+                        current = {}
+                nxt = _updater(dict(current))
+                if not isinstance(nxt, dict):
+                    return {"success": False, "error": "updater must return dict"}
+                if _canonical(nxt) == _canonical(current):
+                    return {"success": True, "idempotent": True, "payload": current}
+                canonical = _canonical(nxt)
+                envelope = {
+                    "v": DURABLE_JSON_SCHEMA_VERSION,
+                    "kind": self._kind,
+                    "checksum": _checksum(canonical),
+                    "payload": nxt,
+                }
+                self._journal_put(envelope, canonical)
+                self._atomic_replace(envelope)
+                return {"success": True, "payload": nxt, "bytes": len(canonical)}
 
     # ── internals ──
 
@@ -156,7 +211,7 @@ class DurableJsonStore:
         finally:
             os.close(fd)
 
-    def _read_envelope_from(self, path: Path) -> dict | None:
+    def _read_envelope_from(self, path: Path) -> dict | None:  # noqa: PLR0911
         """Parse+verify one envelope file; None when absent/damaged."""
         try:
             raw = path.read_text(encoding="utf-8")
@@ -167,11 +222,19 @@ class DurableJsonStore:
             return None
         try:
             env = json.loads(raw)
-            if env.get("checksum") != _checksum(_canonical(env.get("payload"))):
+            payload = env.get("payload")
+            if not isinstance(payload, dict):
+                logger.warning("durable_store %s: payload not a dict", path.name)
+                return None
+            if env.get("checksum") != _checksum(_canonical(payload)):
                 logger.warning("durable_store %s: checksum mismatch", path.name)
                 return None
             migrated = check_and_migrate(env, env.get("kind", "durable_json"))
-            return migrated.get("payload", {})
+            out = migrated.get("payload", {})
+            if not isinstance(out, dict):
+                logger.warning("durable_store %s: migrated payload not a dict", path.name)
+                return None
+            return out
         except (ValueError, KeyError, TypeError) as e:
             logger.warning("durable_store %s: damaged (%s)", path.name, e)
             return None
@@ -210,9 +273,14 @@ class DurableJsonStore:
             try:
                 rec = json.loads(line)
                 env = rec.get("envelope", {})
-                if env.get("checksum") == _checksum(_canonical(env.get("payload"))):
+                pl = env.get("payload")
+                if not isinstance(pl, dict):
+                    continue
+                if env.get("checksum") == _checksum(_canonical(pl)):
                     migrated = check_and_migrate(env, env.get("kind", "durable_json"))
-                    return migrated.get("payload", {})
+                    out = migrated.get("payload", {})
+                    if isinstance(out, dict):
+                        return out
             except (ValueError, KeyError, TypeError):
                 continue
         return None
@@ -226,8 +294,9 @@ class DurableJsonStore:
                 "checksum": _checksum(_canonical(payload)),
                 "payload": payload,
             }
+            canonical = _canonical(payload)
+            self._journal_put(envelope, canonical)
             self._atomic_replace(envelope)
-            self._journal_put(envelope, _canonical(payload))
         except Exception as e:  # noqa: BLE001 — heal is best-effort by design
             logger.debug("durable_store %s: self-heal skipped: %s", self._path.name, e)
 
@@ -245,7 +314,6 @@ class DurableJsonStore:
             f.write(line + "\n")
             f.flush()
             os.fsync(f.fileno())
-        del canonical
 
     def _atomic_replace(self, envelope: dict) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)

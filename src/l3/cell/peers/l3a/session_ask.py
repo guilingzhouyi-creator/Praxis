@@ -32,8 +32,7 @@ class SessionAskMixin:
     _ask: Any
     _loop: Any
     history: SessionHistory
-    # P0.5: this turn's input_seq — allocated once at ingress (SessionLoopMixin).
-    _turn_input_seq: int | None
+    # P0.5: turn-scoped input_seq lives in SessionLoopMixin; not re-declared here.
 
     def _persist_state(self) -> None:
         """Persist session state (provided by Session)."""
@@ -120,7 +119,7 @@ class SessionAskMixin:
         limits = self._resolve_limits()
         model_cfg = self._resolve_model_config()
         # P0.5: clarification turns allocate their own fresh input_seq.
-        self._turn_input_seq = None
+        self._turn_input_seq: int | None = None
         result = self._loop.run(
             max_steps=limits["max_steps"],
             timeout=limits["timeout"],

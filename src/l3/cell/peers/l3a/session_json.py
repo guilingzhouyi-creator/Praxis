@@ -39,6 +39,11 @@ _history_lock = threading.RLock()
 
 _CURSOR_FILE = ".input_seq_cursor.json"
 
+# Cached cursor store instance (per sessions_dir) to avoid re-resolving path
+# on every turn. Invalidated only by explicit test monkeypatching.
+_cursor_cache: DurableJsonStore | None = None
+_cursor_cache_key: str | None = None
+
 
 def sessions_dir() -> Path:
     """Return the L3A per-session storage directory (public accessor)."""
@@ -47,7 +52,21 @@ def sessions_dir() -> Path:
 
 def _cursor() -> DurableJsonStore:
     """Return the durable input-seq cursor store for the sessions dir."""
-    return DurableJsonStore(_session_dir() / _CURSOR_FILE, kind="l3a_input_seq")
+    global _cursor_cache, _cursor_cache_key
+    d = str(_session_dir())
+    if _cursor_cache is not None and _cursor_cache_key == d:
+        return _cursor_cache
+    store = DurableJsonStore(Path(d) / _CURSOR_FILE, kind="l3a_input_seq")
+    _cursor_cache = store
+    _cursor_cache_key = d
+    return store
+
+
+def _clear_cursor_cache() -> None:
+    """Clear the cached cursor store (tests may monkeypatch sessions_dir)."""
+    global _cursor_cache, _cursor_cache_key
+    _cursor_cache = None
+    _cursor_cache_key = None
 
 
 def history_status() -> dict:
@@ -98,29 +117,46 @@ def next_input_seq(session_id: str) -> int:
     already indexes persisted conversation/thought entries. A damaged or
     locked cursor fails closed (raises) instead of resetting to zero —
     callers degrade by skipping persistence rather than overwriting history.
+
+    Cross-process atomicity is provided by DurableJsonStore.atomic_update
+    (flock + in-process lock), so concurrent processes cannot allocate the
+    same seq. The in-process mirror _seq stays as a fast cache.
     """
     if not session_id:
         raise ValueError("session_id required")
     with _lock:
-        nxt = _seq.get(session_id)
-        if nxt is None:
-            try:
-                data = _cursor().read()
-            except DurableStoreError as e:
-                raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
-            nxt = int(data.get("cursor", {}).get(session_id, 0))
-        nxt += 1
-        _seq[session_id] = nxt
+        store = _cursor()
         try:
-            data = _cursor().read()
-            data.setdefault("cursor", {})[session_id] = nxt
-            r = _cursor().write(data)
+            holder: dict[str, int | None] = {"nxt": None}
+
+            def _inc(cur: dict) -> dict:
+                cur = dict(cur)
+                cur_cursor = cur.get("cursor", {})
+                cur_cursor = {} if not isinstance(cur_cursor, dict) else dict(cur_cursor)
+                base = int(cur_cursor.get(session_id, 0))
+                # Honor the in-process mirror when it is ahead (fast path).
+                mirror = _seq.get(session_id, 0)
+                if mirror > base:
+                    base = mirror
+                nxt = base + 1
+                holder["nxt"] = nxt
+                cur_cursor[session_id] = nxt
+                cur["cursor"] = cur_cursor
+                return cur
+
+            r = store.atomic_update(_inc)
             if not r.get("success"):
-                raise RuntimeError(r.get("error", "store write failed"))
+                err = r.get("error", "store write failed")
+                if "damaged beyond journal recovery" in str(err) or "locked" in str(err):
+                    raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {err}")
+                raise RuntimeError(err)
+            nxt = holder["nxt"]
+            if nxt is None:
+                raise RuntimeError("cursor update produced no seq")
+            _seq[session_id] = int(nxt)
+            return int(nxt)
         except DurableStoreError as e:
-            _seq.pop(session_id, None)
             raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
-        return nxt
 
 
 def append_turn(
@@ -429,5 +465,6 @@ def reset_sequences() -> None:
         _seq.clear()
     try:
         _cursor().reset()
+        _clear_cursor_cache()
     except Exception as e:  # noqa: BLE001 — reset is best-effort
         logger.debug("session_json: cursor reset skipped: %s", e)
