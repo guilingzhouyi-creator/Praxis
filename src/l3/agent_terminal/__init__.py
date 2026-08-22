@@ -83,6 +83,10 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
 
         self.process_id = os.getpid()
         self.session_id = ""
+        # P0.2: a terminal backs a SET of sessions — registering an extra
+        # session must never overwrite an existing binding (release-blocking
+        # defect: two sessions silently stole one terminal's session_id).
+        self._bound_sessions: set[str] = set()
 
         cfg = DEFAULT_AGENT_CONFIGS.get(role) if role else None
         self.ring = cfg.ring if cfg else AGENT_CLEARANCE.get(role, 1)
@@ -447,6 +451,7 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         """
         return {
             "session_id": self.session_id,
+            "session_ids": sorted(self._bound_sessions),
             "process_id": self.process_id,
             "agent_id": self.agent_id,
             "status": self.status.name if hasattr(self.status, "name") else str(self.status),
@@ -460,34 +465,70 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         """Session-level auto reload on anomaly (3.3, P0-③).
 
         Distinct from interrupt resume: this fully resets the session
-        entity — stops workers, drops the active loop, and returns the
-        terminal to IDLE so the backing AgentLoop restarts cleanly. The
-        reload is counted and logged (with reason) for later analysis.
+        entity — stops workers, drops the active loop, REBUILDS the worker
+        pool, and restores a reachable state. Restoration is verified:
+        workers that ignore the join deadline fail the reload loudly
+        (status BLOCKED, success False) instead of reporting a fake IDLE.
 
         Args:
             reason: anomaly reason (e.g. stagnation pattern).
 
         Returns:
-            dict with success flag, reload count, and the new status.
+            dict with success flag, reload count, worker count, and the
+            reached status.
         """
         self._running = False
+        stuck: list[str] = []
         for w in self._workers:
             w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
+            if w.is_alive():
+                stuck.append(w.name)
         with self._active_loop_lock:
             self._active_loop = None
         self._active_cards = 0
         self._paused = False
+        self._current_card = ""
+        self._card_deadline = 0.0
         from l1.kernel.params.agent import TERMINAL_STATE_DEFAULT as _T_STATE
 
         self._loop_state = _T_STATE
-        self.status = TerminalStatus.IDLE
+        # Rebuild: keep only live threads, then top the pool back up so a
+        # reloaded terminal actually accepts cards again.
+        self._workers = [w for w in self._workers if w.is_alive()]
+        self._running = True
+        for i in range(max(0, self._max_workers - len(self._workers))):
+            w = threading.Thread(
+                target=self._worker, daemon=True, name=f"term-{self.agent_id}-r{self._reload_count}-w{i}"
+            )
+            w.start()
+            self._workers.append(w)
         self._reload_count += 1
+        if stuck:
+            self.status = TerminalStatus.BLOCKED
+            logger.error(
+                "agent_terminal %s: auto_reload #%d INCOMPLETE (%s) — stuck workers: %s",
+                self.agent_id,
+                self._reload_count,
+                reason or "anomaly",
+                ",".join(stuck),
+            )
+            return {
+                "success": False,
+                "error": f"reload incomplete — {len(stuck)} worker(s) missed the join deadline",
+                "stuck_workers": stuck,
+                "agent_id": self.agent_id,
+                "reload_count": self._reload_count,
+                "status": "BLOCKED",
+                "reason": reason,
+            }
+        self.status = TerminalStatus.IDLE
         logger.info("agent_terminal %s: auto_reload #%d (%s)", self.agent_id, self._reload_count, reason or "anomaly")
         return {
             "success": True,
             "agent_id": self.agent_id,
             "reload_count": self._reload_count,
             "status": "IDLE",
+            "workers": len(self._workers),
             "reason": reason,
         }
 
@@ -738,16 +779,20 @@ _session_registry: dict[str, dict] = {}
 _session_registry_lock = threading.Lock()
 
 
-def register_session(session_id: str, agent_id: str) -> dict:
+def register_session(session_id: str, agent_id: str, meta: dict | None = None) -> dict:
     """Bind a session_id to its backing terminal (dual identity).
 
     Creates/attaches the agent's terminal and records
-    ``{session_id, process_id, agent_id, terminal}``. Returns the record
+    ``{session_id, process_id, agent_id, state, bound_at, meta, terminal}``.
+    Bindings are ADDITIVE — a terminal backs a set of sessions, so a new
+    registration never overwrites an existing one. Returns the record
     (or an error dict when the session_id is already bound).
 
     Args:
         session_id: the session entity id (unique, trackable).
         agent_id: the backing Peer Agent (terminal owner).
+        meta: identity payload preserved on the record
+            (user_id / role / cell_id / memory_scope).
 
     Returns:
         dict with success flag and the session record.
@@ -755,16 +800,75 @@ def register_session(session_id: str, agent_id: str) -> dict:
     with _session_registry_lock:
         if session_id in _session_registry:
             return {"success": False, "error": f"session {session_id} already registered"}
-        terminal = get_terminal(agent_id, cell_id="")
+        terminal = get_terminal(agent_id, cell_id=str((meta or {}).get("cell_id", "")))
+        terminal._bound_sessions.add(session_id)
+        if not terminal.session_id:
+            terminal.session_id = session_id
         record = {
             "session_id": session_id,
             "process_id": terminal.process_id,
             "agent_id": agent_id,
+            "state": "active",
+            "bound_at": time.time(),
+            "meta": dict(meta or {}),
             "terminal": terminal,
         }
-        terminal.session_id = session_id
         _session_registry[session_id] = record
         return {"success": True, **{k: v for k, v in record.items() if k != "terminal"}}
+
+
+def detach_session(session_id: str) -> dict:
+    """Detach a session from its terminal without dropping the record.
+
+    The registry entry flips to ``state="detached"`` and the session id is
+    removed from the terminal's bound set; history stays queryable.
+
+    Args:
+        session_id: the session entity id.
+
+    Returns:
+        dict with success flag (False when unknown or already closed).
+    """
+    with _session_registry_lock:
+        rec = _session_registry.get(session_id)
+        if rec is None:
+            return {"success": False, "error": f"session {session_id} not found"}
+        if rec.get("state") == "closed":
+            return {"success": False, "error": f"session {session_id} already closed"}
+        rec["state"] = "detached"
+        rec["detached_at"] = time.time()
+        terminal = rec.get("terminal")
+        if terminal is not None:
+            terminal._bound_sessions.discard(session_id)
+            if terminal.session_id == session_id:
+                terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+        return {"success": True, "session_id": session_id, "state": "detached"}
+
+
+def close_session_binding(session_id: str) -> bool:
+    """Mark a session binding closed and release its terminal slot.
+
+    Called from the Session lifecycle (close) — the record flips to
+    ``state="closed"``, the id leaves the terminal's bound set.
+
+    Args:
+        session_id: the session entity id.
+
+    Returns:
+        True when an active/detached binding was closed.
+    """
+    with _session_registry_lock:
+        rec = _session_registry.get(session_id)
+        if rec is None or rec.get("state") == "closed":
+            return False
+        rec["state"] = "closed"
+        rec["closed_at"] = time.time()
+        terminal = rec.get("terminal")
+        if terminal is not None:
+            terminal._bound_sessions.discard(session_id)
+            if terminal.session_id == session_id:
+                terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+        return True
 
 
 def get_session(session_id: str) -> dict:
@@ -778,28 +882,48 @@ def get_session(session_id: str) -> dict:
             "session_id": rec["session_id"],
             "process_id": rec["process_id"],
             "agent_id": rec["agent_id"],
+            "state": rec.get("state", "active"),
+            "meta": dict(rec.get("meta", {})),
         }
 
 
-def list_sessions() -> dict:
+def list_sessions(include_closed: bool = False) -> dict:
     """List all registered session entities (id + process_id + agent)."""
     with _session_registry_lock:
-        return {
-            "success": True,
-            "sessions": [
-                {"session_id": r["session_id"], "process_id": r["process_id"], "agent_id": r["agent_id"]}
-                for r in _session_registry.values()
-            ],
-        }
+        rows = [
+            {
+                "session_id": r["session_id"],
+                "process_id": r["process_id"],
+                "agent_id": r["agent_id"],
+                "state": r.get("state", "active"),
+            }
+            for r in _session_registry.values()
+            if include_closed or r.get("state", "active") != "closed"
+        ]
+        return {"success": True, "sessions": rows}
 
 
 def unregister_session(session_id: str) -> bool:
-    """Drop a session binding (teardown)."""
+    """Drop a session binding entirely (teardown; legacy API)."""
     with _session_registry_lock:
-        return _session_registry.pop(session_id, None) is not None
+        rec = _session_registry.pop(session_id, None)
+    if rec is None:
+        return False
+    terminal = rec.get("terminal")
+    if terminal is not None:
+        terminal._bound_sessions.discard(session_id)
+        if terminal.session_id == session_id:
+            terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+    return True
 
 
 def reset_sessions() -> None:
-    """Clear the session registry (tests / lifecycle)."""
+    """Clear the session registry and every terminal's bound-session set."""
     with _session_registry_lock:
+        for rec in _session_registry.values():
+            terminal = rec.get("terminal")
+            if terminal is not None:
+                terminal._bound_sessions.discard(rec["session_id"])
+                if terminal.session_id == rec["session_id"]:
+                    terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
         _session_registry.clear()

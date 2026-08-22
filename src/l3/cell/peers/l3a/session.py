@@ -116,7 +116,11 @@ class Session(
         try:
             from l3.agent_terminal import register_session
 
-            register_session(session_id, _p.AGENT_ID)
+            register_session(
+                session_id,
+                _p.AGENT_ID,
+                meta={"user_id": user_id, "memory_scope": memory_scope, "cell_id": cell_id, "role": role},
+            )
         except Exception:
             logger.debug("l3a session: dual-identity bind skipped")
         self.closed_at: float | None = None

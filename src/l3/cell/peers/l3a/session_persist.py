@@ -158,6 +158,14 @@ class SessionPersistMixin:
                 record_session_close(sid, task_summary=title)
             except Exception:
                 logger.debug("l3a session: history close record skipped")
+            # P0.2: release the terminal-registry binding — a closed session
+            # must not keep occupying its terminal slot.
+            try:
+                from l3.agent_terminal import close_session_binding
+
+                close_session_binding(sid)
+            except Exception:
+                logger.debug("l3a session: terminal binding close skipped")
             # Capture TODO state BEFORE nulling the loop
             try:
                 todo_state = self.todos()
