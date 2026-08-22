@@ -28,6 +28,18 @@ types:
   - revert
   - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
+# Type-to-file content rules (must_include) — single source of truth for
+# BOTH scripts/py/commit_scan.py (Python) and scripts/js/validate-commit.mjs
+# (Node, via the commits.json mirror). Edit here, then run
+# `python scripts/py/gen_commits_json.py` to resync the Node side.
+type_content_rules:
+  feat: [src/, crates/, packages/, scripts/, .githooks/, config/]
+  fix: [src/, crates/, packages/, scripts/, .githooks/, config/]
+  refactor: [src/, crates/, packages/, scripts/, .githooks/, config/]
+  perf: [src/, crates/, packages/]
+  test: [tests/, crates/, packages/]
+  ci: [.github/]
+
 # Scope-to-directory mapping for type-content consistency checks. When a
 # commit uses a scope, its changed files should at least touch the
 # corresponding directory — e.g. a `feat(kernel)` that does not touch

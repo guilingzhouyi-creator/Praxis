@@ -58,8 +58,9 @@ if (summary.endsWith(".")) {
 }
 
 // ── 4. must_include — staged files must match the type's content rule ───
-// Mirrors scripts/py/commit_scan.py _TYPE_CONTENT_RULES.
-const TYPE_RULES = {
+// Rules come from commits.yaml via the commits.json mirror (single source of
+// truth shared with commit_scan.py); inline defaults are the fallback.
+const FALLBACK_TYPE_RULES = {
   feat: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
   fix: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
   refactor: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
@@ -67,7 +68,9 @@ const TYPE_RULES = {
   test: ["tests/", "crates/", "packages/"],
   ci: [".github/"],
 };
-const prefixes = TYPE_RULES[type] || [];
+const TYPE_RULES = policy.type_content_rules || FALLBACK_TYPE_RULES;
+const rule = TYPE_RULES[type];
+const prefixes = Array.isArray(rule) ? rule : (rule && rule.must_include) || [];
 if (prefixes.length) {
   let staged = [];
   try {

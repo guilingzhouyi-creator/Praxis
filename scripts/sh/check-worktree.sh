@@ -21,7 +21,7 @@ set -euo pipefail
 #   2 — branch checked out in more than one worktree
 #   3 — other violation (branch expected but not current)
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ALLOW_DIRTY=0
 EXPECTED_BRANCH=""

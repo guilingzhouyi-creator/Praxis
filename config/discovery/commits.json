@@ -201,5 +201,44 @@
     "require_bullets": true,
     "require_keywords": true
   },
-  "strictness": "strict"
+  "strictness": "strict",
+  "type_content_rules": {
+    "feat": [
+      "src/",
+      "crates/",
+      "packages/",
+      "scripts/",
+      ".githooks/",
+      "config/"
+    ],
+    "fix": [
+      "src/",
+      "crates/",
+      "packages/",
+      "scripts/",
+      ".githooks/",
+      "config/"
+    ],
+    "refactor": [
+      "src/",
+      "crates/",
+      "packages/",
+      "scripts/",
+      ".githooks/",
+      "config/"
+    ],
+    "perf": [
+      "src/",
+      "crates/",
+      "packages/"
+    ],
+    "test": [
+      "tests/",
+      "crates/",
+      "packages/"
+    ],
+    "ci": [
+      ".github/"
+    ]
+  }
 }

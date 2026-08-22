@@ -15,7 +15,7 @@ set -euo pipefail
 #   1 — remote missing or push failed on either side
 #   2 — not inside a git repository
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 BRANCH="${1:-$(git branch --show-current 2>/dev/null)}"
 if [ -z "$BRANCH" ]; then

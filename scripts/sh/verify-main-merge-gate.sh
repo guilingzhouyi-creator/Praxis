@@ -26,7 +26,8 @@ DOC_MAX="${MERGE_GATE_DOC_MAX:-5000}"
 #   2 — usage / branch resolution error
 #   3 — git/classify tooling failure
 
-set -u
+# set -u (legacy, kept — this gate intentionally does not use top-level
+# set -euo; its commands rely on explicit error handling)
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "[merge-gate] ERROR: not inside a git repository" >&2

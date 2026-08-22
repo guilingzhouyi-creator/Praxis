@@ -45,7 +45,7 @@ set -euo pipefail
 # Each check is a separate function so the ratchet can be extended per-domain
 # (swap the verifier, get a different tool).
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$ROOT" ]; then

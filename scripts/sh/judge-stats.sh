@@ -32,7 +32,7 @@ set -euo pipefail
 #              (for tests / alternate logs)
 # Exit: 0 always (statistics are informational).
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[judge-stats] not in a git repo" >&2; exit 2; }
 cd "$ROOT"

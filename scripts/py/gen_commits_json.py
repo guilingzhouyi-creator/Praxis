@@ -34,6 +34,7 @@ _NODE_KEYS = (
     "max_subject_chars",
     "body",
     "strictness",
+    "type_content_rules",
 )
 
 
