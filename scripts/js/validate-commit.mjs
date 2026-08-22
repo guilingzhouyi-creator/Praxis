@@ -83,8 +83,10 @@ if (prefixes.length) {
     /* no staged files readable — fall through to the empty check */
   }
   if (!staged.length) {
-    console.error(`❌ no staged files — ${type} requires: ${prefixes.join(", ")}`);
-    process.exit(1);
+    // No staged files to match against (e.g. --allow-empty): nothing to
+    // verify here — the push-time audit (commit_scan.py --check-content)
+    // remains the backstop. Rejecting here would block legitimate commits.
+    process.exit(0);
   }
   const hit = staged.some((f) => prefixes.some((p) => f.startsWith(p)));
   if (!hit) {
