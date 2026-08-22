@@ -6,6 +6,10 @@
 #   - .githooks/commit-msg        (local commit gate)
 #   - scripts/sh/verify-pr-merge.sh (remote PR merge gate)
 #   - scripts/py/generate_changelog.py (CHANGELOG typing)
+#
+# After editing this file, run `python scripts/py/gen_commits_json.py` to
+# regenerate config/discovery/commits.json (the Node commit-msg validator
+# reads JSON — the two must never drift).
 #   - .github/workflows/pr-review.yml (PR advisory comment)
 #
 # Three-layer config: params/*.py (compile-time) ← this file (structural)
