@@ -41,7 +41,7 @@ conventions).
 | 6 | Audit | `pip-audit` | no known dependency CVEs |
 | 7 | Complexity | `long_functions` scanner | no function > 200 lines |
 | 8 | Import cycle | `scripts/py/import_cycle_check.py` | no cycles |
-| 9 | Singleton | `scripts/py/scan-singletons.py` | `conftest.py` `_RESETS` in sync |
+| 9 | Singleton | `scripts/py/scan_singletons.py` | `conftest.py` `_RESETS` in sync |
 | 10 | Changelog | `scripts/py/check_changelog.py` | `[Unreleased]` present and fresh |
 | 11 | Doc index | `scripts/py/check_doc_index.py` | every architecture doc linked from README |
 

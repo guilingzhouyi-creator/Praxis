@@ -306,7 +306,7 @@
 - **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
 - **Fix (ports)**: complete handles on rejection, translate OSError
 - **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (judge)**: correct scan_singletons script name in CompletionJudge
 - **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
 - **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
 - **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
