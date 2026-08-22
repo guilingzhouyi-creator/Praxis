@@ -15,6 +15,7 @@ may override via the usual discovery/config surface.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -55,6 +56,10 @@ class TieredCache:
             "L2": TIERED_CACHE_L2_TTL,
             "L3": TIERED_CACHE_L3_TTL,
         }
+        # P1.1: per-layer eviction/expiry/hit telemetry (persisted with save).
+        self._metrics: dict[str, dict[str, int]] = {
+            layer: {"hits": 0, "misses": 0, "expired": 0, "evictions": 0} for layer in self._layers
+        }
 
     # ── Core ops ──
 
@@ -71,6 +76,7 @@ class TieredCache:
                 # Evict oldest by insertion time (simple FIFO fallback).
                 oldest = min(bucket, key=lambda k: bucket[k][1])
                 bucket.pop(oldest, None)
+                self._metrics[layer]["evictions"] += 1
         return True
 
     def get(self, layer: str, key: str) -> Any:
@@ -81,11 +87,14 @@ class TieredCache:
         with self._lock:
             item = self._layers[layer].get(key)
             if item is None:
+                self._metrics[layer]["misses"] += 1
                 return None
             value, ts = item
             if time.time() - ts > self._ttls[layer]:
                 self._layers[layer].pop(key, None)
+                self._metrics[layer]["expired"] += 1
                 return None
+            self._metrics[layer]["hits"] += 1
             return value
 
     def invalidate(self, layer: str, key: str) -> bool:
@@ -141,16 +150,94 @@ class TieredCache:
     # ── Stats ──
 
     def stats(self) -> dict:
-        """Per-layer entry counts (for status surfaces)."""
+        """Per-layer entry counts + P1.1 eviction/expiry/hit telemetry."""
         with self._lock:
             return {
                 layer: {
                     "entries": len(bucket),
                     "capacity": self._limits[layer],
                     "ttl": self._ttls[layer],
+                    **self._metrics[layer],
                 }
                 for layer, bucket in self._layers.items()
             }
+
+    # ── Persistence interface (3.3, P1.1) ──
+
+    def _default_store(self) -> Any:
+        from pathlib import Path
+
+        from l1.kernel.paths import data_dir as _data_dir
+        from l3.durable_store import DurableJsonStore
+
+        return DurableJsonStore(Path(_data_dir()) / "l3a" / "tiered_cache.json", kind="tiered_cache")
+
+    def save(self, path: str | None = None) -> dict:
+        """Persist all layers + telemetry through DurableJsonStore (P1.1).
+
+        Non-JSON-serializable values are stringified best-effort and counted
+        as ``lossy`` in the result — the mirror never blocks the hot path.
+        """
+        from pathlib import Path
+
+        from l3.durable_store import DurableJsonStore
+
+        store = DurableJsonStore(Path(path)) if path else self._default_store()
+        with self._lock:
+            payload = {
+                "layers": {layer: {k: list(v) for k, v in bucket.items()} for layer, bucket in self._layers.items()},
+                "metrics": {layer: dict(m) for layer, m in self._metrics.items()},
+            }
+        try:
+            r = store.write(payload)
+        except TypeError:
+            # Values not JSON-safe: degrade to their repr, flag the loss.
+            flat = json.loads(json.dumps(payload, default=lambda o: f"<unserializable:{type(o).__name__}>"))
+            payload.update(flat)
+            r = store.write(payload)
+            if isinstance(r, dict):
+                r["lossy"] = True
+        return r
+
+    def load(self, path: str | None = None) -> dict:
+        """Restore layers + telemetry from the durable mirror (P1.1).
+
+        Expired entries are dropped at restore time and counted. Idempotent:
+        loading twice yields the same state.
+        """
+        from pathlib import Path
+
+        from l3.durable_store import DurableJsonStore
+
+        store = DurableJsonStore(Path(path)) if path else self._default_store()
+        try:
+            data = store.read()
+        except Exception as e:  # noqa: BLE001 — cache restore degrades quietly
+            logger.debug("tiered_cache: restore skipped: %s", e)
+            return {"success": False, "error": str(e)}
+        now = time.time()
+        restored = 0
+        with self._lock:
+            for layer, entries in (data.get("layers") or {}).items():
+                layer_u = layer.upper()
+                if layer_u not in self._layers:
+                    continue
+                for key, item in entries.items():
+                    try:
+                        value, ts = item[0], float(item[1])
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                    if now - ts <= self._ttls[layer_u]:
+                        self._layers[layer_u][key] = (value, ts)
+                        restored += 1
+                    else:
+                        self._metrics[layer_u]["expired"] += 1
+            for layer, m in (data.get("metrics") or {}).items():
+                if layer in self._metrics:
+                    for k, v in m.items():
+                        if k in self._metrics[layer]:
+                            self._metrics[layer][k] = max(self._metrics[layer][k], int(v))
+        return {"success": True, "restored": restored}
 
 
 def get_tiered_cache() -> TieredCache:

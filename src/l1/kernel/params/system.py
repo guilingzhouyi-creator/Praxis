@@ -1314,3 +1314,11 @@ SESSION_HISTORY_ENABLED_DEFAULT: Final[bool] = True
 DURABLE_JSON_SCHEMA_VERSION: Final[int] = 1
 DURABLE_JOURNAL_SUFFIX: Final[str] = ".journal"
 DURABLE_LOCK_SUFFIX: Final[str] = ".lock"
+
+# Skill canary automation (P1.4): a promoted skill under canary observation
+# is auto-quarantined when any threshold trips (trials floor guards against
+# judging on noise; latency 0 disables the latency dimension).
+SKILL_CANARY_MIN_TRIALS: Final[int] = 5
+SKILL_CANARY_MIN_SUCCESS_RATE: Final[float] = 0.8
+SKILL_CANARY_MAX_LATENCY_MS: Final[int] = 0
+SKILL_CANARY_QUARANTINE_TAG: Final[str] = "canary-quarantined"
