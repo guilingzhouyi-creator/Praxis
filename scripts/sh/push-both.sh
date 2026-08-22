@@ -156,6 +156,12 @@ if [ "$BRANCH" = "main" ]; then
   fi
 fi
 
+# ── Handoff-area growth check (soft — archive at threshold) ──────────────
+HANDOFF_ENTRIES="$(grep -c '^| 202[0-9]-' docs/agent-handoff/ALIGNMENT.md 2>/dev/null || true)"
+if [ "${HANDOFF_ENTRIES:-0}" -gt "${HANDOFF_LOG_MAX:-30}" ]; then
+  echo "[push-both] ⚠️  Handoff area grew ($HANDOFF_ENTRIES log entries > ${HANDOFF_LOG_MAX:-30}) — run bash scripts/sh/handoff-rotate.sh to archive old entries." >&2
+fi
+
 # ── Push-safety pre-check (dual-push reliability) ────────────────────────
 # Before pushing, surface how many local commits are NOT yet on origin —
 # a silent skip here is the #1 cause of the "local != origin" drift that
