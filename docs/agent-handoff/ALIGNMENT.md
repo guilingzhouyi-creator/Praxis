@@ -24,6 +24,7 @@
 | 2026-08-22 | scripts/sh/verify-completion.sh | AtomCode | coverage WSL serial (XDIST_ARGS) | in coverage-wsl bd800342 |
 | 2026-08-22 | .githooks/commit-msg + scripts/sh/push-both.sh | AtomCode | shared-file handoff gate (strict register-or-reject) | in agent-handoff (this commit) |
 | 2026-08-22 | scripts/sh/handoff-rotate.sh + push-both.sh | AtomCode | handoff-area growth check (threshold archive) | in agent-handoff (this commit) |
+| 2026-08-22 | scripts/sh/verify-completion.sh + judge-stats.sh + verify-local-merge.sh | AtomCode | judge test-skip visibility (skipped_tests record + dashboard + merge notice) | in judge-tests-gate (this commit) |
 
 ## Clobber warnings (do not repeat)
 

@@ -200,6 +200,10 @@ for k, vals in metric_series.items():
             "max": round(max(vals), 2),
         }
 
+# Tests-skip count — judge runs that skipped the tests dimension
+# (anti "forgot the tests": the dashboard surfaces skipped tests).
+skipped_tests_count = sum(1 for r in rows if r.get("skipped_tests") == 1)
+
 # ── C: gate-exemption count from git history ──────────────────────────
 # MERGE_GATE_SKIP=1 waivers leave an audit trail in merge messages
 # (push-both requires MERGE_GATE_REASON). Count them per COMMIT (one line
@@ -321,5 +325,7 @@ if metrics_summary:
     print("  numeric metrics (latest/avg/min/max):")
     for k, v in sorted(metrics_summary.items()):
         print(f"    {k:<14} {v['latest']:>8} {v['avg']:>8} {v['min']:>8} {v['max']:>8}")
+if skipped_tests_count:
+    print(f"  ⚠️  tests skipped in {skipped_tests_count} judge run(s) — run verify-completion.sh (WSL slice-serial) before merging code")
 print("=" * 52)
 PY

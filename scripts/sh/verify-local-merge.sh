@@ -18,6 +18,8 @@
 # Usage:
 #   bash scripts/sh/verify-local-merge.sh [branch]   # default: current branch
 #
+# Anti "forgot the tests" notice: if the most recent judge run skipped the
+# tests dimension, warn before the merge proceeds (soft — evidence, not block).
 # Exit codes:
 #   0 — branch qualifies to merge into local main (--no-ff)
 #   1 — branch does NOT qualify (net delta below threshold / hygiene)
@@ -78,6 +80,18 @@ fi
 
 MAIN_BASE=main bash "$GATE" "$BRANCH"
 RC=$?
+
+# ── Anti "forgot the tests" — judge test-state notice (soft) ────────────
+# If the most recent judge run skipped the tests dimension, surface it
+# before the merge verdict (evidence, not a block).
+JUDGE_LOG="$(git rev-parse --git-common-dir 2>/dev/null)/../.praxis/judge-runs.jsonl"
+if [ -f "$JUDGE_LOG" ]; then
+  LAST_SKIP_TESTS="$(tail -1 "$JUDGE_LOG" 2>/dev/null | grep -o '"skipped_tests":[01]' | grep -o '[01]$' || echo 0)"
+  if [ "${LAST_SKIP_TESTS:-0}" = "1" ]; then
+    echo "[local-merge] ⚠️  Most recent judge run SKIPPED tests — this branch's tests are not evidenced; run bash scripts/sh/verify-completion.sh (WSL slice-serial) before merging code." >&2
+  fi
+fi
+
 if [ "$RC" -eq 0 ]; then
   echo ""
   echo "[local-merge] ✅ branch '$BRANCH' qualifies to merge into local main."

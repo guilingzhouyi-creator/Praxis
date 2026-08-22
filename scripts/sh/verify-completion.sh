@@ -82,6 +82,10 @@ done
 IFS=',' read -r -a SKIP_LIST <<< "$SKIP_ARG"
 skip() { local k; for k in "${SKIP_LIST[@]}"; do [ "$k" = "$1" ] && return 0; done; return 1; }
 [ -n "$SKIP_ARG" ] && { skip tests && RUN_TESTS=0; skip coverage && RUN_COVERAGE=0; skip delta && RUN_DELTA=0; skip docs && RUN_DOCS=0; skip lint && RUN_LINT=0; skip audit && RUN_AUDIT=0; skip complex && RUN_COMPLEX=0; skip cycle && RUN_CYCLE=0; skip singleton && RUN_SINGLETON=0; skip changelog && RUN_CHANGELOG=0; skip index && RUN_INDEX=0; }
+# Test-skip marker — disambiguates "tests skipped" from "tests failed" in the
+# judge record (S_TESTS=0 covers both; skipped_tests tells them apart).
+SKIPPED_TESTS=0
+[ "$RUN_TESTS" = "0" ] && SKIPPED_TESTS=1
 
 # ── fast-mode detection: any skipped check downgrades COMPLETE -> PARTIAL ──
 SKIPPED_ANY=0
@@ -358,7 +362,7 @@ DURATION=$(( $(date +%s) - T0 ))
 # judge-stats.sh (completion rate, failure distribution, trend, metrics).
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
 printf '%s\n' "$RECORD" >> "$LOG_FILE"
 
 echo "[judge] verdict: ${VERDICT}"
@@ -368,6 +372,9 @@ if [ "$VERDICT" = "COMPLETE" ]; then
   exit 0
 elif [ "$VERDICT" = "PARTIAL" ]; then
   echo "[judge] ⚠️  PARTIAL — fast mode (${MODE}); executed checks green but some skipped; NOT a 'done' verdict." >&2
+  if [ "${SKIPPED_TESTS:-0}" = "1" ]; then
+    echo "[judge]    Tests were SKIPPED — this run is NOT test evidence; run verify-completion.sh (WSL slice-serial) before merging code." >&2
+  fi
   echo "[judge] logged: $LOG_FILE" >&2
   exit 0
 else
