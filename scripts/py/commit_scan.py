@@ -108,6 +108,15 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     if max_chars and len(subject) > max_chars and strictness == "strict":
         violations.append(f"subject too long ({len(subject)} > {max_chars} chars)")
 
+    # Format guards — mirror the commit-msg hook so a --no-verify commit
+    # (which skips the local hook entirely) is still caught at push time.
+    if _CJK_RE.search(subject):
+        violations.append("CJK characters in subject — must be English")
+    if re.search(r"(\*\*|`|_[a-zA-Z0-9]+_)", subject):
+        violations.append("subject contains markdown (**bold**, `code`, _italics_) — must be plain text")
+    if subject.rstrip().endswith("."):
+        violations.append("subject must not end with a period (Conventional-Commits style)")
+
     # branch-type policy: commits on a pattern-matched branch may only use
     # the branch's allowed types (fix* branches are fix-only).
     for rule in policy.get("branch_policy", {}).get("patterns", []):

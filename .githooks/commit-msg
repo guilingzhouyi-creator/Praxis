@@ -23,8 +23,16 @@ fi
 msg_file="$1"
 msg=$(cat "$msg_file")
 
+# Bypass is narrowed: only author attribution is skipped, and only with an
+# explicit reason. Format/template checks below ALWAYS run (not bypassable).
+SKIP_AUTHOR=""
 if [ -n "${PRAXIS_SKIP_AUTHOR_CHECK:-}" ]; then
-  exit 0
+  if [ -z "${PRAXIS_GATE_BYPASS_REASON:-}" ]; then
+    echo "❌ PRAXIS_SKIP_AUTHOR_CHECK requires PRAXIS_GATE_BYPASS_REASON (why the author check is skipped)." >&2
+    exit 1
+  fi
+  SKIP_AUTHOR=1
+  echo "⚠️  author check bypassed (reason: ${PRAXIS_GATE_BYPASS_REASON}) — format checks still run" >&2
 fi
 
 # Merge commits carry git-generated messages — exempt from 1-2, but gated
@@ -125,11 +133,29 @@ if printf '%s' "$first_line" | grep -qE '\.$'; then
   exit 1
 fi
 
+# 1c. Body template (governance — not bypassable): a non-empty body must
+#     follow the AGENTS.md template — a "## " section heading, a
+#     "**keyword**" emphasis and "- " bullets. Mirrors the push-both
+#     audit so the template is enforced at commit time.
+body=$(printf '%s' "$msg" | tail -n +2 | grep -v '^Co-Authored-By:' | sed '/^[[:space:]]*$/d')
+if [ -n "$body" ]; then
+  missing=""
+  printf '%s' "$body" | grep -qE '^##[[:space:]]' || missing="$missing '## ' section heading"
+  printf '%s' "$body" | grep -qE '\*\*[^*]+\*\*' || missing="$missing '**keyword**' emphasis"
+  printf '%s' "$body" | grep -qE '(^|[[:space:]])- ' || missing="$missing '- ' bullets"
+  if [ -n "$missing" ]; then
+    echo "❌ Commit body lacks:$missing (AGENTS.md template — write the message per the template)." >&2
+    echo "   Use: body = '## What' + '## Why' sections, **keyword** emphasis, '- ' bullets." >&2
+    echo "   Full field spec: docs/workflow/commits.md 'Message contract'." >&2
+    exit 1
+  fi
+fi
+
 # 2. Full validation via Node.js — type, scope, Co-Authored-By, attribution.
 #    Replaces the Python-based commit_scan.py + detect_agent.py calls.
 #    Config-driven: reads config/discovery/commits.json for type/scope/agent
 #    whitelists so no Python runtime is needed.
-if [ -f scripts/js/validate-commit.mjs ]; then
+if [ -z "${SKIP_AUTHOR:-}" ] && [ -f scripts/js/validate-commit.mjs ]; then
   if [ -n "$NODE_CMD" ]; then
     "$NODE_CMD" scripts/js/validate-commit.mjs "$msg_file" 2>/tmp/validate.log || true
   fi
@@ -157,6 +183,36 @@ else
   if ! printf '%s' "$first_line" | grep -qE '^(feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert)(\([a-z0-9_.-]+\))?!?: '; then
     echo "❌ Subject must be Conventional Commits: \`type(scope): summary\`" >&2
     exit 1
+  fi
+fi
+
+# 3. Execution-environment attribution check — the declared Co-Authored-By
+#    model must match the CURRENT runtime. Agents must self-check their
+#    environment and model before committing — do NOT copy a previous
+#    commit's trailer (the declared model would mismatch this session).
+DECLARED_MODEL="$(printf '%s' "$msg" | grep -oE 'Co-Authored-By: .+\(([^)]+)\)' | sed -E 's/.*\(([^)]+)\)$/\1/' | tail -1 || true)"
+if [ -n "$DECLARED_MODEL" ]; then
+  # Primary: the model env var for THIS session (set by the harness/agent).
+  ENV_MODEL="${PRAXIS_MODEL:-}"
+  if [ -n "$ENV_MODEL" ] && [ "$DECLARED_MODEL" != "$ENV_MODEL" ]; then
+    echo "❌ Co-Authored-By model \"$DECLARED_MODEL\" does not match the executing environment (PRAXIS_MODEL=\"$ENV_MODEL\")." >&2
+    echo "   Before committing, self-check your runtime and model — do NOT copy a previous commit's trailer." >&2
+    exit 1
+  fi
+  # Secondary: execution evidence (detect_agent.py) when it can identify the model.
+  PY_CMD="${PRAXIS_PYTHON:-}"
+  if [ -z "$PY_CMD" ]; then
+    if [ -x .venv/bin/python ]; then PY_CMD=.venv/bin/python
+    elif command -v python3 >/dev/null 2>&1; then PY_CMD=python3
+    else PY_CMD=python; fi
+  fi
+  if [ -n "$PY_CMD" ] && [ -f scripts/py/detect_agent.py ]; then
+    DETECTED_MODEL="$("$PY_CMD" scripts/py/detect_agent.py --json 2>/dev/null | "$PY_CMD" -c 'import sys,json; print(json.load(sys.stdin).get("model",""))' 2>/dev/null || true)"
+    if [ -n "$DETECTED_MODEL" ] && [ "$DECLARED_MODEL" != "$DETECTED_MODEL" ]; then
+      echo "❌ Co-Authored-By model \"$DECLARED_MODEL\" does not match execution evidence (detected \"$DETECTED_MODEL\")." >&2
+      echo "   Self-check your runtime and model before committing — attribute what actually ran." >&2
+      exit 1
+    fi
   fi
 fi
 

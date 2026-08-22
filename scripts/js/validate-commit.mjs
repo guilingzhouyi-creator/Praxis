@@ -13,6 +13,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { spawnSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -77,6 +78,30 @@ if (!ccMatch) {
   // Scope whitelist (optional)
   if (scope && !scopes.includes(scope)) {
     errors.push(`scope "${scope}" not registered in commits.yaml scopes`);
+  }
+
+  // Type-to-file matching (must_include) — mirrors commit_scan.py
+  // MUST_INCLUDE so the gate fires at commit time, not at push time.
+  const MUST_INCLUDE = {
+    feat: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
+    fix: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
+    refactor: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
+    perf: ["src/", "crates/", "packages/"],
+    test: ["tests/", "crates/", "packages/"],
+  };
+  const expected = MUST_INCLUDE[type];
+  if (expected) {
+    const staged = spawnSync(
+      "git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+      { encoding: "utf-8" },
+    ).stdout?.split("\n").filter(Boolean) || [];
+    // Skip when nothing is staged (amend / message-only paths) — the
+    // type-to-file rule applies to fresh commits that carry content.
+    if (staged.length > 0 && !expected.some((prefix) => staged.some((f) => f.startsWith(prefix)))) {
+      errors.push(
+        `type "${type}" does not match any changed file — expected one of: [${expected.join(", ")}]`,
+      );
+    }
   }
 
   // Summary length
