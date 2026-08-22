@@ -105,7 +105,14 @@ def test_shared_file_change_without_registration_rejected():
 
 
 def test_shared_file_change_with_registration_passes():
+    import pathlib
+
     p = _stage_tmp_probe("scripts/sh/_tmp_probe.sh")
+    align = pathlib.Path("docs/agent-handoff/ALIGNMENT.md")
+    original = align.read_text(encoding="utf-8")
+    # Stage a REAL ALIGNMENT.md diff so the strict gate sees the registration
+    # (git add of an unchanged file produces no staged diff).
+    align.write_text(original + "| 2026-08-22 | test | test | staged registration | tmp |\n", encoding="utf-8")
     _stage_existing("docs/agent-handoff/ALIGNMENT.md")
     try:
         assert (
@@ -113,5 +120,6 @@ def test_shared_file_change_with_registration_passes():
             == 0
         )
     finally:
-        _unstage_tmp_probe(p)
+        align.write_text(original, encoding="utf-8")
         _unstage_existing("docs/agent-handoff/ALIGNMENT.md")
+        _unstage_tmp_probe(p)

@@ -102,6 +102,7 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 - **Branch accumulation quality gate**: ≥ 5 unmerged commits AND ≥ 4000 net lines vs main → BLOCKED until review clears
 - **Parallel collaboration**: one agent per domain, one worktree per agent, merge order K→M/T/S→C/B→A
 - **Shared handoff area**: read `docs/agent-handoff/ALIGNMENT.md` before committing and register shared-file changes there — never clobber another agent's merged work (see clobber warning)
+- **Shared-file gate (STRICT)**: commits touching `scripts/sh/`, `.githooks/`, `config/discovery/` MUST register in `docs/agent-handoff/ALIGNMENT.md` in the SAME commit — `commit-msg` rejects otherwise; when push-both reports the handoff area grew past `HANDOFF_LOG_MAX` (30), run `bash scripts/sh/handoff-rotate.sh` to archive old entries
 
 ## Build environment code of conduct
 
