@@ -49,6 +49,11 @@ and xdist can expose SQLite audit-journal lock contention.
 
 ### P0 — contract, identity, and recovery (blocking)
 
+> Arbitration (2026-08-22): `production-closure-roadmap.md` §3 mirrors this queue from its
+> production-blind-spot panorama. THIS file owns slice-level execution for session identity /
+> durable store / recovery (Slices A-F below); its P0.5-P0.8 (residual bypasses, scheduler
+> enforcement, execution engine) stay there. Acceptance cross-checks exit criteria on both sides.
+
 | ID | Work item | Required result | Dependencies |
 |---|---|---|---|
 | P0.1 | Freeze TS-neutral records | Versioned schemas for `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; deterministic JSON serialization and compatibility fixtures | None |

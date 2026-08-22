@@ -1,6 +1,6 @@
 # Praxis L2 Shell Engine 边界审计与多前端会话层路线图
 
-> 状态：规划（P0 已合入 2026-08-20；P1–P4 尚未实施）
+> 状态：进行中（P0–P3 已完成并合入 main，逐项验收见 §6；P4 重型/移动未启动）
 > 关联：`docs/roadmaps/kernel-boundary-audit.md`（L1 审计基线，Rust 前置）、`docs/roadmaps/frontend-kernel-roadmap.md`（前端矩阵 + Rust 下沉内核）、`docs/roadmaps/multilang-migration.md`（TS 槽位）、`docs/architecture/l2-shell-engine.md`（目标架构）、`docs/architecture/l2-shell.md`（现行实现描述）
 > 目的：在 Web / TUI / 轻量桌面（ChatBox 类）/ VSCode 级人机共生开发平台 / 移动端 SSH 多前端落地之前，先固定 L2 的 Shell Engine 边界与**统一会话数据层协议 v1**，避免把当前"CLI command collection + 直连 L3 控制面"的现状原样复制进 TS 重写。
 

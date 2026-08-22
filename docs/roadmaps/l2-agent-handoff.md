@@ -2,7 +2,8 @@
 
 > 供后续 Agent 审阅/接手 L2 层工作时的**精确索引参考与重写标准**。
 > 与 `docs/roadmaps/l2-multifrontend-session-layer.md`（进程状态）配套：本文档是**操作性手册**（在哪、怎么改、验收什么），路线图是状态记录。
-> 分支：`feature/l2-cleanup`（未合入 main，工作区干净，HEAD 见 `git log`）。
+> 分支：原工作分支 `feature/l2-cleanup` / `feature/l2-ts-arch` 已合入 main 并清理（2026-08）；
+> 本文随 main 维护，不再绑定分支。
 
 ## 0. 阅读指南（给后续 Agent）
 
@@ -205,8 +206,11 @@
 ### 3.4 提交门禁
 
 - commit-scan：`type(scope):` 的 scope **必须在 `config/discovery/commits.yaml` 注册**（`l2`/`shell`/`i18n` 已注册；`ts` 未注册——用 `l2`）。
-- pre-commit：ruff → ruff format → size → attribution；无会话证据时用 `PRAXIS_AUTHOR=AtomCode PRAXIS_MODEL=deepseek-v4-flash`。
-- 提交 message 必须含 Co-Authored-By trailer（`Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`）。
+- pre-commit：ruff → ruff format → size → script naming guard。
+- attribution 真值政策：先跑 `python scripts/py/detect_agent.py --json` 取执行证据身份；
+  无会话证据时**禁止自授 pin**——须由操作者显式授权 `PRAXIS_AUTHOR`/`PRAXIS_MODEL`，
+  且身份必须在 `config/discovery/commits.yaml` 注册表内
+  （现 8 身份：AtomCode/OpenCode/Claude/DeepSeek/GPT/Kimi/Qwen/GLM）。
 
 ## 4. 下一步清单（按依赖顺序）
 
@@ -214,7 +218,7 @@
 2. ✅ **协议 host 优化**（python-perf + l2-perf-hotpath 已合入 main）：per-session 水位索引、ws 桥 dict 直入、command args 直入、会话类缓存、常量化配置驱动——全景见 §1.9。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
 4. **合入/推送**：双绿后 `MERGE_GATE_SKIP` 决策由用户授权；`make push-both` 双推前确认网络。
-5. **文档/架构预留合入**（`feature/l2-ts-arch` 分支）：§1.9/§1.10 与路线图 §8 预留——双绿后合入 main。
+5. ✅ **文档/架构预留合入**：§1.9/§1.10 与路线图 §8 预留已合入 main（2026-08-21），分支已清理。
 
 ---
 
