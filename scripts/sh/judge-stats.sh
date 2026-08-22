@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # judge-stats — quantify the CompletionJudge's real effectiveness.
 #
 # Aggregates `.praxis/judge-runs.jsonl` (written by verify-completion.sh)

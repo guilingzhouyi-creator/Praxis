@@ -181,6 +181,13 @@ if [ "$SCAN_RC" != "0" ]; then
   fi
 fi
 
+# ── 3b. Node validator (type/scope registration + must_include) ──────────
+# validate-commit.mjs mirrors scripts/py/commit_scan.py; skipped when node
+# is absent (WSL side) — the push-time audit (commit_scan.py) is the backstop.
+if command -v node >/dev/null 2>&1; then
+  node scripts/js/validate-commit.mjs "$msg_file" >&2 || exit 1
+fi
+
 # ── 4. Shared-file handoff gate (STRICT — register or reject) ─────────────
 # A commit touching shared files (scripts/sh, .githooks, config/discovery)
 # MUST also update docs/agent-handoff/ALIGNMENT.md (Shared-file change log)

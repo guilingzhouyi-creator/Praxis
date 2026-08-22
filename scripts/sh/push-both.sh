@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Dual-remote push — push a branch to BOTH remotes (origin + github).
 #
 # Rationale (see AGENTS.md "Remote strategy & CI"): origin is GitCode

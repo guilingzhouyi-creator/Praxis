@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Local-merge gate — decide whether the CURRENT feature branch may merge
 # into LOCAL main.
 #

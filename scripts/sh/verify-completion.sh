@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # CompletionJudge — machine decides "done", not the agent.
 #
 # Ratchet-style completion gate (see docs/architecture/completion-judge.md):
@@ -46,14 +47,24 @@
 
 set -u
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[judge] not in a git repo" >&2; exit 2; }
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$ROOT" ]; then
+  # Fallback for linked worktrees where git can't resolve (e.g. WSL side).
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
 cd "$ROOT"
 
 # Shared judge log: `--git-common-dir` resolves to the MAIN tree's .git from
 # any linked worktree, so every run (any tree) appends to the single JSONL
 # the dashboard aggregates — worktree-local logs would go unmeasured.
-COMMON_DIR="$(cd "$(git rev-parse --git-common-dir 2>/dev/null || echo "$ROOT/.git")" && pwd)" || COMMON_DIR="$ROOT/.git"
-LOG_FILE="${COMMON_DIR%/}/../.praxis/judge-runs.jsonl"
+COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$COMMON_DIR" ] && [ -d "$COMMON_DIR" ]; then
+  LOG_FILE="$(cd "$COMMON_DIR" && pwd)/../.praxis/judge-runs.jsonl"
+else
+  # Fallback for linked worktrees where git cannot resolve (e.g. WSL side):
+  # keep the log local — a crashed judge measures nothing at all.
+  LOG_FILE="$ROOT/.praxis/judge-runs.jsonl"
+fi
 mkdir -p "$(dirname "$LOG_FILE")"
 T0="$(date +%s)"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
