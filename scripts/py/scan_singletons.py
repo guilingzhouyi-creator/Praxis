@@ -8,7 +8,7 @@ accessor is usually an inert default.
 
 Run from the repo root:
 
-    python scripts/py/scan-singletons.py
+    python scripts/py/scan_singletons.py
 
 Every newly reported singleton should be judged: add a reset function +
 ``_RESETS`` entry, or document why it is exempt. The completeness guard
