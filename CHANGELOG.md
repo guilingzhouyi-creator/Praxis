@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (roadmaps)**: register missing indexes and resync stale statuses
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
@@ -178,6 +179,7 @@
 
 ### 变更
 
+- **Refactor (scripts)**: dedupe judge test config and slice list
 - **Chore (config)**: register open-weight vendors in agent registry
 - **Chore (config)**: refresh agent registry to aug 2026 model lineups
 - **Chore (scripts)**: normalize scaffold glue and prune junk residue
@@ -242,6 +244,7 @@
 
 ### 修复
 
+- **Fix (scripts)**: run judge tests per-slice on WSL
 - **Fix (tests)**: push-time format fallback for no-verify commits
 - **Fix (tests)**: harden commit gates — template, bypass, env self-check
 - **Fix (tests)**: fire the type-to-file gate at commit time
