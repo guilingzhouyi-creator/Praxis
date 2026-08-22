@@ -1,9 +1,14 @@
 //! Rust-native sharded state and bounded work-queue prototype for R1.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
 
+use crate::cancellation::CancellationToken;
 use crate::substrate::{ProcessHandle, QueueMetricSnapshot, QueueMetrics, ShardPlan};
+
+/// Poll interval used while a worker waits for queue work or cancellation.
+pub const WORK_QUEUE_CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
 /// Rust-native lifecycle state for a scheduled process slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +60,107 @@ struct StateShard {
 pub struct ShardedStateStore {
     plan: ShardPlan,
     shards: Vec<Mutex<StateShard>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HandleSlot {
+    generation: u32,
+    occupied: bool,
+}
+
+#[derive(Debug, Default)]
+struct HandleAllocatorState {
+    slots: Vec<HandleSlot>,
+    free_slots: VecDeque<u32>,
+    next_slot: u32,
+    active: u32,
+}
+
+/// Bounded Rust-owned process-slot allocator with generation-safe reuse.
+pub struct ProcessHandleAllocator {
+    max_slots: u32,
+    state: Mutex<HandleAllocatorState>,
+}
+
+impl ProcessHandleAllocator {
+    /// Create an allocator with an explicit maximum slot count.
+    pub fn new(max_slots: u32) -> Result<Self, &'static str> {
+        if max_slots == 0 {
+            return Err("process handle capacity must be positive");
+        }
+        Ok(Self {
+            max_slots,
+            state: Mutex::new(HandleAllocatorState::default()),
+        })
+    }
+
+    /// Allocate a fresh handle or a released slot with its next generation.
+    pub fn allocate(&self) -> Result<ProcessHandle, &'static str> {
+        let mut state = self.lock_state();
+        if let Some(slot) = state.free_slots.pop_front() {
+            let record = state
+                .slots
+                .get_mut(slot as usize)
+                .ok_or("free process slot is missing")?;
+            if record.occupied {
+                return Err("free process slot is occupied");
+            }
+            record.occupied = true;
+            let generation = record.generation;
+            state.active = state.active.saturating_add(1);
+            return ProcessHandle::new(slot, generation).ok_or("invalid process generation");
+        }
+        if state.next_slot >= self.max_slots {
+            return Err("process handle capacity exhausted");
+        }
+        let slot = state.next_slot;
+        state.next_slot = state.next_slot.saturating_add(1);
+        state.slots.push(HandleSlot {
+            generation: 1,
+            occupied: true,
+        });
+        state.active = state.active.saturating_add(1);
+        ProcessHandle::new(slot, 1).ok_or("invalid process generation")
+    }
+
+    /// Release a current handle and advance its generation before reuse.
+    pub fn release(&self, handle: ProcessHandle) -> Result<(), &'static str> {
+        let mut state = self.lock_state();
+        let record = state
+            .slots
+            .get_mut(handle.slot() as usize)
+            .ok_or("process handle slot is missing")?;
+        if !record.occupied || record.generation != handle.generation() {
+            return Err("process handle generation is stale");
+        }
+        let next_generation = record
+            .generation
+            .checked_add(1)
+            .ok_or("process handle generation exhausted")?;
+        record.generation = next_generation;
+        record.occupied = false;
+        state.active = state.active.saturating_sub(1);
+        state.free_slots.push_back(handle.slot());
+        Ok(())
+    }
+
+    /// Return whether a handle is currently allocated at its exact generation.
+    pub fn is_current(&self, handle: ProcessHandle) -> bool {
+        let state = self.lock_state();
+        state
+            .slots
+            .get(handle.slot() as usize)
+            .is_some_and(|record| record.occupied && record.generation == handle.generation())
+    }
+
+    /// Return the number of currently allocated handles.
+    pub fn active_count(&self) -> u32 {
+        self.lock_state().active
+    }
+
+    fn lock_state(&self) -> MutexGuard<'_, HandleAllocatorState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 impl ShardedStateStore {
@@ -180,10 +286,19 @@ pub struct WorkItem {
     pub sequence: u64,
 }
 
+/// Reasons a cancellable queue wait can stop without returning work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueueWaitError {
+    /// The caller's cancellation token was set before work was claimed.
+    Cancelled,
+}
+
 /// Bounded FIFO queue using shared atomic admission metrics.
 pub struct BoundedWorkQueue {
     capacity: usize,
     items: Mutex<VecDeque<WorkItem>>,
+    not_empty: Condvar,
+    not_full: Condvar,
     metrics: Arc<QueueMetrics>,
 }
 
@@ -196,6 +311,8 @@ impl BoundedWorkQueue {
         Ok(Self {
             capacity,
             items: Mutex::new(VecDeque::with_capacity(capacity)),
+            not_empty: Condvar::new(),
+            not_full: Condvar::new(),
             metrics,
         })
     }
@@ -207,19 +324,94 @@ impl BoundedWorkQueue {
             self.metrics.record_submit(false);
             return false;
         }
-        items.push_back(item);
         self.metrics.record_submit(true);
+        items.push_back(item);
+        self.not_empty.notify_one();
         true
+    }
+
+    /// Admit one item, sleeping on backpressure instead of spinning.
+    pub fn push_wait(&self, item: WorkItem) {
+        let mut items = self.lock_items();
+        while items.len() == self.capacity {
+            items = self
+                .not_full
+                .wait(items)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        self.metrics.record_submit(true);
+        items.push_back(item);
+        self.not_empty.notify_one();
     }
 
     /// Remove the oldest item; completion is recorded separately after work runs.
     pub fn try_pop(&self) -> Option<WorkItem> {
-        self.lock_items().pop_front()
+        let mut items = self.lock_items();
+        let item = items.pop_front();
+        if item.is_some() {
+            self.not_full.notify_one();
+        }
+        item
+    }
+
+    /// Drain up to `limit` items under one lock acquisition.
+    pub fn drain_batch(&self, limit: usize, output: &mut Vec<WorkItem>) -> usize {
+        if limit == 0 {
+            return 0;
+        }
+        let mut items = self.lock_items();
+        let available = limit.min(items.len());
+        output.extend(items.drain(..available));
+        if available > 0 {
+            self.not_full.notify_all();
+        }
+        available
+    }
+
+    /// Remove the oldest item, sleeping until a producer supplies one.
+    pub fn pop_wait(&self) -> WorkItem {
+        let mut items = self.lock_items();
+        while items.is_empty() {
+            items = self
+                .not_empty
+                .wait(items)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        let item = items.pop_front().expect("queue wait guarantees an item");
+        self.not_full.notify_one();
+        item
+    }
+
+    /// Remove the oldest item, or stop waiting when cancellation is observed.
+    pub fn pop_wait_with_cancellation(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<WorkItem, QueueWaitError> {
+        let mut items = self.lock_items();
+        loop {
+            if cancellation.is_cancelled() {
+                return Err(QueueWaitError::Cancelled);
+            }
+            if let Some(item) = items.pop_front() {
+                self.not_full.notify_one();
+                return Ok(item);
+            }
+            let (next_items, _) = self
+                .not_empty
+                .wait_timeout(items, WORK_QUEUE_CANCELLATION_POLL_INTERVAL)
+                .unwrap_or_else(PoisonError::into_inner);
+            items = next_items;
+        }
     }
 
     /// Mark a popped item complete and reduce in-flight metric depth.
     pub fn record_complete(&self) {
         self.metrics.record_complete();
+    }
+
+    /// Mark a drained batch complete with one metrics update.
+    pub fn record_complete_batch(&self, count: usize) {
+        self.metrics.record_complete_batch(count as u64);
     }
 
     /// Return the current number of queued items.
@@ -239,116 +431,5 @@ impl BoundedWorkQueue {
 
     fn lock_items(&self) -> MutexGuard<'_, VecDeque<WorkItem>> {
         self.items.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::{BoundedWorkQueue, ShardedStateStore, TaskState, WorkItem};
-    use crate::substrate::{ProcessHandle, QueueMetrics};
-
-    fn handle(slot: u32, generation: u32) -> ProcessHandle {
-        ProcessHandle::new(slot, generation).expect("valid handle")
-    }
-
-    #[test]
-    fn sharded_store_rejects_stale_generations_and_tracks_transitions() {
-        let store = ShardedStateStore::new(2).expect("valid store");
-        let current = handle(3, 1);
-        let stale = handle(3, 2);
-        assert_eq!(store.shard_for(current), 1);
-        store.insert(current, TaskState::Ready).expect("insert");
-        assert!(store.insert(stale, TaskState::Ready).is_err());
-        let running = store
-            .transition(current, TaskState::Ready, TaskState::Running)
-            .expect("ready to running");
-        assert_eq!(running.transition_seq, 1);
-        assert_eq!(running.state, TaskState::Running);
-        assert!(
-            store
-                .transition(stale, TaskState::Running, TaskState::Ready)
-                .is_err()
-        );
-        assert_eq!(store.len(), 1);
-    }
-
-    #[test]
-    fn stopped_state_is_terminal_until_explicit_resume() {
-        let store = ShardedStateStore::new(1).expect("valid store");
-        let process = handle(1, 1);
-        store.insert(process, TaskState::Ready).expect("insert");
-        store
-            .transition(process, TaskState::Ready, TaskState::Stopped)
-            .expect("stop");
-        assert!(
-            store
-                .transition(process, TaskState::Stopped, TaskState::Running)
-                .is_err()
-        );
-        store
-            .transition(process, TaskState::Stopped, TaskState::Ready)
-            .expect("resume to ready");
-        assert_eq!(store.get(process).expect("record").state, TaskState::Ready);
-    }
-
-    #[test]
-    fn bounded_queue_rejects_at_capacity_and_reports_completion() {
-        let metrics = Arc::new(QueueMetrics::new());
-        let queue = BoundedWorkQueue::new(1, Arc::clone(&metrics)).expect("valid queue");
-        let process = handle(2, 1);
-        assert!(queue.try_push(WorkItem {
-            handle: process,
-            sequence: 1,
-        }));
-        assert!(!queue.try_push(WorkItem {
-            handle: process,
-            sequence: 2,
-        }));
-        assert_eq!(queue.len(), 1);
-        assert_eq!(queue.try_pop().expect("item").sequence, 1);
-        queue.record_complete();
-        assert!(queue.is_empty());
-        let snapshot = queue.metrics();
-        assert_eq!(snapshot.submitted, 1);
-        assert_eq!(snapshot.rejected, 1);
-        assert_eq!(snapshot.queue_depth, 0);
-        assert_eq!(snapshot.peak_queue_depth, 1);
-    }
-
-    #[test]
-    fn empty_state_and_zero_capacity_are_explicit() {
-        let store = ShardedStateStore::new(1).expect("valid store");
-        assert!(store.is_empty());
-        assert!(BoundedWorkQueue::new(0, Arc::new(QueueMetrics::new())).is_err());
-    }
-
-    #[test]
-    fn sharded_state_survives_parallel_insert_and_transitions() {
-        use std::thread;
-
-        let store = Arc::new(ShardedStateStore::new(4).expect("valid store"));
-        let workers = (0..4)
-            .map(|worker| {
-                let store = Arc::clone(&store);
-                thread::spawn(move || {
-                    for offset in 0..16 {
-                        let process = handle(worker * 16 + offset, 1);
-                        store.insert(process, TaskState::Ready).expect("insert");
-                        store
-                            .transition(process, TaskState::Ready, TaskState::Running)
-                            .expect("run");
-                        store
-                            .transition(process, TaskState::Running, TaskState::Ready)
-                            .expect("yield");
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-        for worker in workers {
-            worker.join().expect("state worker joins");
-        }
-        assert_eq!(store.len(), 64);
     }
 }

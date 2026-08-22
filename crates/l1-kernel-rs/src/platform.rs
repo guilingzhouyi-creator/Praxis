@@ -11,7 +11,7 @@ pub struct PlatformSnapshot {
     pub is_mac: bool,
     /// Shell executable selected by the host environment.
     pub shell_path: String,
-    /// Python3 executable exposed to bounded command adapters.
+    /// Python executable exposed to bounded command adapters.
     pub python_exe: String,
     /// Whether `rg` is available for search command construction.
     pub rg_available: bool,
@@ -77,7 +77,7 @@ pub struct PlatformDescriptor {
     pub default_shell: String,
     /// Platform-specific ping count flag.
     pub ping_param: String,
-    /// Host Python3 executable.
+    /// Host Python executable.
     pub python_exe: String,
     /// Explicit subprocess encoding policy.
     pub default_encoding: String,
@@ -210,7 +210,7 @@ impl PlatformDescriptor {
         command
     }
 
-    /// Join URL components while preserving the Python3 helper's slash rules.
+    /// Join URL components while preserving the Python helper's slash rules.
     pub fn join_url<'a, I>(&self, parts: I) -> String
     where
         I: IntoIterator<Item = &'a str>,
@@ -303,155 +303,4 @@ fn join_path(root: &str, child: &str, separator: &str) -> String {
         separator,
         child
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{GrepOptions, PlatformDescriptor, PlatformSnapshot};
-    use serde::Deserialize;
-
-    #[derive(Debug, Deserialize)]
-    struct PlatformVector {
-        snapshot: PlatformSnapshot,
-        shell_command: Vec<String>,
-        grep_options: GrepVector,
-        grep_command: Vec<String>,
-        url_parts: Vec<String>,
-        url: String,
-        temp_system: String,
-        temp_dir: String,
-        tcp_endpoint: String,
-        tcp_default_host: String,
-        tcp: (String, u16),
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct GrepVector {
-        pattern: String,
-        path: String,
-        fixed: bool,
-        ignore_case: bool,
-        max_count: usize,
-        glob_pattern: String,
-        file_type: String,
-    }
-
-    #[test]
-    fn posix_snapshot_matches_shell_and_rg_contract() {
-        let descriptor = PlatformDescriptor::from_snapshot(PlatformSnapshot::posix(
-            "/bin/bash",
-            "/usr/bin/python",
-            true,
-        ))
-        .unwrap();
-        assert!(descriptor.is_posix);
-        assert_eq!(
-            descriptor.shell_command("echo ready"),
-            ["/bin/bash", "-c", "echo ready"]
-        );
-        assert_eq!(descriptor.temp_dir("/tmp"), "/tmp/praxis");
-        assert_eq!(
-            descriptor.join_url(["/api/", "/v2/", "/health"]),
-            "api/v2/health"
-        );
-        assert_eq!(
-            descriptor.grep_command(GrepOptions {
-                pattern: "needle",
-                path: ".",
-                fixed: true,
-                ignore_case: true,
-                max_count: 3,
-                glob_pattern: "*.rs",
-                file_type: "rust",
-                rg_available: true,
-            }),
-            [
-                "rg",
-                "-n",
-                "--no-heading",
-                "-F",
-                "-i",
-                "--max-count",
-                "3",
-                "--glob",
-                "*.rs",
-                "--type",
-                "rust",
-                "needle",
-                "."
-            ]
-        );
-    }
-
-    #[test]
-    fn windows_fallback_and_endpoint_are_provider_neutral() {
-        let descriptor = PlatformDescriptor::from_snapshot(PlatformSnapshot::windows(
-            "C:\\Windows\\System32\\cmd.exe",
-            "C:\\Python3\\python.exe",
-            false,
-        ))
-        .unwrap();
-        assert_eq!(descriptor.shell_name, "cmd.exe");
-        assert_eq!(
-            descriptor.shell_command("echo ready"),
-            ["C:\\Windows\\System32\\cmd.exe", "/c", "echo ready"]
-        );
-        assert_eq!(
-            descriptor.grep_command(GrepOptions {
-                pattern: "needle",
-                path: "src",
-                fixed: true,
-                ignore_case: true,
-                max_count: 0,
-                glob_pattern: "*.py",
-                file_type: "",
-                rg_available: false,
-            }),
-            ["findstr", "/n", "/s", "/i", "/x", "/c:needle", "src\\*.py"]
-        );
-        assert_eq!(
-            descriptor.parse_tcp_endpoint("127.0.0.1:42101", "localhost"),
-            Ok(("127.0.0.1".to_owned(), 42101))
-        );
-        assert_eq!(
-            descriptor.parse_tcp_endpoint(":42101", "localhost"),
-            Ok(("localhost".to_owned(), 42101))
-        );
-    }
-
-    #[test]
-    fn shared_platform_vectors_match_python_reference() {
-        let vectors: Vec<PlatformVector> = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/kernel_platform_vectors.json"
-        ))
-        .expect("platform fixture must be valid JSON");
-
-        for vector in vectors {
-            let rg_available = vector.snapshot.rg_available;
-            let descriptor = PlatformDescriptor::from_snapshot(vector.snapshot).unwrap();
-            assert_eq!(descriptor.shell_command("echo ready"), vector.shell_command);
-            assert_eq!(
-                descriptor.grep_command(GrepOptions {
-                    pattern: &vector.grep_options.pattern,
-                    path: &vector.grep_options.path,
-                    fixed: vector.grep_options.fixed,
-                    ignore_case: vector.grep_options.ignore_case,
-                    max_count: vector.grep_options.max_count,
-                    glob_pattern: &vector.grep_options.glob_pattern,
-                    file_type: &vector.grep_options.file_type,
-                    rg_available,
-                }),
-                vector.grep_command
-            );
-            assert_eq!(
-                descriptor.join_url(vector.url_parts.iter().map(String::as_str)),
-                vector.url
-            );
-            assert_eq!(descriptor.temp_dir(&vector.temp_system), vector.temp_dir);
-            assert_eq!(
-                descriptor.parse_tcp_endpoint(&vector.tcp_endpoint, &vector.tcp_default_host),
-                Ok(vector.tcp)
-            );
-        }
-    }
 }

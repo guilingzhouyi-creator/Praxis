@@ -16,8 +16,10 @@ fn main() {
             PortDescriptor::new("process", PortKind::Process, 1),
             PortDescriptor::new("storage", PortKind::Storage, 1),
             PortDescriptor::new("scheduler", PortKind::Scheduler, 1),
+            PortDescriptor::new("terminal", PortKind::Terminal, 1),
         ],
-    );
+    )
+    .with_config_root("state/config");
     let assembly = KernelAssembly::assemble(spec).expect("Rust kernel assembly is valid");
     println!(
         "{}",

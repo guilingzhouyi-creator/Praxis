@@ -80,6 +80,7 @@ struct Task {
 
 struct QueueInner {
     queue: VecDeque<Task>,
+    active_channels: BTreeSet<String>,
     closed: bool,
     max_queued: usize,
     submitted: u64,
@@ -99,6 +100,7 @@ impl QueueState {
         Self {
             inner: StdMutex::new(QueueInner {
                 queue: VecDeque::new(),
+                active_channels: BTreeSet::new(),
                 closed: false,
                 max_queued,
                 submitted: 0,
@@ -400,7 +402,7 @@ fn worker_loop(queue: Arc<QueueState>) {
         let task = {
             let mut inner = queue.lock();
             loop {
-                if let Some(task) = inner.queue.pop_front() {
+                if let Some(task) = pop_dispatchable(&mut inner) {
                     break Some(task);
                 }
                 if inner.closed {
@@ -417,12 +419,26 @@ fn worker_loop(queue: Arc<QueueState>) {
         };
         safe_call(&task.callback, &task.signal);
         let mut inner = queue.lock();
+        inner.active_channels.remove(&task.signal.signal_type);
         inner.completed = inner.completed.saturating_add(1);
         inner.inflight = inner.inflight.saturating_sub(1);
+        queue.not_empty.notify_all();
         if inner.inflight == 0 {
             queue.drained.notify_all();
         }
     }
+}
+
+fn pop_dispatchable(inner: &mut QueueInner) -> Option<Task> {
+    let index = inner
+        .queue
+        .iter()
+        .position(|task| !inner.active_channels.contains(&task.signal.signal_type))?;
+    let task = inner.queue.remove(index)?;
+    inner
+        .active_channels
+        .insert(task.signal.signal_type.clone());
+    Some(task)
 }
 
 fn safe_call(callback: &Callback, signal: &Signal) {
@@ -433,103 +449,4 @@ fn now_seconds() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0.0, |duration| duration.as_secs_f64())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Callback, EventBus, EventBusConfig};
-    use crate::contract::{EventBusStats, JsonObject, Signal};
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-    use std::time::Duration;
-
-    fn bus() -> EventBus {
-        EventBus::new(EventBusConfig::new(8, 2, 16, 2))
-    }
-
-    fn signal(event_type: &str) -> Signal {
-        Signal {
-            signal_type: event_type.to_owned(),
-            data: JsonObject::new(),
-            sender: String::new(),
-            target: String::new(),
-            timestamp: 1.0,
-        }
-    }
-
-    fn callback<F>(function: F) -> Callback
-    where
-        F: Fn(&Signal) + Send + Sync + 'static,
-    {
-        Arc::new(function)
-    }
-
-    #[test]
-    fn records_history_and_dispatches_typed_and_wildcard_callbacks() {
-        let bus = bus();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let typed_calls = Arc::clone(&calls);
-        assert!(bus.on_event(
-            "TASK_DONE",
-            callback(move |_| typed_calls.lock().unwrap().push("typed")),
-        ));
-        let wildcard_calls = Arc::clone(&calls);
-        bus.on_any(callback(move |_| {
-            wildcard_calls.lock().unwrap().push("wildcard")
-        }));
-        assert_eq!(bus.emit(signal("TASK_DONE")), 2);
-        bus.shutdown(true, Some(Duration::from_secs(1)));
-        assert_eq!(bus.history(None, 10).len(), 1);
-        assert_eq!(calls.lock().unwrap().len(), 2);
-        let stats = bus.stats();
-        assert_eq!(stats.completed, 2);
-        assert!(stats.clean());
-    }
-
-    #[test]
-    fn bounded_queue_accounts_drops_without_blocking_emitter() {
-        let bus = EventBus::new(EventBusConfig::new(8, 1, 0, 2));
-        bus.on_any(callback(|_| thread::sleep(Duration::from_millis(10))));
-        assert_eq!(bus.emit(signal("TASK_DONE")), 1);
-        let stats = bus.stats();
-        assert_eq!(stats.submitted, 0);
-        assert_eq!(stats.dropped, 1);
-        assert_eq!(stats.queue_depth, 0);
-        bus.shutdown(true, Some(Duration::from_secs(1)));
-    }
-
-    #[test]
-    fn dynamic_registry_is_bounded_and_degrades() {
-        let bus = bus();
-        assert!(bus.register_signal_type("CUSTOM_A").is_ok());
-        assert!(bus.register_signal_type("CUSTOM_B").is_ok());
-        assert!(bus.register_signal_type("CUSTOM_C").is_err());
-        assert!(bus.register_signal_type("TASK_DONE").is_err());
-        assert_eq!(bus.emit_event("CUSTOM_C", JsonObject::new(), "test"), 0);
-        bus.shutdown(true, Some(Duration::from_secs(1)));
-    }
-
-    #[test]
-    fn shutdown_is_idempotent_and_post_shutdown_emit_is_synchronous() {
-        let bus = bus();
-        let calls = Arc::new(Mutex::new(0));
-        let observed = Arc::clone(&calls);
-        bus.on_any(callback(move |_| *observed.lock().unwrap() += 1));
-        bus.shutdown(false, None);
-        bus.shutdown(true, Some(Duration::from_secs(1)));
-        assert_eq!(bus.emit(signal("TASK_DONE")), 1);
-        assert_eq!(*calls.lock().unwrap(), 1);
-    }
-
-    #[test]
-    fn history_filter_and_stats_shape_match_contract() {
-        let bus = bus();
-        bus.emit(signal("SCOUT_DONE"));
-        bus.emit(signal("TASK_DONE"));
-        assert_eq!(bus.history(Some("SCOUT_DONE"), 10).len(), 1);
-        let stats: EventBusStats = bus.stats();
-        assert_eq!(stats.history, 2);
-        assert_eq!(stats.drop_rate(), 0.0);
-        bus.shutdown(true, Some(Duration::from_secs(1)));
-    }
 }

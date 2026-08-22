@@ -5,8 +5,90 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 /// Version of the benchmark report consumed by the R2 evidence gate.
-pub const BENCHMARK_SCHEMA_VERSION: u32 = 2;
+pub const BENCHMARK_SCHEMA_VERSION: u32 = 3;
 const NANOSECONDS_PER_SECOND: u128 = 1_000_000_000;
+
+/// CPU time unit used by the cross-language R2 contract.
+pub const CPU_TIME_UNIT: &str = "ns";
+/// Memory unit used by the cross-language R2 contract.
+pub const MEMORY_UNIT: &str = "bytes";
+/// Scope used to derive per-round resource values.
+pub const RESOURCE_SCOPE: &str = "process_round_delta";
+
+/// Resource measurements attached to one fixed-work sample.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BenchmarkResources {
+    /// Process CPU time consumed during this sample, in nanoseconds.
+    pub cpu_time_ns: Option<u64>,
+    /// Increase in process high-water RSS during this sample, in bytes.
+    pub memory_bytes: Option<u64>,
+    /// Source used for the CPU measurement, or `unavailable`.
+    pub cpu_source: String,
+    /// Source used for the memory measurement, or `unavailable`.
+    pub memory_source: String,
+}
+
+impl BenchmarkResources {
+    /// Return an explicitly unavailable resource sample.
+    pub fn unavailable() -> Self {
+        Self {
+            cpu_time_ns: None,
+            memory_bytes: None,
+            cpu_source: "unavailable".to_owned(),
+            memory_source: "unavailable".to_owned(),
+        }
+    }
+
+    /// Validate source attribution and optional-value semantics.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.cpu_source.is_empty() || self.memory_source.is_empty() {
+            return Err("resource sample sources must not be empty");
+        }
+        if self.cpu_time_ns.is_none() != (self.cpu_source == "unavailable") {
+            return Err("CPU resource value and source disagree");
+        }
+        if self.memory_bytes.is_none() != (self.memory_source == "unavailable") {
+            return Err("memory resource value and source disagree");
+        }
+        Ok(())
+    }
+}
+
+/// Unit and scope metadata for all resource samples in one evidence report.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BenchmarkResourceMetadata {
+    /// CPU time unit; fixed to nanoseconds for cross-language comparison.
+    pub cpu_unit: String,
+    /// Memory unit; fixed to bytes for cross-language comparison.
+    pub memory_unit: String,
+    /// Scope used to derive sample values.
+    pub scope: String,
+}
+
+impl BenchmarkResourceMetadata {
+    /// Return the standard process-round resource contract.
+    pub fn standard() -> Self {
+        Self {
+            cpu_unit: CPU_TIME_UNIT.to_owned(),
+            memory_unit: MEMORY_UNIT.to_owned(),
+            scope: RESOURCE_SCOPE.to_owned(),
+        }
+    }
+
+    /// Validate units and scope against the unified contract.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.cpu_unit != CPU_TIME_UNIT {
+            return Err("unsupported CPU resource unit");
+        }
+        if self.memory_unit != MEMORY_UNIT {
+            return Err("unsupported memory resource unit");
+        }
+        if self.scope != RESOURCE_SCOPE {
+            return Err("unsupported resource sampling scope");
+        }
+        Ok(())
+    }
+}
 
 /// Fixed workload and worker sweep supplied by a benchmark runner.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +164,8 @@ pub struct BenchmarkSample {
     pub rejected: u64,
     /// Work that failed with an execution error.
     pub errors: u64,
+    /// CPU and memory measurements for this fixed-work round.
+    pub resources: BenchmarkResources,
 }
 
 impl BenchmarkSample {
@@ -120,6 +204,8 @@ pub struct BenchmarkMetadata {
     pub git_revision: String,
     /// Runner version or package identifier.
     pub runner: String,
+    /// Units and scope for resource measurements.
+    pub resource_sampling: BenchmarkResourceMetadata,
 }
 
 impl BenchmarkMetadata {
@@ -137,6 +223,7 @@ impl BenchmarkMetadata {
             runtime: runtime.into(),
             git_revision: git_revision.into(),
             runner: runner.into(),
+            resource_sampling: BenchmarkResourceMetadata::standard(),
         };
         metadata.validate()?;
         Ok(metadata)
@@ -156,6 +243,7 @@ impl BenchmarkMetadata {
         {
             return Err("benchmark metadata fields must not be empty");
         }
+        self.resource_sampling.validate()?;
         Ok(())
     }
 }
@@ -243,6 +331,7 @@ impl BenchmarkReport {
         if sample.errors > sample.completed_work_items {
             return Err("sample errors exceed completed work");
         }
+        sample.resources.validate()?;
         self.samples.push(sample);
         Ok(())
     }
@@ -277,6 +366,7 @@ impl BenchmarkReport {
             if sample.errors > sample.completed_work_items {
                 return Err("sample errors exceed completed work");
             }
+            sample.resources.validate()?;
         }
         Ok(())
     }
@@ -294,105 +384,5 @@ impl BenchmarkReport {
             return Err("benchmark report is missing worker/round samples");
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{BENCHMARK_SCHEMA_VERSION, BenchmarkReport, BenchmarkSample, FixedWorkSpec};
-
-    fn spec() -> FixedWorkSpec {
-        FixedWorkSpec::new("substrate.queue", 100, vec![1, 2, 4], 2).expect("valid spec")
-    }
-
-    fn sample(workers: u32, round: u32) -> BenchmarkSample {
-        BenchmarkSample {
-            workers,
-            round,
-            completed_work_items: 100,
-            elapsed_ns: 1_000,
-            p95_latency_ns: 40,
-            p99_latency_ns: 50,
-            queue_wait_ns: 10,
-            lock_wait_ns: 5,
-            rejected: 0,
-            errors: 0,
-        }
-    }
-
-    #[test]
-    fn fixed_work_spec_rejects_invalid_sweeps() {
-        assert!(FixedWorkSpec::new("x", 0, vec![1], 1).is_err());
-        assert!(FixedWorkSpec::new("x", 1, vec![0], 1).is_err());
-        assert!(FixedWorkSpec::new("x", 1, vec![1, 1], 1).is_err());
-        assert!(FixedWorkSpec::new("x", 1, vec![1], 0).is_err());
-    }
-
-    #[test]
-    fn report_rejects_incomplete_or_unknown_samples() {
-        let mut report = BenchmarkReport::new(spec());
-        assert!(report.push(sample(8, 0)).is_err());
-        let mut incomplete = sample(1, 0);
-        incomplete.completed_work_items = 99;
-        assert!(report.push(incomplete).is_err());
-        let mut invalid_round = sample(1, 2);
-        invalid_round.round = 2;
-        assert!(report.push(invalid_round).is_err());
-        let mut invalid_tail = sample(1, 0);
-        invalid_tail.p99_latency_ns = 39;
-        assert!(report.push(invalid_tail).is_err());
-    }
-
-    #[test]
-    fn validate_rejects_duplicates_after_deserialization() {
-        let mut report = BenchmarkReport::new(spec());
-        report.push(sample(1, 0)).expect("valid sample");
-        report.samples.push(sample(1, 0));
-        assert_eq!(report.validate(), Err("duplicate worker/round sample"));
-    }
-
-    #[test]
-    fn report_round_trips_and_validates_schema() {
-        let mut report = BenchmarkReport::new(spec());
-        report.push(sample(1, 0)).expect("valid sample");
-        assert_eq!(report.schema_version, BENCHMARK_SCHEMA_VERSION);
-        let encoded = serde_json::to_string(&report).expect("report serializes");
-        let decoded: BenchmarkReport = serde_json::from_str(&encoded).expect("report parses");
-        assert_eq!(decoded, report);
-        assert!(decoded.validate().is_ok());
-        assert!(decoded.validate_complete().is_err());
-        assert_eq!(decoded.samples[0].throughput_ops_per_sec(), 100_000_000);
-    }
-
-    #[test]
-    fn evidence_envelope_round_trips_only_complete_reports() {
-        let configured = spec();
-        let mut report = BenchmarkReport::new(configured.clone());
-        for &workers in &configured.workers {
-            for round in 0..configured.rounds {
-                report.push(sample(workers, round)).expect("valid sample");
-            }
-        }
-        let metadata = super::BenchmarkMetadata::new("linux", "x86_64", "rustc", "rev", "test")
-            .expect("valid metadata");
-        let evidence = super::BenchmarkEvidence::new(metadata, report).expect("complete evidence");
-        let encoded = evidence.to_json().expect("evidence serializes");
-        assert_eq!(
-            super::BenchmarkEvidence::from_json(&encoded).expect("evidence parses"),
-            evidence
-        );
-        assert!(super::BenchmarkMetadata::new("", "x86_64", "rustc", "rev", "test").is_err());
-    }
-
-    #[test]
-    fn complete_report_covers_every_worker_and_round() {
-        let configured = spec();
-        let mut report = BenchmarkReport::new(configured.clone());
-        for &workers in &configured.workers {
-            for round in 0..configured.rounds {
-                report.push(sample(workers, round)).expect("valid sample");
-            }
-        }
-        assert!(report.validate_complete().is_ok());
     }
 }

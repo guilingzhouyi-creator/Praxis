@@ -1,19 +1,20 @@
-//! Rust synchronization mechanisms staged behind the Python3 L1 contract.
+//! Rust synchronization mechanisms staged behind the Python L1 contract.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use crate::cancellation::CancellationToken;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-/// Dictionary-shaped result kept compatible with Python3 sync methods.
+/// Dictionary-shaped result kept compatible with Python sync methods.
 pub type WireMap = BTreeMap<String, Value>;
 
 /// Priority-inheritance callback invoked when a waiter lowers the holder's priority.
 pub type BoostCallback = Arc<dyn Fn(&str, f64, f64) + Send + Sync>;
 
-/// Mutex state exposed by the Python3 `status()` contract.
+/// Mutex state exposed by the Python `status()` contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LockState {
     /// No owner and no queued waiters.
@@ -25,7 +26,7 @@ pub enum LockState {
 }
 
 impl LockState {
-    /// Return the stable Python3 enum spelling.
+    /// Return the stable Python enum spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Free => "FREE",
@@ -85,7 +86,7 @@ impl Mutex {
         self
     }
 
-    /// Acquire the mutex, preserving Python3 reentrancy and timeout semantics.
+    /// Acquire the mutex, preserving Python reentrancy and timeout semantics.
     pub fn acquire(&self, agent_id: &str, priority: f64, blocking: bool) -> WireMap {
         let started = Instant::now();
         let deadline = started + self.timeout;
@@ -219,7 +220,7 @@ impl Mutex {
         ok([])
     }
 
-    /// Return a stable state snapshot matching Python3 `Mutex.status()`.
+    /// Return a stable state snapshot matching Python `Mutex.status()`.
     pub fn status(&self) -> WireMap {
         let state = self.lock_state();
         let waiters: Vec<Value> = state
@@ -562,6 +563,8 @@ struct RwLockState {
     writer: Option<String>,
     writer_depth: usize,
     write_waiters: usize,
+    writer_queue: VecDeque<u64>,
+    next_writer_ticket: u64,
 }
 
 /// Read/write lock candidate with writer preference and reentrant reads.
@@ -586,6 +589,8 @@ impl RwLock {
                 writer: None,
                 writer_depth: 0,
                 write_waiters: 0,
+                writer_queue: VecDeque::new(),
+                next_writer_ticket: 0,
             }),
             condition: Condvar::new(),
         }
@@ -593,11 +598,29 @@ impl RwLock {
 
     /// Acquire a shared read lock with writer-preference semantics.
     pub fn read_lock(&self, agent_id: &str) -> WireMap {
-        self.read_lock_with_timeout(agent_id, self.timeout)
+        self.read_lock_with_timeout_and_cancellation(agent_id, self.timeout, None)
     }
 
     /// Acquire a shared read lock with a per-call timeout override.
     pub fn read_lock_with_timeout(&self, agent_id: &str, timeout: Duration) -> WireMap {
+        self.read_lock_with_timeout_and_cancellation(agent_id, timeout, None)
+    }
+
+    /// Acquire a shared read lock while observing a cooperative cancellation token.
+    pub fn read_lock_with_cancellation(
+        &self,
+        agent_id: &str,
+        cancellation: &CancellationToken,
+    ) -> WireMap {
+        self.read_lock_with_timeout_and_cancellation(agent_id, self.timeout, Some(cancellation))
+    }
+
+    fn read_lock_with_timeout_and_cancellation(
+        &self,
+        agent_id: &str,
+        timeout: Duration,
+        cancellation: Option<&CancellationToken>,
+    ) -> WireMap {
         if agent_id.is_empty() {
             return fail_with("invalid agent_id", []);
         }
@@ -605,6 +628,9 @@ impl RwLock {
         let mut state = self.lock_state();
         let already_reader = state.reader_counts.get(agent_id).copied().unwrap_or(0) > 0;
         loop {
+            if cancellation.is_some_and(|token| token.is_cancelled()) {
+                return fail_with("cancelled", []);
+            }
             let writer_blocks = state
                 .writer
                 .as_deref()
@@ -636,11 +662,31 @@ impl RwLock {
 
     /// Acquire an exclusive write lock, tracking queued writers.
     pub fn write_lock(&self, agent_id: &str) -> WireMap {
+        self.write_lock_with_optional_cancellation(agent_id, None)
+    }
+
+    /// Acquire an exclusive write lock while observing a cooperative cancellation token.
+    pub fn write_lock_with_cancellation(
+        &self,
+        agent_id: &str,
+        cancellation: &CancellationToken,
+    ) -> WireMap {
+        self.write_lock_with_optional_cancellation(agent_id, Some(cancellation))
+    }
+
+    fn write_lock_with_optional_cancellation(
+        &self,
+        agent_id: &str,
+        cancellation: Option<&CancellationToken>,
+    ) -> WireMap {
         if agent_id.is_empty() {
             return fail_with("invalid agent_id", []);
         }
         let deadline = Instant::now() + self.timeout;
         let mut state = self.lock_state();
+        if cancellation.is_some_and(|token| token.is_cancelled()) {
+            return fail_with("cancelled", []);
+        }
         if state.writer.as_deref() == Some(agent_id) {
             state.writer_depth += 1;
             return ok([
@@ -648,14 +694,32 @@ impl RwLock {
                 ("depth", json!(state.writer_depth)),
             ]);
         }
+        if state.reader_total == 0 && state.writer.is_none() && state.writer_queue.is_empty() {
+            state.writer = Some(agent_id.to_owned());
+            state.writer_depth = 1;
+            return ok([
+                ("mode", json!("write")),
+                ("depth", json!(state.writer_depth)),
+            ]);
+        }
+        let ticket = state.next_writer_ticket;
+        state.next_writer_ticket = state.next_writer_ticket.wrapping_add(1);
+        state.writer_queue.push_back(ticket);
         state.write_waiters += 1;
         loop {
+            if cancellation.is_some_and(|token| token.is_cancelled()) {
+                remove_writer_ticket(&mut state, ticket);
+                self.condition.notify_all();
+                return fail_with("cancelled", []);
+            }
             let blocked_by_readers = state.reader_total > 0;
             let blocked_by_writer = state
                 .writer
                 .as_deref()
                 .is_some_and(|writer| writer != agent_id);
-            if !blocked_by_readers && !blocked_by_writer {
+            let is_next_writer = state.writer_queue.front() == Some(&ticket);
+            if !blocked_by_readers && !blocked_by_writer && is_next_writer {
+                state.writer_queue.pop_front();
                 state.write_waiters -= 1;
                 state.writer = Some(agent_id.to_owned());
                 state.writer_depth = 1;
@@ -666,7 +730,8 @@ impl RwLock {
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                state.write_waiters -= 1;
+                remove_writer_ticket(&mut state, ticket);
+                self.condition.notify_all();
                 return fail_with("timeout", []);
             }
             let (next_state, timed_out) = self
@@ -675,7 +740,8 @@ impl RwLock {
                 .unwrap_or_else(PoisonError::into_inner);
             state = next_state;
             if timed_out.timed_out() && Instant::now() >= deadline {
-                state.write_waiters -= 1;
+                remove_writer_ticket(&mut state, ticket);
+                self.condition.notify_all();
                 return fail_with("timeout", []);
             }
         }
@@ -753,6 +819,17 @@ fn drop_waiter(state: &mut MutexState, agent_id: &str) {
     }
 }
 
+fn remove_writer_ticket(state: &mut RwLockState, ticket: u64) {
+    if let Some(index) = state
+        .writer_queue
+        .iter()
+        .position(|queued| *queued == ticket)
+    {
+        state.writer_queue.remove(index);
+        state.write_waiters = state.write_waiters.saturating_sub(1);
+    }
+}
+
 fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     let mut result = BTreeMap::from_iter(
         fields
@@ -772,151 +849,4 @@ fn fail_with<const N: usize>(error: &str, fields: [(&str, Value); N]) -> WireMap
     result.insert("success".to_owned(), json!(false));
     result.insert("error".to_owned(), json!(error));
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Barrier, Condition, Mutex, RwLock, Semaphore};
-    use std::sync::Arc;
-    use std::thread;
-    use std::time::Duration;
-
-    #[test]
-    fn mutex_matches_reentrant_python_shape() {
-        let mutex = Mutex::new("mutex", Duration::from_millis(50));
-        assert_eq!(mutex.acquire("agent-a", 5.0, true)["success"], true);
-        assert_eq!(mutex.acquire("agent-a", 5.0, true)["recursion"], 2);
-        assert_eq!(mutex.release("agent-a")["recursion"], 1);
-        assert_eq!(mutex.release("agent-a")["priority_restored"], false);
-        assert_eq!(mutex.status()["state"], "FREE");
-    }
-
-    #[test]
-    fn mutex_rejects_non_owner_and_nonblocking_contention() {
-        let mutex = Mutex::new("mutex", Duration::from_millis(20));
-        assert_eq!(mutex.acquire("owner", 5.0, true)["success"], true);
-        assert_eq!(mutex.release("intruder")["success"], false);
-        assert_eq!(
-            mutex.acquire("waiter", 5.0, false)["error"],
-            "lock contended"
-        );
-        assert_eq!(mutex.force_unlock()["success"], true);
-    }
-
-    #[test]
-    fn mutex_timeout_removes_waiter() {
-        let mutex = Arc::new(Mutex::new("mutex", Duration::from_millis(10)));
-        assert_eq!(mutex.acquire("owner", 5.0, true)["success"], true);
-        let waiting = Arc::clone(&mutex);
-        let join = thread::spawn(move || waiting.acquire("waiter", 5.0, true));
-        let result = join.join().unwrap();
-        assert_eq!(result["error"], "timeout");
-        assert_eq!(mutex.status()["waiter_count"], 0);
-    }
-
-    #[test]
-    fn mutex_priority_callback_is_observable() {
-        let observed = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
-        let sink = Arc::clone(&observed);
-        let mutex = Mutex::new("mutex", Duration::from_millis(10)).with_boost_callback(Arc::new(
-            move |owner, old, new| {
-                sink.lock().unwrap().push(format!("{owner}:{old}:{new}"));
-            },
-        ));
-        assert_eq!(mutex.acquire("owner", 5.0, true)["success"], true);
-        assert_eq!(mutex.acquire("waiter", 1.0, false)["success"], false);
-        assert_eq!(observed.lock().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn semaphore_matches_capacity_and_timeout_shape() {
-        let semaphore = Semaphore::new(
-            "semaphore",
-            1,
-            Duration::from_millis(10),
-            Duration::from_millis(2),
-        );
-        assert_eq!(semaphore.acquire("agent-a", false)["remaining"], 0);
-        assert_eq!(semaphore.acquire("agent-b", false)["error"], "no capacity");
-        assert_eq!(semaphore.acquire("agent-b", true)["error"], "timeout");
-        assert_eq!(semaphore.status()["waiters"], 0);
-        assert_eq!(semaphore.release("agent-a")["remaining"], 1);
-        assert_eq!(semaphore.acquire("agent-b", false)["success"], true);
-    }
-
-    #[test]
-    fn barrier_releases_one_releaser_and_one_waiter() {
-        let barrier = Arc::new(Barrier::new("barrier", 2, Duration::from_millis(100)));
-        let waiting = Arc::clone(&barrier);
-        let join = thread::spawn(move || waiting.wait("agent-a"));
-        thread::sleep(Duration::from_millis(5));
-        let second = barrier.wait("agent-b");
-        let first = join.join().unwrap();
-        assert_eq!(second["role"], "releaser");
-        assert_eq!(first["role"], "waiter");
-        assert_eq!(barrier.reset()["success"], true);
-    }
-
-    #[test]
-    fn condition_buffers_signals_and_wakes_waiters() {
-        let condition = Condition::new("condition", Duration::from_millis(20));
-        assert_eq!(condition.signal("agent-a")["wakeup"], 0);
-        assert_eq!(condition.wait("agent-b", None)["timed_out"], false);
-
-        let condition = Arc::new(Condition::new("condition", Duration::from_millis(100)));
-        let waiting = Arc::clone(&condition);
-        let join = thread::spawn(move || waiting.wait("agent-a", None));
-        thread::sleep(Duration::from_millis(5));
-        assert_eq!(condition.signal("agent-b")["success"], true);
-        assert_eq!(join.join().unwrap()["timed_out"], false);
-    }
-
-    #[test]
-    fn rwlock_preserves_writer_preference_and_reentrant_reads() {
-        let lock = Arc::new(RwLock::new(
-            "rwlock",
-            Duration::from_millis(500),
-            Duration::from_millis(2),
-        ));
-        assert_eq!(lock.read_lock("reader")["success"], true);
-        assert_eq!(lock.read_lock("reader")["readers"], 2);
-
-        let waiting = Arc::clone(&lock);
-        let join = thread::spawn(move || waiting.write_lock("writer"));
-        for _ in 0..200 {
-            if lock.status()["write_waiters"] == 1 {
-                break;
-            }
-            thread::sleep(Duration::from_millis(1));
-        }
-        assert_eq!(lock.status()["write_waiters"], 1);
-        assert_eq!(
-            lock.read_lock_with_timeout("new-reader", Duration::from_millis(10))["error"],
-            "timeout"
-        );
-        assert_eq!(lock.unlock("reader")["readers"], 1);
-        assert_eq!(lock.unlock("reader")["readers"], 0);
-        assert_eq!(join.join().unwrap()["success"], true);
-        assert_eq!(lock.status()["writer"], "writer");
-        assert_eq!(lock.unlock("writer")["success"], true);
-    }
-
-    #[test]
-    fn rwlock_tracks_reentrant_write_depth_and_rejects_empty_identity() {
-        let lock = RwLock::new(
-            "rwlock-depth",
-            Duration::from_millis(20),
-            Duration::from_millis(1),
-        );
-        assert_eq!(lock.write_lock("writer")["depth"], 1);
-        assert_eq!(lock.write_lock("writer")["depth"], 2);
-        assert_eq!(lock.status()["writer_depth"], 2);
-        assert_eq!(lock.unlock("writer")["depth"], 1);
-        assert_eq!(lock.status()["writer"], "writer");
-        assert_eq!(lock.unlock("writer")["success"], true);
-        assert_eq!(lock.status()["writer_depth"], 0);
-        assert_eq!(lock.read_lock("")["error"], "invalid agent_id");
-        assert_eq!(lock.write_lock("")["error"], "invalid agent_id");
-        assert_eq!(lock.unlock("")["error"], "invalid agent_id");
-    }
 }

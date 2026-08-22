@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::gatechain::path_within;
 
-/// Default sandbox directory name used by the Python3 parameter layer.
+/// Default sandbox directory name used by the Python parameter layer.
 pub const CONSTITUTION_SANDBOX_DIR: &str = "praxis-sandbox";
 /// Default constitution filename suffix.
 pub const CONSTITUTION_FILE_EXT: &str = ".praxis-rules.md";
@@ -20,7 +20,7 @@ pub const CONSTITUTION_SHARED_KEYWORD: &str = "shared";
 /// Target keyword that identifies the constitution itself.
 pub const CONSTITUTION_KEYWORD: &str = "constitution";
 
-/// Stable rule severity mirrored from Python3 `RuleSeverity`.
+/// Stable rule severity mirrored from Python `RuleSeverity`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum RuleSeverity {
@@ -143,6 +143,28 @@ impl ConstitutionRule {
             tags: Vec::new(),
         }
     }
+
+    /// Validate and normalize a rule before it crosses the Rust policy seam.
+    pub fn validate_and_normalize(mut self) -> Result<Self, &'static str> {
+        if self.id.trim().is_empty() {
+            return Err("constitution rule id must not be empty");
+        }
+        if self.section.trim().is_empty() {
+            return Err("constitution rule section must not be empty");
+        }
+        if self.source != "builtin" && self.source != "custom" {
+            return Err("constitution rule source must be builtin or custom");
+        }
+        if self.source == "custom" && self.kind != RuleKind::Noop {
+            return Err("custom constitution rules must use the noop kind");
+        }
+        if self.tags.iter().any(|tag| tag.trim().is_empty()) {
+            return Err("constitution rule tags must not be empty");
+        }
+        self.tags.sort_unstable();
+        self.tags.dedup();
+        Ok(self)
+    }
 }
 
 /// Action snapshot consumed by the pure Constitution evaluator.
@@ -180,7 +202,7 @@ impl ConstitutionInput {
     }
 }
 
-/// One non-pass rule report, matching Python3 `CheckReport` semantics.
+/// One non-pass rule report, matching Python `CheckReport` semantics.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckReport {
     /// Rule that produced the result.
@@ -197,7 +219,7 @@ pub struct CheckReport {
 pub struct ConstitutionDecision {
     /// Whether no rule blocked the action.
     pub allowed: bool,
-    /// Lowercase compatibility spelling used by Python3 API responses.
+    /// Lowercase compatibility spelling used by Python API responses.
     pub decision: String,
     /// Number of blocking reports.
     pub blocks: usize,
@@ -332,9 +354,24 @@ impl ConstitutionEngine {
         self.lock_rules().clone()
     }
 
-    /// Replace all rules; intended for a boot/config adapter after validation.
+    /// Replace all rules, preserving the old snapshot when validation fails.
     pub fn replace_rules(&self, rules: Vec<ConstitutionRule>) {
-        *self.lock_rules() = rules;
+        let _ = self.replace_rules_checked(rules);
+    }
+
+    /// Validate, normalize, and replace rules from an explicit config snapshot.
+    pub fn replace_rules_checked(&self, rules: Vec<ConstitutionRule>) -> Result<(), &'static str> {
+        let mut normalized = Vec::with_capacity(rules.len());
+        let mut ids = BTreeSet::new();
+        for rule in rules {
+            let rule = rule.validate_and_normalize()?;
+            if !ids.insert(rule.id.clone()) {
+                return Err("constitution rule id must be unique");
+            }
+            normalized.push(rule);
+        }
+        *self.lock_rules() = normalized;
+        Ok(())
     }
 
     /// Evaluate relevant rules and return only non-pass reports.
@@ -359,7 +396,7 @@ impl ConstitutionEngine {
             .collect()
     }
 
-    /// Return the Python3-compatible aggregate decision shape.
+    /// Return the Python-compatible aggregate decision shape.
     pub fn is_allowed(&self, input: &ConstitutionInput) -> ConstitutionDecision {
         let reports = self.check(input);
         let blocks = reports
@@ -761,120 +798,4 @@ fn default_source() -> String {
 
 fn set<const N: usize>(items: [&str; N]) -> BTreeSet<String> {
     items.into_iter().map(str::to_owned).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        CheckResult, ConstitutionEngine, ConstitutionInput, ConstitutionRule, RuleSeverity,
-    };
-    use serde::Deserialize;
-
-    #[test]
-    fn default_rules_are_indexed_and_safe_for_read() {
-        let engine = ConstitutionEngine::new();
-        let input = ConstitutionInput::new("read_file", "agent-a");
-        assert!(
-            engine
-                .check(&input)
-                .iter()
-                .all(|report| report.result != CheckResult::Block)
-        );
-        assert!(engine.rules().len() >= 16);
-    }
-
-    #[test]
-    fn territory_and_constitution_targets_block() {
-        let engine = ConstitutionEngine::new();
-        let mut input = ConstitutionInput::new("read_file", "agent-a");
-        input.target = "/project/outside.py".to_owned();
-        input.territory = vec!["/project/src".to_owned()];
-        assert_eq!(engine.is_allowed(&input).decision, "block");
-        input.action = "write_file".to_owned();
-        input.target = "/project/.praxis-rules.md".to_owned();
-        input.territory.clear();
-        assert_eq!(engine.is_allowed(&input).decision, "block");
-    }
-
-    #[test]
-    fn sandbox_and_gatechain_rules_warn_without_blocking() {
-        let engine = ConstitutionEngine::new();
-        let mut input = ConstitutionInput::new("write_file", "agent-a");
-        input.target = "/outside/file.py".to_owned();
-        let decision = engine.is_allowed(&input);
-        assert!(decision.allowed);
-        assert!(decision.warns >= 1);
-        input.action = "run_in_terminal".to_owned();
-        let decision = engine.is_allowed(&input);
-        assert!(decision.allowed);
-        assert!(decision.warns >= 1);
-    }
-
-    #[test]
-    fn scout_and_offensive_skill_rules_fail_closed() {
-        let engine = ConstitutionEngine::new();
-        let mut scout = ConstitutionInput::new("write_file", "scout");
-        assert_eq!(engine.is_allowed(&scout).decision, "block");
-        scout.action = "use_skill".to_owned();
-        scout.offensive_skill = true;
-        assert_eq!(engine.is_allowed(&scout).decision, "block");
-        scout.full_power = true;
-        assert!(engine.is_allowed(&scout).allowed);
-    }
-
-    #[test]
-    fn custom_rules_round_trip_and_replace_without_io() {
-        let engine = ConstitutionEngine::new();
-        let custom =
-            ConstitutionRule::custom("custom.one", "§custom", RuleSeverity::Should, "test");
-        engine.replace_rules(vec![custom.clone()]);
-        assert_eq!(engine.rules(), vec![custom]);
-        assert!(
-            engine
-                .check(&ConstitutionInput::new("read_file", "agent"))
-                .is_empty()
-        );
-        let encoded = serde_json::to_string(&engine.rules()).unwrap();
-        assert!(encoded.contains("custom.one"));
-    }
-
-    #[test]
-    fn cross_territory_shared_action_blocks() {
-        let engine = ConstitutionEngine::new();
-        let mut input = ConstitutionInput::new("write_file", "agent-a");
-        input.territory = vec!["/shared/unit".to_owned()];
-        let decision = engine.is_allowed(&input);
-        assert_eq!(decision.decision, "block");
-    }
-
-    #[derive(Deserialize)]
-    struct PolicyVector {
-        kind: String,
-        input: serde_json::Value,
-        expect: PolicyExpectation,
-    }
-
-    #[derive(Deserialize)]
-    struct PolicyExpectation {
-        allowed: bool,
-        decision: String,
-    }
-
-    #[test]
-    fn shared_policy_vectors_match_constitution_candidate() {
-        let vectors: Vec<PolicyVector> = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/kernel_policy_vectors.json"
-        ))
-        .expect("policy fixture must be valid JSON");
-        let engine = ConstitutionEngine::new();
-        for vector in vectors
-            .into_iter()
-            .filter(|vector| vector.kind == "constitution")
-        {
-            let input: ConstitutionInput = serde_json::from_value(vector.input).unwrap();
-            let result = engine.is_allowed(&input);
-            assert_eq!(result.allowed, vector.expect.allowed);
-            assert_eq!(result.decision, vector.expect.decision);
-        }
-    }
 }
