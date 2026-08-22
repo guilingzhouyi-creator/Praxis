@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # judge-stats — quantify the CompletionJudge's real effectiveness.
 #
 # Aggregates `.praxis/judge-runs.jsonl` (written by verify-completion.sh)
@@ -31,7 +32,7 @@
 #              (for tests / alternate logs)
 # Exit: 0 always (statistics are informational).
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[judge-stats] not in a git repo" >&2; exit 2; }
 cd "$ROOT"

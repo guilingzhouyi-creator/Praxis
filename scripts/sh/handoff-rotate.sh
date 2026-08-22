@@ -13,7 +13,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HA="$ROOT/docs/agent-handoff"
+HA="${HANDOFF_DIR:-$ROOT/docs/agent-handoff}"
 ARCH="$HA/archive"
 LOG_MAX="${HANDOFF_LOG_MAX:-30}"
 KEEP="${HANDOFF_KEEP:-30}"

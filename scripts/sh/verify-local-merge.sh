@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Local-merge gate — decide whether the CURRENT feature branch may merge
 # into LOCAL main.
 #
@@ -26,7 +27,7 @@
 #   2 — usage / branch resolution error
 #   3 — git / tooling failure
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "[local-merge] ERROR: not inside a git repository" >&2

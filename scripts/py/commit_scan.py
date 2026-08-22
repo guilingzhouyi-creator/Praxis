@@ -127,10 +127,10 @@ def validate_type_content(commit_type: str, changed_files: list[str]) -> list[st
     touch code). These are heuristic checks, not absolute — they surface
     inconsistencies that the agent should explain, not block the gate.
     """
-    rule = _TYPE_CONTENT_RULES.get(commit_type)
+    rule = load_policy().get("type_content_rules", _TYPE_CONTENT_RULES).get(commit_type)
     if not rule:
         return []
-    prefixes = rule.get("must_include", [])
+    prefixes = rule if isinstance(rule, list) else rule.get("must_include", [])
     if not prefixes:
         return []
     # At least one of the allowed prefixes must match a changed file.

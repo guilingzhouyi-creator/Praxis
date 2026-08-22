@@ -123,3 +123,25 @@ def test_shared_file_change_with_registration_passes():
         align.write_text(original, encoding="utf-8")
         _unstage_existing("docs/agent-handoff/ALIGNMENT.md")
         _unstage_tmp_probe(p)
+
+
+# ── must_include gate (type-to-file matching — restored regression) ──────
+
+
+def test_must_include_rejects_feat_without_source_files():
+    # feat/fix/refactor must touch src/crates/packages/scripts/.githooks/config
+    # — a staged tests/ file alone does not qualify (validate-commit must_include).
+    p = _stage_tmp_probe("tests/_tmp_must_include.py")
+    try:
+        assert run_hook(f"feat(core): probe the must include gate\n\n## What\n- **probe**\n- x\n\n{COAUTH}\n") == 1
+    finally:
+        _unstage_tmp_probe(p)
+
+
+def test_must_include_passes_for_matching_type():
+    # test type requires tests/ files — a staged tests/ file qualifies.
+    p = _stage_tmp_probe("tests/_tmp_must_include.py")
+    try:
+        assert run_hook(f"test(core): probe the must include gate\n\n## What\n- **probe**\n- x\n\n{COAUTH}\n") == 0
+    finally:
+        _unstage_tmp_probe(p)

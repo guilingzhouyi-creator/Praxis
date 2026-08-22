@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Worktree discipline checker — run BEFORE any branch switch.
 #
 # Every parallel agent MUST work in its own `git worktree`. Sharing a single
@@ -20,7 +21,7 @@
 #   2 — branch checked out in more than one worktree
 #   3 — other violation (branch expected but not current)
 
-set -u
+# set -u covered by top-level set -euo pipefail
 
 ALLOW_DIRTY=0
 EXPECTED_BRANCH=""
