@@ -1,7 +1,7 @@
 //! Emit a release-mode Rust fixed-work kernel evidence report.
 
 use l1_kernel_rs::benchmark::{BenchmarkEvidence, BenchmarkMetadata, FixedWorkSpec};
-use l1_kernel_rs::benchmark_runner::run_queue_contention;
+use l1_kernel_rs::benchmark_runner::{run_queue_contention, run_queue_contention_blocking};
 
 fn env_or(name: &str, fallback: &str) -> String {
     std::env::var(name)
@@ -13,7 +13,13 @@ fn env_or(name: &str, fallback: &str) -> String {
 fn main() {
     let spec = FixedWorkSpec::new("substrate.queue.contention", 4_096, vec![1, 2, 4], 3)
         .expect("benchmark specification is valid");
-    let report = run_queue_contention(spec, 64).expect("contention runner completed");
+    let queue_mode = env_or("PRAXIS_RUST_QUEUE_MODE", "try");
+    let report = match queue_mode.as_str() {
+        "try" => run_queue_contention(spec, 64),
+        "blocking" => run_queue_contention_blocking(spec, 64),
+        other => panic!("unsupported PRAXIS_RUST_QUEUE_MODE: {other}"),
+    }
+    .expect("contention runner completed");
     let metadata = BenchmarkMetadata::new(
         std::env::consts::OS,
         std::env::consts::ARCH,

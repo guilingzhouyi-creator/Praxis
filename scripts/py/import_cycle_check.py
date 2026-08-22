@@ -150,7 +150,7 @@ def main() -> int:
     ]
 
     def _is_export_cycle(comp: set[str]) -> bool:
-        # A cycle routed through a package __init__ is the normal Python3
+        # A cycle routed through a package __init__ is the normal Python
         # "package re-export" pattern: the __init__ imports submodules and
         # submodules import symbols from the package. It resolves at import
         # time by ordering (verified: `import l1.kernel` succeeds) and does

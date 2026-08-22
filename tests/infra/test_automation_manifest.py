@@ -40,7 +40,12 @@ def test_default_discovery_manifest_loads() -> None:
     manifest = AutomationManifest.load()
 
     assert manifest.schema_version == 1
-    assert [step.step_id for step in manifest.workflow("performance").plan()] == ["l2_protocol", "perf_quality"]
+    assert [step.step_id for step in manifest.workflow("performance").plan()] == [
+        "l2_protocol",
+        "perf_quality",
+        "r2_baseline_bundle",
+        "r2_baseline_analysis",
+    ]
 
 
 def test_manifest_plans_dependencies_first() -> None:

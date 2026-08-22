@@ -11,10 +11,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _cmd_security(args: list[str], session=None) -> dict:
-    from l2.bridge import security_center
+def _cmd_security(args: list[str]) -> dict:
+    from l3.services.central_security import get_center
 
-    center = security_center()
+    center = get_center()
     if args and args[0] == "audit":
         return {"success": True, "audit": center.audit_log() if hasattr(center, "audit_log") else []}
     return {"success": True, "status": "ok"}

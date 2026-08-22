@@ -110,6 +110,14 @@ def _rss_bytes() -> int | None:
         return None
 
 
+def _cpu_time_ns() -> int | None:
+    """Return process CPU time in nanoseconds when the runtime exposes it."""
+    try:
+        return time.process_time_ns()
+    except (AttributeError, OSError):
+        return None
+
+
 def platform_fingerprint() -> dict[str, Any]:
     """Return stable host metadata for comparing benchmark runs."""
     fingerprint: dict[str, Any] = {
@@ -135,6 +143,7 @@ class Sample:
     elapsed_s: float
     operations: int
     rss_bytes: int | None = None
+    cpu_time_ns: int | None = None
 
     @property
     def ops_per_sec(self) -> float:
@@ -156,6 +165,8 @@ class Sample:
         }
         if self.rss_bytes is not None:
             data["rss_bytes"] = self.rss_bytes
+        if self.cpu_time_ns is not None:
+            data["cpu_time_ns"] = self.cpu_time_ns
         return data
 
 
@@ -261,14 +272,19 @@ def run_benchmark(
     measured: list[Sample] = []
     for _ in range(samples):
         rss_before = _rss_bytes()
+        cpu_before = _cpu_time_ns()
         started = time.perf_counter()
         operation(iterations)
         elapsed = time.perf_counter() - started
         rss_after = _rss_bytes()
+        cpu_after = _cpu_time_ns()
         rss_delta = None
         if rss_before is not None and rss_after is not None:
             rss_delta = max(0, rss_after - rss_before)
-        measured.append(Sample(elapsed_s=elapsed, operations=iterations, rss_bytes=rss_delta))
+        cpu_delta = None
+        if cpu_before is not None and cpu_after is not None:
+            cpu_delta = max(0, cpu_after - cpu_before)
+        measured.append(Sample(elapsed_s=elapsed, operations=iterations, rss_bytes=rss_delta, cpu_time_ns=cpu_delta))
 
     return BenchmarkResult(
         name=name,

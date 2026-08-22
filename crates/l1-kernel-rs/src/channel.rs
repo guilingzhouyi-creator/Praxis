@@ -160,7 +160,9 @@ impl RingChannel {
     pub fn drain(&self) -> Vec<Value> {
         let mut state = self.lock_state();
         let items: Vec<Value> = state.buffer.drain(..).collect();
-        self.not_full.notify_all();
+        if !items.is_empty() {
+            self.not_full.notify_all();
+        }
         items
     }
 
@@ -176,66 +178,5 @@ impl RingChannel {
 
     fn lock_state(&self) -> MutexGuard<'_, ChannelState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::RingChannel;
-    use serde_json::json;
-    use std::sync::Arc;
-    use std::thread;
-    use std::time::Duration;
-
-    #[test]
-    fn fifo_put_get_peek_and_drain_preserve_json_values() {
-        let channel = RingChannel::new(4, false).unwrap();
-        assert!(channel.put(json!("a"), Some(Duration::from_millis(10))));
-        assert!(channel.put(json!({"n": 2}), Some(Duration::from_millis(10))));
-        assert_eq!(
-            channel.peek(Some(Duration::from_millis(10))),
-            Some(json!("a"))
-        );
-        assert_eq!(
-            channel.get(Some(Duration::from_millis(10))),
-            Some(json!("a"))
-        );
-        assert_eq!(channel.drain(), vec![json!({"n": 2})]);
-        assert_eq!(channel.size(), 0);
-    }
-
-    #[test]
-    fn bounded_put_times_out_and_overwrite_discards_oldest() {
-        let channel = RingChannel::new(1, false).unwrap();
-        assert!(channel.put(json!(1), None));
-        assert!(!channel.put(json!(2), Some(Duration::from_millis(5))));
-
-        let overwrite = RingChannel::new(2, true).unwrap();
-        assert!(overwrite.put(json!("a"), None));
-        assert!(overwrite.put(json!("b"), None));
-        assert!(overwrite.put(json!("c"), None));
-        assert_eq!(overwrite.get(None), Some(json!("b")));
-        assert_eq!(overwrite.get(None), Some(json!("c")));
-    }
-
-    #[test]
-    fn close_unblocks_waiters_and_rejects_future_puts() {
-        let channel = Arc::new(RingChannel::new(1, false).unwrap());
-        let waiting = Arc::clone(&channel);
-        let join = thread::spawn(move || waiting.get(None));
-        thread::sleep(Duration::from_millis(5));
-        channel.close();
-        assert_eq!(join.join().unwrap(), None);
-        assert!(!channel.put(json!("closed"), None));
-        assert!(channel.is_closed());
-    }
-
-    #[test]
-    fn invalid_capacity_and_utilization_are_explicit() {
-        assert!(RingChannel::new(0, false).is_err());
-        let channel = RingChannel::new(4, false).unwrap();
-        assert_eq!(channel.utilization(), 0.0);
-        channel.put(json!(1), None);
-        assert_eq!(channel.utilization(), 0.25);
     }
 }

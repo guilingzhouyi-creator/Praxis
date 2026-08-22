@@ -67,15 +67,15 @@ layer_1:
       handler: l3.tools._code.review_code
       params: [{name: path, type: string, required: true}]
     list_functions:
-      description: "List all function/class definitions in a Python3 file"
+      description: "List all function/class definitions in a Python file"
       handler: l3.tools._code.list_functions
       params: [{name: path, type: string, required: true}]
     ast_parse:
-      description: "Parse a Python3 file into top-level AST structure"
+      description: "Parse a Python file into top-level AST structure"
       handler: l3.tools._code.ast_parse
       params: [{name: path, type: string, required: true}]
     find_callees:
-      description: "Extract function/method call expressions from a Python3 file"
+      description: "Extract function/method call expressions from a Python file"
       handler: l3.tools._code.find_callees
       params: [{name: path, type: string, required: true}]
 
@@ -164,7 +164,7 @@ layer_1:
       handler: l3.tools._deps.check_version
       params: [{name: package, type: string, required: true}]
     pip_list:
-      description: "List installed Python3 packages"
+      description: "List installed Python packages"
       handler: l3.tools._package.pip_list
 
   lsp:
@@ -330,7 +330,7 @@ layer_2:
 
   package:
     pip_install:
-      description: "Install Python3 package via pip"
+      description: "Install Python package via pip"
       danger: 1
       handler: l3.tools._package.pip_install
       params: [{name: package, type: string, required: true}, {name: version, type: string, optional: true}]

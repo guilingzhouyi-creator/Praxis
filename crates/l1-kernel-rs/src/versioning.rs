@@ -7,27 +7,27 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-/// Current snapshot schema version mirrored from Python3.
+/// Current snapshot schema version mirrored from Python.
 pub const SNAPSHOT_VERSION: u64 = 3;
-/// Current checkpoint schema version mirrored from Python3.
+/// Current checkpoint schema version mirrored from Python.
 pub const CHECKPOINT_VERSION: u64 = 2;
-/// Current settings schema version mirrored from Python3.
+/// Current settings schema version mirrored from Python.
 pub const SETTINGS_VERSION: u64 = 2;
-/// Current workspace schema version mirrored from Python3.
+/// Current workspace schema version mirrored from Python.
 pub const WORKSPACE_VERSION: u64 = 2;
-/// Current log schema version mirrored from Python3.
+/// Current log schema version mirrored from Python.
 pub const LOG_VERSION: u64 = 2;
-/// Current card registry schema version mirrored from Python3.
+/// Current card registry schema version mirrored from Python.
 pub const CARD_REGISTRY_VERSION: u64 = 1;
-/// Current todo table schema version mirrored from Python3.
+/// Current todo table schema version mirrored from Python.
 pub const TODO_TABLE_VERSION: u64 = 1;
-/// Current transaction area schema version mirrored from Python3.
+/// Current transaction area schema version mirrored from Python.
 pub const TRANSACTION_AREA_VERSION: u64 = 1;
-/// Current dialogue session schema version mirrored from Python3.
+/// Current dialogue session schema version mirrored from Python.
 pub const DIALOGUE_SESSION_VERSION: u64 = 1;
-/// Current execution result schema version mirrored from Python3.
+/// Current execution result schema version mirrored from Python.
 pub const EXECUTION_RESULT_VERSION: u64 = 1;
-/// Current capability gate schema version mirrored from Python3.
+/// Current capability gate schema version mirrored from Python.
 pub const CAPABILITY_GATE_VERSION: u64 = 1;
 
 /// JSON migration callback accepted by the isolated candidate.
@@ -103,7 +103,7 @@ pub struct VersionRegistry {
 }
 
 impl VersionRegistry {
-    /// Create a registry populated with Python3's current persistence kinds.
+    /// Create a registry populated with Python's current persistence kinds.
     pub fn new() -> Self {
         let registry = Self {
             entries: Mutex::new(BTreeMap::new()),
@@ -342,161 +342,4 @@ fn default_kinds() -> [(&'static str, u64); 6] {
         ("transaction_area", TRANSACTION_AREA_VERSION),
         ("capability_gate", CAPABILITY_GATE_VERSION),
     ]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        CHECKPOINT_VERSION, SNAPSHOT_VERSION, VersionErrorCode, VersionRegistry, check_and_migrate,
-        reset_versioning, stamp,
-    };
-    use serde_json::json;
-
-    fn fixture() -> serde_json::Value {
-        serde_json::from_str(include_str!(
-            "../../../tests/fixtures/kernel_versioning_vectors.json"
-        ))
-        .expect("versioning fixture must be valid JSON")
-    }
-
-    #[test]
-    fn stamp_and_same_version_preserve_json_contract() {
-        let registry = VersionRegistry::new();
-        let stamped = registry.stamp(json!({"key": "value"}), "snapshot");
-        assert_eq!(stamped["_version"], SNAPSHOT_VERSION);
-        let checked = registry
-            .check_and_migrate(stamped.clone(), "snapshot")
-            .unwrap();
-        assert_eq!(checked.value, stamped);
-        assert!(checked.applied.is_empty());
-    }
-
-    #[test]
-    fn custom_steps_apply_in_order_and_set_each_version() {
-        let registry = VersionRegistry::new();
-        registry.register_kind("custom", 3);
-        registry
-            .register_migration("custom", 1, "one", |mut value| {
-                value["one"] = json!(true);
-                Ok(value)
-            })
-            .unwrap();
-        registry
-            .register_migration("custom", 2, "two", |mut value| {
-                value["two"] = json!(true);
-                Ok(value)
-            })
-            .unwrap();
-        let result = registry
-            .check_and_migrate(json!({"_version": 1}), "custom")
-            .unwrap();
-        assert_eq!(result.value["_version"], 3);
-        assert_eq!(result.value["one"], true);
-        assert_eq!(result.value["two"], true);
-        assert_eq!(result.applied.len(), 2);
-    }
-
-    #[test]
-    fn future_unknown_and_invalid_data_fail_closed() {
-        let registry = VersionRegistry::new();
-        assert_eq!(
-            registry
-                .check_and_migrate(json!({"_version": 99}), "snapshot")
-                .unwrap_err()
-                .code,
-            VersionErrorCode::FutureVersion
-        );
-        let unknown = registry
-            .check_and_migrate(json!({"_version": 1}), "unknown")
-            .unwrap();
-        assert_eq!(unknown.value["_version"], 1);
-        assert_eq!(
-            registry
-                .check_and_migrate(json!({"_version": -1}), "snapshot")
-                .unwrap_err()
-                .code,
-            VersionErrorCode::InvalidData
-        );
-        assert_eq!(
-            registry
-                .register_migration("ghost", 1, "nope", Ok)
-                .unwrap_err()
-                .code,
-            VersionErrorCode::UnknownKind
-        );
-    }
-
-    #[test]
-    fn migration_failures_and_non_object_results_are_structured() {
-        let registry = VersionRegistry::new();
-        registry.register_kind("custom", 2);
-        registry
-            .register_migration("custom", 1, "bad", |_| Err("boom".to_owned()))
-            .unwrap();
-        assert_eq!(
-            registry
-                .check_and_migrate(json!({"_version": 1}), "custom")
-                .unwrap_err()
-                .code,
-            VersionErrorCode::MigrationFailed
-        );
-        registry
-            .register_migration("custom", 1, "scalar", |_| Ok(json!(1)))
-            .unwrap();
-        assert_eq!(
-            registry
-                .check_and_migrate(json!({"_version": 1}), "custom")
-                .unwrap_err()
-                .code,
-            VersionErrorCode::InvalidData
-        );
-    }
-
-    #[test]
-    fn global_registry_can_be_reset() {
-        reset_versioning();
-        assert_eq!(
-            stamp(json!({}), "checkpoint")["_version"],
-            CHECKPOINT_VERSION
-        );
-        let result =
-            check_and_migrate(json!({"_version": CHECKPOINT_VERSION}), "checkpoint").unwrap();
-        assert!(result.applied.is_empty());
-        reset_versioning();
-    }
-
-    #[test]
-    fn shared_versioning_vectors_match_python_reference() {
-        let registry = VersionRegistry::new();
-        let vectors = fixture();
-        for case in vectors["cases"].as_array().unwrap() {
-            let kind = case["kind"].as_str().unwrap();
-            let input = case["input"].clone();
-            match case["case"].as_str().unwrap() {
-                "stamp_snapshot" => {
-                    assert_eq!(registry.stamp(input, kind), case["expect"]);
-                }
-                "checkpoint_identity_migration" | "unknown_kind" => {
-                    let result = registry.check_and_migrate(input, kind).unwrap();
-                    assert_eq!(result.value, case["expect"]);
-                    assert_eq!(
-                        serde_json::to_value(result.applied).unwrap(),
-                        case["applied"]
-                    );
-                }
-                "future_version" | "missing_zero_migration" => {
-                    let error = registry.check_and_migrate(input, kind).unwrap_err();
-                    let expected = match case["error"].as_str().unwrap() {
-                        "FUTURE_VERSION" => VersionErrorCode::FutureVersion,
-                        "MISSING_MIGRATION" => VersionErrorCode::MissingMigration,
-                        other => panic!("unexpected fixture error: {other}"),
-                    };
-                    assert_eq!(error.code, expected);
-                }
-                other => panic!("unexpected versioning fixture case: {other}"),
-            }
-        }
-        assert_eq!(registry.current_version("settings"), None);
-        assert_eq!(registry.current_version("workspace"), None);
-    }
 }

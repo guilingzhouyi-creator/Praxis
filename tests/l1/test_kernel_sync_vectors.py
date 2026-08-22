@@ -1,4 +1,4 @@
-"""Validate shared RWLock mechanism vectors against Python3."""
+"""Validate shared RWLock mechanism vectors against Python."""
 
 from __future__ import annotations
 

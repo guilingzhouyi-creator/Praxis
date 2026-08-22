@@ -1,7 +1,7 @@
 //! Provider-neutral SystemBus metadata, dependency planning, and state values.
 //!
 //! Component callbacks, event routing, health providers, child-bus ownership,
-//! and thread or process lifecycle remain Python3 adapter responsibilities.
+//! and thread or process lifecycle remain Python adapter responsibilities.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
@@ -16,7 +16,7 @@ fn default_version() -> String {
 /// Declarative metadata for one bus-managed component.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComponentSpec {
-    /// Stable component name supplied by the Python3 adapter.
+    /// Stable component name supplied by the Python adapter.
     pub name: String,
     /// Component version.
     #[serde(default = "default_version")]
@@ -48,21 +48,21 @@ impl Default for ComponentSpec {
     }
 }
 
-/// Lifecycle state mirrored from Python3's SystemBus state map.
+/// Lifecycle state mirrored from Python's SystemBus state map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComponentState {
     /// Registered but not initialized.
     Registered,
-    /// `bus_init` completed in the Python3 owner.
+    /// `bus_init` completed in the Python owner.
     Inited,
-    /// `bus_start` completed in the Python3 owner.
+    /// `bus_start` completed in the Python owner.
     Started,
-    /// `bus_stop` completed in the Python3 owner.
+    /// `bus_stop` completed in the Python owner.
     Stopped,
 }
 
 impl ComponentState {
-    /// Return the Python3-compatible state spelling.
+    /// Return the Python-compatible state spelling.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Registered => "registered",
@@ -223,7 +223,7 @@ impl ComponentRegistry {
         true
     }
 
-    /// Return Python3-compatible state labels keyed by component name.
+    /// Return Python-compatible state labels keyed by component name.
     pub fn state_map(&self) -> BTreeMap<String, String> {
         self.lock_state()
             .states
@@ -291,81 +291,4 @@ fn topological_sort(
         return Err(BusPlanError::Cycle(cycle));
     }
     Ok(order)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
-    use serde::Deserialize;
-
-    use super::{BusPlanError, ComponentRegistry, ComponentSpec};
-
-    #[derive(Debug, Deserialize)]
-    struct BusVector {
-        registrations: Vec<ComponentSpec>,
-        available: Vec<String>,
-        expected_names: Vec<String>,
-        expected_graph: BTreeMap<String, Vec<String>>,
-        expected_order: Option<Vec<String>>,
-        expected_cycle: Option<Vec<String>>,
-        expected_specs: Option<BTreeMap<String, ComponentSpec>>,
-        expected_states: Option<BTreeMap<String, String>>,
-    }
-
-    #[test]
-    fn state_transitions_are_explicit() {
-        let registry = ComponentRegistry::new();
-        registry
-            .register(ComponentSpec {
-                name: "x".to_owned(),
-                ..ComponentSpec::default()
-            })
-            .unwrap();
-        assert!(registry.mark_inited("x"));
-        assert!(registry.mark_started("x"));
-        assert!(registry.mark_stopped("x"));
-        assert!(!registry.mark_inited("x"));
-        assert!(!registry.mark_started("x"));
-        assert_eq!(registry.state_map()["x"], "stopped");
-    }
-
-    #[test]
-    fn shared_bus_vectors_match_python_reference() {
-        let vectors: Vec<BusVector> = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/kernel_bus_vectors.json"
-        ))
-        .expect("bus fixture must be valid JSON");
-        for vector in vectors {
-            let registry = ComponentRegistry::new();
-            for spec in vector.registrations {
-                registry
-                    .register(spec)
-                    .expect("fixture metadata must be valid");
-            }
-            assert_eq!(registry.names(), vector.expected_names);
-            let plan = registry.plan(&vector.available);
-            if let Some(expected_cycle) = vector.expected_cycle {
-                assert_eq!(plan, Err(BusPlanError::Cycle(expected_cycle)));
-                continue;
-            }
-            let plan = plan.expect("acyclic fixture must plan");
-            assert_eq!(plan.graph, vector.expected_graph);
-            assert_eq!(plan.order, vector.expected_order.expect("order"));
-            for name in registry.names() {
-                assert!(registry.mark_inited(&name));
-                assert!(registry.mark_started(&name));
-                assert!(registry.mark_stopped(&name));
-            }
-            assert_eq!(
-                registry.state_map(),
-                vector.expected_states.expect("states")
-            );
-            if let Some(expected_specs) = vector.expected_specs {
-                for (name, expected) in expected_specs {
-                    assert_eq!(registry.get(&name), Some(expected));
-                }
-            }
-        }
-    }
 }

@@ -1,9 +1,4 @@
-"""Shell base — abstract dialect adapter over the shared L2 command engine.
-
-TS rewrite reference: dialect adapters (web/TUI/desktop/SSH) correspond
-to the TS frontend shapes in ``session.ts`` — the base contract here is
-what a TS dialect adapter must satisfy when rendering a session.
-"""
+"""Shell base — abstract dialect adapter over the shared L2 command engine."""
 
 from __future__ import annotations
 

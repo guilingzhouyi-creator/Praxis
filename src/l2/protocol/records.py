@@ -2,7 +2,7 @@
 
 The records are pure data objects with deterministic JSON serialization. They
 are deliberately narrower than the internal session files: chain-of-thought,
-mutable runtime handles, and Python3-specific implementation details do not
+mutable runtime handles, and Python-specific implementation details do not
 cross this boundary.
 """
 
@@ -62,16 +62,16 @@ class _ProtocolRecord:
         """Normalize decoded values before dataclass construction."""
         return values
 
-    def to_dict(self: Any) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return the versioned record envelope as JSON-compatible data."""
         return {
             "record_type": self.record_type,
             "schema_version": RECORD_SCHEMA_VERSION,
-            "data": _json_value(asdict(self)),
+            "data": _json_value(asdict(cast(Any, self))),
         }
 
     @classmethod
-    def from_dict(cls: type[Any], raw: dict[str, Any]) -> _ProtocolRecord:
+    def from_dict(cls, raw: dict[str, Any]) -> _ProtocolRecord:
         """Build a record while ignoring unknown fields for forward compatibility."""
         if not isinstance(raw, dict):
             raise RecordValidationError("record must be an object")
@@ -84,7 +84,7 @@ class _ProtocolRecord:
         if not isinstance(data, dict):
             raise RecordValidationError("record data must be an object")
 
-        record_fields = fields(cls)
+        record_fields = fields(cast(Any, cls))
         known = {item.name for item in record_fields}
         missing = [
             item.name
@@ -99,12 +99,7 @@ class _ProtocolRecord:
 
 @dataclass(frozen=True, slots=True)
 class SessionIdentity(_ProtocolRecord):
-    """Identify one session without conflating terminal or process ownership.
-
-    TS mirror: ``packages/protocol-ts/src/records.ts`` SessionIdentity —
-    field names and nullability (terminal/process may be empty until the
-    host injects them) must stay in sync across languages.
-    """
+    """Identify one session without conflating terminal or process ownership."""
 
     record_type: ClassVar[str] = "session_identity"
 
@@ -119,9 +114,9 @@ class SessionIdentity(_ProtocolRecord):
     def _validate(self) -> None:
         """Validate session identity fields."""
         _require_text(self.session_id, "session_id")
-        # terminal/process ownership is host-injected and legitimately absent
-        # for stdio/web sessions, so those fields are optional like the rest.
-        for name in ("terminal_id", "process_id", "user_id", "role", "cell_id", "memory_scope"):
+        _require_text(self.terminal_id, "terminal_id")
+        _require_text(self.process_id, "process_id")
+        for name in ("user_id", "role", "cell_id", "memory_scope"):
             _require_text(getattr(self, name), name, allow_empty=True)
 
 
@@ -285,7 +280,7 @@ RECORD_TYPES: frozenset[str] = frozenset(
         EvidenceRef.record_type,
     }
 )
-_RECORD_CLASSES: dict[str, type[_ProtocolRecord]] = {
+_RECORD_CLASSES: dict[str, type[Any]] = {
     SessionIdentity.record_type: SessionIdentity,
     EventEnvelope.record_type: EventEnvelope,
     SessionMessage.record_type: SessionMessage,
@@ -324,9 +319,7 @@ def decode_record(line: str) -> Record:
     if not isinstance(raw, dict):
         raise RecordValidationError("record must be an object")
     record_type = raw.get("record_type")
-    if not isinstance(record_type, str):
-        raise RecordValidationError(f"unknown record_type: {record_type!r}")
-    record_cls = _RECORD_CLASSES.get(record_type)
+    record_cls = _RECORD_CLASSES.get(cast(str, record_type))
     if record_cls is None:
         raise RecordValidationError(f"unknown record_type: {record_type!r}")
     return cast(Record, record_cls.from_dict(raw))

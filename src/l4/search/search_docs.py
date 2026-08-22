@@ -21,7 +21,7 @@ from .search_models import DocEntry
 class DocSearch:
     """API documentation search — built-in index + dynamic extension."""
 
-    # Fast reference index for common Python3 stdlib modules
+    # Fast reference index for common Python stdlib modules
     STDLIB_INDEX: dict[str, DocEntry] = {
         "pathlib.Path": DocEntry(
             "stdlib",

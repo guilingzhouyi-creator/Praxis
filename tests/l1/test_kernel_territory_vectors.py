@@ -1,4 +1,4 @@
-"""Validate shared territory containment vectors against the Python3 reference."""
+"""Validate shared territory containment vectors against the Python reference."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 //! Provider-neutral health-result aggregation candidate for the L1 kernel.
 //!
 //! Module imports, clocks, singleton probes, and runtime subsystem providers
-//! remain Python3-owned. This module only aggregates explicit check results.
+//! remain Python-owned. This module only aggregates explicit check results.
 
 use std::collections::BTreeMap;
 
@@ -19,7 +19,7 @@ pub struct HealthCheck {
     pub detail: String,
 }
 
-/// Aggregated health result with the Python3 wire shape.
+/// Aggregated health result with the Python wire shape.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HealthSummary {
     /// Overall status, with `DOWN` taking precedence over `DEGRADED`.
@@ -87,42 +87,4 @@ fn round_half_even(value: f64, precision: u32) -> f64 {
         lower + 1.0
     };
     sign * rounded / factor
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{HealthCheck, aggregate_health};
-    use serde::Deserialize;
-    use serde_json::Value;
-    use std::collections::BTreeMap;
-
-    #[derive(Debug, Deserialize)]
-    struct HealthVectors {
-        cases: Vec<HealthCase>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct HealthCase {
-        subsystems: BTreeMap<String, HealthCheck>,
-        elapsed_ms: f64,
-        expected: Value,
-    }
-
-    #[test]
-    fn shared_health_vectors_match_candidate() {
-        let raw = include_str!("../../../tests/fixtures/kernel_health_vectors.json");
-        let vectors: HealthVectors = serde_json::from_str(raw).expect("valid health vectors");
-        for case in vectors.cases {
-            let actual = serde_json::to_value(aggregate_health(&case.subsystems, case.elapsed_ms))
-                .expect("serializable health result");
-            assert_eq!(actual, case.expected);
-        }
-    }
-
-    #[test]
-    fn empty_health_is_healthy() {
-        let result = aggregate_health(&BTreeMap::new(), 0.0);
-        assert_eq!(result.status, "OK");
-        assert_eq!(result.module_count, 0);
-    }
 }

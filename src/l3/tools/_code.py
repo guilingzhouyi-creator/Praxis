@@ -40,7 +40,7 @@ def symbol_search(args: dict, agent_id: str) -> dict:
 
 
 def find_imports(args: dict, agent_id: str) -> dict:
-    """Scan Python3 files under path for import statements; returns matches."""
+    """Scan Python files under path for import statements; returns matches."""
     path = args.get("path", ".")
     results = []
     for root, _dirs, files in os.walk(path):
@@ -80,7 +80,7 @@ def review_code(args: dict, agent_id: str) -> dict:
 
 
 def list_functions(args: dict, agent_id: str) -> dict:
-    """RING_1: List all function/class/method definitions in a Python3 file."""
+    """RING_1: List all function/class/method definitions in a Python file."""
     path = args.get("path", "")
     if not path:
         return {"success": False, "error": "path is required"}
@@ -100,7 +100,7 @@ def list_functions(args: dict, agent_id: str) -> dict:
 
 
 def ast_parse(args: dict, agent_id: str) -> dict:
-    """RING_1: Parse a Python3 file into its top-level AST structure."""
+    """RING_1: Parse a Python file into its top-level AST structure."""
     path = args.get("path", "")
     if not path:
         return {"success": False, "error": "path is required"}
@@ -123,7 +123,7 @@ def ast_parse(args: dict, agent_id: str) -> dict:
 
 
 def find_callees(args: dict, agent_id: str) -> dict:
-    """RING_1: Extract all function/method call expressions from a Python3 file."""
+    """RING_1: Extract all function/method call expressions from a Python file."""
     path = args.get("path", "")
     if not path:
         return {"success": False, "error": "path is required"}

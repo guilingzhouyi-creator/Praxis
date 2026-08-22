@@ -10,17 +10,17 @@ from __future__ import annotations
 from l2.i18n import t as _t
 
 
-def _cmd_l3ac(args: list[str], session=None) -> dict:
+def _cmd_l3ac(args: list[str]) -> dict:
     """Manage the L3A-C secretary: status | contribute | reset."""
     sub = args[0] if args else "status"
     if sub == "reset":
-        from l2.bridge import reset_secretary
+        from l3.cell.peers.l3a.secretary import reset_secretary
 
         reset_secretary()
         return {"success": True, "note": "secretary reset"}
-    from l2.bridge import secretary
+    from l3.cell.peers.l3a.secretary import get_secretary
 
-    sec = secretary()
+    sec = get_secretary()
     if sub == "status":
         return {"success": True, "secretary": sec.status()}
     if sub == "contribute":
@@ -29,11 +29,8 @@ def _cmd_l3ac(args: list[str], session=None) -> dict:
         kind = args[1]
         raw = args[2].lower()
         if raw not in ("true", "yes", "1", "false", "no", "0"):
-            return {"success": False, "error": _t("shell.app_error.invalid_boolean", value=args[2])}
+            return {"success": False, "error": f"invalid boolean: {args[2]} (true|false)"}
         ok = raw in ("true", "yes", "1")
         card_id = args[4] if len(args) > 4 and args[3] == "--card" else ""
         return sec.contribute(kind, success=ok, card_id=card_id)
-    return {
-        "success": False,
-        "error": _t("shell.app_error.unknown_subcommand_hint", sub=sub, hint="status|contribute|reset"),
-    }
+    return {"success": False, "error": f"unknown subcommand: {sub} (status|contribute|reset)"}

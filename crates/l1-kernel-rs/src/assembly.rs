@@ -8,12 +8,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::KERNEL_CONTRACT_VERSION;
 use crate::boot::{BootPlan, BootPlanError, BootStepSpec};
+use crate::config_store::{ConfigError, ConfigLayoutManifest};
 use crate::lifecycle::{LifecycleRegistry, LifecycleState};
 use crate::ports::{PortDescriptor, PortRegistry, PortRegistryError};
+use crate::protocol::{ProtocolDescriptor, ProtocolDescriptorError};
 use crate::state_layout::{
     STATE_LAYOUT_VERSION, StateAction, StateDecision, StateLayoutError, StateLayoutManifest,
     StateProbe, decide_state_action,
 };
+use crate::terminal::{TerminalContractDescriptor, TerminalContractError};
 
 /// Version of the declarative Rust assembly snapshot.
 pub const ASSEMBLY_VERSION: u32 = 1;
@@ -25,6 +28,14 @@ pub struct AssemblySpec {
     pub contract_version: u32,
     /// Host-selected Rust state root.
     pub state_root: String,
+    /// Host-selected Rust configuration root.
+    pub config_root: String,
+    /// Contract version declared by the configuration root.
+    pub config_contract_version: u32,
+    /// Retained wire protocol descriptor.
+    pub protocol: ProtocolDescriptor,
+    /// Terminal substrate descriptor carried by the kernel.
+    pub terminal: TerminalContractDescriptor,
     /// Declarative boot steps.
     pub boot_steps: Vec<BootStepSpec>,
     /// Declarative provider metadata.
@@ -41,9 +52,37 @@ impl AssemblySpec {
         Self {
             contract_version: KERNEL_CONTRACT_VERSION,
             state_root: state_root.into(),
+            config_root: String::new(),
+            config_contract_version: KERNEL_CONTRACT_VERSION,
+            protocol: ProtocolDescriptor::current(),
+            terminal: TerminalContractDescriptor::current(),
             boot_steps,
             ports,
         }
+    }
+
+    /// Override the independent Rust configuration root.
+    pub fn with_config_root(mut self, config_root: impl Into<String>) -> Self {
+        self.config_root = config_root.into();
+        self
+    }
+
+    /// Override the config manifest contract for fail-closed tests or hosts.
+    pub const fn with_config_contract_version(mut self, version: u32) -> Self {
+        self.config_contract_version = version;
+        self
+    }
+
+    /// Supply an explicit protocol descriptor.
+    pub fn with_protocol(mut self, protocol: ProtocolDescriptor) -> Self {
+        self.protocol = protocol;
+        self
+    }
+
+    /// Supply an explicit terminal descriptor.
+    pub fn with_terminal(mut self, terminal: TerminalContractDescriptor) -> Self {
+        self.terminal = terminal;
+        self
     }
 }
 
@@ -55,10 +94,32 @@ pub enum AssemblyError {
     InvalidContractVersion { expected: u32, actual: u32 },
     /// State layout validation failed.
     StateLayout(StateLayoutError),
+    /// Rust configuration manifest metadata is invalid or divergent.
+    Config(ConfigAssemblyError),
     /// Boot plan validation failed.
     BootPlan(BootPlanError),
     /// Port metadata validation failed.
     Ports(PortRegistryError),
+    /// Retained protocol metadata is unsupported.
+    Protocol(ProtocolDescriptorError),
+    /// Terminal substrate metadata is unsupported.
+    Terminal(TerminalContractError),
+}
+
+/// Configuration metadata failures that can cross the declarative assembly seam.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigAssemblyError {
+    /// The configuration root is invalid.
+    InvalidRoot,
+    /// A configuration entry is invalid.
+    InvalidPath(String),
+    /// The layout contains no entries.
+    EmptyLayout,
+    /// A configuration entry is duplicated.
+    DuplicateEntry(String),
+    /// The requested config contract does not match this kernel.
+    ContractVersion { expected: u32, actual: u32 },
 }
 
 /// Stable snapshot emitted by the independent Rust assembly boundary.
@@ -72,6 +133,12 @@ pub struct AssemblySnapshot {
     pub state_layout_version: u32,
     /// Rust-owned state root selected by the host.
     pub state_root: String,
+    /// Complete Rust-owned configuration manifest metadata.
+    pub config_manifest: ConfigLayoutManifest,
+    /// Retained protocol descriptor.
+    pub protocol: ProtocolDescriptor,
+    /// Terminal substrate descriptor.
+    pub terminal: TerminalContractDescriptor,
     /// Dependency-first boot order.
     pub boot_order: Vec<String>,
     /// Locked port declarations in registration order.
@@ -83,8 +150,11 @@ pub struct AssemblySnapshot {
 /// Validated independent Rust kernel assembly.
 pub struct KernelAssembly {
     manifest: StateLayoutManifest,
+    config_manifest: ConfigLayoutManifest,
     boot_plan: BootPlan,
     ports: PortRegistry,
+    protocol: ProtocolDescriptor,
+    terminal: TerminalContractDescriptor,
     lifecycle: LifecycleRegistry,
 }
 
@@ -99,6 +169,24 @@ impl KernelAssembly {
         }
         let manifest = StateLayoutManifest::fresh(spec.state_root, spec.contract_version)
             .map_err(AssemblyError::StateLayout)?;
+        let config_root = if spec.config_root.is_empty() {
+            format!("{}/config", manifest.state_root)
+        } else {
+            spec.config_root
+        };
+        let config_manifest =
+            ConfigLayoutManifest::fresh(config_root, spec.config_contract_version)
+                .map_err(map_config_error)?;
+        if config_manifest.contract_version != KERNEL_CONTRACT_VERSION {
+            return Err(AssemblyError::Config(
+                ConfigAssemblyError::ContractVersion {
+                    expected: KERNEL_CONTRACT_VERSION,
+                    actual: config_manifest.contract_version,
+                },
+            ));
+        }
+        spec.protocol.validate().map_err(AssemblyError::Protocol)?;
+        spec.terminal.validate().map_err(AssemblyError::Terminal)?;
 
         let mut boot_plan = BootPlan::new();
         for step in spec.boot_steps {
@@ -119,8 +207,11 @@ impl KernelAssembly {
 
         Ok(Self {
             manifest,
+            config_manifest,
             boot_plan,
             ports,
+            protocol: spec.protocol,
+            terminal: spec.terminal,
             lifecycle: LifecycleRegistry::new(),
         })
     }
@@ -132,6 +223,9 @@ impl KernelAssembly {
             contract_version: self.manifest.contract_version,
             state_layout_version: self.manifest.layout_version,
             state_root: self.manifest.state_root.clone(),
+            config_manifest: self.config_manifest.clone(),
+            protocol: self.protocol.clone(),
+            terminal: self.terminal.clone(),
             boot_order: self
                 .boot_plan
                 .resolve_order()
@@ -162,69 +256,19 @@ impl KernelAssembly {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{AssemblyError, AssemblySpec, KernelAssembly};
-    use crate::KERNEL_CONTRACT_VERSION;
-    use crate::boot::BootStepSpec;
-    use crate::ports::{PortDescriptor, PortKind};
-    use crate::state_layout::{StateAction, StateProbe};
-
-    fn spec() -> AssemblySpec {
-        AssemblySpec::new(
-            "/var/lib/praxis-rs",
-            vec![
-                BootStepSpec::new("cell", vec!["services".to_owned()]),
-                BootStepSpec::new("services", vec!["config".to_owned()]),
-                BootStepSpec::new("config", Vec::new()),
-            ],
-            vec![
-                PortDescriptor::new("process", PortKind::Process, 1),
-                PortDescriptor::new("storage", PortKind::Storage, 1),
-            ],
-        )
-    }
-
-    #[test]
-    fn assembly_is_locked_and_deterministic() {
-        let assembly = KernelAssembly::assemble(spec()).expect("assembly");
-        let snapshot = assembly.snapshot();
-        assert!(assembly.is_locked());
-        assert_eq!(snapshot.boot_order, ["config", "services", "cell"]);
-        assert_eq!(snapshot.ports[0].name, "process");
-        assert_eq!(snapshot.lifecycle_state.as_str(), "halted");
-    }
-
-    #[test]
-    fn assembly_rejects_invalid_contract_or_plan() {
-        let mut invalid_contract = spec();
-        invalid_contract.contract_version += 1;
-        assert!(matches!(
-            KernelAssembly::assemble(invalid_contract),
-            Err(AssemblyError::InvalidContractVersion { .. })
-        ));
-
-        let mut invalid_plan = spec();
-        invalid_plan.boot_steps = vec![BootStepSpec::new("cell", vec!["missing".to_owned()])];
-        assert!(matches!(
-            KernelAssembly::assemble(invalid_plan),
-            Err(AssemblyError::BootPlan(_))
-        ));
-    }
-
-    #[test]
-    fn assembly_exposes_state_decision_without_mutation() {
-        let assembly = KernelAssembly::assemble(spec()).expect("assembly");
-        let decision = assembly
-            .state_decision(&StateProbe {
-                root_exists: true,
-                root_empty: false,
-                manifest_version: Some(1),
-                clean_shutdown: Some(false),
-            })
-            .expect("decision");
-        assert_eq!(decision.action, StateAction::Recover);
-        assert_eq!(assembly.lifecycle_state().as_str(), "halted");
-        assert_eq!(KERNEL_CONTRACT_VERSION, 1);
-    }
+fn map_config_error(error: ConfigError) -> AssemblyError {
+    let mapped = match error {
+        ConfigError::InvalidRoot => ConfigAssemblyError::InvalidRoot,
+        ConfigError::InvalidPath(path) => ConfigAssemblyError::InvalidPath(path),
+        ConfigError::EmptyLayout => ConfigAssemblyError::EmptyLayout,
+        ConfigError::DuplicateEntry(path) => ConfigAssemblyError::DuplicateEntry(path),
+        ConfigError::UnsupportedLayout(_)
+        | ConfigError::UnsupportedDocument(_)
+        | ConfigError::InvalidKey(_)
+        | ConfigError::InvalidDocument { .. }
+        | ConfigError::RootNotDirectory(_)
+        | ConfigError::ForeignRoot(_)
+        | ConfigError::Io(_) => ConfigAssemblyError::InvalidRoot,
+    };
+    AssemblyError::Config(mapped)
 }

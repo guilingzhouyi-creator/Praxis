@@ -1,4 +1,4 @@
-"""Validate shared process-table mechanism vectors against Python3."""
+"""Validate shared process-table mechanism vectors against Python."""
 
 from __future__ import annotations
 

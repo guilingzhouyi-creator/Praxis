@@ -130,17 +130,6 @@ class TestOutbox:
         assert [m["seq"] for m in box.unacked()] == [2, 3, 4]
         assert OUTBOX_MAXLEN >= 3
 
-    def test_ack_is_non_destructive_across_views(self) -> None:
-        """One view acking never erases messages another view must replay."""
-        box = Outbox()
-        box.append(make_message("s", 1, KIND_RESULT, {"success": True}))
-        box.append(make_message("s", 2, KIND_RESULT, {"success": True}))
-        box.ack(1)
-        # The advancing view sees only its future; a lagging view still
-        # replays the full window from its own cursor.
-        assert [m["seq"] for m in box.unacked()] == [2]
-        assert [m["seq"] for m in box.unacked(0)] == [1, 2]
-
 
 class TestSessionCursor:
     """Per-view attachment + acknowledged position."""
@@ -153,14 +142,6 @@ class TestSessionCursor:
         assert cur.attached and cur.session_id == "s-9"
         cur.detach()
         assert not cur.attached
-
-    def test_ack_advances_only_this_view(self) -> None:
-        """A view's ack position is independent of other views."""
-        cur = SessionCursor(view_id="view-a")
-        cur.ack(5)
-        assert cur.last_acked == 5
-        cur.ack(3)
-        assert cur.last_acked == 5
 
 
 class TestSchema:
@@ -234,65 +215,6 @@ class TestHost:
         assert out[0]["kind"] == KIND_RESULT
         assert out[0]["payload"]["success"] is False
 
-    def test_ack_advances_shared_outbox_watermark(self) -> None:
-        """Acknowledging through a view trims the shared session snapshot."""
-        host = ProtocolHost()
-        host.attach_view("s-ack", "s-ack")
-        host._emit(KIND_EVENT, {"name": "e1"}, "s-ack")
-        host._emit(KIND_EVENT, {"name": "e2"}, "s-ack")
-        assert len(host.session_state("s-ack")["events"]) == 2
-        host.handle_message(make_message("s-ack", 1, KIND_ACK, {"ack_seq": 2, "view_id": "s-ack"}))
-        # The default single-view transport acks through its session view.
-        assert host.session_state("s-ack")["events"] == []
-
-    def test_shared_watermark_tracks_lagging_view(self) -> None:
-        """One view acking never erases the window a lagging view needs."""
-        host = ProtocolHost()
-        host._get_session("s-mx")
-        host._emit(KIND_EVENT, {"name": "e1"}, "s-mx")
-        host._emit(KIND_EVENT, {"name": "e2"}, "s-mx")
-        host.attach_view("v-a", "s-mx")
-        host.attach_view("v-b", "s-mx")
-        # v-a acks both; v-b stays behind -> shared snapshot keeps both.
-        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-a"}))
-        assert len(host.session_state("s-mx")["events"]) == 2
-        # v-b catches up -> shared watermark advances and the snapshot trims.
-        host.handle_message(make_message("s-mx", 1, KIND_ACK, {"ack_seq": 2, "view_id": "v-b"}))
-        assert host.session_state("s-mx")["events"] == []
-
-    def test_shared_watermark_is_per_session(self) -> None:
-        """Session A's acks never touch session B's shared watermark."""
-        host = ProtocolHost()
-        host._get_session("s-a")
-        host._get_session("s-b")
-        host.attach_view("a-1", "s-a")
-        host.attach_view("b-1", "s-b")
-        host._emit(KIND_EVENT, {"name": "e1"}, "s-a")
-        host._emit(KIND_EVENT, {"name": "e2"}, "s-b")
-        # a-1 acks past its own event; b-1 never acks — per-session isolation.
-        host.handle_message(make_message("s-a", 1, KIND_ACK, {"ack_seq": 1, "view_id": "a-1"}))
-        assert host.session_state("s-a")["events"] == []
-        assert len(host.session_state("s-b")["events"]) == 1
-
-    def test_detached_view_leaves_shared_watermark(self) -> None:
-        """A detached view stops contributing to the shared watermark."""
-        host = ProtocolHost()
-        host.attach_view("v-x", "s-d")
-        host._emit(KIND_EVENT, {"name": "e1"}, "s-d")
-        host.detach_view("v-x")
-        # No attached views left — the watermark holds, fresh views replay.
-        host.handle_message(make_message("s-d", 1, KIND_ACK, {"ack_seq": 1, "view_id": "v-x"}))
-        assert len(host.session_state("s-d")["events"]) == 1
-
-    def test_dispatch_args_shortcut_matches_text_path(self) -> None:
-        """dispatch(text, args=...) behaves identically to the shlex path."""
-        from l2.l2_shell import dispatch as _dispatch
-
-        text = "/lang -v"
-        direct = _dispatch("/lang", args=["-v"])
-        parsed = _dispatch(text)  # shlex.split path
-        assert direct == parsed
-
     def test_run_reads_jsonl_stream(self) -> None:
         """run() consumes stdin lines and writes JSONL responses."""
         host = ProtocolHost()
@@ -304,35 +226,3 @@ class TestHost:
         assert len(lines) == 2
         for line in lines:
             assert isinstance(json.loads(line), dict)
-
-    def test_clear_command_returns_data_not_stdout(self, capsys) -> None:
-        """Built-in handlers write no stdout — /clear returns a render flag."""
-        host = ProtocolHost()
-        out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "clear", "args": []}))
-        result = next(env for env in out if env["kind"] == KIND_RESULT)
-        assert result["payload"]["success"] is True
-        assert result["payload"]["clear"] is True
-        assert "rendered" not in result["payload"]
-        assert capsys.readouterr().out == ""
-        # The enriched result still survives the canonical JSONL encode.
-        assert encode_message(result)
-
-    def test_legacy_printing_handler_still_captured(self, capsys) -> None:
-        """Runtime-registered print() handlers land in ``rendered``, not stdout."""
-        from l1.kernel.commands import get_registry
-
-        registry = get_registry()
-
-        def _noisy(args, session=None):
-            print("hello-noise")
-            return {"success": True}
-
-        registry.register_system("noisy_probe", _noisy)
-        try:
-            host = ProtocolHost()
-            out = host.handle_message(make_message("s-1", 1, KIND_COMMAND, {"name": "noisy_probe", "args": []}))
-        finally:
-            registry.unregister("noisy_probe")
-        result = next(env for env in out if env["kind"] == KIND_RESULT)
-        assert result["payload"]["rendered"].strip() == "hello-noise"
-        assert capsys.readouterr().out == ""

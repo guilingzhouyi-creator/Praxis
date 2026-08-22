@@ -22,7 +22,7 @@ Architecture guide for the bootstrap system (`src/l3/boot/`). Boot is a 7-phase 
 - **Failure recovery**: `_reset_singletons_on_retry` resets registered singletons before a retry; `_restore_previous_state` recovers the last known-good snapshot; error capture wired via `_wire_error_capture` (`capture()` on error_bus, component="kernel").
 - **prepare_layout runs first**: every runtime dir must exist before any service/step writes to the data dir — new runtime paths must be provisioned there.
 - **capability executor wiring**: boot is the ONLY place that wires the `invoke_capability` executor (boot_steps/tools.py) — never wire it elsewhere.
-- **New services**: register their reset function in `tests/conftest.py` `_RESETS` (autouse fixture isolates tests); singleton scan (`scripts/py/scan_singletons.py`) keeps the list in sync.
+- **New services**: register their reset function in `tests/conftest.py` `_RESETS` (autouse fixture isolates tests); singleton scan (`scripts/py/scan-singletons.py`) keeps the list in sync.
 - **Config flow**: boot reads three-layer config — params defaults ← `config/discovery/*.yaml` ← `config/praxis.yaml`.
 
 ## Tests

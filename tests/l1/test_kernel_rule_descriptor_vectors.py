@@ -1,4 +1,4 @@
-"""Validate shared rule descriptor value vectors against Python3."""
+"""Validate shared rule descriptor value vectors against Python."""
 
 from __future__ import annotations
 

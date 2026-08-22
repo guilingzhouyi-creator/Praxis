@@ -10,8 +10,12 @@
     {"path": "journal", "kind": "directory"},
     {"path": "runtime", "kind": "directory"},
     {"path": "snapshots", "kind": "directory"},
+    {"path": "snapshots/execution", "kind": "directory"},
+    {"path": "snapshots/sessions", "kind": "directory"},
+    {"path": "snapshots/execution/checkpoint.json", "kind": "file"},
     {"path": "journal/events.jsonl", "kind": "file"},
-    {"path": "lifecycle.json", "kind": "file"}
+    {"path": "lifecycle.json", "kind": "file"},
+    {"path": "snapshots/sessions/checkpoint.json", "kind": "file"}
   ],
   "expected_entries": [
     {"path": "audit", "kind": "directory"},
@@ -23,6 +27,10 @@
     {"path": "runtime", "kind": "directory"},
     {"path": "runtime/checkpoint.json", "kind": "file"},
     {"path": "snapshots", "kind": "directory"},
+    {"path": "snapshots/execution", "kind": "directory"},
+    {"path": "snapshots/execution/checkpoint.json", "kind": "file"},
+    {"path": "snapshots/sessions", "kind": "directory"},
+    {"path": "snapshots/sessions/checkpoint.json", "kind": "file"},
     {"path": "tmp", "kind": "directory"}
   ],
   "probes": [

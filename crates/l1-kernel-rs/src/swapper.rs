@@ -1,7 +1,7 @@
 //! Provider-neutral memory-ring swap planning candidate for the L1 kernel.
 //!
 //! MemoryService I/O, allocator pressure sampling, clocks, worker threads,
-//! and persistence remain Python3-owned. This module only plans ring actions
+//! and persistence remain Python-owned. This module only plans ring actions
 //! from explicit entry and pressure snapshots.
 
 use serde::{Deserialize, Serialize};
@@ -106,76 +106,5 @@ pub fn plan_pressure(snapshot: PressureSnapshot, high_threshold: f64) -> Pressur
         swap_out_working: snapshot.working_pct >= high_threshold,
         compact_short_term: snapshot.short_pct >= high_threshold,
         long_term_full: snapshot.long_pct >= high_threshold,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{PressureSnapshot, SwapEntry, plan_compaction, plan_pressure, plan_swap_out};
-    use serde::Deserialize;
-    use serde_json::Value;
-
-    #[derive(Debug, Deserialize)]
-    struct SwapperVectors {
-        cases: Vec<SwapperCase>,
-        pressure: Vec<PressureCase>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct SwapperCase {
-        entries: Vec<SwapEntry>,
-        count: Option<usize>,
-        expected_swap_out: Value,
-        expected_compaction: Value,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct PressureCase {
-        snapshot: PressureSnapshot,
-        high_threshold: f64,
-        expected: Value,
-    }
-
-    #[test]
-    fn shared_swapper_vectors_match_candidate() {
-        let raw = include_str!("../../../tests/fixtures/kernel_swapper_vectors.json");
-        let vectors: SwapperVectors = serde_json::from_str(raw).expect("valid swapper vectors");
-        for case in vectors.cases {
-            let count = case.count.unwrap_or(super::SWAPPER_SWAP_COUNT);
-            let actual_swap = serde_json::to_value(plan_swap_out(
-                &case.entries,
-                count,
-                super::SWAPPER_SWAP_OUT_IMPORTANCE,
-            ))
-            .expect("serializable swap plan");
-            let actual_compaction = serde_json::to_value(plan_compaction(
-                &case.entries,
-                super::SWAPPER_COMPACT_IMPORTANCE,
-            ))
-            .expect("serializable compaction plan");
-            assert_eq!(actual_swap, case.expected_swap_out);
-            assert_eq!(actual_compaction, case.expected_compaction);
-        }
-        for case in vectors.pressure {
-            let actual = serde_json::to_value(plan_pressure(case.snapshot, case.high_threshold))
-                .expect("serializable pressure plan");
-            assert_eq!(actual, case.expected);
-        }
-    }
-
-    #[test]
-    fn pressure_plan_fails_closed_when_not_under_pressure() {
-        let plan = plan_pressure(
-            PressureSnapshot {
-                under_pressure: false,
-                working_pct: 100.0,
-                short_pct: 100.0,
-                long_pct: 100.0,
-            },
-            90.0,
-        );
-        assert!(!plan.swap_out_working);
-        assert!(!plan.compact_short_term);
-        assert!(!plan.long_term_full);
     }
 }

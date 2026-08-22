@@ -1,4 +1,4 @@
-"""Verify stable Python3 VFS mount-resolution values from the shared fixture."""
+"""Verify stable Python VFS mount-resolution values from the shared fixture."""
 
 from __future__ import annotations
 

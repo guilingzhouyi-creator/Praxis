@@ -72,7 +72,7 @@ class TestBuildContext:
         mem.remember(
             "agent-ctx",
             "decision",
-            "Use Poetry for Python3 dependency management in this project.",
+            "Use Poetry for Python dependency management in this project.",
             tags=["build", "python"],
             ring=1,
         )

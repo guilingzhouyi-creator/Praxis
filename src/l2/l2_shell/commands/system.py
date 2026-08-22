@@ -10,29 +10,24 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_status(args: list[str], session=None) -> dict:
-    """Return kernel health enriched with shell mode/cell context.
-
-    Renders nothing to stdout: the human-readable block rides in
-    ``result["output"]`` so frontends (REPL/protocol/TS) all consume data.
-    """
+def _cmd_status(args: list[str]) -> dict:
     from l1.kernel.healthcheck import safe_system_check as _health
     from l1.kernel.process import get_table
-    from l2.bridge import terminals as get_terminals
     from l2.i18n import t
+    from l3.agent_terminal import get_terminals
 
     h = _health()
-    lines = [t("shell.status.kernel_health", status=h.get("status", "?"), modules=h.get("module_count", 0))]
+    print(t("shell.status.kernel_health", status=h.get("status", "?"), modules=h.get("module_count", 0)))
     for name, r in h.get("subsystems", {}).items():
-        lines.append(f"  [{r['status']}] {name}")
-    lines.append(f"\n{t('shell.status.processes', count=len(get_table().list_processes()))}")
-    lines.append(t("shell.status.terminals", count=len(get_terminals())))
+        print(f"  [{r['status']}] {name}")
+    print(f"\n{t('shell.status.processes', count=len(get_table().list_processes()))}")
+    print(t("shell.status.terminals", count=len(get_terminals())))
     try:
         from l1.kernel.lifecycle import get_lifecycle
 
         lc = get_lifecycle()
         rec = lc.load()
-        lines.append(
+        print(
             t(
                 "shell.status.lifecycle",
                 state=lc.state().value,
@@ -47,33 +42,34 @@ def _cmd_status(args: list[str], session=None) -> dict:
     try:
         from ..state import get_state
 
-        st = session if session is not None else get_state()
+        st = get_state()
         result["mode"] = st.mode
         result["cell_id"] = st.cell_id
         if st.is_direct():
             result["agent_id"] = st.agent_id
     except Exception:
         logger.debug("system: shell state enrichment failed", exc_info=True)
-    result["output"] = "\n".join(lines)
     return result
 
 
-def _cmd_intents(args: list[str], session=None) -> dict:
-    from l2.bridge import think_registry_stats
+def _cmd_intents(args: list[str]) -> dict:
+    from l3.scheduler.think_registry import get_think_registry
 
-    return {"success": True, "intents": think_registry_stats()}
-
-
-def _cmd_scheduler(args: list[str], session=None) -> dict:
-    from l2.bridge import scheduler_stats
-
-    return {"success": True, "data": scheduler_stats()}
+    reg = get_think_registry()
+    return {"success": True, "intents": reg.stats()}
 
 
-def _cmd_observe(args: list[str], session=None) -> dict:
-    from l2.bridge import obs_bus_summary
+def _cmd_scheduler(args: list[str]) -> dict:
+    from l3.scheduler.scheduler import get_scheduler
 
-    return {"success": True, "data": obs_bus_summary()}
+    s = get_scheduler()
+    return {"success": True, "data": s.stats() if hasattr(s, "stats") else {}}
+
+
+def _cmd_observe(args: list[str]) -> dict:
+    from l3.bus.observability_bus import get_obs_bus
+
+    return {"success": True, "data": get_obs_bus().summary()}
 
 
 def _parse_skill_args(args: list[str]) -> tuple[str, str, list[str]]:
@@ -119,7 +115,7 @@ def _skills_get(sm, rest: list[str]) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_get")}
     skill = sm.get(name)
     if not skill:
-        return {"success": False, "error": _t("shell.app_error.skill_not_found", name=name)}
+        return {"success": False, "error": f"skill '{name}' not found"}
     return {"success": True, "skill": skill}
 
 
@@ -152,7 +148,7 @@ def _skills_distill(sm, rest: list[str]) -> dict:
         return sm.set_distill_policy(sub={field: flag}, source="shell")
     return {
         "success": False,
-        "error": _t("shell.app_error.unknown_action", domain="distill", action=action),
+        "error": f"unknown distill action: {action}",
         "suggestions": ["status", "set <distill|dpo_signal|generalize|llm_distill|clustering|sampling> <on|off>"],
     }
 
@@ -167,7 +163,7 @@ def _candidate_policy(sm, store, rest: list[str], role: str, agent_id: str) -> d
         return {"success": False, "error": _t("shell.app_error.usage_skills_candidates_policy")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     return store.set_enabled(value in ("on", "true", "1"))
 
 
@@ -179,7 +175,7 @@ def _candidate_transition(sm, store, action: str, rest: list[str], role: str, ag
         return {"success": False, "error": _t("shell.app_error.usage_skills_candidates")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     transitions = {
         "validate": lambda: store.validate(candidate_id),
         "publish": lambda: store.publish(candidate_id, " ".join(rest[3:])),
@@ -210,7 +206,7 @@ def _skills_candidates(sm, rest: list[str], role: str, agent_id: str) -> dict:
 def _skills_retriever(sm, rest: list[str]) -> dict:
     """Skill retriever backend control (tfidf | embedding)."""
     action = rest[1] if len(rest) > 1 else "status"
-    from l2.bridge import retriever_status, set_retriever_backend
+    from l3.memory.skill_retriever import retriever_status, set_backend
 
     if action == "status":
         return retriever_status()
@@ -218,10 +214,10 @@ def _skills_retriever(sm, rest: list[str]) -> dict:
         backend = rest[2] if len(rest) > 2 else ""
         if not backend:
             return {"success": False, "error": _t("shell.app_error.usage_skills_retriever")}
-        return set_retriever_backend(backend=backend)
+        return set_backend(backend)
     return {
         "success": False,
-        "error": _t("shell.app_error.unknown_action", domain="retriever", action=action),
+        "error": f"unknown retriever action: {action}",
         "suggestions": ["status", "set <tfidf|embedding>"],
     }
 
@@ -243,7 +239,7 @@ def _skills_pipeline_set(sm, rest: list[str]) -> dict:
         return sm.set_pipeline_policy(**{field: fv}, source="shell")
     return {
         "success": False,
-        "error": _t("shell.app_error.invalid_field_value", domain="pipeline", field=field, value=value),
+        "error": f"invalid pipeline field/value: {field} {value}",
         "suggestions": [
             "status",
             "set <retrieval|curation> <on|off>",
@@ -261,7 +257,7 @@ def _skills_pipeline(sm, rest: list[str]) -> dict:
         return _skills_pipeline_set(sm, rest)
     return {
         "success": False,
-        "error": _t("shell.app_error.unknown_action", domain="pipeline", action=action),
+        "error": f"unknown pipeline action: {action}",
         "suggestions": ["status", "set <field> <value>"],
     }
 
@@ -288,7 +284,7 @@ def _skills_disclosure(sm, rest: list[str]) -> dict:
             return sm.set_disclosure_policy(full_index_limit=int(value), source="shell")
         return {
             "success": False,
-            "error": _t("shell.app_error.invalid_field_value", domain="disclosure", field=field, value=value),
+            "error": f"invalid disclosure field/value: {field} {value}",
             "suggestions": [
                 "status",
                 "set <full_index_enabled|audience_filter_enabled|strategy_capability_view> <on|off>",
@@ -297,7 +293,7 @@ def _skills_disclosure(sm, rest: list[str]) -> dict:
         }
     return {
         "success": False,
-        "error": _t("shell.app_error.unknown_action", domain="disclosure", action=action),
+        "error": f"unknown disclosure action: {action}",
         "suggestions": ["status", "set <field> <value>"],
     }
 
@@ -312,7 +308,7 @@ def _skills_guidance(sm, rest: list[str]) -> dict:
         return sm.set_guidance_policy(mode=mode, source="shell")
     return {
         "success": False,
-        "error": _t("shell.app_error.unknown_action", domain="guidance", action=action),
+        "error": f"unknown guidance action: {action}",
         "suggestions": ["status", "set <small|full>"],
     }
 
@@ -326,13 +322,13 @@ def _skills_evolve(sm, rest: list[str], role: str, agent_id: str) -> dict:
     # like create/update/delete/reload (see authorize_write in SkillManager).
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     try:
-        from l2.bridge import r4_evolve_skill
+        from l3.memory.r4_agent import get_r4_agent
 
-        return r4_evolve_skill(intent)
+        return get_r4_agent().evolve_skill(intent)
     except Exception as e:
-        return {"success": False, "error": _t("shell.app_error.evolve_failed", error=e)}
+        return {"success": False, "error": f"evolve failed: {e}"}
 
 
 def _skills_create(sm, rest: list[str], role: str, agent_id: str) -> dict:
@@ -349,7 +345,7 @@ def _skills_update(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_update")}
     name, field, value = rest[1], rest[2], rest[3]
     if field not in ("description", "prompt", "rules"):
-        return {"success": False, "error": _t("shell.app_error.unsupported_field", field=field)}
+        return {"success": False, "error": f"unsupported field: {field}"}
     data: dict[str, object] = {"rules": [r for r in value.split(";") if r]} if field == "rules" else {field: value}
     return sm.update(name, data, agent_id=agent_id, role=role)
 
@@ -431,11 +427,11 @@ def _skills_register(sm, rest: list[str], role: str, agent_id: str) -> dict:
     name, desc, prompt, scope, scope_identity, priority, tags, tools = parsed
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     try:
-        from l2.bridge import r4_register_custom_skill
+        from l3.memory.r4_agent import get_r4_agent
 
-        result = r4_register_custom_skill(
+        result = get_r4_agent().register_custom_skill(
             name=name,
             description=desc,
             prompt=prompt,
@@ -481,9 +477,9 @@ def _link_registered_skill(sm, name: str, scope: str, tags: list[str], result: d
     so L2 never imports the memory graph directly. Degrades to a no-op when
     the graph is disabled — registration never hard-fails on linkage."""
     try:
-        from l2.bridge import link_skill_graph
+        from l3.memory.r4_skill_retrieval import link_registered_skill_graph
 
-        linked = link_skill_graph(sm, name, scope, tags)
+        linked = link_registered_skill_graph(sm, name, scope, tags)
         return {"success": True, "skill": name, "scope": scope, "linked": linked.get("linked", 0), **result}
     except Exception:
         return {"success": True, "skill": name, "scope": scope, "linked": 0, **result}
@@ -496,7 +492,7 @@ def _skills_enable(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_enable")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     data = {"status": "active"}
     updated = sm.update(name, data, agent_id=agent_id, role=role)
     if not updated.get("success"):
@@ -511,7 +507,7 @@ def _skills_disable(sm, rest: list[str], role: str, agent_id: str) -> dict:
         return {"success": False, "error": _t("shell.app_error.usage_skills_disable")}
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     data = {"status": "retired"}
     updated = sm.update(name, data, agent_id=agent_id, role=role)
     if not updated.get("success"):
@@ -532,10 +528,13 @@ def _skills_update_speed(sm, rest: list[str], role: str, agent_id: str) -> dict:
         elif flag in ("off", "disable"):
             enabled = False
         else:
-            return {"success": False, "error": _t("shell.app_error.usage_update_speed_flag", flag=flag)}
+            return {
+                "success": False,
+                "error": _t("shell.app_error.usage_skills_update_speed_invalid", flag=flag),
+            }
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     return sm.set_update_policy(update_speed=speed, enabled=enabled, source="shell")
 
 
@@ -543,7 +542,7 @@ def _skills_reload(sm, rest: list[str], role: str, agent_id: str) -> dict:
     """Reload builtin skills (developer-only)."""
     ok, who = sm.authorize_write(agent_id, role)
     if not ok:
-        return {"success": False, "error": _t("shell.app_error.permission_denied", who=who)}
+        return {"success": False, "error": f"permission denied: {who}"}
     count = sm.load_builtin()
     return {"success": True, "loaded": count, "authorized": who}
 
@@ -573,7 +572,7 @@ _SKILL_HANDLERS: dict[str, Callable[..., dict]] = {
 }
 
 
-def _cmd_skills(args: list[str], session=None) -> dict:
+def _cmd_skills(args: list[str]) -> dict:
     """Manage skills — list/get are public; create/update/delete/reload are developer-only.
 
     Usage:
@@ -613,13 +612,13 @@ def _cmd_skills(args: list[str], session=None) -> dict:
     if not handler:
         return {
             "success": False,
-            "error": _t("shell.app_error.unknown_skills_subcommand", sub=sub),
+            "error": f"unknown skills subcommand: {sub}",
             "suggestions": ["list", "get", "create", "update", "delete", "reload", "permissions"],
         }
     return handler(sm, rest, role, agent_id)
 
 
-def _cmd_process(args: list[str], session=None) -> dict:
+def _cmd_process(args: list[str]) -> dict:
     from l1.kernel.process import get_table
 
     if args and args[0] == "audit":
@@ -627,45 +626,43 @@ def _cmd_process(args: list[str], session=None) -> dict:
     return {"success": True, "processes": get_table().list_processes()}
 
 
-def _cmd_vfs(args: list[str], session=None) -> dict:
-    """Read one VFS path; content rides in the dict (no stdout writes)."""
+def _cmd_vfs(args: list[str]) -> dict:
     from l1.kernel.vfs import get_vfs
 
     path = args[0] if args else "/"
     r = get_vfs().read(path)
     if r.get("success"):
-        r["output"] = r.get("content", "")
+        print(r["content"])
     return r
 
 
-def _cmd_cache(args: list[str], session=None) -> dict:
+def _cmd_cache(args: list[str]) -> dict:
     from l1.kernel.params.agent import DEFAULT_CELL_ID
-    from l2.bridge import cell_cache_stats
+    from l3.cell import get_cell
 
-    return {"success": True, "cache": cell_cache_stats(DEFAULT_CELL_ID)}
+    cell = get_cell(DEFAULT_CELL_ID)
+    return {"success": True, "cache": cell.cache.stats() if hasattr(cell, "cache") else {}}
 
 
-def _cmd_sysinfo(args: list[str], session=None) -> dict:
+def _cmd_sysinfo(args: list[str]) -> dict:
     import sys
 
     return {"success": True, "python": sys.version, "platform": sys.platform}
 
 
-def _cmd_clear(args: list[str], session=None) -> dict:
-    """Signal a screen clear; frontends render it (handlers write no stdout)."""
+def _cmd_clear(args: list[str]) -> dict:
+    print("\033[2J\033[H", end="")
     return {"success": True, "clear": True}
 
 
-def _cmd_history(args: list[str], session=None) -> dict:
+def _cmd_history(args: list[str]) -> dict:
     from l1.kernel.params.system import SHELL_HISTORY_DEFAULT_LIMIT
 
     limit = int(args[0]) if args and args[0].isdigit() else SHELL_HISTORY_DEFAULT_LIMIT
-    if session is None:
-        return {"success": True, "history": [], "limit": limit}
-    return {"success": True, "history": session.history(limit), "limit": limit}
+    return {"success": True, "history": [], "limit": limit}
 
 
-def _cmd_lang(args: list[str], session=None) -> dict:
+def _cmd_lang(args: list[str]) -> dict:
     from l2.i18n import get_available_locales, get_locale, set_locale
 
     if args:
@@ -673,7 +670,7 @@ def _cmd_lang(args: list[str], session=None) -> dict:
     return {"success": True, "locale": get_locale(), "available": get_available_locales()}
 
 
-def _cmd_devices(args: list[str], session=None) -> dict:
+def _cmd_devices(args: list[str]) -> dict:
     from l1.kernel.device import get_device_manager
 
     dm = get_device_manager()
@@ -681,22 +678,74 @@ def _cmd_devices(args: list[str], session=None) -> dict:
     return {"success": True, "devices": devices, "count": len(devices)}
 
 
-def _cmd_tools(args: list[str], session=None) -> dict:
-    from l2.bridge import terminals as get_terminals
+def _cmd_tools(args: list[str]) -> dict:
+    from l3.agent_terminal import get_terminals
 
     agent_id = args[0] if args else ""
     terms = get_terminals()
     if agent_id:
         term = terms.get(agent_id)
         if not term:
-            return {"success": False, "error": _t("shell.app_error.unknown_agent", agent_id=agent_id)}
+            return {"success": False, "error": f"unknown agent: {agent_id}"}
         tools = term.list_tools()
         return {"success": True, "tools": tools, "agent": agent_id}
     return {"terminals": list(terms.keys())}
 
 
-def _cmd_help(args: list[str], session=None) -> dict:
-    """Backward-compat alias — the canonical /help lives in commands/connect.py."""
-    from l2.l2_shell.commands.connect import _cmd_help as _canonical
+def _cmd_help(args: list[str]) -> dict:
+    """Show help for commands (/help <cmd>) or list all commands."""
+    from l1.kernel.commands import get_command
+    from l2.l2_shell.commands import list_commands
 
-    return _canonical(args, session=session)
+    if args:
+        cmd_name = args[0].lower().lstrip("/")
+        cmd = get_command(cmd_name)
+        if not cmd:
+            return {"success": False, "error": f"unknown command: {cmd_name}"}
+        lines = [f"/{cmd_name}  — {cmd.get('help', '')}"]
+        if cmd.get("aliases"):
+            lines.append(f"  aliases: {', '.join('/' + a for a in cmd['aliases'])}")
+        if cmd.get("args"):
+            lines.append("  args:")
+            for a in cmd["args"]:
+                opt = " (optional)" if a.get("optional") else ""
+                lines.append(f"    {a['name']}{opt} — {a.get('description', '')}")
+        if cmd.get("examples"):
+            lines.append("  examples:")
+            for e in cmd["examples"]:
+                lines.append(f"    {e}")
+        lines.append(f"  category: {cmd.get('category', 'other')}")
+        return {"success": True, "output": "\n".join(lines), "format": "table"}
+    cmds = list_commands()
+    groups: dict[str, list] = {}
+    for c in cmds:
+        cat = c.get("category", "other")
+        groups.setdefault(cat, []).append(c)
+    cat_labels = {
+        "session": _t("shell.render.cat_session"),
+        "control": _t("shell.render.cat_control"),
+        "memory": _t("shell.render.cat_memory"),
+        "system": _t("shell.render.cat_system"),
+        "agent": _t("shell.render.cat_agent"),
+        "audit": _t("shell.render.cat_audit"),
+        "ext": _t("shell.render.cat_ext"),
+    }
+    lines = [_t("shell.render.available"), ""]
+    for cat in ["session", "control", "memory", "system", "agent", "audit", "ext"]:
+        items = groups.get(cat, [])
+        if not items:
+            continue
+        label = cat_labels.get(cat, cat)
+        lines.append(f"  ── {label} ──")
+        for c in items:
+            name = c.get("command", "")
+            help_text = c.get("help", "")
+            alias_str = ""
+            if c.get("aliases"):
+                alias_str = f" ({', '.join('/' + a for a in c['aliases'])})"
+            lines.append(f"    {name:25s} {help_text}{alias_str}")
+        lines.append("")
+    lines.append("  Tip: /help <command> for details & examples")
+    lines.append("  Tip: cmd1 | cmd2 for pipeline (auto Map/Chain/Passthrough)")
+    lines.append("  Tip: --cell or --agent for scoped operations")
+    return {"success": True, "output": "\n".join(lines), "format": "table"}

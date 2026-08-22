@@ -1,4 +1,4 @@
-"""Cross-language lifecycle vectors for the Python3 network adapter."""
+"""Cross-language lifecycle vectors for the Python network adapter."""
 
 from __future__ import annotations
 

@@ -1,11 +1,12 @@
 //! Cross-language contract tests for the Rust L1 candidate boundary.
 //!
 //! These tests intentionally live outside `src/`: they consume public Rust
-//! APIs and the shared Python3/Rust fixture without reaching private internals.
+//! APIs and the shared Python/Rust fixture without reaching private internals.
 
 use std::collections::BTreeMap;
 
 use l1_kernel_rs::registry::{SummaryInput, aggregate_summary, snapshot_sections};
+use l1_kernel_rs::{KERNEL_CONTRACT_VERSION, KernelContract};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -26,6 +27,11 @@ struct RegistryCase {
     healthy_status: Option<String>,
     expected_sections: BTreeMap<String, Value>,
     expected_summary: Value,
+}
+
+#[test]
+fn current_contract_is_versioned() {
+    assert_eq!(KernelContract::current().version, KERNEL_CONTRACT_VERSION);
 }
 
 #[test]

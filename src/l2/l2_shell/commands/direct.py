@@ -14,21 +14,19 @@ from l2.i18n import t as _t
 from l2.shells.terminal import intent_direct, scout_commission
 
 
-def _session(session: Any | None = None) -> Any:
-    """Return the explicit shell session, falling back to the family-backed state."""
-    if session is not None:
-        return session
+def _session() -> Any:
+    """Return the current shell session (family-backed state)."""
     from l2.l2_shell.state import get_state
 
     return get_state()
 
 
-def _cmd_intent(args: list[str], session=None) -> dict:
+def _cmd_intent(args: list[str]) -> dict:
     """Route a direct intent: /intent <text>[@<cell>/<agent>]."""
     text = " ".join(args)
     if not text:
         return {"success": False, "error": _t("shell.app_error.usage_intent")}
-    session = _session(session)
+    session = _session()
     agent_id = session.agent_id
     if "@" in text:
         intent, _, route = text.partition("@")
@@ -40,8 +38,8 @@ def _cmd_intent(args: list[str], session=None) -> dict:
     return intent_direct(intent, agent_id)
 
 
-def _cmd_scout(args: list[str], session=None) -> dict:
+def _cmd_scout(args: list[str]) -> dict:
     """Commission a Scout: /scout <task>."""
     task = " ".join(args)
-    session = _session(session)
+    session = _session()
     return scout_commission(task, session.agent_id, session.cell_id)

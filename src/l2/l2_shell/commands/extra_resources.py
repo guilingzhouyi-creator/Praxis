@@ -13,20 +13,20 @@ from l2.i18n import t as _t
 logger = logging.getLogger(__name__)
 
 
-def _cmd_buffer(args: list[str], session=None) -> dict:
-    from l2.bridge import resource_manager
+def _cmd_buffer(args: list[str]) -> dict:
+    from l3.resource_buffer.manager import get_manager
 
-    mgr = resource_manager()
+    mgr = get_manager()
     if args and args[0] == "flush":
         return {"success": True, "flushed": len(mgr._buffers) if hasattr(mgr, "_buffers") else 0}
     return {"success": True, "buffer": {}}
 
 
-def _cmd_think(args: list[str], session=None) -> dict:
+def _cmd_think(args: list[str]) -> dict:
     """Inspect or configure think quotas."""
-    from l2.bridge import think_registry
+    from l3.scheduler.think_registry import get_think_registry
 
-    reg = think_registry()
+    reg = get_think_registry()
     if not args:
         return {"success": True, "cells": sorted(reg.stats().get("cells", {}).keys())}
     if args[0] == "status":

@@ -144,7 +144,7 @@ and `queue.stderr` (ignored runtime evidence).
 
 ### 3.5 Repeated Amdahl and lock run
 
-The follow-up run used three rounds on the same WSL2/Python3 environment and
+The follow-up run used three rounds on the same WSL2/Python environment and
 kept fixed total work at every worker count. Amdahl remained fully serialized:
 
 | Workers | Throughput (ops/s) | Queue p95 (ms) | Lock p95 (ms) |
@@ -200,7 +200,7 @@ criterion.
 G5 now has a reproducible, build-only boundary:
 
 - Rust `1.97.1` with `rustfmt` and `clippy` pinned by `rust-toolchain.toml`;
-- contract-only `crates/l1-kernel-rs/` workspace with no Python3 bindings or
+- contract-only `crates/l1-kernel-rs/` workspace with no Python bindings or
   execution authority;
 - Node 24 CI pin, TypeScript 5.7/Vitest lockfile, and read-only
   `packages/protocol-ts/` parity mirror;
@@ -224,6 +224,6 @@ backpressure as hot mechanisms. It does **not** authorize Rust implementation:
    a module-specific
    Rust pilot branch.
 
-Until those steps are complete, keep Python3 as the only execution
+Until those steps are complete, keep Python as the only execution
 implementation and treat the current results as preflight evidence, not a
 baseline approval or a migration result.

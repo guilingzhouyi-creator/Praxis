@@ -1,4 +1,4 @@
-"""Validate shared load-adaptive control-law vectors against Python3."""
+"""Validate shared load-adaptive control-law vectors against Python."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_load_adapt
 
 
 def test_shared_load_adaptive_vectors_match_python_reference() -> None:
-    """Keep Rust and Python3 decisions aligned for fixed timestamps and metrics."""
+    """Keep Rust and Python decisions aligned for fixed timestamps and metrics."""
     vectors = json.loads(_VECTORS.read_text(encoding="utf-8"))
     for case in vectors["cases"]:
         controller = LoadAdaptiveController(**case["config"])

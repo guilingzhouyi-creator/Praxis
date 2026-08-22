@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark language-check
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-session-benchmark rust-session-batch-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate r2-baseline-bundle r2-baseline-analysis language-check
 
 install:
 	pip install -e ".[test]"
@@ -130,5 +130,69 @@ rust-clippy:
 rust-benchmark:
 	PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
 		cargo run --manifest-path crates/Cargo.toml --release --bin rust-kernel-bench
+
+rust-benchmark-blocking:
+	PRAXIS_RUST_QUEUE_MODE=blocking \
+	PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-kernel-bench
+
+rust-worker-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-worker-bench
+
+rust-worker-batch-submit-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-worker-batch-submit-bench
+
+rust-session-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-session-bench
+
+rust-session-batch-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-session-batch-bench
+
+rust-terminal-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-terminal-bench
+
+rust-terminal-batch-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-terminal-batch-bench
+
+rust-agent-loop-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-agent-loop-bench
+
+rust-agent-loop-lookup-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-agent-loop-lookup-bench
+
+rust-agent-loop-batch-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-agent-loop-batch-bench
+
+rust-process-adapter-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-process-adapter-bench
+
+rust-managed-process-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-managed-process-bench
+
+rust-process-bridge-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-process-bridge-bench
+
+rust-protocol-gate:
+	cargo run --manifest-path crates/Cargo.toml --release --bin rust-protocol-gate
+
+r2-baseline-bundle:
+	python scripts/py/r2_baseline_bundle.py --output .praxis/automation/r2-baseline-bundle.json
+
+r2-baseline-analysis: r2-baseline-bundle
+	python scripts/py/r2_baseline_analyze.py \
+		--input .praxis/automation/r2-baseline-bundle.json \
+		--output .praxis/automation/r2-baseline-analysis.json
 
 language-check: ts-test ts-typecheck rust-test rust-fmt-check rust-clippy

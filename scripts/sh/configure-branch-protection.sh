@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# MANUAL OPS TOOL — NOT part of the automated gate flow (G0-G5).
-# Configure GitHub branch protection for main. Run by an operator with a
-# personal access token; no hook / verify-* / push-both path invokes it.
+# Configure GitHub branch protection for main.
 #
 # Usage:
 #   GH_TOKEN=<personal-access-token> bash scripts/sh/configure-branch-protection.sh

@@ -3,18 +3,19 @@
 Protects the ``tests/conftest.py`` ``_RESETS`` contract:
   - every registered (module, reset_fn) entry resolves to a real function
   - the known leak-prone singleton modules never drop out of ``_RESETS``
-  - every module-level singleton discovered by ``scripts/py/scan_singletons.py``
+  - every module-level singleton discovered by ``scripts/py/scan-singletons.py``
     is either registered or explicitly exempted (KNOWN_GAPS backlog)
 
-The scanner output is pre-computed and stored in
-``config/quality/resets-completeness.json`` — the test reads from the JSON
-snapshot instead of re-running the scanner on every invocation.
+New module-level singletons are surfaced by ``scripts/py/scan-singletons.py``
+(the discovery tool): evaluate each hit and either add a reset function +
+``_RESETS`` entry, or document why it is exempt. This test consumes the
+scanner so a brand-new singleton fails CI until it is handled.
 """
 
 from __future__ import annotations
 
 import importlib
-import json
+import importlib.util
 from pathlib import Path
 
 import tests.conftest as conftest
@@ -52,6 +53,7 @@ KNOWN_GAPS = frozenset(
         "l1.kernel.tool_chain",
         # L2
         "l2.selector",
+        "l2.shell_session",
         # L3 agents
         "l3.agent.ai",
         "l3.agent.pal_router",
@@ -137,21 +139,10 @@ KNOWN_GAPS = frozenset(
     }
 )
 
-# Snapshot of scanner output (pre-computed for speed).
-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "quality" / "resets-completeness.json"
-_SNAPSHOT: dict | None = None
-
-
-def _snapshot() -> dict:
-    global _SNAPSHOT
-    if _SNAPSHOT is None:
-        _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    return _SNAPSHOT
-
 
 def _load_scanner():
-    """Load scripts/py/scan_singletons.py by path (hyphenated filename)."""
-    script = Path(__file__).resolve().parent.parent.parent / "scripts" / "py" / "scan_singletons.py"
+    """Load scripts/py/scan-singletons.py by path (hyphenated filename)."""
+    script = Path(__file__).resolve().parent.parent.parent / "scripts" / "py" / "scan-singletons.py"
     spec = importlib.util.spec_from_file_location("scan_singletons", script)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -185,11 +176,12 @@ class TestLeakProneModulesStayRegistered:
 
 
 class TestScannerBacklogGuard:
-    """scan_singletons.py discoveries must be registered or explicitly exempt."""
+    """scan-singletons.py discoveries must be registered or explicitly exempt."""
 
     def test_new_singletons_registered_or_exempt(self):
-        data = _snapshot()
-        scanned = {mod for mod in data["with_getter"]}
+        scanner = _load_scanner()
+        data = scanner.scan()
+        scanned = {mod for mod, _ in data["with_getter"]}
         unhandled = scanned - set(conftest._RESETS) - KNOWN_GAPS
         assert not unhandled, (
             "singletons without reset or exemption: "

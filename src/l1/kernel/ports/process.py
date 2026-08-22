@@ -9,7 +9,7 @@ a thin adapter over ``l1.kernel.platform`` — a future ``l1_kernel_rs``
 registers its own adapter with no change to callers.
 
 The port covers only bounded, non-interactive execution. Stateful ``Popen``
-handles (terminal sessions, LSP stdio servers, and supervisors) remain Python3
+handles (terminal sessions, LSP stdio servers, and supervisors) remain Python
 runtime concerns: their pipes, callbacks, and lifecycle are deliberately not
 part of this Rust-swappable contract.
 

@@ -612,7 +612,7 @@ R4_CANDIDATE_MIN_EVIDENCE: Final[int] = 2
 R4_CANDIDATE_MAX_EVIDENCE: Final[int] = 64
 R4_CANDIDATE_FINGERPRINT_LENGTH: Final[int] = 16
 R4_CANDIDATE_EVIDENCE_SUMMARY_MAX: Final[int] = 500
-# Stable lifecycle vocabulary shared by Python3 and language-neutral adapters.
+# Stable lifecycle vocabulary shared by Python and language-neutral adapters.
 R4_CANDIDATE_STATES: Final[tuple[str, ...]] = ("observed", "validated", "canary", "active", "retired")
 R4_CANDIDATE_STATE_TRANSITIONS: Final[dict[str, tuple[str, ...]]] = {
     "observed": ("validated", "retired"),

@@ -1,0 +1,60 @@
+{
+  "cases": [
+    {
+      "name": "fifo_peek_and_drain",
+      "capacity": 3,
+      "overwrite": false,
+      "operations": [
+        {"kind": "put", "value": 1, "timeout_ms": 0, "expected": true},
+        {"kind": "put", "value": {"kind": "two"}, "timeout_ms": 0, "expected": true},
+        {"kind": "peek", "timeout_ms": 0, "expected": 1},
+        {"kind": "get", "timeout_ms": 0, "expected": 1},
+        {"kind": "size", "expected": 1},
+        {"kind": "drain", "expected": [{"kind": "two"}]},
+        {"kind": "utilization", "expected": 0.0}
+      ],
+      "expected_closed": false
+    },
+    {
+      "name": "bounded_timeout",
+      "capacity": 1,
+      "overwrite": false,
+      "operations": [
+        {"kind": "put", "value": "held", "timeout_ms": 0, "expected": true},
+        {"kind": "put", "value": "rejected", "timeout_ms": 0, "expected": false},
+        {"kind": "get", "timeout_ms": 0, "expected": "held"},
+        {"kind": "get", "timeout_ms": 0, "expected": null},
+        {"kind": "size", "expected": 0}
+      ],
+      "expected_closed": false
+    },
+    {
+      "name": "overwrite_oldest",
+      "capacity": 2,
+      "overwrite": true,
+      "operations": [
+        {"kind": "put", "value": "a", "timeout_ms": 0, "expected": true},
+        {"kind": "put", "value": "b", "timeout_ms": 0, "expected": true},
+        {"kind": "put", "value": "c", "timeout_ms": 0, "expected": true},
+        {"kind": "get", "timeout_ms": 0, "expected": "b"},
+        {"kind": "get", "timeout_ms": 0, "expected": "c"},
+        {"kind": "utilization", "expected": 0.0}
+      ],
+      "expected_closed": false
+    },
+    {
+      "name": "close_drains_then_rejects",
+      "capacity": 2,
+      "overwrite": false,
+      "operations": [
+        {"kind": "put", "value": "before-close", "timeout_ms": 0, "expected": true},
+        {"kind": "close", "expected": null},
+        {"kind": "put", "value": "after-close", "timeout_ms": 0, "expected": false},
+        {"kind": "get", "timeout_ms": 0, "expected": "before-close"},
+        {"kind": "get", "timeout_ms": 0, "expected": null},
+        {"kind": "size", "expected": 0}
+      ],
+      "expected_closed": true
+    }
+  ]
+}

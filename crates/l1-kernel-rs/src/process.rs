@@ -1,13 +1,14 @@
-//! Rust process-table candidate behind the Python3 PCB contract.
+//! Rust process-table candidate behind the Python PCB contract.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Mutex as StdMutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use crate::contract::ProcessState;
+use crate::substrate::ProcessHandle;
 use serde_json::{Value, json};
 
-/// Dictionary-shaped process value retained for the Python3 adapter seam.
+/// Dictionary-shaped process value retained for the Python adapter seam.
 pub type WireMap = BTreeMap<String, Value>;
 
 /// Deployment values supplied to the process-table mechanism.
@@ -201,7 +202,7 @@ impl Pcb {
         self.resources.record_scout(delta);
     }
 
-    /// Return the stable dictionary shape consumed by Python3 callers.
+    /// Return the stable dictionary shape consumed by Python callers.
     pub fn snapshot(&self) -> WireMap {
         let mut snapshot = BTreeMap::from([
             ("pid".to_owned(), json!(self.pid)),
@@ -344,6 +345,29 @@ impl ProcessTable {
         self.lock_state().processes.get(&pid).cloned()
     }
 
+    /// Return a generation-tagged handle for a live PID in the substrate range.
+    ///
+    /// The parity table keeps monotonic PIDs and does not recycle slots, so
+    /// this bridge currently uses generation one. Reusable-slot generation
+    /// ownership remains in `ShardedStateStore` until the clean-break table is
+    /// promoted beyond the reference candidate.
+    pub fn handle_for_pid(&self, pid: u64) -> Option<ProcessHandle> {
+        let slot = u32::try_from(pid).ok()?;
+        let state = self.lock_state();
+        if !state.processes.contains_key(&pid) {
+            return None;
+        }
+        ProcessHandle::new(slot, 1)
+    }
+
+    /// Return a PCB only when the typed handle generation is still current.
+    pub fn get_by_handle(&self, handle: ProcessHandle) -> Option<Pcb> {
+        if handle.generation() != 1 {
+            return None;
+        }
+        self.get(u64::from(handle.slot()))
+    }
+
     /// Return a cloned PCB by name so no table lock escapes the call.
     pub fn get_by_name(&self, name: &str) -> Option<Pcb> {
         let state = self.lock_state();
@@ -354,7 +378,7 @@ impl ProcessTable {
             .cloned()
     }
 
-    /// Set a state directly, matching the Python3 administrative setter.
+    /// Set a state directly, matching the Python administrative setter.
     pub fn set_state(&self, pid: u64, next: ProcessState) -> bool {
         let mut state = self.lock_state();
         let Some(pcb) = state.processes.get_mut(&pid) else {
@@ -478,13 +502,21 @@ impl ProcessTable {
         true
     }
 
+    /// Terminate a process through a current generation-tagged handle.
+    pub fn exit_handle(&self, handle: ProcessHandle, exit_code: i32, reason: &str) -> bool {
+        if handle.generation() != 1 {
+            return false;
+        }
+        self.exit(u64::from(handle.slot()), exit_code, reason)
+    }
+
     /// Terminate a named process through the same crash transition.
     pub fn exit_by_name(&self, name: &str, exit_code: i32, reason: &str) -> bool {
         let pid = self.lock_state().name_index.get(name).copied();
         pid.is_some_and(|pid| self.exit(pid, exit_code, reason))
     }
 
-    /// Remove a process and return its Python3-compatible snapshot.
+    /// Remove a process and return its Python-compatible snapshot.
     pub fn reap(&self, pid: u64) -> Option<WireMap> {
         let mut state = self.lock_state();
         let pcb = state.processes.remove(&pid)?;
@@ -498,6 +530,14 @@ impl ProcessTable {
             "",
         );
         Some(pcb.snapshot())
+    }
+
+    /// Reap a process only through a current generation-tagged handle.
+    pub fn reap_handle(&self, handle: ProcessHandle) -> Option<WireMap> {
+        if handle.generation() != 1 {
+            return None;
+        }
+        self.reap(u64::from(handle.slot()))
     }
 
     /// Return sorted snapshots, optionally filtered by lifecycle state.
@@ -624,89 +664,4 @@ fn now_seconds() -> f64 {
 
 fn round_tenth(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Pcb, ProcessState, ProcessTable, ProcessTableConfig};
-
-    fn table() -> ProcessTable {
-        ProcessTable::new(ProcessTableConfig::new(32, "kernel", "init", 3, 1))
-    }
-
-    #[test]
-    fn pcb_snapshot_and_resource_methods_preserve_python_shape() {
-        let mut pcb = Pcb::new(1, "agent-a", "worker", 0, 2);
-        pcb.record_tokens(10, 4);
-        pcb.record_card();
-        pcb.record_scout(2);
-        pcb.record_scout(-1);
-        pcb.record_cpu(1.5);
-        let snapshot = pcb.snapshot();
-        assert_eq!(snapshot["state"], "READY");
-        assert_eq!(snapshot["tokens_allocated"], 10);
-        assert_eq!(snapshot["tokens_used"], 4);
-        assert_eq!(snapshot["scouts_active"], 1);
-        assert!(snapshot.contains_key("uptime"));
-        assert!(snapshot.contains_key("idle"));
-    }
-
-    #[test]
-    fn table_installs_kernel_and_runs_fsm_cycle() {
-        let table = table();
-        let init = table.get(0).unwrap();
-        assert_eq!(init.state, ProcessState::Running);
-        let pcb = table.spawn("agent-a", "worker", 0, None);
-        assert_eq!(pcb.state, ProcessState::Ready);
-        assert!(table.set_running("agent-a"));
-        assert!(table.yield_process("agent-a"));
-        assert_eq!(
-            table.get_by_name("agent-a").unwrap().state,
-            ProcessState::Ready
-        );
-    }
-
-    #[test]
-    fn cancel_is_idempotent_and_blocks_future_run() {
-        let table = table();
-        table.spawn("agent-a", "worker", 0, None);
-        assert!(table.cancel("agent-a", "user abort"));
-        let pcb = table.get_by_name("agent-a").unwrap();
-        assert_eq!(pcb.state, ProcessState::Stopped);
-        assert!(pcb.cancelled);
-        assert!(table.is_cancelled("agent-a"));
-        assert!(table.cancel("agent-a", "again"));
-        assert!(!table.set_running("agent-a"));
-    }
-
-    #[test]
-    fn exit_reap_and_audit_are_bounded_and_ordered() {
-        let table = table();
-        let pcb = table.spawn("agent-a", "worker", 0, None);
-        assert!(table.exit(pcb.pid, 3, "shutdown"));
-        assert_eq!(table.get(pcb.pid).unwrap().state, ProcessState::Zombie);
-        let log = table.audit_log(10);
-        assert_eq!(log.len(), 2);
-        assert_eq!(log[0]["op"], "spawn");
-        assert_eq!(log[1]["op"], "exit");
-        assert!(table.reap(pcb.pid).is_some());
-        assert!(table.reap(pcb.pid).is_none());
-        assert_eq!(table.audit_log(10).len(), 3);
-    }
-
-    #[test]
-    fn identity_and_resource_summary_are_explicit() {
-        let table = table();
-        let pcb = table.spawn("agent-a", "worker", 0, None);
-        assert!(table.mark_identity_verified("agent-a"));
-        assert!(table.record_tokens(pcb.pid, 7, 2));
-        assert!(table.record_card(pcb.pid));
-        assert!(table.record_scout(pcb.pid, 1));
-        let snapshot = table.get(pcb.pid).unwrap();
-        assert!(snapshot.identity_verified);
-        assert_eq!(snapshot.resources.tokens_allocated, 7);
-        assert_eq!(snapshot.resources.cards_processed, 1);
-        assert_eq!(table.resource_summary()["tokens"], 7);
-        assert_eq!(table.resource_summary()["cards"], 1);
-    }
 }

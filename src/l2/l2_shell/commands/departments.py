@@ -8,9 +8,12 @@ at runtime via the same surface the /api/v2/settings endpoint writes to.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from l2.i18n import t as _t
+
+if TYPE_CHECKING:
+    from l3.cell.department import DepartmentManager
 
 
 def _set_switch(sub: str) -> dict:
@@ -21,7 +24,7 @@ def _set_switch(sub: str) -> dict:
     return {"success": True, "note": f"departments {'enabled' if sub == 'enable' else 'disabled'}"}
 
 
-def _dept_route(mgr: Any, args: list[str]) -> dict:
+def _dept_route(mgr: DepartmentManager, args: list[str]) -> dict:
     """Route a content type to its owning department (with optional --cells)."""
     content_type = args[1] if len(args) > 1 else "test"
     cell_count = None
@@ -37,14 +40,14 @@ def _dept_route(mgr: Any, args: list[str]) -> dict:
     return {"success": True, "route": mgr.route_content(content_type, cell_count=cell_count)}
 
 
-def _cmd_departments(args: list[str], session=None) -> dict:
+def _cmd_departments(args: list[str]) -> dict:
     """Manage department division: status | route | enable | disable | define."""
     sub = args[0] if args else "status"
     if sub in ("enable", "disable"):
         return _set_switch(sub)
-    from l2.bridge import department_manager
+    from l3.cell.department import get_department_manager
 
-    mgr = department_manager()
+    mgr = get_department_manager()
     if sub == "status":
         return {"success": True, "departments": mgr.status()}
     if sub == "route":
@@ -53,12 +56,7 @@ def _cmd_departments(args: list[str], session=None) -> dict:
         return _dept_define(mgr, args)
     if sub == "monitor":
         return _dept_monitor(args)
-    return {
-        "success": False,
-        "error": _t(
-            "shell.app_error.unknown_subcommand_hint", sub=sub, hint="status|route|enable|disable|define|monitor"
-        ),
-    }
+    return {"success": False, "error": f"unknown subcommand: {sub} (status|route|enable|disable|define|monitor)"}
 
 
 def _dept_monitor(args: list[str]) -> dict:
@@ -67,25 +65,22 @@ def _dept_monitor(args: list[str]) -> dict:
     The monitor stays inert until department division is active (Cell count
     >= CELL_DEPARTMENT_MIN), even when enabled — see violation_monitor.
     """
-    from l2.bridge import violation_monitor_reset, violation_monitor_set_enabled, violation_monitor_status
+    from l3.cell.violation_monitor import reset_violation_monitor, set_enabled, status
 
     sub = args[1] if len(args) > 1 else "status"
     if sub == "enable":
-        return violation_monitor_set_enabled(True)
+        return set_enabled(True)
     if sub == "disable":
-        return violation_monitor_set_enabled(False)
+        return set_enabled(False)
     if sub == "reset":
-        violation_monitor_reset()
-        return {"success": True, "monitor": violation_monitor_status()}
+        reset_violation_monitor()
+        return {"success": True, "monitor": status()}
     if sub == "status":
-        return {"success": True, "monitor": violation_monitor_status()}
-    return {
-        "success": False,
-        "error": _t("shell.app_error.unknown_monitor_subcommand", sub=sub, hint="status|enable|disable|reset"),
-    }
+        return {"success": True, "monitor": status()}
+    return {"success": False, "error": f"unknown monitor subcommand: {sub} (status|enable|disable|reset)"}
 
 
-def _dept_define(mgr: Any, args: list[str]) -> dict:
+def _dept_define(mgr: DepartmentManager, args: list[str]) -> dict:
     """Update a registered department's definition / scope / executor (runtime).
 
     Usage: departments define <dept-id> [--text "definition"] [--scope a,b]
@@ -96,7 +91,7 @@ def _dept_define(mgr: Any, args: list[str]) -> dict:
     dept_id = args[1]
     dept = mgr._departments.get(dept_id)  # manager-internal view (read path)
     if dept is None:
-        return {"success": False, "error": _t("shell.app_error.unknown_department", dept_id=dept_id)}
+        return {"success": False, "error": f"unknown department: {dept_id}"}
     rest = args[2:]
     text = ""
     if "--text" in rest:

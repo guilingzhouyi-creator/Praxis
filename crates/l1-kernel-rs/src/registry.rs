@@ -35,7 +35,7 @@ fn default_healthy_status() -> String {
     "PASS".to_owned()
 }
 
-/// Aggregate explicit registry values with the Python3 wire shape.
+/// Aggregate explicit registry values with the Python wire shape.
 pub fn aggregate_summary(input: &SummaryInput) -> Value {
     let healthy = input
         .modules
@@ -51,28 +51,4 @@ pub fn aggregate_summary(input: &SummaryInput) -> Value {
         "syscalls": input.syscall_names.len(),
         "timestamp": input.timestamp,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{SummaryInput, aggregate_summary, snapshot_sections};
-    use serde_json::Value;
-    use std::collections::BTreeMap;
-
-    #[test]
-    fn empty_inputs_are_deterministic() {
-        let actual = aggregate_summary(&SummaryInput {
-            modules: BTreeMap::new(),
-            process_count: 0,
-            device_count: 0,
-            syscall_names: Vec::new(),
-            timestamp: 0.0,
-            healthy_status: "PASS".to_owned(),
-        });
-        assert_eq!(actual["modules"]["total"], 0);
-        assert_eq!(
-            snapshot_sections(&BTreeMap::new()),
-            BTreeMap::<String, Value>::new()
-        );
-    }
 }

@@ -58,17 +58,14 @@ class TestL3ACSecretary:
         assert st["threshold"] == 3
         assert st["contributions"] == 0
 
-    def test_history_bounded(self, monkeypatch):
+    def test_history_bounded(self):
         from l3.cell.peers.l3a import params as _p
         from l3.cell.peers.l3a.secretary import L3ACSecretary
 
-        # Reduce the history maxlen so the test loop is fast (was 1005
-        # iterations on the default 1000 — 5.26s in the full suite).
-        monkeypatch.setattr(_p, "L3AC_HISTORY_MAX", 5)
         s = L3ACSecretary(threshold=10**9)
-        for i in range(10):
+        for i in range(_p.L3AC_HISTORY_MAX + 5):
             s.contribute("analysis", success=True, card_id=f"c{i}")
-        assert s.status()["contributions"] == 5
+        assert s.status()["contributions"] == _p.L3AC_HISTORY_MAX
 
     def test_contribute_reports_actual_outcome(self):
         from l3.cell.peers.l3a.secretary import L3ACSecretary

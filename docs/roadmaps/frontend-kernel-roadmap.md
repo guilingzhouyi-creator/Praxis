@@ -1,7 +1,7 @@
 # Praxis 前端与内核多语言路线图
 
 > 状态：G4 自动化外围已闭合；G5 Rust/TS 迁移脚手架已启动；Rust-first 独立内核重写仍按 R0–R5 与 M1–M4 门槛推进
-> 关联决策：`docs/decisions/praxis-tech-stack-decision.md`（内核纯 Python3）、`docs/decisions/praxis-mvp-decision.md`
+> 关联决策：`docs/decisions/praxis-tech-stack-decision.md`（内核纯 Python）、`docs/decisions/praxis-mvp-decision.md`
 > 关联设计：`docs/design/praxis-load-adaptive-pool-design.md`、`docs/architecture/l5-user.md`、`docs/architecture/l2-shell.md`
 
 ---
@@ -14,7 +14,7 @@ Praxis 的后续前端将覆盖四种形态：**TUI**、轻量化桌端 App（�
 1. **前端多样化如何影响 L2 Shell 变体规模？** —— 结论：Shell 变体收敛到"交互范式"级（约 3 个），
    不随前端数量增长；前端差异全部落在渲染/绑定层，不触及 L2 引擎。
 2. **Rust 重写底层 L1 何时做、先优化哪个热路径？** —— 结论：Rust-first 独立内核是**既定方向**；
-   Amdahl 缩放曲线决定**实现顺序与时机**，不要求复制 Python3 的类布局或用户数据。
+   Amdahl 缩放曲线决定**实现顺序与时机**，不要求复制 Python 的类布局或用户数据。
 
 ---
 
@@ -23,7 +23,7 @@ Praxis 的后续前端将覆盖四种形态：**TUI**、轻量化桌端 App（�
 | 原则 / 约束 | 出处 | 含义 |
 |---|---|---|
 | **语言无关契约** | l5-user.md / AGENTS.md | 前端只经 `/api/v2/*` + WS/SSE 与内核通信；内核可多语言化而不重写前端 |
-| **内核保持纯 Python3** | tech-stack-decision ADR（早期判断） | 早期（7月，discussing 态）认为引入 Rust/C++ 不值；已被 8 月 load-adaptive 设计的 Rust 迁移路径覆盖——Rust 下沉内核是既定方向 |
+| **内核保持纯 Python** | tech-stack-decision ADR（早期判断） | 早期（7月，discussing 态）认为引入 Rust/C++ 不值；已被 8 月 load-adaptive 设计的 Rust 迁移路径覆盖——Rust 下沉内核是既定方向 |
 | **端口抽象，鸭式类型** | cross-cutting.md | `register_port/get_port`；换语言只改适配器，不改内核调用方 |
 | **契约版本化** | AGENTS.md | `/api/v2/*` 唯一契约，manifest 唯一事实源，三通道（HTTP/WS/RPC）共享 handler |
 | **前端 = 纯 HTTP 客户端** | l5-user.md | TUI/desktop 无进程内 import，为将来多语言化留契约 |
@@ -54,7 +54,7 @@ Praxis 的 L2 采用"方言适配器 + 共享引擎"（`docs/architecture/l2-she
 
 ---
 
-## 3. L2 抽象完整（Phase 1–6，纯 Python3，留转化接口）
+## 3. L2 抽象完整（Phase 1–6，纯 Python，留转化接口）
 
 现状：**语言无关契约框架已就绪，且 Phase 1–3 已接通（M1 部分完成）**。三个端点不再是 stub：
 
@@ -64,7 +64,7 @@ GET  /api/v2/shell/autocomplete     → _shell_autocomplete → l2.l2_shell.comp
 GET  /api/v2/shell/commands         → _shell_commands    → l1.kernel.commands.get_registry().list(category)
 ```
 
-Phase 4（会话收尾）🟡 部分完成：命令 handler 已统一显式 session 契约 `(args, session=None)`（2026-08-20）；剩余移除 `state.py` shim（待 L4 会话管理就绪）。仍待完成：Phase 5（底层边界文档标注转化位）、
+仍待完成：Phase 4（会话收尾，移除 `state.py` deprecated shim）、Phase 5（底层边界文档标注转化位）、
 Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，与 `invoke_capability` 实码不符）。
 
 | Phase | 动作 | 落点 |
@@ -72,11 +72,11 @@ Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，
 | **1. 接通命令执行** | `_shell_dispatch` stub → `l2.l2_shell.dispatch(text, session)` | `src/l4/api_handlers/api_handlers_agent.py` |
 | **2. 接通补全** | `_shell_autocomplete` stub → `l2.l2_shell.completer.autocomplete()` | 同上 |
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
-| **4. 会话收尾** | 🟡 部分完成（2026-08-20）：handler 契约统一 `(args, session=None)`、`dispatch` 显式传 session；剩余：移除 `state.py` shim（待 L4 会话管理就绪） | `src/l2/l2_shell/state.py` |
+| **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
 | **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
 | **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md |
 
-> 接通 stub 是纯 Python3 改动，完全符合现有架构；前端矩阵也强化了接通 `/api/v2/shell`
+> 接通 stub 是纯 Python 改动，完全符合现有架构；前端矩阵也强化了接通 `/api/v2/shell`
 > 语言无关端点的价值——前端越多，语言无关契约的价值越大。
 
 ---
@@ -92,7 +92,7 @@ Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，
 早期 ADR `docs/decisions/praxis-tech-stack-decision.md`（2026-07-21，`status: discussing`）
 曾判断"当前不值得引入 Rust"——瓶颈是 LLM API（500ms–5s），非计算路径（微秒级）。**但该判断
 已被后续设计演进覆盖**：`docs/design/praxis-load-adaptive-pool-design.md`（2026-08）已为
-Rust 重写铺路。当前 preflight 分支仍用 Python3 作为语义参考，但未来 Rust 内核是独立新构建，
+Rust 重写铺路。当前 preflight 分支仍用 Python 作为语义参考，但未来 Rust 内核是独立新构建，
 可重新选择常量、状态布局、调度和协议版本。因此 **Rust 重写底层 L1 是路线图的既定方向**，
 不是被排除的选项。具体边界见 `docs/design/rust-first-kernel-rewrite.md`。
 
@@ -114,21 +114,22 @@ Rust 重写铺路。当前 preflight 分支仍用 Python3 作为语义参考，�
 
 ### 4.3 独立构建路径
 
-1. 先建立 R0 语义地图：区分必须保留的不变量、可重设计的 Python3 行为和明确移除的副作用。
-2. Rust 侧建立独立的 typed hot path；Python3 参数和 `praxis.yaml` 只提供初始语义输入，
+1. 先建立 R0 语义地图：区分必须保留的不变量、可重设计的 Python 行为和明确移除的副作用。
+2. Rust 侧建立独立的 typed hot path；Python 参数和 `praxis.yaml` 只提供初始语义输入，
    不成为 Rust 内部布局或性能策略的唯一真源。
 3. 用固定总量基准比较 Rust-native 数据结构、队列、锁和批处理策略；以 p95/p99、CPU、内存、
-   queue/lock wait 和 drop rate 选择方案，而不是按 Python3 类逐个翻译。
+   queue/lock wait 和 drop rate 选择方案，而不是按 Python 类逐个翻译。
 4. 仅对仍保留的 TS/L2/诊断边界定义版本化 wire contract；不为不存在的用户数据迁移保留兼容层。
-5. 新内核以独立入口和新状态目录启动；Python3、DVG、R5/Mer、AgentLoop 和提示词策略不进入
-   Rust kernel，前端通过明确版本的协议桥接。
+5. 新内核以独立入口和新状态目录启动；Python、DVG、R5/Mer、AgentLoop 的策略/执行和提示词
+   不进入 Rust kernel。仅允许经过向量与并发验证的 AgentLoop 逻辑路由/身份状态候选作为
+   session/terminal 边界，前端通过明确版本的协议桥接。
 
 ### 4.4 演进模型澄清（语义基线 vs 独立实现）
 
-**目标不是 Python3 兼容替换，而是以 Python3 为语义参考的独立 Rust 构建：**
+**目标不是 Python 兼容替换，而是以 Python 为语义参考的独立 Rust 构建：**
 
 ```
-R0 语义地图（Python3 参考 + 安全/控制不变量）
+R0 语义地图（Python 参考 + 安全/控制不变量）
    │
    ▼
 R1 Rust-native substrate（typed state + bounded queues + metrics）
@@ -140,17 +141,17 @@ R2/R3 fixed-work evidence + mechanism closure
 R4/R5 独立 Rust kernel（新入口、新状态布局、版本化协议）
 ```
 
-- **Python3 是语义参考和现网实验场**，不是 Rust 的性能或内部 API 约束；没有用户数据迁移要求。
-- **共享向量锁定不变量，不锁定 Python3 细节**：安全拒绝、终态、防重入、审计因果和保留 wire
+- **Python 是语义参考和现网实验场**，不是 Rust 的性能或内部 API 约束；没有用户数据迁移要求。
+- **共享向量锁定不变量，不锁定 Python 细节**：安全拒绝、终态、防重入、审计因果和保留 wire
   字段必须有证据；dict 顺序、异常文本、singleton 和 reaper 时序可以重设计。
-- **Rust-first 优化以证据驱动**：优先优化实测串行/队列/锁瓶颈，但最终内核可以采用与 Python3
+- **Rust-first 优化以证据驱动**：优先优化实测串行/队列/锁瓶颈，但最终内核可以采用与 Python
   完全不同的所有权、调度、内存和持久化模型。
-- **前端 TS、Rust kernel、Python3 参考三者解耦**：仅对明确保留的协议边界维持版本化 wire contract。
+- **前端 TS、Rust kernel、Python 参考三者解耦**：仅对明确保留的协议边界维持版本化 wire contract。
 
 ### 4.5 “完整翻译”的限定定义与递进顺序
 
 后续可以把所有**符合 Rust 边界的 L1 机制**逐步重建，但这里的“完整”不是把
-`src/l1/kernel/` 的每个 Python3 文件机械搬运。保持不变的是经过 R0 确认的安全/控制不变量和
+`src/l1/kernel/` 的每个 Python 文件机械搬运。保持不变的是经过 R0 确认的安全/控制不变量和
 明确保留的 wire contract；Rust 内部可以采用不同的数据结构、并发模型、状态目录和错误分类。
 
 递进顺序固定为：
@@ -164,15 +165,44 @@ R4/R5 独立 Rust kernel（新入口、新状态布局、版本化协议）
 
 每个模块都必须通过语义不变量 vectors、Rust-native stress/performance evidence 和
 明确的 cutover/recovery 触发器；一个模块未达标不能进入独立 Rust kernel，也不能把上层策略
-（prompts、skills、model/provider、cards、DVG、R5/Mer、AgentLoop）移入 Rust。
+（prompts、skills、model/provider、cards、DVG、R5/Mer、AgentLoop 的策略与执行）移入 Rust；
+逻辑路由候选必须单独通过 identity/session/terminal correlation 证据。
 
-这一定义允许最终完成机制层的 Rust 实现，同时避免把 Python3 的偶然行为或用户数据格式带入新内核。
+这一定义允许最终完成机制层的 Rust 实现，同时避免把 Python 的偶然行为或用户数据格式带入新内核。
 
 当前分支的增量证据：Rust `worker` 候选已完成一个隔离切片（bounded
 queue、FIFO 淘汰、结果句柄、panic 结构化失败、优雅 drain、idle shrink），
-并通过 38 项 Rust 测试、fmt/clippy 和 Python3 WorkerPort 回归。它仍未接入
-`WorkerPort`、boot 或任何运行时执行权威；取消、task timeout、adaptive
-sampling 与 Python3 异常映射仍是 G6 前置决策。
+并补齐 `TaskHandle` 的 pre-start cancellation 与显式 task deadline；取消或
+排队过期的任务以结构化 `Cancelled`/`TaskTimeout` 结束且不执行闭包，已运行
+闭包不被强制中断，超时只在 worker 边界完成后判定。调用方等待超时仍是
+独立的 `Timeout`。它仍未接入 `WorkerPort`、boot 或任何运行时执行权威；
+adaptive sampling 与 Python 异常映射仍是 G6 前置决策。worker snapshot
+同时提供 cancelled/timed-out/failed outcome counters，并在释放结果句柄前
+完成计数更新，避免完成观察与统计读数竞态。
+
+本轮执行主机切片将 runtime 的已拥有 WorkerPool 与 `KernelScheduler` 的状态所有权
+分离：`dispatch_direct`/`complete_direct`/`stop_direct` 只更新 generation-safe
+状态，不重复走 scheduler work queue，因此固定工作路径不会产生二次入队/出队计账。
+若 worker 在 wrapper 启动前因淘汰、关闭或 admission 失败返回终态，`RuntimeTask::result()`
+会主动收敛 direct scheduler 状态，任务仍可安全 `reap`；observer wait timeout 不会
+误改任务状态。该行为由独立 runtime/scheduler integration targets 覆盖，且
+`tests/infra/test_rust_test_domain.py` 门禁禁止 `src/**/*.rs` 重新出现 inline tests。
+这仍只是 R1/R2 候选优化和证据闭环，不改变 Rust kernel 尚未接管 boot、AgentLoop 执行、
+Provider 或生产入口的边界。
+
+当前新增的 `agent_loop` 片是 R3/R4 前置逻辑路由候选：`AgentLoopBook` 固定
+agent/cell/session/terminal correlation，显式管理 Created/Ready/Running/Paused/
+Closing/Stopped/Failed 生命周期，并在同一 loop 锁下把 input/event admission 交给
+Rust `Session` 的 authoritative `input_seq`。它不执行 LLM/provider/tool，不改 terminal
+mailbox，不启动 PTY/subprocess，也不拥有 WorkerPool；后续 TS bridge 可直接消费其
+版本化 snapshot/receipt。该片通过独立 `tests/agent_loop.rs`，仍需与 runtime、protocol、
+cutover/recovery 逐步闭合后才可进入新内核 authority。
+
+该片的统一 v3 routing 基准（4096 items，1/2/4 workers，3 rounds）在当前未固定主机上、
+采用 contention-only wait probe 后，测得逐输入中位吞吐约
+1.819M/0.761M/0.760M ops/s，中位 contended loop-lock wait 约
+0/5.011/13.583 ms，全部样本无错误/拒绝。它仍将共享路由锁列为下一优先级优化对象，
+不把增加 worker 数或接入 runtime 当作默认策略。
 
 随后已完成 IPC 与持久化机制切片：Rust `ipc` 覆盖 `LockMessage`、
 `LockChannel`、`LockBus` 的有界历史、handler、request/response、超时清理和
@@ -180,20 +210,20 @@ reset；Rust `persist` 覆盖 `{seq,event,payload,ts}` 事件行、批量追加�
 序列校验、重开恢复和 durable flush。随后完成了 `audit`/`capability` 切片：
 `AuditLog` 提供有界按身份查询、detail 截断和可选 journal 接线；
 `CapabilityAuthority` 对未接线调用 fail-closed、将 executor panic 转为结构化失败，
-并为每次调用记录审计；该切片阶段通过 54 项 Rust 测试、51 项 Python3
+并为每次调用记录审计；该切片阶段通过 54 项 Rust 测试、51 项 Python
 IPC/持久化回归通过。IPC 仍未接入 socket/跨进程所有权，持久化仍使用候选 JSONL
-而非 Python3 SQLite，replay/checkpoint 策略仍由 Python3 适配器持有；审计与能力候选
+而非 Python SQLite，replay/checkpoint 策略仍由 Python 适配器持有；审计与能力候选
 同样未接入 boot、Port 或生产执行路径。
 
 下一片允许的机制工作是 Rust GateChain 候选：先冻结 G1-G5 的纯值输入、
-有界历史 ledger 和 `PASS/WARN/BLOCK/REPORT` 结果，再补 Python3/Rust vectors。
+有界历史 ledger 和 `PASS/WARN/BLOCK/REPORT` 结果，再补 Python/Rust vectors。
 GateChain、Constitution、reputation、posture 和 approval provider 仍保持策略/适配器
 归属，不得由候选自行发现工具或改变生产授权。
 
 GateChain 纯机制候选已完成：Rust `gatechain` 消费显式 request/policy 快照，覆盖
 G1 whitelist fail-closed、G2 interactive/process identity、G3 territory+danger+frequency、
 G4 pre-approved/full-power/harness authorization、G5 reputation/history，以及有界
-ledger 和结构化四态步骤；该切片阶段通过 61 项 Rust 测试与 Python3 51 项参考回归，但没有
+ledger 和结构化四态步骤；该切片阶段通过 61 项 Rust 测试与 Python 51 项参考回归，但没有
 接入 boot、Port、posture/reputation provider、事件副作用或生产执行权威；共享 policy
 fixture 已覆盖稳定的 block/pass 分支，再评审纯 Constitution 规则层。
 
@@ -201,143 +231,406 @@ fixture 已覆盖稳定的 block/pass 分支，再评审纯 Constitution 规则�
 规则描述、动作分类索引、PASS/WARN/BLOCK 报告、territory/sandbox/constitution
 文件保护、scout/cross-territory、GateChain 标记和显式 offensive-skill posture 输入。
 它的规则测试通过 67 项 Rust 测试；Markdown/SettingsCenter、NMI/EventBus、skill/posture provider
-和 runtime routing 仍由 Python3 持有。共享 fixture 已在 Python3/Rust 两侧通过；下一步
-是冻结规则序列化与自定义规则策略，再进入 G6 选择性 pilot 评审。已知 Python3
+和 runtime routing 仍由 Python 持有。共享 fixture 已在 Python/Rust 两侧通过；下一步
+是冻结规则序列化与自定义规则策略，再进入 G6 选择性 pilot 评审。已知 Python
 `write_file` action-category 缺口保持为独立参考实现问题，本片不隐式修复。
 
-当前 policy parity 门禁总量为 69 项 Rust 测试、52 项 Python3 参考回归；该数字随
+当前 policy parity 门禁总量为 69 项 Rust 测试、52 项 Python 参考回归；该数字随
 候选切片和 fixture 扩展更新，不代表任何 Rust runtime authority 已启用。
 
 随后完成 Rust VFS 机制候选：`vfs` 提供有界 MountTable、最长前缀
 `resolve_mount`、ring/只读权限判断、虚拟文件存储、provider-read TTL 缓存与
 失效，以及结构化 `ENOENT`/`EACCES`/`EROFS`/`EADAPTER` 错误。真实文件、
-`/proc`、`/sys`、`/skills`、`/dev` provider 与写入适配器仍由 Python3 持有；Rust
+`/proc`、`/sys`、`/skills`、`/dev` provider 与写入适配器仍由 Python 持有；Rust
 候选对非虚拟操作 fail-closed，不访问 OS，也没有接入 Port、boot 或生产路径。
-该切片新增 9 项 Rust 测试（含 Python3/Rust 共享挂载解析 fixture），工作区总数为 79 项；它不是 policy parity 数量，
-不会解除 G3/G6，也不改变 Python3 默认运行时。
+该切片新增 9 项 Rust 测试（含 Python/Rust 共享挂载解析 fixture），工作区总数为 79 项；它不是 policy parity 数量，
+不会解除 G3/G6，也不改变 Python 默认运行时。
 
 随后完成 Rust 生命周期与 schema 迁移机制候选：`lifecycle` 覆盖
 `halted/installing/booting/active/draining/crashed` FSM、checkpoint record、
-boot/shutdown bookkeeping 与 install/recovery 判断；`versioning` 覆盖 Python3
+boot/shutdown bookkeeping 与 install/recovery 判断；`versioning` 覆盖 Python
 当前实际注册的六类 schema、ordered JSON migration、future/missing/failure
 错误；`migration` 覆盖 install-time ordered runner、target bound、first-error
-stop 和 panic 结构化。Python3/Rust 共享
+stop 和 panic 结构化。Python/Rust 共享
 `kernel_lifecycle_vectors.json` 与 `kernel_versioning_vectors.json`，Rust
 workspace 测试总数达到 117 项，双侧 fixture 均通过；重复版本 migration 的注册顺序也已在
-Python3/Rust 两侧回归锁定。该片仍不读写真实文件、
+Python/Rust 两侧回归锁定。该片仍不读写真实文件、
 不接 boot/Port、不拥有 timestamp/settings/provider 侧效应，也不会解除 G3/G6。
 
 随后完成纯算法 `load_adaptive` 候选：Rust 镜像 EWMA、hysteresis、目标区间
 HOLD、GROW/SHRINK 限幅、慢任务 `GROW_FAST`、cooldown、reset 和稳定 reason；
-`kernel_load_adaptive_vectors.json` 在 Python3/Rust 两侧通过，Rust workspace
+`kernel_load_adaptive_vectors.json` 在 Python/Rust 两侧通过，Rust workspace
 测试总数达到 119 项。时间由调用方显式传入，采样、WorkerPort 扩缩容、线程和
-`LOAD_ADAPTIVE_ENABLED` 仍由 Python3 持有；该候选不接入 worker、boot 或 Port，
+`LOAD_ADAPTIVE_ENABLED` 仍由 Python 持有；该候选不接入 worker、boot 或 Port，
 也不解除 G3/G6。
 
 随后完成 `schema` 字符串事件注册表候选：Rust 镜像 owner 冲突拒绝、同 owner
 幂等更新、排序快照、membership 与 reset；共享 `kernel_schema_vectors.json`
-在 Python3/Rust 两侧通过，Rust workspace 测试总数达到 122 项。L3 catalog、boot
-注册和事件发射仍由 Python3 持有，候选不接入 EventBus、boot 或 Port，也不解除 G3/G6。
+在 Python/Rust 两侧通过，Rust workspace 测试总数达到 122 项。L3 catalog、boot
+注册和事件发射仍由 Python 持有，候选不接入 EventBus、boot 或 Port，也不解除 G3/G6。
 
 随后完成 `rule_descriptor` 纯值候选：Rust 镜像 MUST/SHOULD/MAY、PASS/WARN/BLOCK、
 描述元数据、排序 tags、显式 created_at 和 checker context；共享
-`kernel_rule_descriptor_vectors.json` 在 Python3/Rust 两侧通过，Rust workspace
+`kernel_rule_descriptor_vectors.json` 在 Python/Rust 两侧通过，Rust workspace
 测试总数达到 124 项。规则 catalog、Markdown/SettingsCenter、Constitution provider
-和 runtime policy 仍由 Python3 持有，候选不接入 boot、EventBus 或 Port，也不解除 G3/G6。
+和 runtime policy 仍由 Python 持有，候选不接入 boot、EventBus 或 Port，也不解除 G3/G6。
 
 随后完成 `registry_base` 声明式注册基座候选：Rust 镜像 descriptor 默认值、重复
 拒绝与显式覆盖、注册顺序、分类过滤、公开序列化和 register/unregister 统计；共享
-`kernel_registry_base_vectors.json` 在 Python3/Rust 两侧通过，Rust workspace 测试总数
+`kernel_registry_base_vectors.json` 在 Python/Rust 两侧通过，Rust workspace 测试总数
 达到 127 项。handler 闭包、领域 registry、发现/boot 注册和 runtime routing 仍由
-Python3/适配器持有；该候选不接入 Port、boot 或生产执行权威，也不解除 G3/G6。
+Python/适配器持有；该候选不接入 Port、boot 或生产执行权威，也不解除 G3/G6。
 
 随后完成 `identity_uid` 值边界候选：Rust 镜像前缀/长度校验、调用方注入的熵候选、
 有界碰撞重试、已存在 UID 追踪与 reset；共享 `kernel_identity_uid_vectors.json` 在
-Python3/Rust 两侧通过。随机熵、持久化 binding 和身份签发权威仍由 Python3 持有；该候选
+Python/Rust 两侧通过。随机熵、持久化 binding 和身份签发权威仍由 Python 持有；该候选
 不接入 boot、Port 或身份服务，也不解除 G3/G6。
 
 随后完成 `device` 记账候选：Rust 镜像显式设备记录、滑动窗口限流、严格 degraded/down
-阈值、调用计数、摘要和聚合统计；共享 `kernel_device_vectors.json` 在 Python3/Rust 两侧
-通过。SettingsCenter 默认值、外部 provider 连接、健康线程和系统时钟仍由 Python3 持有；
+阈值、调用计数、摘要和聚合统计；共享 `kernel_device_vectors.json` 在 Python/Rust 两侧
+通过。SettingsCenter 默认值、外部 provider 连接、健康线程和系统时钟仍由 Python 持有；
 该候选不接入 boot、Port 或 provider，也不解除 G3/G6。
 
 随后完成 `bus` 依赖规划候选：Rust 镜像 `ComponentMeta` 默认值、重复注册原位覆盖、父总线
 可用依赖过滤、稳定 Kahn 拓扑排序、周期拒绝和显式注册/初始化/启动/停止状态标签；共享
-`kernel_bus_vectors.json` 在 Python3/Rust 两侧通过。事件 handler、子总线广播、健康/统计 provider、
-日志与实际生命周期副作用仍由 Python3 持有；该候选不接入 boot、Port 或 SystemBus 运行时权威，也不解除 G3/G6。
+`kernel_bus_vectors.json` 在 Python/Rust 两侧通过。事件 handler、子总线广播、健康/统计 provider、
+日志与实际生命周期副作用仍由 Python 持有；该候选不接入 boot、Port 或 SystemBus 运行时权威，也不解除 G3/G6。
 
 随后完成 `resource` 限额候选：Rust 镜像 `ResourceLimiter` 的注入 profile、fallback 查询、带符号
 check/release 记账、usage/all_usage、未知资源处理与 cleanup；共享 `kernel_resource_vectors.json`
-在 Python3/Rust 两侧通过。角色配置发现、allocator 的 OOM 回收、线程/进程副作用与持久化仍由 Python3
+在 Python/Rust 两侧通过。角色配置发现、allocator 的 OOM 回收、线程/进程副作用与持久化仍由 Python
 持有；该候选不接入 boot、Port 或执行权威，也不解除 G3/G6。
 
 随后完成 `health` 结果聚合候选：Rust 只接收显式 subsystem 状态映射和 elapsed 值，镜像
 `DOWN`/`DEGRADED`/`OK` 优先级、healthy/degraded/failed 计数、详情保留与 elapsed 舍入；共享
-`kernel_health_vectors.json` 在 Python3/Rust 两侧通过。模块导入、系统时钟、单例探针、日志与运行时
-provider 仍由 Python3 持有；候选不调用 `safe_system_check()`，不接入 boot、Port 或生产健康权威，也不解除 G3/G6。
+`kernel_health_vectors.json` 在 Python/Rust 两侧通过。模块导入、系统时钟、单例探针、日志与运行时
+provider 仍由 Python 持有；候选不调用 `safe_system_check()`，不接入 boot、Port 或生产健康权威，也不解除 G3/G6。
 
 随后完成 `swapper` 规划候选：Rust 镜像显式 entry importance 的 ring-2/ring-3 路由、过期短环压缩
 筛选，以及 allocator/memory 百分比驱动的压力动作标志；共享 `kernel_swapper_vectors.json` 在
-Python3/Rust 两侧通过。MemoryService 读写、allocator pressure 采样、时钟、后台线程与持久化仍由
-Python3 持有；候选不接入 boot、Port 或生产内存权威，也不解除 G3/G6。
+Python/Rust 两侧通过。MemoryService 读写、allocator pressure 采样、时钟、后台线程与持久化仍由
+Python 持有；候选不接入 boot、Port 或生产内存权威，也不解除 G3/G6。
 
 随后完成 `registry` 值聚合候选：Rust 镜像寄存器 section 的名称排序与隔离快照，以及显式
 模块健康计数、进程/设备/系统调用计数和调用方时间的 summary 聚合；共享
-`kernel_registry_vectors.json` 在 Python3/Rust 两侧通过。section 写入者、单例查询、系统调用发现、
-时钟和 runtime registry ownership 仍由 Python3 持有；候选不接入 boot、Port 或生产 registry 权威，
+`kernel_registry_vectors.json` 在 Python/Rust 两侧通过。section 写入者、单例查询、系统调用发现、
+时钟和 runtime registry ownership 仍由 Python 持有；候选不接入 boot、Port 或生产 registry 权威，
 也不解除 G3/G6。
 
 随后完成 `tool_chain` 指纹链候选：Rust 镜像调用字段规范化、HMAC-SHA256 截断、`GENESIS`
-回退与 root-first 链完整性校验；共享 `kernel_tool_chain_vectors.json` 在 Python3/Rust 两侧通过。
-密钥生成/持久化、调用存储、裁剪重根和工具执行权威仍由 Python3 持有；候选不接入 boot、Port 或
+回退与 root-first 链完整性校验；共享 `kernel_tool_chain_vectors.json` 在 Python/Rust 两侧通过。
+密钥生成/持久化、调用存储、裁剪重根和工具执行权威仍由 Python 持有；候选不接入 boot、Port 或
 capability 执行面，也不解除 G3/G6。
 
 随后补齐 `RWLock` parity 切片：共享 `kernel_sync_vectors.json` 固定重入读锁、零超时写锁失败、
-状态快照和缺失 owner 解锁错误，Python3/Rust 独立测试域均通过。排队 writer 公平性、取消、跨进程
-所有权和运行时锁路由仍是开放项；EventBus 异步丢弃与公平性继续单独评审，不由该 fixture 推断。
+状态快照和缺失 owner 解锁错误，Python/Rust 独立测试域均通过。随后 Rust 候选补齐 FIFO writer ticket、
+超时 ticket 移除与 successor 唤醒；排队 writer 公平性已由 Rust blocking 回归固定。随后补齐独立
+`cancellation` 原语：不可重置的 cloneable token、首因保留、协作式检查和有界等待，RWLock 在取消时移除
+writer ticket 并唤醒后继。任务/队列取消、跨进程所有权和运行时锁路由仍是开放项。
 
 随后补齐 EventBus 确定性 parity：共享 `kernel_event_vectors.json` 固定有界 history、按类型过滤、
-signal 序列化和无 listener 时的 dispatch 计数，Python3/Rust 独立测试域均通过。callback 调度、过载
-丢弃、shutdown 公平性和 SSE/WS fan-out 仍不由该向量判定。
+signal 序列化和无 listener 时的 dispatch 计数，Python/Rust 独立测试域均通过。随后 Rust 候选补齐按
+signal channel 的 FIFO 与跨 channel progress：同一 channel 同时最多一个 callback，worker 会跳过忙 channel，
+慢 callback 不阻塞无关 channel；该调度不接入 Python executor、shutdown authority 或 SSE/WS fan-out。
 
 随后补齐 `process` 生命周期 parity：共享 `kernel_process_vectors.json` 固定 PID/PCB 注册、
 READY/RUNNING 往返、identity verified、取消后的 STOPPED 终态、exit→ZOMBIE→reap、tokens/cards/scouts/CPU
-记账与去时间戳后的 audit 顺序，Python3/Rust 独立测试域均通过。Python3 zombie reaper、interrupt 触发、
+记账与去时间戳后的 audit 顺序，Python/Rust 独立测试域均通过。Python zombie reaper、interrupt 触发、
 allocator/limiter 清理、长生命周期 OS handle 和运行时路由仍是适配器副作用，不纳入 Rust 候选契约。
+随后补齐 `ProcessTable` 的 typed-handle bridge：live PID 在 substrate slot 范围内映射为
+generation-one `ProcessHandle`，stale generation、exit 后和 reap 后的 handle lookup 均 fail-closed；
+可复用 slot 的 generation ownership 仍由 `state_queue` 持有，避免把 parity table 误当成新内核 runtime authority。
 
 R1 已启动：Rust `substrate` 提供 generation-tagged process handle、确定性 shard plan 与无 JSON
 分配的 atomic queue metrics，`benchmark` 提供固定总量报告 schema；它们只冻结所有权/观测基元，
 不接管 ProcessTable、调度、boot 或运行时路由。`state_queue` 已提供分片 slot map、代际校验、
-终态转换和 fail-fast 有界队列；`benchmark_runner` 已提供固定总量 contention smoke，覆盖
-worker/round 完整性、p95/p99、队列/admission 等待和拒绝计数，吞吐由固定完成量与墙钟时间推导。
+终态转换和 fail-fast 有界队列，并提供 token-aware pop：取消在出队前返回 `Cancelled`；
+`benchmark_runner` 已提供固定总量 contention smoke，覆盖
+worker/round 完整性、p95/p99、队列/admission 等待、拒绝计数和 process CPU/RSS 资源采样，统一
+使用纳秒、字节和显式 source/unavailable 标记，吞吐由固定完成量与墙钟时间推导。
 `reputation` 已提供显式策略注入的 G5 分数 ledger，但 singleton、持久化、provider 和 GateChain
 路由仍在适配器侧；`notify` 已提供显式时间戳、有界保留、最新优先查询和 drop 计数的旁路
 buffer，但 EventBus/SSE/WS/webhook 投递仍在适配器侧。`BenchmarkEvidence` 已提供带 schema、平台、架构、
-runtime、revision 和 runner 归属的完整 JSON 导出，`make rust-benchmark` 可重复生成 queue contention
-证据；这仍不是完整 R2 基线，CPU、内存、Python3 参考测量与 workload-specific drop 分析待补。进入
-R2/R3 前仍不授予新内核运行时权威。`identity_binding` Rust candidate 已收敛 `(cell, role)` 元数据、
+runtime、revision、runner 和 resource-unit 归属的完整 JSON 导出，`make rust-benchmark` 可重复生成 Rust
+queue contention 证据；`make r2-baseline-bundle` 进一步以独立 Python reference 运行同一 fixed-work 规格，
+校验两侧样本矩阵并生成对照 bundle；`make r2-baseline-analysis` 再按 worker 汇总吞吐缩放效率、p95/p99、
+拒绝/错误比例、队列/锁等待和资源中位数。该片完成 R2 测量与描述性分析脚手架，但不作性能切换决策，也不授予新内核运行时权威。
+随后对 `state_queue` 完成 Rust-native 热路径优化：默认 try admission 的 consumer 使用 bounded batch drain，
+减少队列锁获取；`PRAXIS_RUST_QUEUE_MODE=blocking` 仅作为条件变量背压对照。当前实测 blocking 在多 worker
+下出现 convoy 和 p95 恶化，因此不改变默认策略，也不授予 runtime authority。
+随后将 bounded drain 的 completion 记账收敛为单次原子计数更新与饱和 depth CAS，固定工作量完成数、重复完成
+下溢保护和 v3 证据字段保持不变；`process`、`terminal`、`benchmark_runner` 的机制测试同步迁移到
+`crates/l1-kernel-rs/tests/` 独立测试域，为后续 TS/Rust 重写保留清晰的公共 API 边界。
+对 producer claim-batch 的同规格实验因 4-worker 中位 tail latency 回退而不纳入默认实现；性能改动必须同时
+通过 1/2/4-worker 的 fixed-work 吞吐和 p95/p99 证据，不能以单 worker 加速替代整体基线。
+随后重复比较 consumer batch 32/64（每种三次、同一 4096×[1,2,4]×3 fixed-work 规格）：batch 64 的中位吞吐
+在三个 worker 点均回退约 9.1%/1.6%/3.6%，p95 也回退，因此保留 batch 32；单点 p99 改善不构成合入依据。
+随后将 `worker` 的 8 项实现内行为测试并入已有独立 worker target，扩缩容回归改为只通过公开提交、结果与
+shutdown 观察，避免为测试暴露私有 `add_worker`；该片共 10 项 worker 测试分片通过。
+随后将 `WorkerPool` 的 Metrics 从全局互斥锁改为原子计数：提交拒绝、active/completed/outcome 和 pool-size
+读写不再让每个任务争用同一 accounting lock，队列与 worker join list 仍保留必要的 mutex 所有权。独立
+`tests/worker.rs` 增加并发提交不变量，验证 completed + evicted 等于固定提交总量；该优化仅改变计账机制，
+需继续用 fixed-work tail-latency 证据决定是否进入最终 runtime policy。
+为避免把 lower-level queue contention 与执行主机成本混在一起，新增 `worker.pool.batch` 专项 runner 与
+`rust-worker-bench` release binary：固定 4096 items、1/2/4 workers、3 rounds，queue capacity 必须覆盖总量，
+因此 eviction 不会被误算为吞吐。当前本机首轮完整样本均为 errors=0/rejected=0，但 2/4 worker 吞吐低于 1 worker，
+后续优先优化 task handoff/queue，而不是继续放大 metrics 计账优化的结论。
+随后移除 worker completion 后仅用于检查空队列的冗余 mutex 获取：最后一个 active 计数递减负责唤醒
+drainer，shutdown 仍同时检查 queue depth 与 active count 后再 join。worker target 重复运行 10 次通过，
+该片减少每任务一次队列锁竞争，仍需纳入后续 fixed-work tail-latency 测量。
+随后将 worker claim 改为有界批次：每次队列锁最多领取 8 个 FIFO 任务，并复用本地缓冲；`active` 覆盖已领取但
+尚未完成的任务，避免 shutdown 在本地批次任务之间误判 drained。worker/runtime/benchmark 分片通过，固定
+4096 项 release smoke 仍为 0 error/0 rejection，但 2/4 worker 受 handoff/共享队列限制，批次仅作为候选优化，
+不提升为默认扩缩容策略。下一优先级转向 R4/R5 的真实入口与 adapter closure，而不是继续堆叠微优化。
+随后补齐 WorkerPool 性能证据的 `queue_wait_ns`：每个 worker 只在批次领取成功时累计从 claim 开始到领取完成的
+等待，避免每任务计时造成额外热路径开销；`run_worker_pool_batch` 不再把该字段固定为 0。当前 4096 项 release
+扫测的中位 claim wait 约为 1.0/19.7/177.8 ms（1/2/4 worker），与 1.20M/339K/88K ops/s 吞吐相互印证，
+说明共享队列 handoff 是当前扩展瓶颈。后续队列方案必须在同一固定总量 schema 下同时改善吞吐、p95/p99 和 queue wait。
+随后新增 `WorkerPool::submit_result_batch` 批量 admission 候选：一次持有队列锁，仍按 FIFO
+执行 oldest-pending eviction，并为关闭池、取消和结果句柄保留逐项完成语义；现有单任务 deadline
+边界不被绕过。新增独立 `worker.pool.batch_submit` runner、`rust-worker-batch-submit-bench`
+入口及 `tests/worker.rs`、`tests/benchmark_runner.rs` 覆盖，Rust 实现文件不含测试块。
+同规格 release 重复采样（4096×[1,2,4]×3，batch size=32）中位吞吐约为 1.66M/3.85M/4.19M
+ops/s，逐任务 baseline 约为 1.20M/0.28M/0.07M ops/s；batch-submit queue wait 约为
+0.09/0.18/1.21 ms，baseline 约为 0.96/24.40/210.48 ms，双方均为 0 error/0 rejection。
+该数据支持 admission 优化候选，但 batch p95/p99 是批次级分布，不能直接替代逐任务尾延迟，仍需
+在统一量化标准下持续对照后才能进入 runtime policy。
+随后在 `state_queue` 增加 `ProcessHandleAllocator`：Rust 侧以有界 slot、释放代际递增、旧 handle 拒绝和
+容量/重复释放 fail-closed 固定可复用身份候选；该候选暂不替换 generation-one `ProcessTable` bridge，也不
+接管调度或 boot authority。
+随后新增 `scheduler::KernelScheduler` candidate，组合 generation-safe slot、分片 lifecycle state 与 bounded
+typed work，固定 queue-full rollback、stopped work discard、spawn/schedule/claim/complete/stop/reap 语义；该片
+不启动 worker thread、不执行 boot callback、不接管 AgentLoop 或 provider authority。
+随后新增 `runtime::KernelRuntime` candidate，组合 locked assembly、lifecycle FSM、`KernelScheduler` state ownership 与
+bounded WorkerPool，固定 halted→booting→active、submit、任务状态、取消、deadline、reap 和 clean drain shutdown；
+该片只接收已绑定 Rust closure，不接入 Python/FFI、PTY/subprocess、AgentLoop 路由、provider 或生产入口，R4/R5
+cutover/recovery 与 G6 仍是后续硬门；`open_persistent` 已将 `StateStore` 接入同一生命周期，覆盖 fresh-root
+checkpoint、clean resume 与 unclean recovery，但不导入 Python 状态，也不改变默认生产路径。
+`submit_gated` 同步接入 Rust G1-G5 与单一 `CapabilityAuthority`，caller/tool 不匹配、空 whitelist 或未接线
+executor 均在进入 worker queue 前 fail-closed 并记审计；真实 tool pipeline/provider 仍留在适配器。
+随后将 `state_queue` 的 9 项实现内测试迁移到独立 target；其分片覆盖 shard transition、FIFO/backpressure、
+取消等待、batch accounting、allocator reuse 和并发插入，源模块不再保留测试块。
+随后将 `substrate` 的 4 项和 `benchmark` 的 7 项机制测试迁移到独立 target，覆盖 generation handle、shard
+plan、atomic queue metrics、fixed-work schema、资源来源校验、完整样本矩阵与 evidence round-trip；同时将
+crate contract-version 检查归入 `contract_vectors.rs`，`lib.rs` 不再保留内联测试。该片只改变测试域组织，
+不改变候选实现或运行时权威边界。
+随后将 `health` 的 2 项、`territory` 的 3 项和 `registry` 的 1 项公共行为测试迁移到独立 target，覆盖共享
+向量、状态聚合、组件感知路径边界、显式 working directory 和空输入确定性；这些切片仍不读取 provider、时钟
+或 filesystem，也不改变 Rust candidate 的运行时权限。
+随后将 `identity_uid` 的 2 项、`swapper` 的 2 项和 `tool_chain` 的 2 项纯值行为测试迁移到独立 target，覆盖
+候选 UID 的去重/重置、Memory ring swap/pressure 规划、GENESIS fingerprint 链和篡改拒绝；身份持久化、
+MemoryService I/O、工具执行与链存储仍留在后续 adapter/runtime 阶段。
+随后将 `schema` 的 3 项与 `migration` 的 4 项测试迁移到独立 target，覆盖 owner 冲突、共享 schema 向量、
+全局 reset、排序/目标版本边界、失败短路、panic 结构化和重复版本注册顺序；它们仍是候选注册/安装机制，
+不读取生产配置、不执行真实迁移副作用，也不接管 boot authority。
+随后将 `capability` 的 4 项测试迁移到独立 target，覆盖未接线 fail-closed、调用审计、executor 错误/ panic
+结构化和全局 authority reset；该候选仍不接入真实 GateChain、tool pipeline、provider executor 或持久化审计。
+随后将 `cancellation` 的 3 项、`notify` 的 3 项与 `reputation` 的 4 项机制测试迁移到独立 target，并保留
+reputation 向量 target；覆盖首因/clone wake-up、bounded newest-first drop/reset、score clamp/delta 和
+非有限输入拒绝。旁路发送、持久化、provider 与 G5 GateChain routing 仍留在适配器阶段。
+随后将 `audit` 的 3 项、`device` 的 1 项、`interrupt` 的 3 项和 `errors` 的 3 项测试迁移到独立 target，
+覆盖 bounded journal/query、device rate-health 向量、IRQ history/sequence 和 structured error/trace 向量；
+EventStore、设备 provider、IRQ callback 和 trace adapter 仍不由 Rust candidate 接管。
+随后将 `channel` 的 5 项、`bus` 的 2 项和 `registry_base` 的 3 项机制测试迁移到独立 target，并保留 channel
+向量 target；覆盖 FIFO/overwrite/backpressure、close/drain waiter 唤醒、依赖拓扑/生命周期和 callback/公开
+metadata 视图。socket/IPC、组件 callback side effects 和 domain registry authority 仍留在 adapter 层。
+随后将 `event` 的 7 项机制测试迁移到独立 target，并保留 event 向量 target；覆盖 typed/wildcard dispatch、
+bounded drop、动态 signal registry、shutdown、同 channel FIFO 和 busy-channel 跨 channel progress。真实
+EventBus 外部 fan-out、SSE/WS、provider callback side effects 和 runtime ownership 仍在适配器层。
+随后将 `load_adaptive` 的 3 项和 `versioning` 的 6 项机制测试迁移到独立 target，覆盖控制律 reset、EWMA/
+hysteresis/cooldown、六类 schema stamp、ordered migration 与 fail-closed 错误；源模块不再保留内联测试块，
+调用方时间、settings/provider 侧效应和 runtime worker ownership 仍留在适配器层。
+随后补齐 `channel` 机制切片：共享向量锁定 FIFO、满载零超时拒绝、overwrite-oldest、关闭后排空与
+利用率语义；Rust 候选的 `drain` 在释放容量后唤醒全部等待生产者，避免多生产者下的虚假低利用率。
+该片仍只覆盖 JSON 边界原语，不接入 socket、IPC transport、AgentLoop 或生产 runtime authority。
+随后封口 `constitution` 自定义规则快照：Rust 对 ID/source/kind 做 fail-closed 校验，归一化 tags，拒绝重复
+ID 且失败替换保留旧快照；共享 `kernel_constitution_vectors.json` 只冻结规则元数据，不接管 Markdown、姿态
+provider 或生产 policy routing。
+`identity_binding` Rust candidate 已收敛 `(cell, role)` 元数据、
 fail-closed 写门、Cell 容量、UID rebind 稳定性、revision 与确定性 snapshot；prompt/definition、持久化、
-事件和 API/L2Shell 仍由适配器持有，不能作为 Python3 registry 的兼容迁移。
+事件和 API/L2Shell 仍由适配器持有，不能作为 Python registry 的兼容迁移。
 随后新增 `network` Rust candidate，已收敛 caller-clocked PeerBook 的 endpoint 校验、self-ignore、timeout、
 loss-once、eviction grace 与 deterministic health/list；TCP/UDP/TLS、socket、EventBus、card sync 和 message
 envelope 仍留在 transport adapter，不授予 Rust runtime authority。
 随后新增 `boot` assembly candidate：Rust `BootPlan` 只负责 step metadata、显式 replacement、锁定和确定性
 dependency-first 拓扑排序；重复步骤、无效名称、缺失依赖和循环依赖均 fail-closed。共享
-`kernel_boot_plan_vectors.json` 在 Rust/Python3 两侧通过，并显式记录 Python3 对缺失依赖的历史忽略行为。
-该片不执行 callback、不读配置、不启动线程、不改变 lifecycle、不接入 Python3 boot registry，也不解除 G3/G6；
+`kernel_boot_plan_vectors.json` 在 Rust/Python 两侧通过，并显式记录 Python 对缺失依赖的历史忽略行为。
+该片不执行 callback、不读配置、不启动线程、不改变 lifecycle、不接入 Python boot registry，也不解除 G3/G6；
 R4 仍需独立 Rust-owned config/state layout 与 versioned protocol boundary。
 随后新增 `state_layout` R4 前置 candidate：Rust 定义全新的 versioned manifest、canonical relative entries 与
 parent-directory coverage，并将显式 host probe 归约为 `initialize/resume/recover/migrate/reject` 决策；共享
-`kernel_state_layout_vectors.json` 在 Rust/Python3 两侧通过。该片不创建目录、不读文件、不导入 Python3 状态、不执行
+`kernel_state_layout_vectors.json` 在 Rust/Python 两侧通过。该片不创建目录、不读文件、不导入 Python 状态、不执行
 migration callback；filesystem probe 与 side effect 仍由后续 R4 adapter 持有，也不解除 G3/G6。
 随后新增 `ports` mechanism candidate：Rust 翻译 `PortResult`、`Endpoint`、`Message`、隐私保护的
-`InputActivitySnapshot` 与确定性 `PortRegistry`；共享 `kernel_port_vectors.json` 在 Rust/Python3 两侧通过。
+`InputActivitySnapshot` 与确定性 `PortRegistry`；共享 `kernel_port_vectors.json` 在 Rust/Python 两侧通过。
 注册重复、无效名称和锁后普通写入均 fail-closed，但该片不实例化 process/storage/lock/scheduler/transport/worker
 或硬件输入适配器；具体副作用仍由后续 R4 Rust adapter 承接，也不解除 G3/G6。
+随后将 `network` 的 3 项、`rule_descriptor` 的 2 项、`boot` 的 3 项和 `ports` 的 2 项机制测试迁移到独立
+integration targets，并保留各自的共享 vector target；PeerBook、规则 checker context、BootPlan 拓扑和
+PortRegistry/value 校验均只通过公开 API 验证，网络 transport、规则 provider、boot callback、provider I/O
+与硬件输入采集仍由适配器持有。
+随后将 `identity_binding` 的 4 项、`state_layout` 的 3 项、`state_store` 的 5 项和 `config_store` 的 5 项
+机制测试迁移到独立 target；filesystem-bearing 测试只使用临时 Rust-owned roots 并通过公开 API 验证，
+prompt/persistence provider、Python state import、migration callback 与配置策略仍不进入 Rust runtime authority。
+随后将 `platform` 的 3 项、`paths` 的 5 项、`discovery` 的 3 项和 `lifecycle` 的 6 项机制测试迁移到独立
+target，覆盖 provider-neutral command/path 计算、三层 discovery merge、生命周期 FSM/checkpoint 与 reset；
+命令执行、环境探测、YAML 扫描、时钟、持久化和 Python boot wiring 仍由适配器持有。
+随后将 `contract` 的 5 项、`ipc` 的 6 项、`persist` 的 3 项和 `assembly` 的 3 项机制测试迁移到独立 target；
+它们通过公开值/锁 IPC/JSONL journal/assembly snapshot API 验证，共享 vector target 继续保留，socket、SQLite、
+多进程 replay、provider wiring、filesystem side effects 和 runtime authority 仍不进入候选内核。
+随后将 `protocol` 的 5 项、`constitution` 的 7 项和 `gatechain` 的 8 项机制测试迁移到独立 target；
+它们只通过公开 API 与共享 policy/protocol vectors 验证版本化记录、规则决策、G1-G5 步骤和 bounded ledger，
+HTTP/WS、Markdown/provider policy、EventBus、approval/reputation routing 与生产授权仍留在适配器层。
+随后将 `allocator` 的 6 项和 `vfs` 的 10 项机制测试迁移到独立 target；资源 profile/pressure/swap 与
+mount/virtual-file/cache/provider-neutral fail-closed 行为只通过公开 API 验证，真实系统路径、进程终止、
+Python allocator/VFS provider、SQLite persistence 和 runtime authority 仍不进入候选内核。
+随后将 `sync` 的 11 项机制测试迁移到独立 target，并保留 `sync_vectors` 共享向量 target，覆盖
+Mutex 重入/竞争/超时/优先级回调、Semaphore、Barrier、Condition，以及 RWLock writer preference、重入深度、
+FIFO ticket、公平性和取消唤醒。该片移除 `sync.rs` 内联测试块，统一通过公开 API 验证；任务/队列取消、跨进程
+锁所有权、deadlock-cycle 报告和生产运行时路由仍未完成，不授予 Rust runtime authority。
 随后新增 `assembly` R4 seam：`KernelAssembly` 组合 `BootPlan`、`StateLayoutManifest`、`PortRegistry` 与 halted
-lifecycle，独立 `rust-kernel` binary 可在无 Python3/FFI 下输出确定性 JSON snapshot；共享
-`kernel_assembly_vectors.json` 在 Rust/Python3 两侧通过。当前仍不读配置、不创建 state root、不执行 callback、不实例化
-provider；fresh-root 创建、versioned protocol serving 与 durable recovery 是下一组 R4 施工项，也不解除 G3/G6。
+lifecycle，独立 `rust-kernel` binary 可在无 Python/FFI 下输出确定性 JSON snapshot；共享
+`kernel_assembly_vectors.json` 在 Rust/Python 两侧通过。当前仍不读配置、不创建 state root、不执行 callback、不实例化
+provider；随后新增 `state_store::StateStore` filesystem adapter，按 manifest 创建全新 Rust root，
+以临时文件 + `sync_all` + 原子 rename 持久化 manifest/lifecycle/checkpoint，并将 clean resume、unclean
+recovery、分歧/迁移 root fail-closed 固定下来。该片仍不读取 Python 状态、不接管 Python boot/runtime，
+也不解除 G3/G6；协议 v1 与配置存储已在独立 Rust 边界收敛。
+
+随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
+快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与
+`TerminalContractDescriptor`，配置/协议/终端版本或 assembly metadata 分歧均
+fail-closed；独立 `rust-kernel` 入口输出完整确定性快照。新增 Rust
+`terminal::TerminalBook` 作为上层 AgentLoop 的终端基础，只拥有唯一的
+terminal/session/process 绑定；内部以 generation-tagged `ProcessHandle` 保存
+进程身份，快照只在 wire 边界输出保留的 raw process id；同时提供
+created/ready/running/stopped/closed 生命周期和
+有界 opaque input/output mailbox（序号、背压、drop 计数）。PTY/subprocess、
+AgentLoop 调度、提示词/工具策略、渲染、多前端 multiplexing 均留在后续 adapter/
+L2/L3；`kernel_terminal_vectors.json` 仅在 Rust 独立测试域验证该机制，不形成
+Python 数据兼容层，也不授予新内核运行时 authority。下一阶段转入 R2 固定工作量
+性能基线，补 CPU、内存、queue/lock wait、p95/p99 与 reject/drop 证据。
+随后新增 `protocol_host::ProtocolHost` 与 `rust-protocol-gate`：在进入未来
+TS/AgentLoop bridge 前，以显式帧上限完成 JSONL v1 校验和 canonicalization；超大或非法帧
+fail-closed，仅输出 stderr 诊断，不执行 command/intent、不持有 session、不授予 runtime authority。
+机制覆盖位于独立 `tests/protocol_host.rs`，该片是 R4 protocol adapter 前置，不是 clean cutover 完成证明。
+随后推进 P0 会话真值前置：新增 Rust `session::SessionBook`，采用分片 registry lock 与 per-session
+message-id index，固定 bounded history、authoritative `input_seq`、monotonic message sequence、cursor
+paging、created/active/closing/closed/crashed 生命周期和 versioned checkpoint/recovery。独立
+`tests/session.rs` 与 `tests/session_vectors.rs` 覆盖并发 admission、分页、重复 ID、容量、崩溃恢复和
+wire round-trip；实现文件不包含测试块。该片只提供未来 AgentLoop/TS bridge 的 session truth seam，
+不接管 prompt/tool/provider/PTY，也不授予 Rust runtime authority。
+
+随后补齐 P0 durable session store：新增 Rust `session_store::SessionStore`，将整个分片
+`SessionBook` 以确定性排序的 versioned JSON 文档原子写入 Rust-owned
+`snapshots/sessions/checkpoint.json`。clean shutdown 对 active/closing 会话 fail-closed；unclean
+文档在载入时将非终态会话归约为 `crashed`，要求调用方显式 `recover`/`activate` 后才能继续写入。
+该切片只读取新 Rust 状态根，不导入 Python 数据，不重放 AgentLoop/provider/tool/PTY 副作用；
+`tests/session_store.rs` 独立覆盖 fresh、clean、unclean recovery、版本拒绝和原子文件边界。
+
+随后补齐执行态的 R4/R5 恢复边界：新增 Rust `execution_store::ExecutionStore`，将
+`SessionBook`、`TerminalBook` 与 `AgentLoopBook` 的 metadata 以一个 versioned、原子替换的
+JSON 文档写入 `snapshots/execution/checkpoint.json`。它校验三本之间的 identity 引用和稳定排序，
+clean checkpoint 拒绝 writable session、active loop/terminal、live process binding 与待处理 mailbox；
+unclean checkpoint 将 session 归约为 `crashed`、loop 归约为 `failed`、terminal 解除进程绑定并归约为
+`created`。不会持久化 PID/PTY 或 mailbox bytes，恢复必须由上层显式 rebind/recover；独立
+`tests/execution_store.rs` 已覆盖 clean round-trip、unclean recovery、拒绝和版本错误。该片仍是
+R4/R5 recovery seam，不授予 boot、Port 或生产 runtime authority。
+
+随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
+改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
+`benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定
+4096 项、1/2/4 worker、3 轮测量 create/activate/input 吞吐、p95/p99、CPU/RSS 和
+reject/error；该 workload 没有独立 queue，因此 queue/lock wait 明确为 0，不与 WorkerPool
+或 substrate queue contention 证据混合，也不改变 runtime authority。
+
+随后增加会话 grouped admission 候选：`SessionBook::create_batch` 先完成逐项 schema 校验，再按
+shard 聚合并让每个 shard 只获取一次 registry lock；返回值保持输入顺序，重复/非法项独立失败，
+不回滚同批成功项。`session.book.batch_admission` 与 `rust-session-batch-bench` 使用统一 v3
+schema 单独记录 batch p95/p99，不与逐会话 admission 的延迟单位混合；该候选仍不接管 AgentLoop
+或 runtime authority。
+一次 release smoke 的 batch 吞吐中位数约为 1.67M/1.78M/2.64M ops/s（1/2/4 worker），
+0 error/0 rejection；batch p99 中位数约为 61/133/203 us。该数字只用于同一 workload 的候选
+对照，不代表默认扩缩容策略或 clean cutover 证据。
+
+随后推进 terminal mailbox 热路径切片：`TerminalBook` 内部 registry 改用 hash lookup，
+公开 snapshots 仍按 terminal identity 排序；normal mailbox I/O 通过 read-locked registry
+与 per-terminal record lock 执行，`submit_input_batch`、`take_input_batch`、
+`publish_output_batch`、`take_output_batch` 每批只获取一次 record lock，
+保持 FIFO、sequence、capacity、drop counter 与逐帧错误语义。新增 `terminal.book.mailbox`
+和 `terminal.book.batch_mailbox` 两个统一 v3 fixed-work runner 及独立 release binary，
+分别记录逐帧与逐批延迟，禁止混合比较。该片仍不创建 PTY、不拥有 subprocess/AgentLoop，
+后续优先级为先完成 terminal benchmark evidence，再进入 PTY/process adapter 与 AgentLoop
+execution bridge 设计。当前 Linux x86_64 release smoke 的中位吞吐约为逐帧
+4.47M/5.41M/3.85M ops/s、32 帧 grouped 11.2M/13.3M/7.65M ops/s（1/2/4 worker，
+0 error/0 rejection）；record-lock variant 的最新中位吞吐约为逐帧
+4.63M/6.00M/6.08M ops/s、32 帧 grouped 7.53M/12.14M/11.65M ops/s（1/2/4 worker），
+4 worker grouped p99 中位约 5.6 us、最差轮 36.5 us。该 runner 未锁定 benchmark 主机，
+跨轮/跨版本数字只作证据，不应据此授予 runtime authority。
+
+随后推进 AgentLoop grouped admission：`Session::append_input_batch` 与
+`AgentLoopHandle::admit_input_batch` 在保持 `input_seq`、message-id 去重和
+partial-success 语义的前提下，分别将 session 与 loop 的锁获取压缩为每组一次；
+失败项只增加 `failed_commands`，不消耗 `command_seq`。新增
+`agent.loop.batch_admission` v3 runner、`rust-agent-loop-batch-bench` 入口和独立
+`tests/session.rs`、`tests/agent_loop.rs`、`tests/benchmark_runner.rs` 覆盖。批量
+p95/p99 以 batch 为单位，禁止与逐输入基线直接比较；该片仍不执行 provider/tool/PTY，
+也不授予 Rust runtime authority。下一步必须在同一固定总量、同一 worker sweep 下做
+release 重复采样，再决定是否保留该优化候选。
+前一轮 Linux x86_64 未锁定主机的 release 对照中，batch=8/32 的 loop lock wait
+曾分别约为 0.013/3.63/10.95 ms 与 0.003/3.37/7.92 ms；这些批次 p95/p99
+是每批单位，不能与逐输入尾延迟直接比较。重新采用 contention-only probe 后，
+逐输入吞吐中位约为 1.82M/0.76M/0.76M ops/s，batch=32 约为
+1.97M/1.09M/0.95M，均为 0 error/0 rejection；对应 contended wait 中位约为
+0/5.01/13.58 ms 与 0/3.34/11.48 ms。batch=32 仍未在所有 worker 点稳定胜出，
+因此暂不提升为默认策略。
+随后将 AgentLoop 的锁等待采样改为 contention-only：无竞争的
+`try_lock` 路径不读取时钟、不执行原子累加，只有阻塞 fallback 才记录等待。
+这降低了单 worker/低竞争热路径的观测开销；`lock_wait_ns` 仍只表示竞争等待，
+不是锁持有时间或完整 admission 延迟。
+
+随后完成 AgentLoop 生命周期锁优化：将跨 Session 写入的独占 loop mutex
+改为生命周期 `RwLock`，并把 command/成功/失败计数改为原子累加。admission
+持共享读锁，因此同一 loop 的输入可以并发进入 Session；pause/stop 仍持独占
+写锁并等待在途 admission 完成，保持状态切换与 admission 的线性化边界，
+`input_seq` 仍只由 Session 分配。独立 `tests/agent_loop.rs` 增加并发唯一性
+向量；一次同一 v3 固定 4096 项、1/2/4 worker、3 轮的 release smoke 约为
+2.49M/2.18M/0.90M ops/s，p95 约 0.23/0.59/10.65 us，0 error/0 rejection。
+该结果只证明热路径候选，Session 写入竞争、PTY/进程组、ProcessTable、
+GateChain/capability 和 runtime authority 仍未闭合。
+
+随后完成受限的 Rust `ProcessPort` 一次性适配器候选：
+`process_adapter::ProcessAdapter` 支持 direct args 与显式 shell 两条路径，
+以 `ProcessOptions` 传入 cwd/input/environment/executable，分别 drain stdout/stderr
+并按流限制保留字节，超时杀死子进程并返回结构化结果。独立
+`tests/process_adapter.rs`、`run_process_adapter` 与
+`rust-process-adapter-bench` 已加入 Rust 测试/证据域；当前 release smoke 在
+1/2/4 worker 下吞吐约 707/1404/2758 ops/s，p95 约 1.54/1.56/1.57 ms，
+error/rejection 均为 0。该片只闭合值边界和受限短命命令执行，不拥有 PTY、进程组、
+长生命周期句柄、reaper、ProcessTable 注册、GateChain/capability 或 AgentLoop
+执行权。下一步必须先定义句柄所有权、进程组终止、取消和回收语义，再评审 adapter pilot；
+因此 R3/R4/R5 仍未完成。
+
+随后新增受限的 `managed_process::ManagedProcessBook` 生命周期候选：在 OS spawn 前预留
+generation-safe `ProcessHandle`，统一管理 direct args/shell child、bounded stdout/stderr drain、stdin、
+observer `Pending`、显式 terminate、snapshot 与 terminal reap；独立
+`tests/managed_process.rs`、`run_managed_process` 和 `rust-managed-process-bench` 已纳入 Rust 测试/证据域。
+当前 release smoke 在 1/2/4 worker 下吞吐约 707/1391/2761 ops/s，p95 约 1.52/1.55/1.58 ms，
+error/rejection 均为 0。容量耗尽在 spawn 前 fail-closed。PTY、进程组终止、ProcessTable 注册、
+GateChain/capability、AgentLoop 与 runtime authority 仍未接入；one-shot stdin pipe 优化未显示稳定跨 worker
+胜出，因此不提升为策略默认值。
+
+随后完成 `process_bridge::ProcessTableBridge` 进程所有权候选：ProcessTable handle 是唯一对外身份，
+managed child handle 仅在桥内保存。spawn 先登记 READY PCB，host spawn 成功后才转 RUNNING；spawn 失败
+同时回滚 PCB，wait/terminate 将终态写为 ZOMBIE，joint reap 同时释放 managed slot 与表项。表项被外部
+owner 先行回收时，桥返回结构化 `TableReap`，但无论如何释放已消费的 binding，避免不可重试的句柄泄漏；
+多个 bridge 共享同一表时使用唯一 registration name。独立 `tests/process_bridge.rs` 共覆盖 9 项生命周期、
+回滚、并发和共享表测试，`process.bridge.lifecycle` 使用 256 items、1/2/4 workers、3 rounds 的固定总量
+基准，全部样本 0 error/0 rejection；当前未锁定 Linux x86_64 release 中位吞吐约 708/1401/2752 ops/s，
+p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得视为 runtime authority；PTY、进程组终止、
+生产 reaper、GateChain/capability、AgentLoop execution、Rust boot 与 R4/R5 clean cutover 继续列为硬门。
+同时新增 bounded `reap_finished` sweep：只观察已经结束的 child，不阻塞 live child，返回 inspected/reaped/
+pending/unavailable/errors 计数；遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的
+binding 泄漏。它是未来 caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
 
 ---
 
@@ -383,10 +676,10 @@ M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协
 > `submitted/completed/dropped/drop_rate`，并保留三轮 normal/ bounded 队列样本。normal 4/16
 > listener 仍触发有界队列丢弃，bounded 曲线则在显式负载下 clean；两者不能混为一个吞吐基线。
 > `20260818-preflight-03` 已复跑 Amdahl/锁竞争：`P=1.000`，RWLock 8-worker 仅约 `16k ops/s`
-> 且 p95 wait `0.872ms`。RWLock 写重入深度与空 owner 已通过 Python3/Rust 共享向量固定，
+> 且 p95 wait `0.872ms`。RWLock 写重入深度与空 owner 已通过 Python/Rust 共享向量固定，
 > 但升级/公平性/取消语义仍须审查。详见
 > `docs/design/reviews/2026-08-18-kernel-readiness-preflight.md`。这些数据只决定 Rust-first
-> 的基准重点和实现顺序，不代表 Python3 数据格式或类布局必须保留。下一步进入 R0/R1：完成
+> 的基准重点和实现顺序，不代表 Python 数据格式或类布局必须保留。下一步进入 R0/R1：完成
 > 语义地图、Rust-native substrate 和 benchmark schema；在 R2 证据前不授予新内核运行时权威。
 
 ---
@@ -398,8 +691,8 @@ M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协
 | Shell 变体收敛到范式级 | 约 3 个（`terminal` / `chat` / `workspace`），不随前端数量增长 |
 | 前端差异化落在渲染/绑定层 | 引擎唯一，`dispatch` 契约不变 |
 | Rust-first 独立内核是既定方向 | 早期 ADR 是历史判断；新方向采用 clean-break 架构，缩放曲线决定实现顺序；**R0/R1 前置边界见 `docs/design/rust-first-kernel-rewrite.md`** |
-| 共享向量的定位 | 只锁定安全/控制不变量和明确保留的 wire 字段，不承诺用户数据、Python3 类布局或 Python3 偶然行为兼容 |
-| Python3 参考实现 | 用于语义映射、回归和基准对照，不是 Rust 内部设计或性能策略的长期约束 |
+| 共享向量的定位 | 只锁定安全/控制不变量和明确保留的 wire 字段，不承诺用户数据、Python 类布局或 Python 偶然行为兼容 |
+| Python 参考实现 | 用于语义映射、回归和基准对照，不是 Rust 内部设计或性能策略的长期约束 |
 | 自动化外围不进入重写核心 | manifest/报告保留为构建契约；执行、证据、指标和依赖图通过 Port 接入，不把脚手架变成 Kernel/L2 authority |
 | 性能基线不等于 Rust 证据 | L2 protocol 与常规层扫描只用于回归门禁；Rust-native 方案仍须由 R2 固定总量吞吐、p95/p99、队列/锁等待和 drop JSON 决定 |
 | 契约 stub 必须接通 | 否则前端无法作为纯 HTTP 客户端走通，契约框架形同虚设 |
@@ -422,4 +715,4 @@ M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–6（会话收尾 + `l2-shell.md`
 契约面同步），并建立 Rust-native substrate 与固定总量 benchmark schema。Rust 与 TS 在 R4/R5
-完成前都不得成为默认路径；新内核不读取旧 Python3 用户数据，也不以 Python3 兼容替换为目标。
+完成前都不得成为默认路径；新内核不读取旧 Python 用户数据，也不以 Python 兼容替换为目标。

@@ -28,10 +28,6 @@
 | D4 | `docs/design/test-runner-slicing-plan.md` 仍标"待批准" | `tests/runner.py` 已实现 `--slice/--parallel/--list-slices` 与全量 SLICES | 该设计标记为**已落地**，剩余 `tests/l4/llm` 失败项与切片 CI 收口为 P1 |
 | D5 | `docs/roadmaps/README.md` 未登记已落地的 `foundation-gaps-plan.md` 与 `test-runner-slicing-plan.md` | 两文件均存在且多数阶段已合入 | README 增"设计/施工计划"索引段，避免规划再次漂移 |
 
-> **修正进度（2026-08-22 复核）**：D1/D4/D5 已落地（frontend-kernel §3 已改写、README 设计索引段已建立）；
-> D2 仍有残留——`docs/architecture/l2-shell-engine.md`、`docs/architecture/l3-tools.md` 尚存
-> `execute_tool_spec` 字样待清；D3 属 L1 内核审计范围，随该路线图处置。
-
 ---
 
 ## 2. 盲区全景（现有覆盖 vs 缺口）
@@ -56,11 +52,6 @@
 ## 3. 盲区清单与优先级
 
 ### P0 — 生产阻断（会话真值、恢复、持久化、剩余执行旁路）
-
-> **条目仲裁（2026-08-22）**：本节 P0.1–P0.4 与 `agent-os-3x-closure.md` 的 P0.1–P0.6 为同一工作面
-> （会话身份 / durable store / input_seq / 恢复闭环）。**施工权威归 `agent-os-3x-closure.md`**
-> （Slice A–F 切片制 + 依赖序），本表保留生产盲区全景视角，条目级进度以彼处为准、验收互查 exit criteria。
-> P0.5–P0.8（剩余旁路 / 调度强制 / 执行引擎）为本表独有，不重复立项。
 
 | ID | 盲区 | 证据 | 验收标准 |
 |---|---|---|---|

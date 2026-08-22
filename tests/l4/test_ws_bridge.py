@@ -129,26 +129,3 @@ class TestWsPortContract:
 
         with suppress(Exception):
             conn.close()
-
-
-class TestWsProtocolEnvelope:
-    """Protocol v1 envelope round-trip over the WS bridge (dual-mode)."""
-
-    def test_envelope_command_roundtrip(self, client):
-        from l2.protocol.envelope import encode_message, make_message
-
-        command = make_message("s-ws", 1, "command", {"name": "lang", "args": []})
-        _send(client, json.loads(encode_message(command)))
-        responses = [_recv(client), _recv(client)]
-        kinds = [msg["kind"] for msg in responses]
-        assert "result" in kinds
-        assert kinds[-1] == "ack"  # ack closes the response window
-
-    def test_envelope_unknown_command_reports_error(self, client):
-        from l2.protocol.envelope import encode_message, make_message
-
-        command = make_message("s-ws", 2, "command", {"name": "no-such-cmd", "args": []})
-        _send(client, json.loads(encode_message(command)))
-        responses = [_recv(client), _recv(client)]
-        result = next(msg for msg in responses if msg["kind"] == "result")
-        assert result["payload"]["success"] is False

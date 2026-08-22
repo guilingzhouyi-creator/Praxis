@@ -1,4 +1,4 @@
-"""Validate deterministic identity UID issuance vectors against Python3."""
+"""Validate deterministic identity UID issuance vectors against Python."""
 
 from __future__ import annotations
 

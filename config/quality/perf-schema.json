@@ -47,7 +47,8 @@
         "operations": {"type": "integer", "minimum": 1},
         "ops_per_sec": {"type": "number", "minimum": 0},
         "latency_ms": {"type": "number", "minimum": 0},
-        "rss_bytes": {"type": "integer", "minimum": 0}
+        "rss_bytes": {"type": "integer", "minimum": 0},
+        "cpu_time_ns": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": false
     },

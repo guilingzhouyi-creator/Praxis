@@ -285,7 +285,7 @@ ENGINEERING_DEBUG_LOGGING_COMPONENTS: Final[tuple[str, ...]] = (
 # Runtime provider-probe capability keys understood by the cache-strategy
 # refresh loop: a probe reporting one of these keys refreshes the
 # per-provider strategy idempotently (fingerprint-compared) without any
-# Python3 code change. Pure data contract — TS-equivalent portable.
+# Python code change. Pure data contract — TS-equivalent portable.
 CACHE_CAP_PREFIX_CACHE: Final[str] = "supports_prefix_cache"
 CACHE_CAP_STATEFUL: Final[str] = "supports_stateful"
 CACHE_CAP_USER_ID: Final[str] = "supports_user_id"
@@ -461,14 +461,6 @@ SHELL_HISTORY_MAX_LIMIT: Final[int] = 200
 SHELL_HISTORY_DEFAULT_LIMIT: Final[int] = 20
 SHELL_AUTOCOMPLETE_DISPLAY_LIMIT: Final[int] = 15  # commands shown in help
 TOOL_RESULT_DISPLAY_LIMIT: Final[int] = 5
-# Cards shown by /card list (explicit subcommand)
-CARD_LIST_MAX_LIMIT: Final[int] = 20
-# Cards shown by bare /card
-CARD_LIST_DEFAULT_LIMIT: Final[int] = 10
-# Default record cap for /session history queries
-SESSION_HISTORY_QUERY_LIMIT: Final[int] = 20
-# Conversation window size for /session resume pagination
-SESSION_WINDOW_PAGE_SIZE: Final[int] = 10
 # Max lean-case entries shown in /skills output
 SKILL_LEAN_CASES_LIMIT: Final[int] = 20
 SKILL_LIST_SCAN_LIMIT: Final[int] = 20  # max skills listed as graph seeds / linkage candidates

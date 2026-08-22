@@ -1,5 +1,9 @@
 {
   "state_root": "state",
+  "config_root": "state/config",
+  "expected_config_layout_version": 1,
+  "expected_protocol_version": 1,
+  "expected_terminal_contract_version": 1,
   "boot_steps": [
     {"name": "cell", "depends_on": ["services"]},
     {"name": "services", "depends_on": ["config"]},

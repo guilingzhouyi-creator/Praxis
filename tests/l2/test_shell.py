@@ -8,18 +8,61 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
-def test_shell_helpers_import():
-    from l2.shells.terminal import TerminalShell, direct_session, start_repl
+class TestTerminalSession:
+    def test_session_dataclass(self):
+        from l2.shell_session import TerminalSession
 
-    assert callable(direct_session)
-    assert callable(start_repl)
-    shell = TerminalShell()
-    assert shell.name == "terminal"
-    assert callable(shell.run)
-    assert callable(shell.loop)
+        sess = TerminalSession(id="test-session", pid=12345)
+        assert sess.id == "test-session"
+        assert sess.pid == 12345
+        assert not sess.is_alive()
+
+    def test_kill_no_process(self):
+        from l2.shell_session import TerminalSession
+
+        sess = TerminalSession(id="no-proc", pid=0)
+        sess.kill()
 
 
-class TestTerminalShell:
+class TestTerminalManager:
+    def test_create_and_list(self):
+        from l2.shell_session import get_manager, reset_manager
+
+        reset_manager()
+        mgr = get_manager()
+        r = mgr.create(cwd=".")
+        assert r.get("success"), f"create failed: {r}"
+        assert "id" in r
+
+    def test_get_session(self):
+        from l2.shell_session import get_manager, reset_manager
+
+        reset_manager()
+        mgr = get_manager()
+        r = mgr.create()
+        sid = r["id"]
+        sess = mgr.get(sid)
+        assert sess is not None
+        assert sess.id == sid
+
+    def test_get_manager_singleton(self):
+        from l2.shell_session import get_manager, reset_manager
+
+        reset_manager()
+        m1 = get_manager()
+        m2 = get_manager()
+        assert m1 is m2
+
+    def test_shell_helpers_import(self):
+        from l2.shells.terminal import TerminalShell, direct_session, start_repl
+
+        assert callable(direct_session)
+        assert callable(start_repl)
+        shell = TerminalShell()
+        assert shell.name == "terminal"
+        assert callable(shell.run)
+        assert callable(shell.loop)
+
     def test_terminal_session_bound_to_l3(self):
         from l2.shells.terminal import TerminalShell
 

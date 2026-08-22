@@ -167,9 +167,6 @@ class TestAgentLoopPostureGate:
         out = self._mk_loop(nature="")._inject_extra_context("base")
         assert "rev-helper" not in out
 
-    @pytest.mark.skip(
-        reason="Known issue: lean case section lacks posture gate; evolved skills section is filtered by _system_permits_posture, making the test assertion unreachable. Tracked in docs/design/praxis-test-perf-slicing-plan.md."
-    )
     def test_offensive_skill_injected_when_card_nature_authorizes(self, _skills):
         sm = _skills
         sm.create(
@@ -282,9 +279,6 @@ class TestRuntimeToggle:
         out = self._mk_loop(nature="")._inject_extra_context("base")
         assert "rev-t" not in out
 
-    @pytest.mark.skip(
-        reason="Known issue: same as test_offensive_skill_injected_when_card_nature_authorizes — lean case section lacks posture gate, evolved skills section blocked by _system_permits_posture. Tracked in perf-slicing plan."
-    )
     def test_offensive_injected_when_disabled(self, _skills):
         _skills.create(
             name="rev-t2",

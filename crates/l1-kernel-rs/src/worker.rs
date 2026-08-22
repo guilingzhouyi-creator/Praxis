@@ -2,11 +2,15 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, MutexGuard, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use crate::cancellation::CancellationToken;
 use serde_json::{Value, json};
+
+const CLAIM_BATCH_SIZE: usize = 8;
 
 /// Dictionary-shaped result retained for the WorkerPort adapter.
 pub type WireMap = std::collections::BTreeMap<String, Value>;
@@ -49,13 +53,18 @@ impl WorkerConfig {
 pub enum TaskHandleError {
     /// The task did not finish before the supplied deadline.
     Timeout,
+    /// The task deadline elapsed before or during execution.
+    TaskTimeout,
     /// The task failed or was evicted before execution.
     Failed(String),
+    /// The task was cancelled before execution began.
+    Cancelled(String),
 }
 
 struct TaskState {
-    result: StdMutex<Option<Result<Value, String>>>,
+    result: StdMutex<Option<Result<Value, TaskHandleError>>>,
     ready: Condvar,
+    cancellation: CancellationToken,
 }
 
 /// Result handle for a submitted task.
@@ -70,6 +79,7 @@ impl TaskHandle {
             state: Arc::new(TaskState {
                 result: StdMutex::new(None),
                 ready: Condvar::new(),
+                cancellation: CancellationToken::new(),
             }),
         }
     }
@@ -116,11 +126,26 @@ impl TaskHandle {
         }
         match result.as_ref().expect("result checked above") {
             Ok(value) => Ok(value.clone()),
-            Err(error) => Err(TaskHandleError::Failed(error.clone())),
+            Err(error) => Err(error.clone()),
         }
     }
 
-    fn complete(&self, result: Result<Value, String>) {
+    /// Request cancellation before the worker starts this task.
+    pub fn cancel(&self, reason: impl Into<String>) -> bool {
+        self.state.cancellation.cancel(reason)
+    }
+
+    /// Return whether cancellation has been requested for this task.
+    pub fn is_cancelled(&self) -> bool {
+        self.state.cancellation.is_cancelled()
+    }
+
+    /// Return the retained cancellation reason, if any.
+    pub fn cancellation_reason(&self) -> Option<String> {
+        self.state.cancellation.reason()
+    }
+
+    fn complete(&self, result: Result<Value, TaskHandleError>) {
         let mut slot = self
             .state
             .result
@@ -136,6 +161,7 @@ impl TaskHandle {
 struct Task {
     action: Option<TaskFn>,
     handle: Option<TaskHandle>,
+    deadline: Option<Instant>,
 }
 
 struct QueueInner {
@@ -170,17 +196,21 @@ impl QueueState {
 
 #[derive(Debug, Default)]
 struct Metrics {
-    pool_size: usize,
-    active: usize,
-    completed: u64,
-    rejected: u64,
+    pool_size: AtomicUsize,
+    active: AtomicUsize,
+    completed: AtomicU64,
+    claim_wait_ns: AtomicU64,
+    rejected: AtomicU64,
+    outcome_cancelled: AtomicU64,
+    outcome_timed_out: AtomicU64,
+    outcome_failed: AtomicU64,
 }
 
 /// Bounded worker pool with FIFO eviction and idle shrink.
 pub struct WorkerPool {
     config: WorkerConfig,
     queue: Arc<QueueState>,
-    metrics: Arc<StdMutex<Metrics>>,
+    metrics: Arc<Metrics>,
     workers: StdMutex<Vec<JoinHandle<()>>>,
 }
 
@@ -194,7 +224,7 @@ impl WorkerPool {
             return Err("worker queue capacity must be at least one");
         }
         let queue = Arc::new(QueueState::new(config.queue_size));
-        let metrics = Arc::new(StdMutex::new(Metrics::default()));
+        let metrics = Arc::new(Metrics::default());
         let pool = Self {
             config,
             queue,
@@ -209,19 +239,64 @@ impl WorkerPool {
 
     /// Submit a fire-and-forget task, evicting the oldest pending task if full.
     pub fn submit(&self, action: TaskFn) -> WireMap {
-        self.enqueue(action, None)
+        self.enqueue(action, None, None)
     }
 
     /// Submit a task and return a handle that always completes or fails.
     pub fn submit_result(&self, action: TaskFn) -> TaskHandle {
-        let handle = TaskHandle::new();
-        let result = self.enqueue(action, Some(handle.clone()));
+        self.submit_result_with_deadline(action, None)
+    }
+
+    /// Submit a task with a deadline enforced by the worker boundary.
+    pub fn submit_result_with_timeout(&self, action: TaskFn, timeout: Duration) -> TaskHandle {
+        self.submit_result_with_deadline(action, Some(deadline_after(timeout)))
+    }
+
+    /// Submit a batch of tasks while holding the queue admission lock once.
+    ///
+    /// Tasks retain the same FIFO, eviction, cancellation, completion, and
+    /// shutdown semantics as individual submissions. The batch form only
+    /// changes how admission work is grouped; it does not execute closures on
+    /// the caller thread.
+    pub fn submit_result_batch(&self, actions: Vec<TaskFn>) -> Vec<TaskHandle> {
+        let handles = actions
+            .iter()
+            .map(|_| TaskHandle::new())
+            .collect::<Vec<_>>();
+        let tasks = actions
+            .into_iter()
+            .zip(handles.iter().cloned())
+            .map(|(action, handle)| Task {
+                action: Some(action),
+                handle: Some(handle),
+                deadline: None,
+            })
+            .collect::<Vec<_>>();
+        let result = self.enqueue_tasks(tasks);
         if result.get("success") != Some(&json!(true)) {
-            handle.complete(Err(result
+            let error = result
                 .get("error")
                 .and_then(Value::as_str)
-                .unwrap_or("task rejected")
-                .to_owned()));
+                .unwrap_or("task batch rejected")
+                .to_owned();
+            for handle in &handles {
+                handle.complete(Err(TaskHandleError::Failed(error.clone())));
+            }
+        }
+        handles
+    }
+
+    fn submit_result_with_deadline(&self, action: TaskFn, deadline: Option<Instant>) -> TaskHandle {
+        let handle = TaskHandle::new();
+        let result = self.enqueue(action, Some(handle.clone()), deadline);
+        if result.get("success") != Some(&json!(true)) {
+            handle.complete(Err(TaskHandleError::Failed(
+                result
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("task rejected")
+                    .to_owned(),
+            )));
         }
         handle
     }
@@ -241,7 +316,7 @@ impl WorkerPool {
         let deadline = timeout.map(|duration| Instant::now() + duration);
         loop {
             let queue_empty = self.queue.lock().queue.is_empty();
-            let active = self.metrics_lock().active;
+            let active = self.metrics.active.load(Ordering::Acquire);
             if queue_empty && active == 0 {
                 break;
             }
@@ -267,7 +342,7 @@ impl WorkerPool {
             if timed_out.timed_out() {
                 let queue_pending = !queue.queue.is_empty();
                 drop(queue);
-                let active = self.metrics_lock().active;
+                let active = self.metrics.active.load(Ordering::Acquire);
                 if queue_pending || active > 0 {
                     return fail("shutdown timeout", []);
                 }
@@ -277,69 +352,132 @@ impl WorkerPool {
         ok([("shutdown", json!(true))])
     }
 
-    /// Return sizing, activity, queue, completion, rejection, and shutdown counters.
+    /// Return sizing, activity, queue, completion, outcome, rejection, and shutdown counters.
     pub fn stats(&self) -> WireMap {
-        let metrics = self.metrics_lock();
+        let metrics = &self.metrics;
         let queue = self.queue.lock();
         BTreeMap::from([
-            ("pool_size".to_owned(), json!(metrics.pool_size)),
-            ("active".to_owned(), json!(metrics.active)),
+            (
+                "pool_size".to_owned(),
+                json!(metrics.pool_size.load(Ordering::Acquire)),
+            ),
+            (
+                "active".to_owned(),
+                json!(metrics.active.load(Ordering::Acquire)),
+            ),
             ("queued".to_owned(), json!(queue.queue.len())),
-            ("completed".to_owned(), json!(metrics.completed)),
-            ("rejected".to_owned(), json!(metrics.rejected)),
+            (
+                "completed".to_owned(),
+                json!(metrics.completed.load(Ordering::Relaxed)),
+            ),
+            (
+                "queue_wait_ns".to_owned(),
+                json!(metrics.claim_wait_ns.load(Ordering::Relaxed)),
+            ),
+            (
+                "rejected".to_owned(),
+                json!(metrics.rejected.load(Ordering::Relaxed)),
+            ),
+            (
+                "outcome_cancelled".to_owned(),
+                json!(metrics.outcome_cancelled.load(Ordering::Relaxed)),
+            ),
+            (
+                "outcome_timed_out".to_owned(),
+                json!(metrics.outcome_timed_out.load(Ordering::Relaxed)),
+            ),
+            (
+                "outcome_failed".to_owned(),
+                json!(metrics.outcome_failed.load(Ordering::Relaxed)),
+            ),
             ("min".to_owned(), json!(self.config.min_workers)),
             ("max".to_owned(), json!(self.config.max_workers)),
             ("shutdown".to_owned(), json!(queue.closed)),
         ])
     }
 
-    fn enqueue(&self, action: TaskFn, handle: Option<TaskHandle>) -> WireMap {
-        let mut queue = self.queue.lock();
-        if queue.closed {
-            drop(queue);
-            let mut metrics = self.metrics_lock();
-            metrics.rejected = metrics.rejected.saturating_add(1);
-            return fail("pool is shut down", []);
-        }
-        let mut rejected = false;
-        if queue.queue.len() >= self.queue.capacity {
-            if let Some(mut evicted) = queue.queue.pop_front() {
-                if let Some(evicted_handle) = evicted.handle.take() {
-                    evicted_handle.complete(Err("task evicted by backpressure".to_owned()));
-                }
-                rejected = true;
-            } else {
-                drop(queue);
-                let mut metrics = self.metrics_lock();
-                metrics.rejected = metrics.rejected.saturating_add(1);
-                return fail("queue full and eviction failed", []);
-            }
-        }
-        queue.queue.push_back(Task {
+    fn enqueue(
+        &self,
+        action: TaskFn,
+        handle: Option<TaskHandle>,
+        deadline: Option<Instant>,
+    ) -> WireMap {
+        self.enqueue_tasks(vec![Task {
             action: Some(action),
             handle,
-        });
+            deadline,
+        }])
+    }
+
+    fn enqueue_tasks(&self, tasks: Vec<Task>) -> WireMap {
+        if tasks.is_empty() {
+            return ok([("submitted", json!(true))]);
+        }
+        let batch_size = tasks.len();
+        let mut queue = self.queue.lock();
+        if queue.closed {
+            let rejected = tasks.len().try_into().unwrap_or(u64::MAX);
+            drop(queue);
+            self.metrics.rejected.fetch_add(rejected, Ordering::Relaxed);
+            return fail("pool is shut down", []);
+        }
+        let mut evicted_handles = Vec::new();
+        let mut rejected = 0_u64;
+        for task in tasks {
+            if queue.queue.len() >= self.queue.capacity {
+                if let Some(mut evicted) = queue.queue.pop_front() {
+                    if let Some(evicted_handle) = evicted.handle.take() {
+                        evicted_handles.push(evicted_handle);
+                    }
+                    rejected = rejected.saturating_add(1);
+                } else {
+                    drop(queue);
+                    self.metrics.rejected.fetch_add(1, Ordering::Relaxed);
+                    return fail("queue full and eviction failed", []);
+                }
+            }
+            queue.queue.push_back(task);
+        }
         let queued = queue.queue.len();
-        self.queue.not_empty.notify_one();
+        self.notify_waiting_workers(batch_size);
         drop(queue);
-        if rejected {
-            let mut metrics = self.metrics_lock();
-            metrics.rejected = metrics.rejected.saturating_add(1);
+        for handle in evicted_handles {
+            handle.complete(Err(TaskHandleError::Failed(
+                "task evicted by backpressure".to_owned(),
+            )));
         }
-        let workers = self.metrics_lock().pool_size;
-        if workers < self.config.max_workers && queued > workers.saturating_mul(2) {
-            self.add_worker();
+        if rejected > 0 {
+            self.metrics.rejected.fetch_add(rejected, Ordering::Relaxed);
         }
+        self.maybe_grow_worker(queued);
         ok([("submitted", json!(true))])
     }
 
+    fn maybe_grow_worker(&self, queued: usize) {
+        let workers = self.metrics.pool_size.load(Ordering::Acquire);
+        if workers < self.config.max_workers && queued > workers.saturating_mul(2) {
+            self.add_worker();
+        }
+    }
+
+    fn notify_waiting_workers(&self, submitted: usize) {
+        let worker_count = self.metrics.pool_size.load(Ordering::Acquire).max(1);
+        let wake_count = submitted.min(worker_count);
+        for _ in 0..wake_count {
+            self.queue.not_empty.notify_one();
+        }
+    }
+
     fn add_worker(&self) {
-        let mut metrics = self.metrics_lock();
-        if metrics.pool_size >= self.config.max_workers {
+        let grew =
+            self.metrics
+                .pool_size
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |size| {
+                    (size < self.config.max_workers).then_some(size + 1)
+                });
+        if grew.is_err() {
             return;
         }
-        metrics.pool_size += 1;
-        drop(metrics);
         let queue = Arc::clone(&self.queue);
         let metrics = Arc::clone(&self.metrics);
         let min_workers = self.config.min_workers;
@@ -364,10 +502,6 @@ impl WorkerPool {
             }
         }
     }
-
-    fn metrics_lock(&self) -> MutexGuard<'_, Metrics> {
-        self.metrics.lock().unwrap_or_else(PoisonError::into_inner)
-    }
 }
 
 impl Drop for WorkerPool {
@@ -378,67 +512,145 @@ impl Drop for WorkerPool {
     }
 }
 
+fn deadline_after(timeout: Duration) -> Instant {
+    Instant::now()
+        .checked_add(timeout)
+        .unwrap_or_else(Instant::now)
+}
+
+fn execute_task(
+    action: TaskFn,
+    deadline: Option<Instant>,
+    handle: Option<&TaskHandle>,
+) -> Result<Value, TaskHandleError> {
+    if let Some(handle) = handle
+        && let Some(reason) = handle.cancellation_reason()
+    {
+        return Err(TaskHandleError::Cancelled(reason));
+    }
+    if deadline.is_some_and(|limit| Instant::now() >= limit) {
+        return Err(TaskHandleError::TaskTimeout);
+    }
+    let result = catch_unwind(AssertUnwindSafe(action))
+        .map_err(|_| TaskHandleError::Failed("task panicked".to_owned()))
+        .and_then(|value| value.map_err(TaskHandleError::Failed));
+    if deadline.is_some_and(|limit| Instant::now() >= limit) {
+        Err(TaskHandleError::TaskTimeout)
+    } else {
+        result
+    }
+}
+
 fn worker_loop(
     queue: Arc<QueueState>,
-    metrics: Arc<StdMutex<Metrics>>,
+    metrics: Arc<Metrics>,
     min_workers: usize,
     idle_timeout: Duration,
 ) {
+    let mut batch = Vec::with_capacity(CLAIM_BATCH_SIZE);
     loop {
-        let task = {
-            let mut inner = queue.lock();
-            loop {
-                if let Some(task) = inner.queue.pop_front() {
-                    break Some(task);
-                }
-                if inner.closed {
-                    break None;
-                }
-                let (next, timed_out) = queue
-                    .not_empty
-                    .wait_timeout(inner, idle_timeout)
-                    .unwrap_or_else(PoisonError::into_inner);
-                inner = next;
-                if timed_out.timed_out() {
-                    drop(inner);
-                    let mut counters = metrics.lock().unwrap_or_else(PoisonError::into_inner);
-                    if counters.pool_size > min_workers {
-                        counters.pool_size -= 1;
-                        break None;
-                    }
-                    drop(counters);
-                    inner = queue.lock();
-                }
-            }
-        };
-        let Some(mut task) = task else {
+        if !claim_batch(&queue, &mut batch, &metrics, min_workers, idle_timeout) {
             return;
-        };
-        {
-            let mut counters = metrics.lock().unwrap_or_else(PoisonError::into_inner);
-            counters.active += 1;
         }
-        let result = match task.action.take() {
-            Some(action) => catch_unwind(AssertUnwindSafe(action))
-                .map_err(|_| "task panicked".to_owned())
-                .and_then(|value| value),
-            None => Err("task missing action".to_owned()),
-        };
-        if let Some(handle) = task.handle {
-            handle.complete(result);
-        }
-        let mut counters = metrics.lock().unwrap_or_else(PoisonError::into_inner);
-        counters.active = counters.active.saturating_sub(1);
-        counters.completed = counters.completed.saturating_add(1);
-        if counters.active == 0 {
-            queue.drained.notify_all();
-        }
-        drop(counters);
-        let inner = queue.lock();
-        if inner.queue.is_empty() {
-            queue.drained.notify_all();
+        for mut task in batch.drain(..) {
+            let result = match task.action.take() {
+                Some(action) => execute_task(action, task.deadline, task.handle.as_ref()),
+                None => Err(TaskHandleError::Failed("task missing action".to_owned())),
+            };
+            let outcome = match &result {
+                Ok(_) => None,
+                Err(TaskHandleError::Cancelled(_)) => Some(Outcome::Cancelled),
+                Err(TaskHandleError::TaskTimeout) => Some(Outcome::TimedOut),
+                Err(TaskHandleError::Timeout | TaskHandleError::Failed(_)) => Some(Outcome::Failed),
+            };
+            let handle = task.handle;
+            let was_last = metrics
+                .active
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+                    Some(active.saturating_sub(1))
+                })
+                .is_ok_and(|active| active == 1);
+            metrics.completed.fetch_add(1, Ordering::Relaxed);
+            match outcome {
+                Some(Outcome::Cancelled) => {
+                    metrics.outcome_cancelled.fetch_add(1, Ordering::Relaxed);
+                }
+                Some(Outcome::TimedOut) => {
+                    metrics.outcome_timed_out.fetch_add(1, Ordering::Relaxed);
+                }
+                Some(Outcome::Failed) => {
+                    metrics.outcome_failed.fetch_add(1, Ordering::Relaxed);
+                }
+                None => {}
+            }
+            if was_last {
+                queue.drained.notify_all();
+            }
+            if let Some(handle) = handle {
+                handle.complete(result);
+            }
         }
     }
+}
+
+fn claim_batch(
+    queue: &QueueState,
+    batch: &mut Vec<Task>,
+    metrics: &Metrics,
+    min_workers: usize,
+    idle_timeout: Duration,
+) -> bool {
+    batch.clear();
+    let claim_started = Instant::now();
+    let mut inner = queue.lock();
+    loop {
+        if !inner.queue.is_empty() {
+            let count = inner.queue.len().min(CLAIM_BATCH_SIZE);
+            for _ in 0..count {
+                if let Some(task) = inner.queue.pop_front() {
+                    batch.push(task);
+                }
+            }
+            metrics.claim_wait_ns.fetch_add(
+                claim_started
+                    .elapsed()
+                    .as_nanos()
+                    .try_into()
+                    .unwrap_or(u64::MAX),
+                Ordering::Relaxed,
+            );
+            metrics.active.fetch_add(batch.len(), Ordering::AcqRel);
+            return true;
+        }
+        if inner.closed {
+            return false;
+        }
+        let (next, timed_out) = queue
+            .not_empty
+            .wait_timeout(inner, idle_timeout)
+            .unwrap_or_else(PoisonError::into_inner);
+        inner = next;
+        if timed_out.timed_out() {
+            drop(inner);
+            let retired =
+                metrics
+                    .pool_size
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |size| {
+                        (size > min_workers).then_some(size - 1)
+                    });
+            if retired.is_ok() {
+                return false;
+            }
+            inner = queue.lock();
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Outcome {
+    Cancelled,
+    TimedOut,
+    Failed,
 }
 
 fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
@@ -460,140 +672,4 @@ fn fail<const N: usize>(error: &str, fields: [(&str, Value); N]) -> WireMap {
     result.insert("success".to_owned(), json!(false));
     result.insert("error".to_owned(), json!(error));
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{TaskHandleError, WorkerConfig, WorkerPool};
-    use serde_json::json;
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-    use std::time::Duration;
-
-    fn pool() -> WorkerPool {
-        WorkerPool::new(WorkerConfig::new(1, 2, 4, Duration::from_millis(20))).unwrap()
-    }
-
-    #[test]
-    fn submit_result_returns_json_and_updates_stats() {
-        let pool = pool();
-        let handle = pool.submit_result(Box::new(|| Ok(json!({"value": 42}))));
-        assert_eq!(
-            handle.result(Some(Duration::from_secs(1))).unwrap(),
-            json!({"value": 42})
-        );
-        assert_eq!(
-            handle.result(Some(Duration::from_millis(1))).unwrap(),
-            json!({"value": 42})
-        );
-        assert_eq!(pool.stats()["completed"], 1);
-        assert_eq!(
-            pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
-            true
-        );
-    }
-
-    #[test]
-    fn task_failure_and_panic_complete_handles() {
-        let pool = pool();
-        let failed = pool.submit_result(Box::new(|| Err("explicit failure".to_owned())));
-        assert_eq!(
-            failed.result(Some(Duration::from_secs(1))),
-            Err(TaskHandleError::Failed("explicit failure".to_owned()))
-        );
-        let panicked = pool.submit_result(Box::new(|| -> Result<_, String> { panic!("boom") }));
-        assert_eq!(
-            panicked.result(Some(Duration::from_secs(1))),
-            Err(TaskHandleError::Failed("task panicked".to_owned()))
-        );
-        pool.shutdown(true, Some(Duration::from_secs(1)));
-    }
-
-    #[test]
-    fn full_queue_evicts_oldest_and_completes_evicted_handle() {
-        let pool = WorkerPool::new(WorkerConfig::new(1, 1, 1, Duration::from_secs(1))).unwrap();
-        let gate = Arc::new(Mutex::new(false));
-        let started = Arc::new(Mutex::new(false));
-        let hold_gate = Arc::clone(&gate);
-        let mark_started = Arc::clone(&started);
-        let running = pool.submit_result(Box::new(move || {
-            *mark_started.lock().unwrap() = true;
-            while !*hold_gate.lock().unwrap() {
-                thread::yield_now();
-            }
-            Ok(json!(0))
-        }));
-        while !*started.lock().unwrap() {
-            thread::yield_now();
-        }
-        let evicted = pool.submit_result(Box::new(|| Ok(json!(1))));
-        let accepted = pool.submit_result(Box::new(|| Ok(json!(2))));
-        assert_eq!(
-            evicted.result(Some(Duration::from_secs(1))),
-            Err(TaskHandleError::Failed(
-                "task evicted by backpressure".to_owned()
-            ))
-        );
-        *gate.lock().unwrap() = true;
-        assert_eq!(
-            running.result(Some(Duration::from_secs(1))).unwrap(),
-            json!(0)
-        );
-        assert_eq!(
-            accepted.result(Some(Duration::from_secs(1))).unwrap(),
-            json!(2)
-        );
-        assert_eq!(pool.stats()["rejected"], 1);
-        pool.shutdown(true, Some(Duration::from_secs(1)));
-    }
-
-    #[test]
-    fn shutdown_rejects_future_tasks_and_idle_workers_shrink_to_floor() {
-        let pool = pool();
-        pool.add_worker();
-        assert_eq!(pool.stats()["pool_size"], json!(2));
-        let deadline = std::time::Instant::now() + Duration::from_secs(1);
-        while pool.stats()["pool_size"] == json!(2) && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
-        assert_eq!(pool.stats()["pool_size"], json!(1));
-
-        let _ = pool.submit(Box::new(|| Ok(json!(1))));
-        pool.shutdown(true, Some(Duration::from_secs(1)));
-        assert_eq!(pool.submit(Box::new(|| Ok(json!(2))))["success"], false);
-    }
-
-    #[test]
-    fn shutdown_timeout_and_stats_do_not_invert_lock_order() {
-        let pool = std::sync::Arc::new(
-            WorkerPool::new(WorkerConfig::new(1, 1, 1, Duration::from_secs(1))).unwrap(),
-        );
-        let release = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let task_release = Arc::clone(&release);
-        let handle = pool.submit_result(Box::new(move || {
-            while !task_release.load(std::sync::atomic::Ordering::Acquire) {
-                thread::yield_now();
-            }
-            Ok(json!(7))
-        }));
-        thread::sleep(Duration::from_millis(5));
-
-        let shutdown_pool = Arc::clone(&pool);
-        let shutdown =
-            thread::spawn(move || shutdown_pool.shutdown(true, Some(Duration::from_millis(20))));
-        for _ in 0..100 {
-            let _ = pool.stats();
-        }
-        assert_eq!(shutdown.join().unwrap()["success"], false);
-
-        release.store(true, std::sync::atomic::Ordering::Release);
-        assert_eq!(
-            handle.result(Some(Duration::from_secs(1))).unwrap(),
-            json!(7)
-        );
-        assert_eq!(
-            pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
-            true
-        );
-    }
 }

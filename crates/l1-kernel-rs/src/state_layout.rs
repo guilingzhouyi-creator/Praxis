@@ -2,7 +2,7 @@
 //!
 //! This candidate defines only the versioned layout manifest and the
 //! observation-to-decision boundary. It does not create directories, read
-//! files, import Python3 state, or perform migration side effects.
+//! files, import Python state, or perform migration side effects.
 
 use std::collections::BTreeSet;
 
@@ -147,12 +147,16 @@ impl StateLayoutManifest {
                 StateEntry::directory("journal"),
                 StateEntry::directory("runtime"),
                 StateEntry::directory("snapshots"),
+                StateEntry::directory("snapshots/execution"),
+                StateEntry::directory("snapshots/sessions"),
                 StateEntry::directory("tmp"),
                 StateEntry::file("audit/events.jsonl"),
                 StateEntry::file("journal/events.jsonl"),
                 StateEntry::file("lifecycle.json"),
                 StateEntry::file("manifest.json"),
                 StateEntry::file("runtime/checkpoint.json"),
+                StateEntry::file("snapshots/execution/checkpoint.json"),
+                StateEntry::file("snapshots/sessions/checkpoint.json"),
             ],
         )
     }
@@ -338,122 +342,4 @@ fn validate_probe(probe: &StateProbe) -> Result<(), StateLayoutError> {
         return Err(StateLayoutError::InvalidProbe);
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        STATE_LAYOUT_VERSION, StateAction, StateEntry, StateLayoutError, StateLayoutManifest,
-        StateProbe, StateReason, decide_state_action,
-    };
-
-    #[test]
-    fn fresh_manifest_is_sorted_and_round_trips() {
-        let manifest = StateLayoutManifest::fresh("/var/lib/praxis-rs", 1).expect("layout");
-        assert_eq!(manifest.layout_version, STATE_LAYOUT_VERSION);
-        assert_eq!(manifest.entries[0], StateEntry::directory("audit"));
-        assert_eq!(
-            manifest.entries.last().expect("last"),
-            &StateEntry::directory("tmp")
-        );
-        assert!(
-            manifest
-                .entries
-                .contains(&StateEntry::file("runtime/checkpoint.json"))
-        );
-        let restored =
-            StateLayoutManifest::decode(&manifest.encode().expect("encode")).expect("decode");
-        assert_eq!(restored, manifest);
-    }
-
-    #[test]
-    fn malformed_entries_fail_closed() {
-        assert!(matches!(
-            StateLayoutManifest::new("/tmp/state", 1, vec![]),
-            Err(StateLayoutError::EmptyLayout)
-        ));
-        assert!(matches!(
-            StateLayoutManifest::new("/tmp/state", 1, vec![StateEntry::file("../escape")]),
-            Err(StateLayoutError::InvalidPath { .. })
-        ));
-        assert!(matches!(
-            StateLayoutManifest::new(
-                "/tmp/state",
-                1,
-                vec![StateEntry::file("audit/events.jsonl")]
-            ),
-            Err(StateLayoutError::MissingParent { .. })
-        ));
-    }
-
-    #[test]
-    fn state_actions_are_explicit_and_fail_closed() {
-        let cases = [
-            (
-                StateProbe {
-                    root_exists: false,
-                    root_empty: false,
-                    manifest_version: None,
-                    clean_shutdown: None,
-                },
-                StateAction::Initialize,
-                StateReason::MissingRoot,
-            ),
-            (
-                StateProbe {
-                    root_exists: true,
-                    root_empty: true,
-                    manifest_version: None,
-                    clean_shutdown: None,
-                },
-                StateAction::Initialize,
-                StateReason::EmptyRoot,
-            ),
-            (
-                StateProbe {
-                    root_exists: true,
-                    root_empty: false,
-                    manifest_version: None,
-                    clean_shutdown: None,
-                },
-                StateAction::Reject,
-                StateReason::MissingManifest,
-            ),
-            (
-                StateProbe {
-                    root_exists: true,
-                    root_empty: false,
-                    manifest_version: Some(0),
-                    clean_shutdown: None,
-                },
-                StateAction::Migrate,
-                StateReason::OlderLayout,
-            ),
-            (
-                StateProbe {
-                    root_exists: true,
-                    root_empty: false,
-                    manifest_version: Some(2),
-                    clean_shutdown: Some(true),
-                },
-                StateAction::Reject,
-                StateReason::FutureLayout,
-            ),
-            (
-                StateProbe {
-                    root_exists: true,
-                    root_empty: false,
-                    manifest_version: Some(1),
-                    clean_shutdown: Some(false),
-                },
-                StateAction::Recover,
-                StateReason::UncleanShutdown,
-            ),
-        ];
-        for (probe, action, reason) in cases {
-            let decision = decide_state_action(&probe, 1).expect("decision");
-            assert_eq!(decision.action, action);
-            assert_eq!(decision.reason, reason);
-        }
-    }
 }

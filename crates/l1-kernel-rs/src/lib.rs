@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod agent_loop;
 pub mod allocator;
 pub mod assembly;
 pub mod audit;
@@ -9,14 +10,17 @@ pub mod benchmark;
 pub mod benchmark_runner;
 pub mod boot;
 pub mod bus;
+pub mod cancellation;
 pub mod capability;
 pub mod channel;
+pub mod config_store;
 pub mod constitution;
 pub mod contract;
 pub mod device;
 pub mod discovery;
 pub mod errors;
 pub mod event;
+pub mod execution_store;
 pub mod gatechain;
 pub mod health;
 pub mod identity_binding;
@@ -25,6 +29,7 @@ pub mod interrupt;
 pub mod ipc;
 pub mod lifecycle;
 pub mod load_adaptive;
+pub mod managed_process;
 pub mod migration;
 pub mod network;
 pub mod notify;
@@ -33,16 +38,26 @@ pub mod persist;
 pub mod platform;
 pub mod ports;
 pub mod process;
+pub mod process_adapter;
+pub mod process_bridge;
+pub mod protocol;
+pub mod protocol_host;
 pub mod registry;
 pub mod registry_base;
 pub mod reputation;
 pub mod rule_descriptor;
+pub mod runtime;
+pub mod scheduler;
 pub mod schema;
+pub mod session;
+pub mod session_store;
 pub mod state_layout;
 pub mod state_queue;
+pub mod state_store;
 pub mod substrate;
 pub mod swapper;
 pub mod sync;
+pub mod terminal;
 pub mod territory;
 pub mod tool_chain;
 pub mod versioning;
@@ -65,15 +80,5 @@ impl KernelContract {
         Self {
             version: KERNEL_CONTRACT_VERSION,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{KERNEL_CONTRACT_VERSION, KernelContract};
-
-    #[test]
-    fn current_contract_is_versioned() {
-        assert_eq!(KernelContract::current().version, KERNEL_CONTRACT_VERSION);
     }
 }

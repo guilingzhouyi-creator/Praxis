@@ -115,7 +115,7 @@ load_adaptive:
    （`decide(metrics) -> Action` 可单测）。
 2. Rust 侧 `l1_kernel_rs` 的线程池模块直接复用同一套常量和决策公式，
    参数表（`params/api.py`）与 `praxis.yaml` 作为唯一真源。
-3. Python3 侧 `ThreadPoolWorker` 可先以 `LOAD_ADAPTIVE_ENABLED` 灰度，Rust
+3. Python 侧 `ThreadPoolWorker` 可先以 `LOAD_ADAPTIVE_ENABLED` 灰度，Rust
    落地后**该模块级**整体替换（非整个内核），接口不变。
 
 ## 7. 测试策略

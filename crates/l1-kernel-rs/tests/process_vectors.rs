@@ -1,6 +1,7 @@
 //! Cross-language contract tests for the Rust process-table candidate.
 
 use l1_kernel_rs::process::{ProcessTable, ProcessTableConfig, WireMap};
+use l1_kernel_rs::substrate::ProcessHandle;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -199,4 +200,17 @@ fn shared_process_vectors_match_public_candidate_api() {
             case.name
         );
     }
+}
+
+#[test]
+fn typed_process_handle_boundary_rejects_stale_generation() {
+    let table = ProcessTable::new(ProcessTableConfig::new(8, "kernel", "init", 3, 1));
+    let pcb = table.spawn("agent-handle", "worker", 0, None);
+    let handle = table.handle_for_pid(pcb.pid).expect("live handle");
+    assert_eq!(table.get_by_handle(handle).expect("lookup").pid, pcb.pid);
+    let stale = ProcessHandle::new(handle.slot(), 2).expect("stale generation");
+    assert!(table.get_by_handle(stale).is_none());
+    assert!(table.exit_handle(handle, 0, "done"));
+    assert!(table.reap_handle(handle).is_some());
+    assert!(table.get_by_handle(handle).is_none());
 }

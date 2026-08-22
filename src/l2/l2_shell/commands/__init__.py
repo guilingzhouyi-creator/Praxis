@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable
 
 from l1.kernel.commands import get_registry
-from l2.bridge import capture
+from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)
 
@@ -118,11 +118,13 @@ from .system import (  # noqa: E402
 
 
 # ── _pipeline (shared, inlined) ──
-def _pipeline(segments: list[str], session=None) -> dict:
-    """Execute a command pipeline: cmd1 | cmd2 (session forwarded per step)."""
+def _pipeline(segments: list[str]) -> dict:
+    """Execute a command pipeline: cmd1 | cmd2.
+    Maps first command's output as second command's input.
+    """
     from .common import _pipeline
 
-    return _pipeline(segments, session=session)
+    return _pipeline(segments)
 
 
 # ── Auto-register all _cmd_* functions ──

@@ -1,4 +1,4 @@
-"""Validate the independent Rust assembly fixture at the Python3 reference boundary."""
+"""Validate the independent Rust assembly fixture at the Python reference boundary."""
 
 from __future__ import annotations
 
@@ -25,3 +25,7 @@ def test_assembly_vectors_preserve_dependency_and_port_order() -> None:
         visit(step["name"])
     assert order == vectors["expected_boot_order"]
     assert [port["name"] for port in vectors["ports"]] == vectors["expected_port_order"]
+    assert vectors["config_root"] == "state/config"
+    assert vectors["expected_config_layout_version"] == 1
+    assert vectors["expected_protocol_version"] == 1
+    assert vectors["expected_terminal_contract_version"] == 1

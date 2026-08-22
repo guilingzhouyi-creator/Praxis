@@ -1,0 +1,12 @@
+{
+  "terminal_id": "term-1",
+  "session_id": "session-1",
+  "process_id": 4294967303,
+  "input_capacity": 2,
+  "output_capacity": 2,
+  "input": ["one", "two"],
+  "output": "agent output",
+  "expected_state": "running",
+  "expected_input_sequences": [1, 2],
+  "expected_output_sequence": 1
+}

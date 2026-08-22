@@ -9,10 +9,8 @@ described in `l2-shell.md`; the audit baseline and staged plan live in
 `docs/roadmaps/l2-multifrontend-session-layer.md`.
 
 Current snapshot (2026-08): 43 modules / 5,860 lines; 51 YAML commands + 63
-`_cmd_*` handler functions (15 code-only); 57 allowlisted cross-layer imports (49 → L3,
-8 → L4), of which 49 funnel through the single L2→L3 command bridge
-(`src/l2/bridge.py`, 92 functions — the TS `bridge.ts` port point).
-Boundary audit score: 36/100 (see roadmap §1; P1 L2→L3 migration complete).
+`_cmd_*` handler functions (15 code-only); 74 allowlisted cross-layer imports (67 → L3,
+7 → L4). Boundary audit score: 36/100 (see roadmap §1).
 
 ## Responsibility boundary
 
@@ -150,7 +148,7 @@ projects the same stream into its own view. The wire format is language-agnostic
 
 ### Reference implementation & contract pins (landed)
 
-The protocol is not just a design: a pure Python3 reference, machine-readable
+The protocol is not just a design: a pure Python reference, machine-readable
 schemas, contract-pin tests, and a stdio host are already in the tree. All
 are **additive** - no existing engine behavior was changed.
 
@@ -159,7 +157,7 @@ are **additive** - no existing engine behavior was changed.
 | Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay) + `SessionCursor`; stdlib-only, zero singletons, zero I/O |
 | JSON Schemas | `src/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
 | TS-neutral records | `src/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
-| Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python3 tests and the planned TypeScript/vitest mirror |
+| Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
 | TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
@@ -177,16 +175,10 @@ $ printf '%s\n' '{"v":1,"session_id":"s-1","seq":1,"ts":0.0,"kind":"command","pa
 TS mirror strategy: `packages/protocol-ts` ports `envelope.py` and `records.py`
 semantics 1:1 into `envelope.ts` and `records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
-Vitest. The Python3 tests and fixture double as the TS spec; this package is
+Vitest. The Python tests and fixture double as the TS spec; this package is
 read-only until the P0 recovery gates are complete.
 The host is the integration seam: `bridge.ts` spawns it as a child process
 (or connects over WebSocket later) and only ever speaks protocol v1.
-
-Protocol hot-path optimizations landed since (batch flush, per-session
-watermark index, dict direct entry, command args direct entry,
-session-class cache, constant/config governance) are logged in
-`l2-agent-handoff.md` §1.9 — the single source for the optimization
-record; the TS rewrite inherits them with zero cost (see roadmap §8.2).
 
 ## Execution bridge
 
@@ -196,7 +188,7 @@ Every side-effecting request exits L2 through exactly one bridge:
 |---|---|---|
 | tool call (`!` intent, tool line, agent tool request) | `l3.tool_system.invoke.invoke_gated(…, interactive=True)` | L3 Tool Pipeline (clearance/approval/rate/constitution/gatechain/sandbox) |
 | `$` system command | `l1.kernel.ports.get_process_port().run()` | L1 ProcessPort |
-| slash control command (settings/cards/skills/model/…) | L3 **command bridge** (`src/l2/bridge.py` — built; **all L2→L3 imports migrated**, 49 bridge allowlist entries) | L3 service facade |
+| slash control command (settings/cards/skills/model/…) | L3 **command bridge** (to be built; replaces 63 direct imports) | L3 service facade |
 | event emission | kernel event API only if L1 owns the event; otherwise L3 bus | — |
 
 L2 itself performs no direct filesystem writes, no network I/O, no
@@ -211,12 +203,11 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | `shells/terminal.py` dialect | keep (A) | adapter for terminal frontend |
 | `l2_shell/completer.py`, `shell_completer.py`, `i18n.py` | keep (A/F) | UX layer |
 | `l2_shell/commands/{common,system,connect}.py` | keep shell built-ins; move control commands | split per verdict |
-| `l2_shell/commands_settings.py`, `model.py`, `memory.py`(card/spawn/kill), `ci.py`, `departments.py`, `extra_resources.py`, `extra_security.py`, `extra_stats.py` | **move out** (B/E/D) | ✅ migrated through the command bridge (2026-08-20) |
-| `l2_shell/commands/{connect,common,l3a,l3ac,harness,test_auto,presentation,input_activity,engineering_debug,extra_mcp,extra_cluster}.py`, `completer.py`, `shell_completer.py`, `selector.py`, `shells/terminal.py`, `l2_shell/__init__.py` | **move out** (B/E/D) | ✅ migrated through the command bridge (2026-08-20); L2→L3 direct imports = 0 |
-| `selector.py` | **move policy out** | keep only "user picks agent"; injection verdict → L3 (not started) |
-| `output_guard.py` | move policy; keep presentation filter | L3 policy + render guard (not started) |
-| `shell_session.py` (Popen TerminalManager) | **delete** (dead code; 0 callers) | ✅ deleted (P0, 2026-08-20); never re-add; long-lived processes → L1 platform port |
-| `_l3a_intent` (broken import `l2.l2_shell.cell`) | **fix or delete** | ✅ fixed (P0, 2026-08-20) — `from l3.cell.peers.l3 import get_coordinator` |
+| `l2_shell/commands_settings.py`, `model.py`, `memory.py`(card/spawn/kill), `ci.py`, `harness.py`, `test_auto.py`, `extra_mcp.py`, `extra_security.py`, `departments.py`, `identity_binding.py`, `l3a.py` | **move out** (B/E/D) | L3 admin surface behind command bridge |
+| `selector.py` | **move policy out** | keep only "user picks agent"; injection verdict → L3 |
+| `output_guard.py` | move policy; keep presentation filter | L3 policy + render guard |
+| `shell_session.py` (Popen TerminalManager) | **delete** (dead code; 0 callers) | never re-add; long-lived processes → L1 platform port |
+| `_l3a_intent` (broken import `l2.l2_shell.cell`) | **fix or delete** | route through L3 command bridge |
 
 ## Completeness matrix (target)
 
@@ -236,14 +227,14 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 
 ## TS rewrite mapping
 
-| Today (Python3) | TS module | Notes |
+| Today (Python) | TS module | Notes |
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
 | `ShellSession` / `ShellFamily` | `session.ts` (state machine) | JSON-serializable |
 | `shells/*` | `adapters/*.ts` | per frontend |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
-| execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python3 L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python3** |
+| execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |
 | `i18n.py` | `i18n.ts` | same locale data |
 
 The TS engine is a *host-agnostic frontend of L3*: it never re-implements
@@ -252,9 +243,8 @@ the single authority; TS L2 is a pure projector + dispatcher + bridge client.
 
 ## Contract surfaces
 
-- **L3**: `invoke_gated` (tools), L3 command bridge (`src/l2/bridge.py` — built;
-  all L2→L3 imports migrated), L3A session lifecycle via bridge,
-  data-only Intent/Event stream.
+- **L3**: `invoke_gated` (tools), L3 command bridge (control commands, to be
+  built), L3A session lifecycle via bridge, data-only Intent/Event stream.
 - **L1**: `ProcessPort.run` (`$`), `CommandRegistry` (migrate to L2),
   params constants, kernel event API only where L1 owns the event.
 - **Frontends**: `POST /api/v2/shell` (web), TUI adapter, desktop adapters,

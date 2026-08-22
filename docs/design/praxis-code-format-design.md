@@ -142,7 +142,7 @@ Defaults live in params (§4); `config/praxis.yaml` overrides at deploy time.
 
 - LSP `textDocument/formatting` (needs a live language server; can be layered
   on `l4/lsp/lsp_manager.py` later).
-- Per-language formatter plugins beyond Python3 (prettier, gofmt, rustfmt) —
+- Per-language formatter plugins beyond Python (prettier, gofmt, rustfmt) —
   extend `FORMAT_EXTENSION_TOOL` when needed.
 - Format-on-file_editor-service-path (batch edits) — hook covers tool-layer
   writes first; FileEditor integration can reuse the same engine later.

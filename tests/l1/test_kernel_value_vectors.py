@@ -1,4 +1,4 @@
-"""Validate shared Python3/Rust value-contract vectors."""
+"""Validate shared Python/Rust value-contract vectors."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_value_vect
 
 
 def test_shared_kernel_value_vectors_match_python_reference() -> None:
-    """Keep Python3 wire values aligned with the Rust contract mirror."""
+    """Keep Python wire values aligned with the Rust contract mirror."""
     vectors = json.loads(_VECTORS.read_text(encoding="utf-8"))
 
     for vector in vectors:

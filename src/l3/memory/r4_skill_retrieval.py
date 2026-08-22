@@ -174,11 +174,6 @@ class SkillRetrievalMixin:
                                 continue
                             if not _passes_card_tags(s, tags):
                                 continue
-                            # Posture is NOT pre-filtered here: the injection
-                            # consumer (AgentLoop._inject_extra_context) owns
-                            # the offensive gate (runtime policy + card
-                            # nature), so an authorized nature or a disabled
-                            # policy must still surface the skill.
                             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                                 continue
                             evolved.append(
@@ -217,10 +212,6 @@ class SkillRetrievalMixin:
                 continue
             if not _passes_card_tags(s, tags):
                 continue
-            # Posture is NOT pre-filtered here: the injection consumer
-            # (AgentLoop._inject_extra_context) owns the offensive gate
-            # (runtime policy + card nature), so an authorized nature or a
-            # disabled policy must still surface the skill.
             if not sm.skill_is_injectable(s, agent_id, cell_id, role, tags):
                 continue
             if s.get("prompt"):

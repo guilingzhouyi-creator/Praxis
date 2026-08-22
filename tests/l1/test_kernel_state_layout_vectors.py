@@ -1,4 +1,4 @@
-"""Validate the Rust-owned state layout vectors at the Python3 adapter boundary."""
+"""Validate the Rust-owned state layout vectors at the Python adapter boundary."""
 
 from __future__ import annotations
 
