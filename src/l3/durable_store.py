@@ -7,16 +7,24 @@ Envelope format (schema-versioned via ``l1.kernel.versioning``):
 
 Guarantees (agent-os-3x-closure P0.4 contract):
   - **atomic replace** — payload is written to a temp file in the target
-    directory, fsynced, then ``os.replace``d into place;
+    directory, fsynced (file + directory), then ``os.replace``d into place;
   - **write-ahead journal** (``<path>.journal``) — the intended record is
     journaled and fsynced BEFORE the replace; on load, a corrupt or
     truncated main file is recovered from the journal's last good record
     (and the main file self-heals from it);
   - **exclusive advisory lock** (``<path>.lock``, flock LOCK_EX|LOCK_NB) —
     a store locked by another writer fails closed instead of interleaving;
-  - **idempotent writes** — an unchanged canonical payload is a no-op;
+    degraded to noop on non-POSIX hosts (warns);
+  - **idempotent writes** — an unchanged canonical payload is a no-op
+    (canonical JSON compare, not dict equality);
   - **corruption fail-closed** — damage beyond journal recovery raises
-    :class:`DurableStoreError`; records are never silently dropped.
+    :class:`DurableStoreError`; records are never silently dropped;
+  - **directory durability** — every replace/journal fsyncs its parent
+    directory to survive power-loss on ext4/xfs.
+
+Threading: per-path ``threading.Lock`` serializes in-process callers;
+cross-process callers serialize via the advisory flock. Lock order is
+always ``in-process Lock → flock``; never the reverse.
 """
 
 from __future__ import annotations
@@ -66,12 +74,23 @@ def _checksum(canonical: str) -> str:
 
 
 class DurableJsonStore:
-    """Atomic, journaled, checksummed JSON map at a fixed path."""
+    """Atomic, journaled, checksummed JSON map at a fixed path.
+
+    Each instance is bound to one filesystem path and one ``kind`` (used
+    for ``check_and_migrate``). Cross-process safety is via the sibling
+    ``.lock`` file; in-process safety is via the per-path ``Lock``.
+    """
 
     _path_locks: dict[str, threading.Lock] = {}
     _path_locks_guard = threading.Lock()
 
     def __init__(self, path: str | Path, kind: str = "durable_json"):
+        """Create a store bound to *path* with envelope ``kind``.
+
+        Args:
+            path: filesystem path of the main envelope file.
+            kind: logical kind recorded in the envelope (for migrations).
+        """
         self._path = Path(path)
         self._kind = kind
         key = str(self._path.resolve())
@@ -140,6 +159,11 @@ class DurableJsonStore:
         Fail-closed: if the main file is damaged beyond journal recovery,
         the update aborts with ``{"success": False, "error": ...}`` so
         callers (e.g. cursor) can raise instead of silently resetting.
+        When a recovered payload is used, the main file is self-healed
+        best-effort before the updater runs, so the store converges.
+
+        Args:
+            updater: callable ``(dict) -> dict`` returning the desired payload.
 
         Returns:
             dict with success flag, payload, and idempotent marker.
@@ -160,6 +184,9 @@ class DurableJsonStore:
                     recovered = self._read_journal_tail()
                     if recovered is not None:
                         current = recovered
+                        # Best-effort heal of the main file before mutation.
+                        with contextlib.suppress(Exception):  # pragma: no cover — heal is best-effort
+                            self._self_heal(current)
                     elif self._path.exists():
                         return {
                             "success": False,
@@ -212,7 +239,18 @@ class DurableJsonStore:
             os.close(fd)
 
     def _read_envelope_from(self, path: Path) -> dict | None:  # noqa: PLR0911
-        """Parse+verify one envelope file; None when absent/damaged."""
+        """Parse+verify one envelope file; None when absent/damaged.
+
+        Validates JSON structure, checksum over canonical payload, and
+        delegated migration. A kind mismatch is logged but not failed;
+        the persisted kind is trusted for migration.
+
+        Args:
+            path: envelope file to read.
+
+        Returns:
+            Verified payload dict, or None on absent/damaged.
+        """
         try:
             raw = path.read_text(encoding="utf-8")
         except (FileNotFoundError, IsADirectoryError):
@@ -222,10 +260,21 @@ class DurableJsonStore:
             return None
         try:
             env = json.loads(raw)
+            if not isinstance(env, dict):
+                logger.warning("durable_store %s: envelope not a dict", path.name)
+                return None
             payload = env.get("payload")
             if not isinstance(payload, dict):
                 logger.warning("durable_store %s: payload not a dict", path.name)
                 return None
+            persisted_kind = env.get("kind")
+            if persisted_kind is not None and persisted_kind != self._kind:
+                logger.debug(
+                    "durable_store %s: kind drift persisted=%r expected=%r",
+                    path.name,
+                    persisted_kind,
+                    self._kind,
+                )
             if env.get("checksum") != _checksum(_canonical(payload)):
                 logger.warning("durable_store %s: checksum mismatch", path.name)
                 return None
@@ -314,8 +363,21 @@ class DurableJsonStore:
             f.write(line + "\n")
             f.flush()
             os.fsync(f.fileno())
+        self._fsync_dir(jp.parent)
+
+    def _fsync_dir(self, path: Path) -> None:
+        """Fsync the directory entry for durability (ext4/xfs)."""
+        try:
+            fd = os.open(str(path), os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        except Exception:  # pragma: no cover — best-effort, non-POSIX
+            pass
 
     def _atomic_replace(self, envelope: dict) -> None:
+        """Atomically replace the main file with *envelope* (fsync file + dir)."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(prefix=f".{self._path.name}.", suffix=".tmp", dir=self._path.parent)
         try:
@@ -324,6 +386,7 @@ class DurableJsonStore:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, self._path)
+            self._fsync_dir(self._path.parent)
         except Exception:
             with contextlib.suppress(OSError):
                 os.unlink(tmp)

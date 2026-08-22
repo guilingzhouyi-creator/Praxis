@@ -3,6 +3,14 @@
 Extracted from:
   - _term_types.py: TerminalStatus, CardMode, TerminalCard, CardResult
   - _term_handlers.py: handler registry, default handlers, _HANDLER_MAP
+
+Locking discipline
+------------------
+``self._lock`` (``RLock``) is the outer lock for all mutable terminal state
+(``_workers/_running/_bound_sessions/status``). ``self._active_loop_lock``
+(``Lock``) is the inner lock for the persistent ``AgentLoop`` only. Order is
+always ``_lock → _active_loop_lock``; never the reverse, to avoid deadlock
+between ``auto_reload`` and ``reset_persistent_loop``.
 """
 
 from __future__ import annotations
@@ -547,8 +555,10 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
 
     def shutdown(self) -> dict:
         """Stop the terminal, join workers, and emit session_end hooks."""
-        self._running = False
-        for w in self._workers:
+        with self._lock:
+            self._running = False
+            workers = list(self._workers)
+        for w in workers:
             w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
         # Clean up any orphaned convention loops
         for _conv_id, session in list(self._convention_loops.items()):
@@ -793,7 +803,14 @@ _session_registry_lock = threading.Lock()
 
 
 def _primary_bound(terminal) -> str:
-    """Return the deterministic primary session_id for a terminal."""
+    """Return the deterministic primary session_id for a terminal.
+
+    Determinism is by lexicographic order, not ``bound_at`` chronology.
+    This keeps the election stable across restarts (``bound_at`` is
+    wall-clock and may skew) and matches the existing recovery/tests
+    that assert ``sorted`` order. If chronological primary is desired,
+    store ``bound_at`` per session and sort by it.
+    """
     return sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
 
 

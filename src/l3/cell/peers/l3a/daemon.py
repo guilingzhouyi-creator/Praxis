@@ -195,11 +195,18 @@ class L3ADaemon:
         self.registry = _build_default_registry()
         self.model_config = _active_model
         self.manager = SessionManager()
+        self._pmu: Any = None
+        self._sa_pool: Any = None
+        self._secretary: Any = None
+        self._init_pmu()
+        self._init_subagent_pool()
+        self._init_secretary()
         # P0.6: rebuild active sessions from durable snapshots on boot —
         # idempotent, best-effort (failures log, never block daemon start).
-        # Registry is built BEFORE recovery so recovered sessions share it.
+        # Registry/model/pmu are built BEFORE recovery so recovered sessions
+        # share the daemon's shared instances.
         try:
-            rec = self.manager.recover_from_store(registry=self.registry)
+            rec = self.manager.recover_from_store(registry=self.registry, model_config=self.model_config, pmu=self._pmu)
             if rec.get("recovered"):
                 logger.info(
                     "l3a daemon: recovered %d session(s) from store: %s",
@@ -208,12 +215,6 @@ class L3ADaemon:
                 )
         except Exception:
             logger.debug("l3a daemon: session recovery skipped", exc_info=True)
-        self._pmu: Any = None
-        self._sa_pool: Any = None
-        self._secretary: Any = None
-        self._init_pmu()
-        self._init_subagent_pool()
-        self._init_secretary()
 
     # ── Session API ──
 
