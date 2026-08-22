@@ -8,13 +8,25 @@
 #   3. Merge commits are exempt from 1-2 (git-generated messages), BUT a
 #      merge that brings in a dependabot branch is gated: its diff must only
 #      touch dependency files (see AGENTS.md "Dependency management").
-#   Bypass (temporary): PRAXIS_SKIP_AUTHOR_CHECK=1
+#   Bypass (strict): PRAXIS_SKIP_AUTHOR_CHECK=1 requires explicit reason
+#   and is audit-logged; prefer fixing the message over bypassing.
 set -euo pipefail
 
 msg_file="$1"
 msg=$(cat "$msg_file")
 
 if [ -n "${PRAXIS_SKIP_AUTHOR_CHECK:-}" ]; then
+  if [ -z "${PRAXIS_SKIP_REASON:-}" ]; then
+    echo "❌ PRAXIS_SKIP_AUTHOR_CHECK=1 requires PRAXIS_SKIP_REASON=<why>." >&2
+    echo "   Fix the message instead of bypassing; bypass is audit-logged." >&2
+    exit 1
+  fi
+  echo "⚠️  PRAXIS_SKIP_AUTHOR_CHECK bypassed (reason: $PRAXIS_SKIP_REASON) — audit logged." >&2
+  # Audit the bypass for forensics.
+  _audit_dir="$(git rev-parse --show-toplevel 2>/dev/null)/.praxis"
+  mkdir -p "$_audit_dir" 2>/dev/null || true
+  printf '{"ts":%s,"bypass":"PRAXIS_SKIP_AUTHOR_CHECK","reason":%q,"msg_head":%q}\n' \
+    "$(date +%s)" "$PRAXIS_SKIP_REASON" "$(head -n1 "$msg_file" | head -c 200)" >> "$_audit_dir/commit-bypass.jsonl" 2>/dev/null || true
   exit 0
 fi
 

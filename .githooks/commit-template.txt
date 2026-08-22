@@ -1,0 +1,14 @@
+type(scope): summary (≤72, lowercase, no period, English)
+
+# Body (optional, English, blank line before):
+# - Explain why, not what. No CJK, no markdown in subject.
+# - Wrap at 72 chars.
+#
+# Trailer (required, last line, blank line before):
+# Co-Authored-By: Agent (model) <noreply@domain>
+#   Agent ∈ {AtomCode,OpenCode,Claude,DeepSeek,GPT} per config/discovery/commits.yaml
+#   model must match live detection (scripts/py/detect_agent.py --json)
+# Example:
+# feat(kernel): add token ring revocation
+#
+# Co-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>

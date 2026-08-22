@@ -1,0 +1,85 @@
+name: commit-lint (strict)
+
+# Strict commit-message gate for EVERY push and PR — including worktree
+# branches. Fails the workflow when any commit violates:
+#   - English only (no CJK)
+#   - Conventional Commits type(scope): summary (≤72, lowercase, no markdown)
+#   - Exactly one Co-Authored-By trailer matching config/discovery/commits.yaml
+#     + live detection (scripts/py/detect_agent.py)
+# This enforces the same policy as .githooks/commit-msg, but on the server
+# side so --no-verify or PRAXIS_SKIP_AUTHOR_CHECK bypasses cannot slip to main.
+# Docs-only and merge commits are handled identically to the local hook.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps for commit_scan
+        run: pip install pyyaml
+
+      - name: Lint commits vs origin/main (push) or base..head (PR)
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            RANGE="$BASE..$HEAD"
+          else
+            # push: compare against the previous head of the branch
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+            # For new branches before is 0000..., fallback to origin/main..HEAD
+            if echo "$BASE" | grep -qE "^0+$"; then
+              git fetch origin main --depth=50 2>/dev/null || true
+              BASE="origin/main"
+            fi
+            RANGE="$BASE..$HEAD"
+          fi
+          echo "Linting range: $RANGE"
+          # Empty range = nothing to lint (e.g. force push with no new commits)
+          if [ -z "$(git rev-list "$RANGE" 2>/dev/null | head -n1)" ]; then
+            echo "No commits in range — nothing to lint."
+            exit 0
+          fi
+          # Reuse the single source of truth: commit_scan.py
+          FAIL=0
+          while IFS= read -r sha; do
+            subject="$(git log -1 --format=%s "$sha")"
+            body="$(git log -1 --format=%B "$sha")"
+            branch="$(git branch --contains "$sha" --format='%(refname:short)' 2>/dev/null | head -n1 || echo "")"
+            echo "— $sha $subject"
+            # 1) subject + branch policy
+            if ! python scripts/py/commit_scan.py --subject "$subject" --branch "$branch" 2>&1 | tee /tmp/scan.log; then
+              echo "::error::commit $sha subject violates policy"
+              cat /tmp/scan.log
+              FAIL=1
+            fi
+            # 2) full message: Co-Authored-By + English (commit-msg hook logic)
+            if ! python scripts/py/commit_scan.py --msg "$body" 2>&1 | tee /tmp/cab.log; then
+              echo "::error::commit $sha Co-Authored-By/English violates policy"
+              cat /tmp/cab.log
+              FAIL=1
+            fi
+          done < <(git rev-list "$RANGE")
+          if [ "$FAIL" != "0" ]; then
+            echo "::error::commit-lint failed — fix messages per AGENTS.md Commit conventions"
+            exit 1
+          fi
+          echo "All commits in $RANGE pass strict lint."
