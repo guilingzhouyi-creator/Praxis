@@ -40,6 +40,7 @@ pub mod ports;
 pub mod process;
 pub mod process_adapter;
 pub mod process_bridge;
+pub mod process_group;
 pub mod protocol;
 pub mod protocol_host;
 pub mod registry;

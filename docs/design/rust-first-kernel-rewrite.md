@@ -275,6 +275,18 @@ terminal managed slot before returning an error count, so the sweep cannot
 leave an unrepeatable binding behind. No background thread, shutdown hook, or
 production reaper authority is introduced by this candidate.
 
+The next process-group candidate is `process_group::ProcessGroupBook` with
+`ProcessReaper`. It owns generation-safe membership, deterministic stop-plan
+ordering, terminal outcome accounting, and explicit bounded sweep budgets.
+Reaper observation is caller supplied and can only produce pending,
+unavailable, or terminal outcomes; terminal members are reaped only after the
+group authority accepts the matching stop generation. This closes the typed
+process-group and caller-owned reaper mechanism seam without sending OS
+signals, creating PTYs, starting a background thread, or granting shutdown
+authority. PTY/session adapters, ProcessTableBridge wiring, GateChain and
+capability admission, AgentLoop execution, and R4/R5 cutover remain outside
+this candidate.
+
 `scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output

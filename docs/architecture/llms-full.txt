@@ -986,6 +986,14 @@ error counts, and consumes terminal managed slots even when an external table
 transition must be reported. This is a mechanism seam only; it does not start
 a background thread or claim production shutdown/reaper authority.
 
+The `process_group::ProcessGroupBook` candidate adds the next typed ownership
+seam: generation-safe membership, deterministic stop plans, terminal member
+outcomes, and bounded caller-driven `ProcessReaper` sweeps. It accepts only
+explicit adapter observations and matching stop generations; it does not send
+OS signals, create PTYs, or start a production reaper. ProcessTable runtime
+authority, terminal adapters, AgentLoop execution, and shutdown ownership
+remain outside this mechanism candidate.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

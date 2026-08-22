@@ -632,6 +632,14 @@ p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得
 pending/unavailable/errors 计数；遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的
 binding 泄漏。它是未来 caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
 
+随后新增 `process_group::ProcessGroupBook` 与 `ProcessReaper` 候选：以 generation-safe
+`ProcessHandle` 建立唯一分组归属，冻结 Active/Draining/Stopped/Failed 状态、确定性停止计划、成员终态
+和有界 `max_groups/max_members` sweep。观察结果必须由 caller-owned adapter 显式提供，`Pending` 与
+`Unavailable` 不改变所有权，只有匹配 stop generation 的 terminal 结果才允许回收成员。独立
+`tests/process_group.rs` 覆盖容量、重复归属、leader、stale generation、终态、序列化和固定工作回收。
+该片仍不发送 OS signal、不创建 PTY、不启动后台 reaper、不接管 ProcessTable/AgentLoop/Provider 或
+shutdown authority；它只闭合后续 PTY/process-group adapter 所需的 Rust 机制前置边界。
+
 ---
 
 ### 4.6 自动化与性能外围的重写边界
