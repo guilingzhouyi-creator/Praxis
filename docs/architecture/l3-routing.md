@@ -21,7 +21,7 @@ flowchart LR
 - Used by `cell_execute._raw_to_card` (raw intent → structured card) and
   the scheduler router's intent classification.
 
-## L3B — cross-cell routing (`bus/l3b.py`)
+## L3B — cross-cell routing (`bus/l3b_composite.py`)
 
 | Component | Role |
 |-----------|------|

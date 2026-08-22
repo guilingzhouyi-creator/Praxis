@@ -1,7 +1,7 @@
 """File editor — EditEngine (diff semantic matching + atomic batch + undo/redo).
 
 Extracted from ``file_editor.py``: the edit engine and its process-wide
-singleton. The data models live in ``file_editor_models.py``.
+singleton. The data models live in ``models.py``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 
 from l1.kernel.params.system import FILE_EDITOR_MAX_HISTORY, LOG_TRUNC_100
 
-from .file_editor_models import DiffEdit, EditOperation
+from .models import DiffEdit, EditOperation
 
 logger = logging.getLogger(__name__)
 

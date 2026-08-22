@@ -18,8 +18,8 @@ from typing import Any
 
 from l1.kernel.params.kernel import WitnessStatus
 from l1.kernel.params.system import CARD_DEFAULT_PRIORITY, HASH_TRUNC_SHORT, LOG_TRUNC_80
-from l3.bus.l3b import L3B
 from l3.bus.l3b_bus import get_bus as get_l3b_bus
+from l3.bus.l3b_composite import L3B
 from l3.cell.peers.l3a import CardType, TaskCard, get_daemon
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class CentralController:
         """Remove a cell from the controller and rebuild the L3B bus."""
         with self._lock:
             self._cells = [c for c in self._cells if c.get("id") != cell_id]
-            from l3.bus.l3b import L3B
+            from l3.bus.l3b_composite import L3B
 
             new_l3b = L3B()
             for c in self._cells:

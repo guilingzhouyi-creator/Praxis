@@ -17,11 +17,11 @@ buffers, and config discovery. 64 files / ~11,000 lines across
 | Subsystem | Files | Role |
 |-----------|-------|------|
 | `l3/error_bus/` | 6 | Unified `trace_id`: one id flows request → agent → tool → error (`get_trace_id`/`set_trace_id`/`trace_scope`); `capture()` error records |
-| `l3/agent/` | 25 | AgentLoop entity (per-session loop, tool wrapping, prompt assembly `agent_loop_context`), skill/identity/card injection, R4 skill retrieval |
-| `l3/agent_terminal/` | 7 | Terminal binding: territory + role + agent identity → concrete executor (filesystem/tool access) |
-| `l3/boot/` | 17 | 7-step bootstrap (`boot.py`), factory reset / singleton reset / disk wipe (`lifecycle.py`), wiring adapters → ports (`wiring.py`) |
+| `l3/agent/` | 38 | AgentLoop entity (per-session loop, tool wrapping, prompt assembly `agent_loop_context`), skill/identity/card injection, R4 skill retrieval |
+| `l3/agent_terminal/` | 3 | Terminal binding: territory + role + agent identity → concrete executor (filesystem/tool access) |
+| `l3/boot/` | 6 | 7-step bootstrap (`boot.py`), factory reset / singleton reset / disk wipe (`lifecycle.py`), wiring adapters → ports (`wiring.py`) |
 | `l3/resource_buffer/` | 4 | Buffer manager for bounded resource pools (executors, tokens) |
-| `l3/config/` | 3 | `ConfigDiscovery` — auto-loads `config/discovery/*.yaml` at boot (departments, diff languages, etc.) |
+| `l3/config/` | 14 | `ConfigDiscovery` — auto-loads `config/discovery/*.yaml` at boot (departments, diff languages, etc.) |
 | `l4/search/` | 4 | FTS5 + AST symbol search (`SymbolSearch.symbols_in_file`, `search_engine.py`) used by diff review |
 | `l4/llm_worker/` | 5 | Background LLM workers (async generation outside request paths) |
 
@@ -58,3 +58,6 @@ boot-registered module is listed in `tests/conftest.py` `_RESETS`.
 - `l3/boot`: `boot.boot()` / `lifecycle.factory_reset()`
 - Ports: none dedicated (in-process services); adapters wired via
   `register_port()`/`get_port()` in `l3/boot/wiring.py`
+
+> Counts refreshed 2026-08-22 against `feature/l3-normalize`. Full per-directory
+> map: see `l3-module-map.md`.

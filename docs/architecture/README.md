@@ -73,6 +73,7 @@ flowchart TB
 | L5 | [l5-user.md](l5-user.md) | CLI entry, user-facing contract, TUI surface |
 | L4 | [l4-bridge.md](l4-bridge.md) | API gateway (291 routes), WS/SSE/RPC channels, sandbox, auth, fs |
 | L4 | [l4-llm.md](l4-llm.md) | LLM providers, effort tiers, strategy packs, model_spec cascade |
+| L3 | [l3-module-map.md](l3-module-map.md) | **Reference contract**: directory x function x ownership-domain matrix, cross-directory family index, naming adjudications |
 | L3 | [l3-card-lifecycle.md](l3-card-lifecycle.md) | Card end-to-end: produce → execute → approve → archive |
 | L3 | [l3-memory.md](l3-memory.md) | 4-ring memory + side-channels (Mer / R5 / User Profile) + injection |
 | L3 | [l3a-central.md](l3a-central.md) | L3A decision layer: the central office (sessions, ask, cardwrite, profile) |
