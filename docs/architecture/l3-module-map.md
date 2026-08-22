@@ -101,8 +101,8 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | Slice | Scope | Status |
 |---|---|---|
 | A1 | this map | this commit |
-| B3 | `l3b.py` → `l3b_composite.py` + six-step reference sweep | pending |
-| B1 | `services/file_editor*` → subpackage | pending |
-| B2 | `card/models.py` migration adjudication | pending |
+| B3 | `l3b.py` → `l3b_composite.py` + six-step reference sweep | **Complete** (f56d27bc) |
+| B1 | `services/file_editor*` → subpackage | **Complete** (facade preserved as package `__init__`; route strings resolve unchanged) |
+| B2 | `card/models.py` migration adjudication | **Blocked** — `to_old_card` has zero callers but `cell_decompose.py` constructs legacy Card/Phase sub-cards; needs CardUnified constructor parity (follow-up slice) |
 | B5 | `net_client.py` relocation | pending |
-| A2/A3 | runtime-subsystems counts + README registration | pending |
+| A2/A3 | runtime-subsystems counts + README registration | this wave |
