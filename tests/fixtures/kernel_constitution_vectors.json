@@ -1,0 +1,66 @@
+{
+  "valid_rules": [
+    {
+      "id": "custom.audit",
+      "section": "custom.audit",
+      "severity": "SHOULD",
+      "description": "Keep an audit record",
+      "kind": "noop",
+      "source": "custom",
+      "tags": ["audit", "custom"]
+    },
+    {
+      "id": "custom.read",
+      "section": "custom.read",
+      "severity": "MUST",
+      "description": "Keep reads scoped",
+      "kind": "noop",
+      "source": "custom",
+      "tags": ["read", "custom", "read"]
+    }
+  ],
+  "expected_ids": ["custom.audit", "custom.read"],
+  "expected_tags": {
+    "custom.audit": ["audit", "custom"],
+    "custom.read": ["custom", "read"]
+  },
+  "invalid_rules": [
+    {
+      "rule": {
+        "id": "",
+        "section": "custom",
+        "severity": "MUST",
+        "description": "missing id",
+        "kind": "noop",
+        "source": "custom",
+        "tags": []
+      },
+      "error": "constitution rule id must not be empty"
+    },
+    {
+      "rule": {
+        "id": "custom.active",
+        "section": "custom",
+        "severity": "MUST",
+        "description": "custom evaluator is not allowed",
+        "kind": "territory",
+        "source": "custom",
+        "tags": []
+      },
+      "error": "custom constitution rules must use the noop kind"
+    },
+    {
+      "rule": {
+        "id": "custom.source",
+        "section": "custom",
+        "severity": "MAY",
+        "description": "unknown source",
+        "kind": "noop",
+        "source": "adapter",
+        "tags": []
+      },
+      "error": "constitution rule source must be builtin or custom"
+    }
+  ],
+  "duplicate_id": "custom.audit"
+}

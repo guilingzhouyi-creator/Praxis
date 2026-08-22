@@ -102,7 +102,7 @@ class TestIpcDetection:
 
 class TestWhich:
     def test_which_found(self):
-        """Python3 executable should always be findable (by absolute path)."""
+        """Python executable should always be findable (by absolute path)."""
         exe = which(PYTHON_EXE)
         assert exe is not None
         assert os.path.exists(exe)

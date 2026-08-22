@@ -63,7 +63,7 @@ class TestRecall:
         from l3.memory.memory import MemoryManager
 
         mem = MemoryManager()
-        mem.remember("agent-y", "code", "def foo(): pass is a function definition in Python3 language", ring=1)
+        mem.remember("agent-y", "code", "def foo(): pass is a function definition in Python language", ring=1)
         mem.remember("agent-y", "note", "note text", ring=1)
         results = mem.recall(agent_id="agent-y", entry_type="code", limit=10)
         assert len(results) == 1, (

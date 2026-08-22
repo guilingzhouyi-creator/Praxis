@@ -1,4 +1,4 @@
-"""Validate shared structured-error vectors against the Python3 reference."""
+"""Validate shared structured-error vectors against the Python reference."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_error_vect
 
 
 def test_shared_error_vectors_match_python_response_shape() -> None:
-    """Keep Python3 error responses aligned with the Rust value candidate."""
+    """Keep Python error responses aligned with the Rust value candidate."""
     vectors = json.loads(_VECTORS.read_text(encoding="utf-8"))
     for vector in vectors:
         error = PraxisError(

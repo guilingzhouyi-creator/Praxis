@@ -86,7 +86,7 @@ phases:
         params:
           prompt: |
             First read the updated src/kernel/__init__.py to verify it was written correctly.
-            Then run a Python3 syntax check by reading the file and checking for:
+            Then run a Python syntax check by reading the file and checking for:
             - Balanced parentheses, brackets, and braces
             - Valid __all__ list syntax
             - All imports are present

@@ -115,7 +115,7 @@ print(f"  execute:     {len(execute_steps)} steps (3 think)")
 print(f"  Pool: max_total={SCOUT_POOL_MAX_TOTAL} max_per_agent={SCOUT_POOL_MAX_PER_AGENT}")
 print(f"  Workers: {TERMINAL_MAX_WORKERS} per agent\n")
 
-# Warmup: run a single scout to pre-warm Python3 cache
+# Warmup: run a single scout to pre-warm Python cache
 get_pool().commission("warmup", "Search for import patterns in current directory")
 
 t0 = time.time()

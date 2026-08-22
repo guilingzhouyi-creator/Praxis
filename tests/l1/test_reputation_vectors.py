@@ -1,4 +1,4 @@
-"""Run the shared reputation semantic vectors against the Python3 reference."""
+"""Run the shared reputation semantic vectors against the Python reference."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def vectors() -> dict:
 
 
 def test_shared_reputation_vectors_match_python_reference(vectors: dict) -> None:
-    """Python3 reference follows the same clamp and outcome semantics."""
+    """Python reference follows the same clamp and outcome semantics."""
     policy = vectors["policy"]
     for case in vectors["cases"]:
         reputation = ReputationSystem()

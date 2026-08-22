@@ -1,4 +1,4 @@
-"""Validate shared Python3/Rust GateChain and Constitution policy vectors."""
+"""Validate shared Python/Rust GateChain and Constitution policy vectors."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _VECTORS = Path(__file__).resolve().parents[1] / "fixtures" / "kernel_policy_vec
 
 
 def test_shared_policy_vectors_match_python_reference() -> None:
-    """Keep the Rust candidate inputs aligned with Python3 decisions."""
+    """Keep the Rust candidate inputs aligned with Python decisions."""
     vectors = json.loads(_VECTORS.read_text(encoding="utf-8"))
     for vector in vectors:
         expected = vector["expect"]

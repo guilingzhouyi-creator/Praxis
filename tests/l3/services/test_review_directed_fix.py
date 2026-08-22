@@ -3,22 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from pytest_mock import MockerFixture
 
 from l3.services.review_pipeline import get_review_pipeline, reset_review_pipeline
 
 
 @pytest.fixture(autouse=True)
-def _clean(mocker: MockerFixture):
-    """Reset the pipeline singleton and stub external references.
-
-    ``_fetch_external_references`` calls ``web_search`` (a real network
-    tool) — stubbing it here avoids a ~15s network timeout on every
-    ``dispose()`` call (the suite's largest single hotspot).
-    """
-    import l3.services.review_pipeline as _rp
-
-    mocker.patch.object(_rp.ReviewPipeline, "_fetch_external_references", return_value=[])
+def _clean():
     reset_review_pipeline()
     yield
     reset_review_pipeline()

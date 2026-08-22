@@ -33,7 +33,7 @@ def test_run_code_rejects_oversized_program():
 def test_run_code_rejects_unregistered_language():
     # TypeScript is a roadmap slot with no backend registered yet — the
     # handler must reject gracefully, listing the available backends (never
-    # a hardcoded "unsupported language" branch tied to Python3).
+    # a hardcoded "unsupported language" branch tied to Python).
     result = run_code({"program": "console.log(1)", "language": "typescript", "cell_id": "cell-t"}, agent_id="tester")
     assert result["success"] is False
     assert "no language backend" in result["error"]
@@ -79,7 +79,7 @@ def test_cache_miss_executes_fresh_program():
 
 
 def test_run_code_wires_bindings_to_pipeline():
-    """Python3 programs run in-process: SDK bindings execute the real tool.
+    """Python programs run in-process: SDK bindings execute the real tool.
 
     ``_praxis_call`` must route through the pipeline (audit chain), not be a
     no-op stub — a call to an unregistered tool surfaces the pipeline result.

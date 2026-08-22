@@ -10,12 +10,9 @@ never blocked by the slow ones:
 
 Usage:
   python tests/runner.py                # run all slices in dependency order
-  python tests/runner.py --once         # whole suite in ONE pytest process (fastest)
-  python tests/runner.py --keep-going   # full run, report every failing slice
   python tests/runner.py --slice l3-fast # run one slice only
   python tests/runner.py --list-slices  # print slice names
   python tests/runner.py --batch 1|2    # legacy: batch 1 = all but slow, batch 2 = slow
-  python tests/runner.py --maxfail 5    # forward --maxfail=N to pytest (any mode)
   python tests/runner.py <pattern>      # single file/pattern (legacy)
 """
 
@@ -158,28 +155,18 @@ BATCH_1 = [s for s in FULL_ORDER if s != "l3-slow"]
 BATCH_2 = ["l3-slow"]
 
 
-def run_targets(
-    targets: list[str],
-    label: str,
-    parallel: bool = False,
-    no_xdist: bool = False,
-    maxfail: int | None = None,
-) -> int:
+def run_targets(targets: list[str], label: str, parallel: bool = False, no_xdist: bool = False) -> int:
     """Run pytest over *targets*; return the process exit code.
 
     ``no_xdist`` disables the pyproject ``addopts`` (``-n auto --dist
     loadfile``) by overriding ``-o addopts=`` — xdist startup is very slow
     under WSL, so local slice runs default to serial there.
-    ``maxfail`` is forwarded as ``--maxfail=N`` (CI contract: the flag must
-    not be silently dropped).
     """
     cmd = [sys.executable, "-m", "pytest"]
     if parallel:
         cmd += ["-n", "auto", "--dist", "loadfile"]
     if no_xdist:
         cmd += ["-o", "addopts="]
-    if maxfail is not None:
-        cmd += [f"--maxfail={maxfail}"]
     cmd += targets + ["-v", "--tb=short", "-q"]
     print(f"\n{'=' * 60}")
     print(f"  Slice: {label} ({len(targets)} target dir(s))")
@@ -190,100 +177,55 @@ def run_targets(
     return r.returncode
 
 
-def run_slice(name: str, parallel: bool = False, no_xdist: bool = False, maxfail: int | None = None) -> int:
+def run_slice(name: str, parallel: bool = False, no_xdist: bool = False) -> int:
     """Run one named slice; unknown names print the slice list and return 2."""
     if name not in SLICES:
         print(f"unknown slice: {name!r} — available: {', '.join(SLICES)}", file=sys.stderr)
         return 2
-    return run_targets(SLICES[name], name, parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
+    return run_targets(SLICES[name], name, parallel=parallel, no_xdist=no_xdist)
 
 
-def _run_legacy_batch(sel: str, parallel: bool, no_xdist: bool, maxfail: int | None) -> int:
+def _run_legacy_batch(sel: str, parallel: bool, no_xdist: bool) -> int:
     """Run a legacy batch (1 = all but slow, 2 = slow) sequentially."""
     names = BATCH_1 if sel == "1" else BATCH_2 if sel == "2" else None
     if names is None:
         print("--batch expects 1 or 2", file=sys.stderr)
         return 2
-    failed: list[str] = []
     for name in names:
-        code = run_slice(name, parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
+        code = run_slice(name, parallel=parallel, no_xdist=no_xdist)
         if code != 0:
-            failed.append(name)
-    if failed:
-        print(f"\nFAILED slices: {', '.join(failed)}", file=sys.stderr)
-        return 1
+            return code
     return 0
 
 
-def _run_full(parallel: bool, no_xdist: bool, maxfail: int | None, keep_going: bool) -> int:
-    """Run every slice in dependency order.
-
-    Default: stop at the first failure (backward compatible). With
-    ``keep_going`` run every slice, report all failures, and exit non-zero
-    only if any failed — CI then sees the full failure set in one run.
-    """
-    failed: list[str] = []
+def _run_full(parallel: bool, no_xdist: bool) -> int:
+    """Run every slice in dependency order; stop at the first failure."""
     for name in FULL_ORDER:
-        code = run_slice(name, parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
+        code = run_slice(name, parallel=parallel, no_xdist=no_xdist)
         if code != 0:
-            failed.append(name)
-            if not keep_going:
-                return code
-    if failed:
-        print(f"\nFAILED slices: {', '.join(failed)}", file=sys.stderr)
-        return 1
+            return code
     return 0
 
 
-def _run_once(parallel: bool, no_xdist: bool, maxfail: int | None) -> int:
-    """Run the whole suite as ONE pytest process (fastest full path).
-
-    Collects every slice target into a single invocation — avoids re-spawning
-    the xdist worker pool per slice (the dominant wall-time cost under WSL:
-    a per-slice run of ``infra`` alone measured 54.75s vs 41.6s for the
-    complete suite in one process).
-    """
-    targets: list[str] = []
-    for name in FULL_ORDER:
-        targets.extend(SLICES[name])
-    return run_targets(targets, "all (one process)", parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
-
-
-def _run_slice_arg(argv: list[str], parallel: bool, no_xdist: bool, maxfail: int | None) -> int:
+def _run_slice_arg(argv: list[str], parallel: bool, no_xdist: bool) -> int:
     """Handle ``--slice <name>``; missing name prints usage and returns 2."""
     idx = argv.index("--slice")
     if idx + 1 < len(argv):
-        return run_slice(argv[idx + 1], parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
+        return run_slice(argv[idx + 1], parallel=parallel, no_xdist=no_xdist)
     print("--slice requires a slice name (see --list-slices)", file=sys.stderr)
     return 2
 
 
-def _run_batch_arg(argv: list[str], parallel: bool, no_xdist: bool, maxfail: int | None) -> int:
+def _run_batch_arg(argv: list[str], parallel: bool, no_xdist: bool) -> int:
     """Handle ``--batch <1|2>``; missing selector returns 2."""
     idx = argv.index("--batch")
     if idx + 1 < len(argv):
-        return _run_legacy_batch(argv[idx + 1], parallel, no_xdist, maxfail)
+        return _run_legacy_batch(argv[idx + 1], parallel, no_xdist)
     return 2
 
 
-_KNOWN_FLAGS = (
-    "--list-slices",
-    "--parallel",
-    "--no-xdist",
-    "--slice",
-    "--batch",
-    "--maxfail",
-    "--keep-going",
-    "--once",
-)
-
-
-def main() -> int:  # noqa: PLR0911 — one return per CLI dispatch branch
-    """CLI entry: slices, legacy batches, full runs, or a single pattern.
-
-    Unknown ``--*`` flags are rejected loudly — they used to be silently
-    dropped (e.g. CI's ``--maxfail=5``), hiding configuration errors.
-    """
+def main() -> int:
+    """CLI entry: slices, legacy batches, or a single pattern."""
     argv = sys.argv[1:]
 
     if "--list-slices" in argv:
@@ -293,43 +235,16 @@ def main() -> int:  # noqa: PLR0911 — one return per CLI dispatch branch
 
     parallel = "--parallel" in argv
     no_xdist = "--no-xdist" in argv
-    keep_going = "--keep-going" in argv
-    once = "--once" in argv
-
-    # Maxfail: accept "--maxfail N" or "--maxfail=N"; validate the value.
-    maxfail: int | None = None
-    for i, a in enumerate(argv):
-        if a == "--maxfail":
-            if i + 1 < len(argv) and argv[i + 1].lstrip("-").isdigit():
-                maxfail = int(argv[i + 1])
-            else:
-                print("--maxfail requires an integer N", file=sys.stderr)
-                return 2
-        elif a.startswith("--maxfail="):
-            val = a.split("=", 1)[1]
-            if not val.isdigit():
-                print(f"invalid --maxfail value: {val!r}", file=sys.stderr)
-                return 2
-            maxfail = int(val)
-
-    # Reject unknown flags instead of silently dropping them.
-    for a in argv:
-        if a.startswith("--") and a.split("=", 1)[0] not in _KNOWN_FLAGS:
-            print(f"unknown flag: {a!r} (see docstring for supported flags)", file=sys.stderr)
-            return 2
-
     if "--slice" in argv:
-        return _run_slice_arg(argv, parallel, no_xdist, maxfail)
+        return _run_slice_arg(argv, parallel, no_xdist)
     if "--batch" in argv:
-        return _run_batch_arg(argv, parallel, no_xdist, maxfail)
-    if once:
-        return _run_once(parallel, no_xdist, maxfail)
+        return _run_batch_arg(argv, parallel, no_xdist)
 
     pattern = [a for a in argv if not a.startswith("--")]
     if pattern:
-        return run_targets([pattern[0]], pattern[0], parallel=parallel, no_xdist=no_xdist, maxfail=maxfail)
+        return run_targets([pattern[0]], pattern[0], parallel=parallel, no_xdist=no_xdist)
 
-    return _run_full(parallel, no_xdist, maxfail, keep_going)
+    return _run_full(parallel, no_xdist)
 
 
 if __name__ == "__main__":

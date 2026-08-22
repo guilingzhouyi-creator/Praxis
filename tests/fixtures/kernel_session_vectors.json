@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "spec": {
+    "session_id": "vector-session",
+    "agent_id": "agent-vector",
+    "cell_id": "cell-vector",
+    "role": "operator",
+    "max_messages": 8
+  },
+  "inputs": [
+    {"message_id": "input-1", "content": "hello", "created_at_ns": 10},
+    {"message_id": "input-2", "content": "continue", "created_at_ns": 20}
+  ],
+  "events": [
+    {"message_id": "event-1", "input_seq": 1, "role": "assistant", "content": "hi", "created_at_ns": 11},
+    {"message_id": "event-2", "input_seq": 2, "role": "tool", "content": "done", "created_at_ns": 21}
+  ],
+  "expected": {
+    "state": "active",
+    "next_input_seq": 3,
+    "next_message_seq": 5,
+    "message_sequences": [1, 2, 3, 4],
+    "input_sequences": [1, 2, 1, 2],
+    "page_limit": 3,
+    "page_next_cursor": 3
+  }
+}

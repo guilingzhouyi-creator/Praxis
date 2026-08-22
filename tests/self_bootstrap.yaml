@@ -40,7 +40,7 @@ phases:
         params:
           prompt: |
             Read the file src/kernel/__init__.py.
-            Check that it has valid Python3 syntax:
+            Check that it has valid Python syntax:
             - Balanced brackets
             - Proper __all__ list format
             - All imports present

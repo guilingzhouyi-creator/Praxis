@@ -1,4 +1,4 @@
-"""Validate shared string-event schema registry vectors against Python3."""
+"""Validate shared string-event schema registry vectors against Python."""
 
 from __future__ import annotations
 

@@ -21,7 +21,7 @@ class _FakeManager:
 
 @pytest.fixture
 def sample_project(tmp_path):
-    """A tiny Python3 module used as the analyzer workspace."""
+    """A tiny Python module used as the analyzer workspace."""
     src = tmp_path / "sample.py"
     src.write_text(
         "class Greeter:\n"

@@ -1,4 +1,4 @@
-"""Cross-language dependency vectors for the Python3 boot registry adapter."""
+"""Cross-language dependency vectors for the Python boot registry adapter."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 
 
 def test_shared_boot_plan_vectors_match_python_registry():
-    """Keep valid/cycle ordering visible while recording Python3's missing-dependency behavior."""
+    """Keep valid/cycle ordering visible while recording Python's missing-dependency behavior."""
     from l3.boot.boot_registry import register_boot_step, reset_registry, resolve_boot_order
 
     vectors = json.loads(Path("tests/fixtures/kernel_boot_plan_vectors.json").read_text(encoding="utf-8"))
