@@ -83,7 +83,7 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | File | Disposition |
 |---|---|
 | `durable_store.py` | Cross-domain persistence base (P0.4). Owner: M. Envelope `{v, kind, checksum, payload}` is the TS-mirrorable storage protocol. |
-| `net_client.py` | Relocation candidate → `services/` (slice B5). |
+| `net_client.py` | **Stays at root** — generic stdlib HTTP utility with a documented canonical home (`from l3.net_client import NetClient`); relocation would churn C-domain consumers for zero gain. |
 | `params.py` / `ports.py` | Convention surface — stays at root. |
 | `_base.py` / `_pool.py` / `_daemon_pool.py` / `_persistable.py` | Shared bases — stay; registered as cross-domain single-writer infra. |
 
@@ -104,5 +104,5 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | B3 | `l3b.py` → `l3b_composite.py` + six-step reference sweep | **Complete** (f56d27bc) |
 | B1 | `services/file_editor*` → subpackage | **Complete** (facade preserved as package `__init__`; route strings resolve unchanged) |
 | B2 | `card/models.py` migration adjudication | **Blocked** — `to_old_card` has zero callers but `cell_decompose.py` constructs legacy Card/Phase sub-cards; needs CardUnified constructor parity (follow-up slice) |
-| B5 | `net_client.py` relocation | pending |
-| A2/A3 | runtime-subsystems counts + README registration | this wave |
+| B5 | `net_client.py` relocation | **Adjudicated: stays at root** |
+| A2/A3 | runtime-subsystems counts + README registration | **Complete** |
