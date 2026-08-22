@@ -7,10 +7,10 @@
 > capability-authority and GateChain slices.
 > The pure Constitution rule/evaluation slice is also isolated; no Rust
 > runtime authority is included. The health-result aggregation slice is also
-> isolated; runtime probes remain Python3-owned. The memory-ring swap planning
-> slice is likewise isolated; ring mutation remains Python3-owned.
+> isolated; runtime probes remain Python-owned. The memory-ring swap planning
+> slice is likewise isolated; ring mutation remains Python-owned.
 > The system-registry value slice is also isolated; section producers and
-> runtime queries remain Python3-owned.
+> runtime queries remain Python-owned.
 > Baseline: `main` at `55a3bd6` (2026-08-18). The package turns the
 > kernel boundary audit and Rust-first roadmap into entry gates for the first
 > native Rust substrate and eventual clean cutover.
@@ -19,12 +19,12 @@
 
 Rust is the approved direction for a **clean-break, Rust-first kernel build**.
 This package is still preflight: it does not grant the isolated candidate
-workspace runtime authority, Python3 FFI, or permission to read old Python3
+workspace runtime authority, Python FFI, or permission to read old Python
 state. The future kernel may choose new state layouts, schemas, schedulers,
 allocators, and internal APIs because there are no production users whose data
 must remain compatible.
 
-Python3 remains the semantic reference for the R0 mapping phase. Its behavior is
+Python remains the semantic reference for the R0 mapping phase. Its behavior is
 not automatically a Rust requirement. The current execution seam
 (`invoke_capability`) and contract snapshot are useful evidence, but the first
 Rust-native substrate is blocked until the gates in this document and the
@@ -35,7 +35,7 @@ Rust-first architecture decision are evidenced.
 The shared vectors are not a user-data migration suite. They freeze only the
 security and control invariants that must survive an architecture rewrite:
 fail-closed decisions, lifecycle terminality, audit causality, boundedness,
-and explicitly retained wire fields. Python3-specific exception text, dict
+and explicitly retained wire fields. Python-specific exception text, dict
 layout, singleton ownership, reaper timing, and internal data structures may
 be redesigned. An intentional vector divergence must be recorded with the new
 Rust invariant and its security/performance rationale.
@@ -50,12 +50,12 @@ architecture and performance gates.
 | Boundary audit | Kernel Boundary Integrity Score `42/100`; direct upper-layer imports and historical bypasses are documented | **Reverify** after the merged hardening slices |
 | Single execution authority | `l1.kernel.capability.invoke_capability` is present; boot is the only executor wiring point; unwired calls fail closed and audit | **Reverify** with static and runtime tests |
 | Gatechain | Boot populates the G1 whitelist; high-ring identity and closed-default API authentication have code and tests | **Reverify** in the current environment |
-| Process/audit/event seams | Process FSM, cancellation, persistent Python3 audit, event schema, scheduler port, and contract snapshot are present; Python3/Rust now consume a shared process lifecycle/resource/audit fixture; Rust bounded audit remains isolated with optional journal wiring | **Reverify** for parity and persistence |
-| Capability authority | Python3 `invoke_capability` is the runtime seam; Rust now has an isolated fail-closed authority with panic conversion and per-call audit | **Reverify** against the Python3 gate and boot wiring |
+| Process/audit/event seams | Process FSM, cancellation, persistent Python audit, event schema, scheduler port, and contract snapshot are present; Python/Rust now consume a shared process lifecycle/resource/audit fixture; Rust bounded audit remains isolated with optional journal wiring | **Reverify** for parity and persistence |
+| Capability authority | Python `invoke_capability` is the runtime seam; Rust now has an isolated fail-closed authority with panic conversion and per-call audit | **Reverify** against the Python gate and boot wiring |
 | GateChain candidate | Rust mirrors pure G1-G5 inputs, four-state steps, and bounded history; providers and policy remain adapter-owned | **Green fixture; expand before G6** |
 | Constitution candidate | Rust mirrors rule descriptors, category filtering, territory/sandbox/scout checks, and explicit posture inputs; file IO and side effects remain outside | **Green fixture; expand before G6** |
-| Discovery candidate | Rust mirrors defaults/source/runtime layers, parsed section merging, null retention, runtime updates, and tool/service fallbacks; YAML/filesystem/boot discovery remain Python3-owned | **Green fixture; candidate-only** |
-| Policy parity fixture | `tests/fixtures/kernel_policy_vectors.json` is consumed by Python3 and Rust GateChain/Constitution tests for stable block/pass branches | **Green; expand before G6** |
+| Discovery candidate | Rust mirrors defaults/source/runtime layers, parsed section merging, null retention, runtime updates, and tool/service fallbacks; YAML/filesystem/boot discovery remain Python-owned | **Green fixture; candidate-only** |
+| Policy parity fixture | `tests/fixtures/kernel_policy_vectors.json` is consumed by Python and Rust GateChain/Constitution tests for stable block/pass branches | **Green; expand before G6** |
 | Kernel contract | `docs/contracts/kernel-contract.json`, contract generator, and snapshot test exist at contract version 1 | **Freeze** only after a clean regeneration/diff review |
 | Engineering debug mode | Main feature is merged, but the roadmap still has P1 gaps: settings authorization bypass, hardware adapter absence, provider rollback, production prompt read exposure, and privacy-config drift | **Open P1** |
 | Performance decision | Runs `20260818-preflight-01` through `20260818-preflight-03` have fixed-work Amdahl/lock/platform evidence, explicit EventBus dispatch/drop counters, and separate bounded clean-load evidence; normal non-zero listener loads remain lossy and RWLock needs ownership review | **Open M3** |
@@ -86,7 +86,7 @@ The Rust candidate may contain only mechanism and invariant enforcement:
 Prompts, skills, model/provider registry, commands, cards/issues, tool
 discovery policy, approval policy, harness/security-mode policy, reputation,
 identity-binding policy, DVG business planning, R5/Mer semantics, and the
-automation/performance runner remain in Python3/config/build tooling.
+automation/performance runner remain in Python/config/build tooling.
 
 Engineering debug mode is an L3 policy. L1 exposes only its language-neutral
 primitives (`InputActivityPort`, event/channel, audit, and capability seams);
@@ -102,7 +102,7 @@ L1 must not inspect the marker file or decide whether a caller is a developer.
 5. Resource accounting and event ordering are explicit and bounded.
 6. No interpreter-specific object crosses a Port or language boundary.
 7. The new Rust kernel can start from a fresh state root and recover its own
-   versioned state without importing Python3 runtime objects or old user data.
+   versioned state without importing Python runtime objects or old user data.
 
 ## 3. Readiness gates
 
@@ -149,7 +149,7 @@ Required evidence:
   exports before freezing;
 - freeze primitive value types (`ProcessResult`, `ProcessOptions`, `Event`,
   error kinds, and Port snapshots);
-- classify retained wire fields versus redesignable Python3 behavior; define
+- classify retained wire fields versus redesignable Python behavior; define
   versioned serialization, ordering, cancellation, and timeout semantics only
   for boundaries that the new kernel keeps;
 - add golden vectors for success, denial, unwired executor, cancellation,
@@ -167,18 +167,18 @@ The process-table fixture
 `tests/fixtures/kernel_process_vectors.json` additionally freezes PID/PCB
 registration, READY/RUNNING transitions, identity verification, cancellation
 terminality, exit-to-ZOMBIE and reap, resource totals, and audit order. It
-intentionally omits wall-clock fields and Python3-owned reaper, interrupt,
+intentionally omits wall-clock fields and Python-owned reaper, interrupt,
 allocator/limiter cleanup, and OS-handle side effects.
 
 The paths/platform candidates are deliberately split at the side-effect
 boundary: Rust transforms explicit snapshots into command and path values,
-while Python3 retains environment discovery, filesystem layout, subprocess
+while Python retains environment discovery, filesystem layout, subprocess
 execution, and socket lifecycle.
 
 The territory candidate follows the same boundary. Its lexical containment
 function consumes explicit paths and an optional working directory, rejects
 component-prefix collisions, and does not resolve filesystem state or symlinks.
-`kernel_territory_vectors.json` is the shared Python3/Rust parity baseline.
+`kernel_territory_vectors.json` is the shared Python/Rust parity baseline.
 
 The interrupt candidate is similarly value-only: `InterruptType`, history rows,
 per-kind sequence accounting, and bounded queries are covered by
@@ -194,13 +194,13 @@ The discovery candidate freezes only the parsed configuration value contract.
 `kernel_discovery_vectors.json` covers registered defaults, source snapshots,
 object shallow merge, scalar replacement, null-section retention, unknown
 sections, runtime overrides, and tool/service fallback reads. Directory scans,
-YAML parsing, warning/logging, boot registration, and mutation of the Python3
+YAML parsing, warning/logging, boot registration, and mutation of the Python
 singleton remain adapter-owned.
 
 The SystemBus candidate freezes component metadata, parent-available dependency
 filtering, registration order, stable topology, cycle errors, and lifecycle
 labels in `kernel_bus_vectors.json`; callbacks, child-bus routing, and actual
-lifecycle side effects remain Python3-owned. The ResourceLimiter candidate uses
+lifecycle side effects remain Python-owned. The ResourceLimiter candidate uses
 `kernel_resource_vectors.json` for injected profiles, fallback lookup, signed
 check/release costs, usage snapshots, unknown-resource release, and cleanup;
 role discovery and allocator/process side effects remain adapter-owned.
@@ -208,12 +208,12 @@ role discovery and allocator/process side effects remain adapter-owned.
 The health candidate uses `kernel_health_vectors.json` for explicit subsystem
 status aggregation, failure/degraded precedence, counts, retained details, and
 elapsed-time rounding. It never imports modules, reads clocks, probes
-singletons, emits logs, or decides runtime health; those remain Python3-owned.
+singletons, emits logs, or decides runtime health; those remain Python-owned.
 
 The swapper candidate uses `kernel_swapper_vectors.json` for importance-based
 ring routing, expired short-ring compaction, and pressure action flags. It does
 not touch MemoryService, allocator sampling, clocks, worker threads, or
-persistence; those remain Python3 adapter responsibilities.
+persistence; those remain Python adapter responsibilities.
 
 The registry candidate uses `kernel_registry_vectors.json` for deterministic
 section snapshots and explicit summary aggregation. It accepts only JSON
@@ -224,7 +224,7 @@ ownership remain outside the Rust candidate.
 The tool-chain candidate uses `kernel_tool_chain_vectors.json` for stable
 call-field normalization, HMAC-SHA256 truncation, `GENESIS` fallback, and
 root-first fingerprint-chain verification. Key provisioning, call storage,
-trimming/re-rooting, and execution remain Python3 adapter responsibilities.
+trimming/re-rooting, and execution remain Python adapter responsibilities.
 
 The synchronization candidate additionally consumes `kernel_sync_vectors.json`
 for reentrant reads, zero-timeout writer failure, status snapshots, and
@@ -237,12 +237,12 @@ idle dispatch counters with no listeners. Callback scheduling, overload drops,
 shutdown fairness, and runtime fan-out remain performance or adapter evidence.
 
 Exit condition: a Rust implementation can implement the contract without
-importing Python3 or L3 policy modules.
+importing Python or L3 policy modules.
 
 ### G3 — Performance evidence (M3, P0 before Rust code)
 
 Run on the reference WSL platform with the repository virtual environment and
-record the exact commit, Python3 version, dependency lock, CPU, memory, and
+record the exact commit, Python version, dependency lock, CPU, memory, and
 load conditions. Store untracked evidence under
 `.praxis/evidence/kernel-readiness/<run-id>/`.
 
@@ -285,7 +285,7 @@ Before M3 is accepted:
   results outside the Rust kernel and L2 session authority;
 - keep L2 protocol measurements separate from fixed-work L1 migration evidence.
 
-Exit condition: replacing the Python3 process adapter or DVG implementation
+Exit condition: replacing the Python process adapter or DVG implementation
 does not change the manifest schema or report consumers.
 
 ### G5 — Toolchain and packaging (P1)
@@ -297,7 +297,7 @@ recorded and reproducible:
 - pin the supported Node/TypeScript toolchain for the protocol mirror;
 - decide whether Rust/TS manifests live in a new build-environment subtree;
 - provide offline/CI smoke commands and artifact locations;
-- keep Python3's current test and runtime path usable during the migration.
+- keep Python's current test and runtime path usable during the migration.
 
 The build boundary is now checked in: `crates/Cargo.toml` and
 `crates/l1-kernel-rs/` are contract/candidate Rust scaffolds, while
@@ -317,7 +317,7 @@ Rust-native run against the classified vectors. The cutover must have:
   result;
 - a fresh-state bootstrap, recovery procedure, and source-level rollback point;
 - a documented cutover abort trigger for correctness, audit loss, tail latency,
-  memory, or platform-specific failures. A Python3 runtime fallback is optional,
+  memory, or platform-specific failures. A Python runtime fallback is optional,
   not a compatibility requirement.
 
 ## 4. Workstreams and deliverables
@@ -348,7 +348,7 @@ record a decision with this minimum shape:
 | Rollback | Feature flag, fallback implementation, and trigger thresholds |
 
 If no candidate meets the evidence threshold, the correct outcome is
-`Rust deferred; Python3 retained`, with the report preserved for the next
+`Rust deferred; Python retained`, with the report preserved for the next
 review cycle.
 
 ## 6. Ready-to-start checklist

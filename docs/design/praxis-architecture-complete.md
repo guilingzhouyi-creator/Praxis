@@ -23,7 +23,7 @@ Define Praxis as the Agent OS Desktop Shell with a five-layer architecture, core
 2. No bubbles, use cards — Agent output must be structured cards (execution card/dispute card/review card), not chat bubbles.
 3. No conversation, use intents — Input must be a structured intent Task Card, not free-form text chat.
 4. No compression, use auto-eviction — Ring full automatically evicts oldest records, no manual compression button.
-5. L3 must use a pure Python3 rule engine (~100 lines), no LLM for routing decisions.
+5. L3 must use a pure Python rule engine (~100 lines), no LLM for routing decisions.
 6. Task Card must include seven fields: intent/domain/card_type/context_refs/tools_hint/priority/agent_id.
 7. Agent Cell must contain 3 peer Agents for mutual review, each Agent has independent territory.
 8. Scout must be a read-only auxiliary unit, cannot write files, cannot redelegate (depth = 1), auto-terminates after 5 minutes timeout, max 3 active Scouts per Agent.

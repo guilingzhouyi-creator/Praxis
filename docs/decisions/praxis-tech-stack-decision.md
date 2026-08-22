@@ -12,14 +12,14 @@ relations: [ARCHIVE-decisions-001]
 
 ## Core Decisions
 
-All five issues converged: GUI=Python3 webview, kernel=pure Python3, territory=by layer (A), L3=pure rule engine, MVP=4 days 5 tools.
+All five issues converged: GUI=Python webview, kernel=pure Python, territory=by layer (A), L3=pure rule engine, MVP=4 days 5 tools.
 
 ## Design Rules
 
-1. GUI must use pywebview——the only solution meeting <500ms startup, <50MB package, three platforms, and zero friction with Python3.
-2. Kernel must remain pure Python3——the current bottleneck is LLM API calls (500ms-5s), not computation paths (microsecond level), introducing Rust/C++ would not be worth it.
+1. GUI must use pywebview——the only solution meeting <500ms startup, <50MB package, three platforms, and zero friction with Python.
+2. Kernel must remain pure Python——the current bottleneck is LLM API calls (500ms-5s), not computation paths (microsecond level), introducing Rust/C++ would not be worth it.
 3. Territory must be divided by layer (Scheme A)——Agent A (routes/params/middleware/auth/i18n), Agent B (pages/services/visa/cache/config), Agent C (tests/security/nomos_mcp/memories/scripts).
-4. L3 must use a pure rule engine ~100 lines of Python3——Task Card already structures intent, no LLM reasoning needed. Gradual path: initially hardcoded routing table, later auto-generated from the constitution.
+4. L3 must use a pure rule engine ~100 lines of Python——Task Card already structures intent, no LLM reasoning needed. Gradual path: initially hardcoded routing table, later auto-generated from the constitution.
 5. MVP must be completed in 4 days——must not include multi-agent approval, multi-unit, Ring Ω, or desktop packaging.
 6. `config/` must belong to Agent B (business layer)——config's business coupling is in services/, not routes/.
 7. If pywebview is not compatible with Python 3.14, must fall back to tkinter + tkhtmlview (do not block P0).
@@ -39,7 +39,7 @@ All five issues converged: GUI=Python3 webview, kernel=pure Python3, territory=b
 
 ## Exclusions
 
-- Rust Tauri: excluded (package is small, but requires Rust bridge layer, heavy maintenance burden for a single developer maintaining Python3+Rust)
+- Rust Tauri: excluded (package is small, but requires Rust bridge layer, heavy maintenance burden for a single developer maintaining Python+Rust)
 - C++ Qt: excluded (startup ~1s > 500ms, package > 50MB, complex bridge and high maintenance cost)
 - Electron: excluded (startup ~2s > 500ms, package > 100MB > 50MB constraint)
 - Rust/C++ rewrite of fingerprint computation: excluded (1000 calls total 1.5ms, less than 1/200 of a single API call)

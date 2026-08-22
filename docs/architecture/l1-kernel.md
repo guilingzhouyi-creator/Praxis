@@ -38,18 +38,18 @@ see *Kernel surface boundary* below).
 
 The kernel’s semantic surface is frozen for the Rust rewrite (`l1_kernel_rs`):
 security/control invariants and explicitly retained wire fields are evidence;
-Python3 class layout and user-data formats are not migration requirements.
+Python class layout and user-data formats are not migration requirements.
 
 The staged Rust build boundary lives in `crates/l1-kernel-rs/`. Its primitive
 value contracts are mirrored and isolated mechanism candidates now cover
-sync/process/event/channel/allocator/worker, lock IPC, journal, bounded audit,
+sync/cancellation/process/event/channel/allocator/worker, lock IPC, journal, bounded audit,
 capability-authority, G1-G5 gatechain, Constitution rule/evaluation shapes,
 provider-neutral VFS mount/cache mechanics, platform value/command descriptions,
 deployment path derivation, lifecycle FSM, schema versioning, ordered migration
 runner, pure load-adaptive control law, metadata-only registry base and summary,
 deterministic device bookkeeping, explicit health-result aggregation, memory-ring swap planning, and tool-call fingerprint chaining, but it remains candidate-only until a
 fixed-work performance evidence, semantic invariant vectors, and a
-cutover/recovery decision; the preflight branch keeps the Python3 kernel as its
+cutover/recovery decision; the preflight branch keeps the Python kernel as its
 runtime implementation until the independent Rust build reaches R4/R5.
 
 The Rust-first R1 substrate now provides generation-tagged process handles,
@@ -59,32 +59,156 @@ replace ProcessTable storage, wire boot, or grant runtime authority.
 
 The Rust `benchmark` candidate defines the fixed-work R2 report shape and
 rejects incomplete work, unknown worker counts, duplicate/out-of-range rounds,
-zero-duration samples, invalid p95/p99 ordering, and unsupported schema
-versions. Schema v2 records p95/p99 tail latency, aggregate queue/lock waits,
-and rejected work. Throughput is derived from fixed completed work and elapsed
-time via `BenchmarkSample::throughput_ops_per_sec`; the candidate records
-evidence only.
+zero-duration samples, invalid p95/p99 ordering, invalid resource availability,
+and unsupported schema versions. Schema v3 records p95/p99 tail latency,
+aggregate queue/lock waits, rejected work, and process CPU/RSS deltas.
+Throughput is derived from fixed completed work and elapsed time via
+`BenchmarkSample::throughput_ops_per_sec`; resource units are nanoseconds and
+bytes with explicit source metadata.
 
 The Rust `benchmark_runner` candidate measures a fixed total through a bounded
-typed queue for each worker/round pair and drains the queue before emitting a
-complete v2 report. It is a contention/stress smoke only; it does not start
-scheduling, replace ProcessTable storage, wire boot, or grant runtime
-authority.
+typed queue for each worker/round pair, samples process resources, and drains
+the queue before emitting a complete v3 report. It is a contention/stress smoke
+only; it does not start scheduling, replace ProcessTable storage, wire boot, or
+grant runtime authority. Bounded drain completion uses one atomic counter update
+and saturating queue-depth CAS per batch, without changing fixed-work totals.
+
+The same module exposes separate `run_worker_pool_batch` and
+`run_worker_pool_batch_submit` workloads. The `rust-worker-bench` and
+`rust-worker-batch-submit-bench` release binaries keep queue capacity at or
+above the fixed batch, record WorkerPool submission p95/p99 plus batch
+throughput, and reject configurations that could evict work. The batch-submit
+candidate groups admission under one queue lock and keeps its evidence
+separate from both `worker.pool.batch` and `substrate.queue.contention`.
+Repeated local release samples completed all 4096-item work with zero
+errors/rejections; at the same 1/2/4-worker sweep, batch-submit medians were
+about 1.66M/3.85M/4.19M ops/s versus 1.20M/0.28M/0.07M for per-task
+admission, with lower aggregate queue wait. This is evidence for the
+admission optimization, not a runtime cutover decision.
 
 `BenchmarkEvidence` is the versioned export envelope for this report. It binds
 the complete worker/round matrix to platform, architecture, runtime, source
-revision, and runner metadata and rejects invalid or incomplete JSON on both
-construction and ingestion. `make rust-benchmark` emits one release-mode
-evidence document; runtime attribution can be supplied through
-`PRAXIS_RUST_RUNTIME`, `PRAXIS_GIT_REVISION`, and `PRAXIS_RUST_RUNNER`. The
-runner still does not measure CPU or memory and does not replace the Python3
-reference baseline, so this output cannot by itself close R2.
+revision, runner, and resource-unit metadata and rejects invalid or incomplete
+JSON on both construction and ingestion. `make rust-benchmark` emits one
+release-mode evidence document; `make r2-baseline-bundle` combines it with the
+independent Python reference under the same fixed-work contract. These are
+build/performance artifacts and do not replace runtime authority.
 
 The `state_queue` candidate gives each shard ownership of its slot map and
 lifecycle transitions, and uses typed work items with fail-fast capacity
 rejection. Queue length and accepted-but-not-completed metric depth remain
-separate measurements; task scheduling, boot state, and runtime routing stay
-outside the candidate.
+separate measurements. An opt-in token-aware pop returns `Cancelled` before
+claiming work, using a bounded poll interval; task scheduling, queued-item
+invalidation, boot state, and runtime routing stay outside the candidate.
+
+The Rust `scheduler::KernelScheduler` candidate now composes the process-handle
+allocator, sharded state, and bounded queue. It owns only deterministic
+spawn/schedule/claim/complete/stop/reap transitions: queue-full admission rolls
+back to READY, stopped queued items are completed as discarded, and stale or
+reaped handles fail closed. It does not start workers, execute boot callbacks,
+or route AgentLoop sessions.
+
+The `worker` candidate now connects `TaskHandle` to the cancellation token and
+supports caller-supplied task deadlines through `submit_result_with_timeout`:
+queued work can complete with a structured `Cancelled` or `TaskTimeout` result
+before its closure starts, while an already-running closure is never forcibly
+interrupted. A running closure that returns after its deadline is marked
+`TaskTimeout`; the handle waiter's own observation deadline remains the separate
+`Timeout` error. Adaptive sampling, argument binding, and WorkerPort/runtime
+ownership remain outside the candidate. The worker snapshot also exposes
+cancelled, timed-out, and failed execution outcome counters, updated before the
+corresponding result handle is notified.
+
+Worker metrics are Rust atomics rather than a process-wide metrics mutex:
+submission rejection, active/completed/outcome counters, and pool-size changes
+avoid serializing every task on one accounting lock. The bounded task queue and
+worker join list remain mutex-owned. The independent `tests/worker.rs` target
+exercises concurrent submission and verifies that completed plus evicted work
+matches the fixed submission count.
+The completion path also relies on the last active-counter transition to wake
+drainers, eliminating a redundant post-task queue lock while preserving the
+queue-depth plus active-count shutdown condition. A worker claims at most eight
+FIFO tasks per queue lock and reuses a bounded local buffer; `active` includes
+claimed-but-not-yet-completed tasks so shutdown cannot pass through a local-batch
+gap. The release fixed-work smoke still reports zero errors/rejections but
+lower two/four-worker throughput for trivial closures, so this is a measured
+handoff candidate rather than a promoted scaling policy. `WorkerPool::stats()`
+also reports aggregate `queue_wait_ns` from each batch claim attempt through
+successful work claim, and the WorkerPool benchmark carries it into the v3
+sample. The latest fixed 4096-item release smoke measured median claim waits of
+about 1.0 ms, 19.7 ms, and 177.8 ms at 1/2/4 workers, making shared-queue
+handoff contention explicit rather than leaving the field at zero.
+
+`WorkerPool::submit_result_batch` admits a caller-supplied group while holding
+the queue lock once. It returns one `TaskHandle` per closure, applies the same
+oldest-pending eviction and closed-pool failure completion to every item, and
+retains the existing cancellation/deadline execution boundary. The independent
+worker integration target covers FIFO ordering, per-item eviction accounting,
+and closed-pool completion for this candidate. Batch admission wakes at most
+`min(submitted, resident_workers)` waiters with repeated `notify_one` calls
+instead of broadcasting to every worker; this bounds condition-variable convoy
+without changing FIFO claim order or shutdown semantics. It remains a measured
+candidate and must be rechecked through the same v3 fixed-work matrix before
+any runtime policy promotion.
+
+The Rust `agent_loop` candidate is the logical routing seam above the session
+and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal
+correlation, owns an explicit Created/Ready/Running/Paused/Closing/Stopped/
+Failed lifecycle, and admits input/events while holding a shared lifecycle
+read lock across the SessionBook write. Lifecycle writers use the exclusive
+lock, so pause/stop wait for in-flight admissions before changing state while
+same-loop admissions no longer serialize on one mutex. Session
+history and `input_seq` remain authoritative in `Session`; terminal mailboxes,
+PTYs, subprocesses, providers, prompts, tools, and worker execution remain
+adapter-owned. The candidate is covered by the independent
+`crates/l1-kernel-rs/tests/agent_loop.rs` target and does not grant runtime
+authority. `run_agent_loop` and `rust-agent-loop-bench` add a separate v3
+fixed-work input-admission workload with lifecycle-lock wait accounting; a current
+4096-item release smoke measured median throughput of about 1.706M/0.898M/
+0.724M ops/s and median lock waits of 0.098/3.919/16.045 ms at 1/2/4 workers,
+with zero errors/rejections. With the contention-only probe, the latest
+unpinned release median is about 1.819M/0.761M/0.760M ops/s and
+0/5.011/13.583 ms of contended wait at 1/2/4 workers. A subsequent
+read-lock/atomic-counter slice allows concurrent admissions and keeps the same
+fixed-work contract; one local release sample measured about 2.49M/2.18M/0.90M
+ops/s with p95 0.23/0.59/10.65 us and zero errors/rejections. These are
+host-local observations, not a worker-scaling or cutover decision.
+The lock-wait counter is contention-only: an uncontended `try_read`/`try_write`
+path avoids
+the timestamp and atomic accumulation, while a blocked acquisition records the
+fallback wait. This keeps the metric useful for scaling evidence without
+adding the full timing cost to every admission.
+`AgentLoopHandle::admit_input_batch` and the book wrapper provide a grouped
+admission candidate with one lifecycle read lock per input group. Results remain ordered,
+Session keeps authoritative `input_seq`, and failed items increment failure
+accounting without consuming command sequences. `run_agent_loop_batch` and
+`rust-agent-loop-batch-bench` use workload `agent.loop.batch_admission` and
+report batch p95/p99 separately from the per-input baseline; this is an
+optimization slice only and does not grant runtime authority.
+
+The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
+lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a
+single explicit execution host. It validates halted-to-booting-to-active
+startup, assigns opaque handles to submitted closures, tracks terminal task
+states, supports cooperative cancellation and task deadlines, and drains the
+worker pool before a clean shutdown. The candidate has no Python/FFI bridge,
+PTY or subprocess ownership, AgentLoop routing, provider callbacks, prompt or
+tool policy, or default-entrypoint authority; those remain R4/R5 cutover work.
+`open_persistent` attaches the Rust-owned `StateStore` to the same lifecycle,
+durably records fresh-root boot and clean shutdown, and converts an unclean
+root into an explicit recovery boot; it never imports Python state.
+`submit_gated` is the only capability-shaped runtime submission helper: it
+requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
+the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
+fail-closed and audited.
+
+Runtime submission uses a direct scheduler path when the WorkerPool already owns
+the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve
+generation-safe scheduler state without double-counting queue admission. Terminal
+worker failures observed before the wrapper runs (for example, FIFO eviction or
+shutdown rejection) are reconciled by `RuntimeTask::result()` so the task can be
+reaped instead of remaining in `Running`. This is measured candidate behavior,
+not production runtime authority.
 
 The Rust `identity_binding` candidate closes the mechanism portion of the
 per-Cell role registry: an injected write principal is checked fail-closed,
@@ -93,7 +217,7 @@ identity ID, metadata revisions are monotonic, and snapshots are deterministic.
 Prompt fragments and definitions, JSON persistence, EventBus notifications,
 singleton ownership, and API/L2Shell policy remain adapter-owned. The Rust
 candidate therefore gives the future kernel a typed metadata boundary without
-making prompt content or Python3 state layout a compatibility requirement.
+making prompt content or Python state layout a compatibility requirement.
 The shared `kernel_identity_binding_vectors.json` fixture covers only the
 authorization and mutation lifecycle; prompt text, random UID bodies, and
 persistence bytes remain deliberately outside the contract.
@@ -111,19 +235,26 @@ The Rust `boot` candidate is limited to declarative assembly metadata. Its
 replacement is requested, locks before execution wiring, and resolves a
 deterministic dependency-first order. Missing dependencies and cycles fail
 closed. It does not execute boot callbacks, read settings, start threads,
-change lifecycle state, or replace the Python3 boot registry. The shared
+change lifecycle state, or replace the Python boot registry. The shared
 `kernel_boot_plan_vectors.json` fixture freezes only this ordering/error
-boundary; Python3's omission of missing dependencies remains a documented
+boundary; Python's omission of missing dependencies remains a documented
 reference behavior rather than a Rust requirement.
 
 The Rust `state_layout` candidate starts the R4 state-ownership boundary. It
 validates a versioned manifest for a fresh Rust state root, canonical relative
 entries, and declared parent directories. Given explicit host observations it
 returns `initialize`, `resume`, `recover`, `migrate`, or fail-closed `reject`.
-It does not inspect the filesystem, create directories, import Python3 state,
+It does not inspect the filesystem, create directories, import Python state,
 or execute migration callbacks. The shared
 `kernel_state_layout_vectors.json` fixture freezes only the manifest and
 decision values; a future R4 adapter owns probes and side effects.
+
+The Rust `state_store` candidate is the first filesystem-bearing R4 adapter.
+It creates only the fresh Rust root selected by the validated manifest, writes
+manifest/lifecycle/checkpoint documents through `sync_all` plus atomic rename,
+and exposes clean resume and unclean recovery. Divergent or
+migration-required roots fail closed; Python state and Python boot authority
+never cross this seam.
 
 The Rust `ports` candidate translates the mechanism value surface and adapter
 discovery metadata. `PortResult`, `Endpoint`, `Message`, and the
@@ -135,12 +266,131 @@ input activity operations. `kernel_port_vectors.json` freezes only these
 values and metadata; provider side effects remain an R4 adapter concern.
 
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
-port metadata, and halted lifecycle into a deterministic `KernelAssembly`.
-`crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent entrypoint that
-emits this snapshot as JSON with no Python3 import. The entrypoint does not read
-configuration, create directories, run callbacks, or instantiate providers;
-R4 filesystem initialization, versioned protocol serving, and recovery effects
-remain to be implemented behind this seam.
+Rust-owned config manifest metadata, retained protocol metadata, terminal
+substrate metadata, port metadata, and halted lifecycle into a deterministic
+`KernelAssembly`. `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
+entrypoint that emits this complete snapshot as JSON with no Python import.
+Assembly rejects config-contract, protocol, terminal-contract, and divergent
+metadata before provider wiring. The entrypoint does not read configuration,
+create directories, run callbacks, or instantiate providers. `state_store`
+owns fresh-root initialization and durable lifecycle recovery; versioned
+protocol serving and terminal I/O remain outside this assembly candidate.
+
+The Rust `protocol` candidate now closes the retained R4 wire boundary without
+granting runtime authority. It validates v1 envelopes and TS-neutral record
+schemas, recursively canonicalizes JSON, removes unknown record fields for
+forward compatibility, and provides bounded `Outbox`/`SessionCursor` replay
+values. HTTP/WS framing, L2 dispatch, clock ownership, and session state remain
+adapter-owned; `protocol_vectors.rs` consumes the existing shared record
+fixture, so this is a versioned boundary proof rather than a Python state
+migration layer.
+
+The Rust `protocol_host` candidate adds the next R4 adapter seam: a bounded
+JSONL canonicalization gate that rejects oversized frames before decode, invokes
+the retained v1 validator, and returns canonical valid envelopes or structured
+failures. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint; it
+only emits accepted canonical frames and reports rejected lines to stderr. It
+does not dispatch commands, execute intents, own sessions, or route AgentLoop
+work, and its public behavior is tested in the independent
+`tests/protocol_host.rs` target.
+
+The Rust `config_store` candidate closes the configuration half of the R4
+ownership boundary. It creates a fresh JSON-only Rust root with a versioned
+manifest, separate kernel-config and runtime-settings documents, monotonic
+revisions, and per-document atomic rename plus `sync_all`. Missing, foreign,
+divergent, or future roots fail closed; `praxis.yaml`, Python settings,
+engineering-debug policy, and provider wiring remain outside this store.
+
+The Rust `terminal` candidate is the lower-layer substrate for future upper
+layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
+bindings and stores generation-tagged `ProcessHandle` values internally;
+snapshots expose only the retained raw process id wire field. It also owns
+explicit created/ready/running/stopped/closed lifecycle states and bounded
+opaque input/output mailboxes with sequence numbers and drop counters. Stopped
+terminals cannot restart, closed terminals cannot be rebound, and mailbox
+overflow or oversized frames fail closed. PTY/subprocess ownership, AgentLoop
+execution, prompt/tool policy, rendering, and frontend multiplexing remain
+adapter or L2/L3 responsibilities; `kernel_terminal_vectors.json` tests this
+candidate in the independent Rust integration domain. The registry uses hash
+lookup and sorts only the public snapshot view. Normal mailbox operations use a
+read-locked registry plus a per-terminal record lock; batch submit/drain APIs
+hold that record lock once while preserving FIFO, sequence, bounded-capacity,
+and per-frame error behavior. `run_terminal_book` and `run_terminal_book_batch`
+provide separate v3 fixed-work evidence (`terminal.book.mailbox` versus
+`terminal.book.batch_mailbox`) with per-frame and per-batch latency units; this
+is an optimization candidate, not PTY or runtime authority.
+
+The Rust `session` candidate is the next P0 session-truth seam for the future
+AgentLoop/TS bridge. A sharded `SessionBook` admits unique identities without a
+global registry lock, while each `Session` owns bounded history, authoritative
+user `input_seq`, monotonic message sequences, cursor paging, explicit
+created/active/closing/closed/crashed lifecycle, and versioned checkpoint
+values. Duplicate IDs, invalid cursors, over-capacity history, and inconsistent
+snapshots fail closed. It does not execute prompts/tools, own PTYs, or route
+AgentLoop work; its behavior is covered by independent `tests/session.rs` and
+`tests/session_vectors.rs` targets.
+
+The Rust `session_store` adapter closes the first durable P0 session boundary.
+It atomically persists the deterministically ordered `SessionBook` collection
+under `snapshots/sessions/checkpoint.json`, rejects unsupported versions and
+duplicate identities, and refuses a clean write while any session is active or
+closing. An unclean document is loaded as explicit `crashed` sessions so the
+caller must recover and reactivate them before accepting input. The adapter
+uses only the fresh Rust state root; it does not import Python state, replay
+AgentLoop work, or grant runtime authority. Its behavior is covered by the
+independent `tests/session_store.rs` target.
+
+The `execution_store` adapter extends this durable boundary to the metadata
+books needed by the future terminal-backed AgentLoop bridge. It atomically
+checkpoints sessions, terminals, and logical loops under
+`snapshots/execution/checkpoint.json`, validates sorted identities and
+cross-book references, and never persists queued terminal bytes or live
+process ownership. Clean writes reject writable sessions, active loops,
+active terminals, pending mailbox frames, or process bindings. Unclean writes
+normalize sessions to `crashed`, active loops to `failed`, and active terminals
+to unbound `created` records so a later adapter must explicitly recover and
+rebind them. `TerminalBook::restore` and `AgentLoopBook::restore` accept only
+these safe metadata states. Coverage is isolated in `tests/execution_store.rs`;
+this is an R4/R5 recovery seam, not boot or runtime authority.
+
+The session hot path keeps hash indexes for message-id duplicate checks and
+sharded session admission, then sorts only the public snapshot view so wire
+ordering remains deterministic. `benchmark_runner::run_session_book` and the
+`rust-session-bench` release binary exercise a fixed total of
+create/activate/input operations under the v3 evidence schema, including
+throughput, p95/p99, CPU/RSS, and explicit zero rejection/error counts. This
+workload has no queue boundary, so queue/lock wait fields remain zero rather
+than being presented as scheduler evidence; it does not authorize runtime
+cutover.
+
+`SessionBook::create_batch` provides a separate grouped-admission candidate:
+validated session specs are grouped by shard, each shard lock is acquired once,
+and results retain input order with per-item duplicate/validation failures.
+`session.book.batch_admission` and `rust-session-batch-bench` measure batch
+latency separately from the per-session workload, so p95/p99 comparisons do
+not mix admission units.
+
+The state-queue, process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
+registry, identity-uid, swapper, tool-chain, schema, migration, capability,
+cancellation, notify, reputation, audit, device, interrupt, errors, channel,
+bus, registry-base, event, benchmark-runner, scheduler, runtime, worker, network,
+rule-descriptor, boot, ports, identity-binding, state-layout, state-store,
+config-store, platform, paths, discovery, lifecycle, assembly, contract, ipc,
+persist, protocol, protocol-host, constitution, gatechain, allocator, vfs, load-adaptive, and
+versioning mechanism
+tests are maintained as
+independent integration files under
+`crates/l1-kernel-rs/tests/`; the public contract-version check is also part of
+`contract_vectors.rs`. Their public APIs are therefore the only test-visible
+boundary for these slices.
+
+The synchronization mechanism tests are also fully isolated under
+`crates/l1-kernel-rs/tests/sync.rs`; the shared RWLock vectors remain in
+`sync_vectors.rs`. The source module now contains no private test block, so
+Mutex, Semaphore, Barrier, Condition, and RWLock are validated only through
+the public candidate API. This is a test-domain boundary, not runtime lock
+authority: task/queue cancellation, cross-process ownership, deadlock-cycle
+reporting, and production routing remain open runtime work.
 
 - **Contract snapshot (W6.3)** — `docs/contracts/kernel-contract.json` is a versioned
   golden JSON of kernel modules / classes / functions / syscall registry, generated by
@@ -162,7 +412,7 @@ remain to be implemented behind this seam.
 - **Discovery boundary** — the Rust `discovery` candidate mirrors the three-tier
   defaults/source/runtime registry, parsed section overrides, object shallow merge,
   scalar replacement, null-section default retention, and tool/service fallbacks.
-  YAML parsing, directory scanning, logging, and boot registration remain Python3
+  YAML parsing, directory scanning, logging, and boot registration remain Python
   adapter responsibilities.
 
 ## Core mechanisms
@@ -248,13 +498,15 @@ command callers use `get_process_port()`, which resolves the registered
 `"process"` adapter or a controlled stdlib fallback before boot. The registry
 is `RLock`-guarded. `WorkerPort.submit_result()` returns a
 `TaskHandle` (future-like) so a computed value crosses the worker boundary —
-the completion half missing from fire-and-forget `submit()`.
+the completion half missing from fire-and-forget `submit()`. The Rust candidate
+also exposes an explicit task deadline; it does not promise preemptive closure
+interruption or take ownership of WorkerPort policy.
 
 ### Rust-sink readiness (per `docs/roadmaps/frontend-kernel-roadmap.md`)
 
 > **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` fixes which L1
 > surfaces a Rust sink may replace (mechanism only) and which must be sealed
-> first in Python3 — single execution authority (invoke-capability gate), a
+> first in Python — single execution authority (invoke-capability gate), a
 > populated G1 whitelist, closed-by-default auth, and the B1/B2/B3 bypass paths.
 
 The roadmap sinks hot modules to Rust **one at a time, interface unchanged,
@@ -273,8 +525,8 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 `ProcessPort` is deliberately limited to bounded, non-interactive commands.
 Interactive shell sessions, LSP stdio servers, and supervised daemon processes
-hold Python3 `Popen` handles with live pipes and lifecycle callbacks; they are
-Python3-only runtime implementations, not an FFI-clean port surface.
+hold Python `Popen` handles with live pipes and lifecycle callbacks; they are
+Python-only runtime implementations, not an FFI-clean port surface.
 
 `ProcessResult.error_kind` is empty for every command that actually started,
 including a child that exits with a negative signal code. Adapter failures use
@@ -291,7 +543,7 @@ VFS mount/cache mechanics, and SystemBus dependency planning. These are
 build-only candidates; posture/approval/
 reputation providers, socket transport, SQLite replay, the
 named registry, adaptive worker control, real filesystem/system providers,
-and runtime routing remain Python3-owned in the preflight branch. The future
+and runtime routing remain Python-owned in the preflight branch. The future
 Rust-first build may own a redesigned implementation after its semantic
 invariants, performance evidence, and clean cutover/recovery path are frozen.
 
@@ -305,36 +557,36 @@ unmounted or direct OS path, preserving a fail-closed Rust boundary.
 
 The shared policy fixture `tests/fixtures/kernel_policy_vectors.json` covers
 the stable GateChain and Constitution block/pass branches in both languages.
-It is a semantic baseline, not a runtime routing switch; Python3 provider and
+It is a semantic baseline, not a runtime routing switch; Python provider and
 side-effect behavior remains outside the fixture and is not automatically a
 Rust compatibility requirement.
 
 The lifecycle and schema candidates use
 `tests/fixtures/kernel_lifecycle_vectors.json` and
-`tests/fixtures/kernel_versioning_vectors.json` for deterministic Python3/Rust
+`tests/fixtures/kernel_versioning_vectors.json` for deterministic Python/Rust
 parity. Checkpoint bytes, timestamps, settings registration, and migration
 side effects remain provider-owned; the Rust code only validates and transforms
 primitive values.
 
 The discovery candidate uses
 `tests/fixtures/kernel_discovery_vectors.json` for deterministic registry
-parity. It accepts an already parsed document and preserves Python3's defaults,
+parity. It accepts an already parsed document and preserves Python's defaults,
 source snapshots, object shallow merge, scalar replacement, null-section rule,
 unknown-section ignore behavior, runtime overrides, and tool/service fallback
 queries. It does not scan directories, parse YAML, emit logs, register boot
-sources, or mutate the Python3 runtime registry.
+sources, or mutate the Python runtime registry.
 
 The load-adaptive candidate uses
 `tests/fixtures/kernel_load_adaptive_vectors.json` to freeze EWMA smoothing,
 hysteresis, target-band hold, growth/shrink clamping, slow-task fast growth,
 cooldown, and reset behavior. The timestamp is an explicit caller value so the
-candidate performs no clock or thread-pool I/O; Python3 retains sampling,
+candidate performs no clock or thread-pool I/O; Python retains sampling,
 `WorkerPort` mutation, adaptive enablement, and runtime worker ownership.
 
 The schema candidate uses `tests/fixtures/kernel_schema_vectors.json` to freeze
 owner-conflict rejection, same-owner idempotent updates, sorted snapshots,
 membership checks, and reset. It does not load the L3 event catalog, emit
-signals, or decide event ownership at boot; those remain Python3-owned policy
+signals, or decide event ownership at boot; those remain Python-owned policy
 and registration inputs.
 
 The rule-descriptor candidate uses
@@ -348,7 +600,7 @@ The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative
 descriptor defaults, duplicate rejection/overwrite policy, registration order,
 category filtering, public serialization, and counters. Rust callbacks are
-local adapter hooks only; Python3 handler closures, domain registries, source
+local adapter hooks only; Python handler closures, domain registries, source
 discovery, and runtime routing remain outside the candidate.
 
 The registry candidate uses `tests/fixtures/kernel_registry_vectors.json` to
@@ -356,40 +608,41 @@ freeze name-sorted opaque section snapshots and explicit summary aggregation
 (healthy module count, process/device/syscall counts, and caller-supplied time).
 It accepts JSON values and explicit counts only; section producers, singleton
 queries, syscall discovery, clocks, and runtime registry ownership remain
-Python3 adapter responsibilities.
+Python adapter responsibilities.
 
 The tool-chain candidate uses `tests/fixtures/kernel_tool_chain_vectors.json`
 to freeze call-field normalization, HMAC-SHA256 truncation, the `GENESIS`
 fallback, and root-first fingerprint-chain verification. Key provisioning,
-call storage, trimming/re-rooting, and tool execution remain Python3-owned; the
+call storage, trimming/re-rooting, and tool execution remain Python-owned; the
 candidate has no runtime singleton or capability authority.
 
-Rust parity tests for this boundary run as an integration test from
-`crates/l1-kernel-rs/tests/contract_vectors.rs`; private mechanism tests remain
-colocated with their Rust modules so they can assert internal invariants.
+Rust parity and mechanism tests for this boundary run as independent
+integration targets under `crates/l1-kernel-rs/tests/`; implementation modules
+contain no inline test block. The Python infra gate
+`tests/infra/test_rust_test_domain.py` enforces this public-boundary rule.
 
 The identity-UID candidate uses
 `tests/fixtures/kernel_identity_uid_vectors.json` to freeze the readable prefix,
 bounded body length, collision tracking, retry budget, reset, and validation
-shape. Entropy candidates are explicit inputs; Python3 `secrets`, persisted
+shape. Entropy candidates are explicit inputs; Python `secrets`, persisted
 bindings, and identity issuance authority remain outside Rust.
 
 The device candidate uses `tests/fixtures/kernel_device_vectors.json` to freeze
 explicit device records, sliding-window rate checks, strict degraded/down
 thresholds, call counters, health updates, summaries, and aggregate stats.
 SettingsCenter defaults, external connections, system time, health threads, and
-provider calls remain Python3 adapter responsibilities.
+provider calls remain Python adapter responsibilities.
 
 The SystemBus candidate uses `tests/fixtures/kernel_bus_vectors.json` to freeze
 component metadata defaults, in-place duplicate replacement, parent-available
 dependency filtering, stable topological ordering, cycle rejection, and state
 labels. It consumes only already-resolved metadata and dependency names;
 callbacks, event routing, child-bus mounting, health/stats providers, logging,
-and runtime lifecycle ownership remain Python3 adapter responsibilities.
+and runtime lifecycle ownership remain Python adapter responsibilities.
 
 The ResourceLimiter candidate uses `tests/fixtures/kernel_resource_vectors.json`
 to freeze injected profile values, fallback lookup, signed check/release costs,
-usage and all-usage snapshots, unknown-resource handling, and cleanup. Python3
+usage and all-usage snapshots, unknown-resource handling, and cleanup. Python
 role/profile discovery remains the adapter input; allocator OOM reclamation,
 interrupt delivery, process termination, worker ownership, and durable swap
 persistence remain outside this value candidate.
@@ -397,27 +650,27 @@ persistence remain outside this value candidate.
 The health candidate uses `tests/fixtures/kernel_health_vectors.json` to freeze
 explicit subsystem-result aggregation, `DOWN`/`DEGRADED`/`OK` precedence,
 status counts, subsystem retention, and elapsed-time rounding. Module imports,
-clocks, singleton probes, logging, and runtime provider checks remain Python3
+clocks, singleton probes, logging, and runtime provider checks remain Python
 adapter responsibilities; the candidate does not invoke `safe_system_check()`
 or own health authority.
 
 The swapper candidate uses `tests/fixtures/kernel_swapper_vectors.json` to
 freeze importance-based ring routing, expired short-ring compaction filters,
 and explicit pressure action flags. It consumes no MemoryService objects,
-allocator samples, clocks, worker threads, or persistence; the Python3
+allocator samples, clocks, worker threads, or persistence; the Python
 `Swapper` remains the runtime owner of all mutations and scheduling.
 
 The platform candidate uses
 `tests/fixtures/kernel_platform_vectors.json` for deterministic POSIX/Windows
 shell and grep command construction, URL joining, temporary-directory
 derivation, and TCP endpoint parsing. It does not perform subprocess, directory,
-filesystem, or socket I/O; the Python3 platform adapter retains those effects.
+filesystem, or socket I/O; the Python platform adapter retains those effects.
 
 The paths candidate uses
 `tests/fixtures/kernel_paths_vectors.json` for deployment-mode and child-path
 derivation. `PathInputs` carries host/environment values explicitly; Rust does
 not inspect environment or home directories, create layout directories, or
-alter the Python3 singleton in the preflight branch; the future Rust-first
+alter the Python singleton in the preflight branch; the future Rust-first
 build may use a fresh state root after its cutover/recovery contract is
 approved.
 
@@ -426,18 +679,18 @@ The territory candidate uses
 subtree checks. Relative path resolution accepts an explicit working directory;
 the candidate never reads the process working directory, follows symlinks, or
 touches the filesystem. GateChain and Constitution continue to call the same
-boundary helper while Python3 retains the runtime adapter and policy authority.
+boundary helper while Python retains the runtime adapter and policy authority.
 
 The interrupt candidate uses
 `tests/fixtures/kernel_interrupt_vectors.json` for the five stable IRQ kinds,
 per-kind sequence counters, empty-payload normalization, and bounded recent
 history. It records values behind a mutex but does not execute callbacks, emit
 signals, write the event journal, or terminate processes; those dispatch and
-replay effects remain Python3-owned.
+replay effects remain Python-owned.
 
 The errors candidate uses
 `tests/fixtures/kernel_error_vectors.json` for the built-in error catalog,
-unknown-code fallback, Python3-compatible failure responses, bounded causes,
+unknown-code fallback, Python-compatible failure responses, bounded causes,
 and explicit trace-id attachment. Locale lookup, ErrorBus capture, stack/source
 inspection, and log persistence remain outside the candidate.
 
@@ -448,10 +701,17 @@ reentrant acquisition and releases only when that depth reaches zero. Read-to-
 open decisions; neither language may infer them from this candidate. The
 additional `tests/fixtures/kernel_sync_vectors.json` freezes reentrant reads,
 zero-timeout writer failure, status snapshots, and missing-owner unlock errors;
-it does not claim queued-writer fairness or cancellation semantics.
+the Rust candidate additionally assigns FIFO writer tickets and removes timed
+out tickets before waking successors. This closes queued-writer fairness for
+the candidate without claiming task cancellation, cross-process ownership, or
+runtime lock routing. The separate `cancellation` candidate provides a
+cloneable one-way token with first-reason retention, cooperative checks, and
+bounded waits. RWLock observes that token and removes cancelled writer tickets
+before waking successors; queue/task cancellation remains an open mechanism
+slice.
 
-The event bus tracks its own in-flight counter (no CPython3
-`ThreadPoolExecutor` private access), so a non-CPython3 worker backend drops in
+The event bus tracks its own in-flight counter (no CPython
+`ThreadPoolExecutor` private access), so a non-CPython worker backend drops in
 cleanly. Its dispatch counters are cumulative: `submitted` counts successful
 executor submissions, `completed` counts those tasks after callback dispatch
 finishes, and `dropped` counts bounded-queue overload or executor submission
@@ -468,17 +728,71 @@ from a saturated sample.
 The deterministic EventBus parity fixture
 `tests/fixtures/kernel_event_vectors.json` freezes bounded history retention,
 type-filtered history, signal serialization, and idle dispatch counters with no
-listeners. It does not freeze callback scheduling, overload drops, shutdown
-fairness, or runtime SSE/WS fan-out; those remain performance and adapter
+listeners. The Rust candidate additionally serializes callback tasks per signal
+channel and scans past a busy channel, preserving same-channel FIFO while
+allowing unrelated channels to progress. Blocking-callback tests cover this
+Rust-native scheduling invariant; Python executor timing, overload policy,
+shutdown behavior, and runtime SSE/WS fan-out remain performance and adapter
 evidence.
 
 The deterministic process parity fixture
 `tests/fixtures/kernel_process_vectors.json` freezes PID/PCB registration,
 READY/RUNNING transitions, identity verification, cancellation terminality,
 exit-to-ZOMBIE and reap, resource totals, and timestamp-independent audit
-ordering. It does not freeze the Python3 zombie reaper, interrupt delivery,
+ordering. It does not freeze the Python zombie reaper, interrupt delivery,
 allocator/limiter cleanup, long-lived OS handles, or runtime process routing;
-those remain adapter-owned effects.
+those remain adapter-owned effects. The Rust `ProcessTable` additionally
+exposes a fail-closed `ProcessHandle` bridge for live PID lookup, exit, and
+reap; its parity candidate uses generation one. `state_queue::ProcessHandleAllocator`
+now owns a bounded reusable-slot candidate with generation-incrementing release
+and stale-handle rejection, but ProcessTable storage is not switched over.
+
+The Rust `process_adapter` candidate is the bounded one-shot implementation of
+the retained `ProcessPort` value boundary. It offers direct-argument execution
+and an explicit shell path, optional cwd/input/environment/executable settings,
+per-stream output caps with continuous draining, deadline kill, and structured
+not-found/execution/timeout results. Its public tests live in the independent
+`crates/l1-kernel-rs/tests/process_adapter.rs` target, and
+`run_process_adapter`/`rust-process-adapter-bench` report the isolated
+`process.adapter.oneshot` workload. A current release smoke measured roughly
+707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms and no
+errors or rejections. This is an adapter candidate only: it does not register
+children in `ProcessTable`, provide PTY or process-group semantics, reap
+long-lived handles, evaluate GateChain/capability policy, or execute AgentLoop
+work. Those responsibilities require a separate ownership and cutover design.
+
+The Rust `managed_process` candidate is the bounded lifecycle owner above the
+one-shot value adapter. It reserves a generation-safe slot before spawning,
+owns direct-args/shell children and bounded output readers, exposes caller
+stdin, distinguishes observer `Pending` from terminal completion, and requires
+explicit terminate/reap. `tests/managed_process.rs` is the independent public
+target; `run_managed_process` and `rust-managed-process-bench` report the
+separate `process.managed.lifecycle` workload. A current release smoke measured
+roughly 707/1391/2761 ops/s at 1/2/4 workers with p95 about 1.52/1.55/1.58 ms
+and no errors or rejections. This candidate still does not provide PTYs,
+process groups, capability decisions, ProcessTable registration, AgentLoop
+execution, or runtime authority; those require a later ownership pilot.
+
+The Rust `process_bridge::ProcessTableBridge` candidate now joins that managed
+child lifecycle to the Rust `ProcessTable` without exposing the internal
+managed handle. Spawn registers a READY row before host spawn, promotes it to
+RUNNING only after spawn succeeds, and rolls back both sides on failure;
+wait/terminate record ZOMBIE, and joint reap removes both the child slot and
+the table row. Table-row loss is fail-closed: a managed child that has already
+been reaped always releases its bridge binding, even when an external table
+owner won the row-reap race. Bridge names are unique across bridge instances
+sharing one table. `tests/process_bridge.rs` and the separate
+`process.bridge.lifecycle` fixed-work benchmark cover these ownership rules;
+the latest 256-item release sweep completed all work with zero errors or
+rejections, and measured about 708/1401/2752 ops/s at 1/2/4 workers (p95
+roughly 1.55/1.57/1.63 ms). This is still an R3 ownership candidate: PTY,
+process-group termination, production reaper authority, GateChain/capability
+admission, AgentLoop execution, Rust boot, and runtime cutover remain open.
+The bridge also exposes a bounded `reap_finished` sweep for a future caller-
+owned reaper: it never blocks on live children, reports pending/unavailable/
+error counts, and consumes terminal managed slots even when an external table
+transition must be reported. This is a mechanism seam only; it does not start
+a background thread or claim production shutdown/reaper authority.
 
 ### Engineering-debug boundary
 

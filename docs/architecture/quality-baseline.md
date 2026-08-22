@@ -42,7 +42,7 @@ python scripts/py/layer_quality.py --report       # measured table only
 python scripts/py/layer_quality.py --baseline     # emit baseline YAML to stdout
 ```
 
-`singleton_gaps` reuses `scripts/py/scan_singletons.py` and mirrors the
+`singleton_gaps` reuses `scripts/py/scan-singletons.py` and mirrors the
 completeness-guard semantics in `tests/infra/test_resets_completeness.py`
 (scanned − `_RESETS` − `KNOWN_GAPS`), so the two gates can never disagree.
 

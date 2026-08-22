@@ -1,7 +1,7 @@
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 51 YAML commands + 65 `_cmd_*` handler functions (15 code-only),
+command engine — 51 YAML commands + 63 `_cmd_*` handler functions (15 code-only),
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model
@@ -47,16 +47,14 @@ l2_shell/  shared engine: dispatch (| pipeline, / commands, Direct mode, L3A)
 - `ShellFamily` is revision-based like `CommandRegistry`; `resolve(frontend)`
   falls back to the configured default dialect.  No shell is hardcoded —
   adding a frontend means declaring a shell in YAML.
-- Command handlers use the explicit session contract `handler(args,
-  session=None)` (2026-08-20): `dispatch` resolves the session and passes
-  it explicitly, so handlers never read a process-global default when a
-  session is available — the shape the TS dispatcher will reuse.
-  `l2_shell/state.py` remains only as the fallback for callers that have no
-  session context (L4 requests without a `session` field, the completer):
-  `get_state()` / `reset_state()` delegate to `get_family().default()`
-  (with a stable fallback while the family is empty, e.g. early boot /
-  isolated tests).  It is NOT a second process-global state source;
-  removal awaits L4 session management.
+- `l2_shell/state.py` is a thin accessor over the ShellFamily default
+  shell's session: `get_state()` / `reset_state()` delegate to
+  `get_family().default()` (with a stable fallback while the family is
+  empty, e.g. early boot / isolated tests).  It is NOT a second
+  process-global state source — new code passes a `ShellSession`
+  explicitly to `dispatch(text, session=None)`; legacy callers (L4 API
+  handlers, command handlers, completer) read the default shell's session
+  through the accessor.
 
 ## Interaction model
 
@@ -78,16 +76,11 @@ How L2 touches the OS boundary, and where a future Rust sink (roadmap
 | `$ <command>` system exec | `get_process_port().run` (value result, cross-platform) | `ProcessPort` (`run` / `run_args`, explicit `ProcessOptions`) | ✅ adapter replacement, including pre-boot stdlib fallback |
 | File tools (read/write/tree) | `l3.tool_system` → `l3.services.fs_adapter` | `FilesystemPort` (`l1.kernel.ports`) | ✅ adapter swap, contract stable |
 | Worker / pool execution | `l3.boot.wiring` registers `"worker"` | `WorkerPort` (`l1.kernel.ports`) | ✅ adapter swap |
-| Terminal dialing (interactive) | `shell_completer` (legacy `l2.shell_session` Popen manager removed — dead code, P0) | Python3-only lifecycle | — (not an FFI-clean one-shot port) |
+| Terminal dialing (interactive) | `l2.shell_session` live `Popen` + `shell_completer` | Python-only lifecycle | — (not an FFI-clean one-shot port) |
 
 Rule: the L2 engine only calls the port/platform abstractions above —
-never raw `os`/`subprocess` — so swapping the adapter (Python3 → Rust) is
+never raw `os`/`subprocess` — so swapping the adapter (Python → Rust) is
 invisible to `dispatch` and every shell dialect.
-
-L2 current status (protocol v1, TS engine, boundary migration) is tracked
-in `roadmaps/l2-agent-handoff.md` (§1) and
-`roadmaps/l2-multifrontend-session-layer.md` (§6); the architecture above
-is the stable contract those roadmaps build against.
 
 ## Contract surfaces
 
@@ -99,9 +92,7 @@ is the stable contract those roadmaps build against.
 - Event emission: shell state changes / human corrections
   (`reference_channel.human_correction` — a profile collector source)
 - HTTP contract (language-agnostic, see `l5-user.md`):
-  - `POST /api/v2/shell` → `dispatch(text, session)` (one input line; a
-    protocol v1 envelope body is routed through the shared `ProtocolHost`
-    and answered with `{"envelopes": [...]}` since 2026-08-20)
+  - `POST /api/v2/shell` → `dispatch(text, session)` (one input line)
   - `GET  /api/v2/shell/autocomplete` → partial-line suggestions
   - `GET  /api/v2/shell/commands` → command registry list (category filter)
   Handlers live in `l4/api_handlers/api_handlers_agent.py`; wired by

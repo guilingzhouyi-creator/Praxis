@@ -1,15 +1,15 @@
-# Rust-Readiness Hardening Plan — Python3 侧封口（先于 Rust 重写）
+# Rust-Readiness Hardening Plan — Python 侧封口（先于 Rust 重写）
 
 > 状态：WS1–WS6 实现切片已进入当前主线；尚未完成当前主线重验收。本文是历史施工台账，现行入口门禁见 `docs/design/kernel-rewrite-readiness-package.md`
 > 依据：`docs/roadmaps/kernel-boundary-audit.md`（评分 42/100，§5 绕过路径 / §11 落地顺序）
 > 关联：`docs/roadmaps/frontend-kernel-roadmap.md`（M3/M4 Rust 下沉）、`docs/roadmaps/multilang-migration.md`（`l1_kernel_rs` 槽位）
-> 范围：仅 Python3 侧改造，**不写任何 Rust 代码**；目标是把 `l1_kernel_rs` 将来要替换的契约收敛到最小、机制化、不可绕过。
+> 范围：仅 Python 侧改造，**不写任何 Rust 代码**；目标是把 `l1_kernel_rs` 将来要替换的契约收敛到最小、机制化、不可绕过。
 
 ---
 
 ## 0. 目标与非目标
 
-**目标**：在不切换语言的前提下，把当前 Kernel 变成"机制唯一、执行单门、授权 fail-closed、审计持久、进程状态真实"的边界，使 Rust 下沉时只需替换机制模块（sync/event/process/allocator/gatechain/constitution），策略与业务全部留在 Python3/config。
+**目标**：在不切换语言的前提下，把当前 Kernel 变成"机制唯一、执行单门、授权 fail-closed、审计持久、进程状态真实"的边界，使 Rust 下沉时只需替换机制模块（sync/event/process/allocator/gatechain/constitution），策略与业务全部留在 Python/config。
 
 **非目标**：不引入 Rust 代码；不改 UI/CLI 行为；不改变业务语义（除安全默认值外）；不做一次性大爆炸重构（每个工作流独立可合入、可回滚）。
 

@@ -13,7 +13,7 @@ gated, and executed (plus the security evidence chain,
 | Domain | Tools | Notes |
 |--------|-------|-------|
 | **File** | `_files.py` read_file / write_file / list_dir / edit / copy / delete … | via resource_buffer; the biggest family |
-| **Search** | `_search.py` grep / glob / file_search | cross-platform (rg/grep + pure-Python3 fallback) |
+| **Search** | `_search.py` grep / glob / file_search | cross-platform (rg/grep + pure-Python fallback) |
 | **Git** | `_git.py` git_commit / git_push / git_status … | |
 | **Build** | `_build.py` build_project / test_project / deploy / db_migrate / rollback | detector-command lists (no hardcoded toolchain) |
 | **Code** | `_code.py` symbol_search / issue detection | regex scanners |

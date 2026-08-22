@@ -2,7 +2,7 @@
 
 > 状态：规划（审计基线，尚未实施）
 > 关联：`docs/roadmaps/frontend-kernel-roadmap.md`（Rust 下沉内核）、`docs/roadmaps/multilang-migration.md`（Rust kernel 槽位）、`docs/architecture/l1-kernel.md`（Rust-sink readiness）
-> 目的：在 Rust 重写 L1 之前固定 Kernel 边界判定，避免把当前 Python3 内核的错误边界、绕过路径与 fail-open 行为**原样复制进 `l1_kernel_rs`**。
+> 目的：在 Rust 重写 L1 之前固定 Kernel 边界判定，避免把当前 Python 内核的错误边界、绕过路径与 fail-open 行为**原样复制进 `l1_kernel_rs`**。
 
 ---
 
@@ -157,7 +157,7 @@
 
 ### 11.1 Minimal Kernel（Rust 重写应携带的边界）
 
-留下（真正不可绕过的核心）：sync、event 核心（无类型 channel+pub/sub）、process（ProcessTable+真实 FSM+取消令牌，拥有所有句柄）、allocator/resource（仅记账，profile 注入）、gatechain（引擎，阈值/白名单注入，boot 时填充）、constitution（引擎，规则只从数据加载）、**invoke-capability syscall（唯一执行门：register/authorize/invoke/audit）**、ports 机制类型、worker_thread、os/lifecycle、persist journal、errors、paths、platform、ipc/channel_ring、interrupt、territory、versioning/migration、discovery（已解析值机制；配置扫描仍属 Python3 适配器）。
+留下（真正不可绕过的核心）：sync、event 核心（无类型 channel+pub/sub）、process（ProcessTable+真实 FSM+取消令牌，拥有所有句柄）、allocator/resource（仅记账，profile 注入）、gatechain（引擎，阈值/白名单注入，boot 时填充）、constitution（引擎，规则只从数据加载）、**invoke-capability syscall（唯一执行门：register/authorize/invoke/audit）**、ports 机制类型、worker_thread、os/lifecycle、persist journal、errors、paths、platform、ipc/channel_ring、interrupt、territory、versioning/migration、discovery（已解析值机制；配置扫描仍属 Python 适配器）。
 
 移出：prompts、skill*、model_registry、reputation、commands、diff_frame、net/net_transport、notify、identity_binding、scheduler 策略、card/issue 注册表、approval gates、tool registry、harness/security-mode 策略。
 
@@ -167,16 +167,16 @@ Kernel 强制不变量：单一执行器；G1 白名单非空（未知能力=BLO
 
 ### 11.2 Rust 落地顺序（与 frontend-kernel-roadmap M3/M4 衔接）
 
-1. **Phase 0（Python3 侧封口，先于任何 Rust 迁移）**：修复 B1/B2/B3 绕过与 E8/E9 fail-open；`register_tools()` 接线使 G1 白名单非空；把 execute_tool_spec 降为仅 pipeline 可调。
+1. **Phase 0（Python 侧封口，先于任何 Rust 迁移）**：修复 B1/B2/B3 绕过与 E8/E9 fail-open；`register_tools()` 接线使 G1 白名单非空；把 execute_tool_spec 降为仅 pipeline 可调。
    - ✅ **部分已实施（feature/kernel-boundary-hardening）**：B1/B2 改走 `invoke_capability`（单一执行门，交互主体经 `interactive` 过 G2，G1/G3/G4/G5 照常）；B3 拒绝未包装 spec（`ToolSpec.gated`）；B5 sideload 改走 CardRegistry.submit；E8 API 鉴权默认关闭（`AUTH_DENY_WHEN_UNCONFIGURED`，`PRAXIS_AUTH_OPEN=1` 显式开启）；W2.3 G1 白名单 boot 填充 + 空白名单 BLOCK（fail-closed）；W4.2 每次工具调用（含被拒）写入 kernel 审计。**剩余未封口：B4（`$` 直跑 ProcessPort）、B6（长生命周期 Popen 句柄）、B8（L3A handler 捷径）、B9（死 syscall）——见 `production-closure-roadmap.md` P0.5/P0.6。**
 2. **Phase 1（执行权威收敛）**：在 kernel 侧定义 invoke-capability 接口并让 AgentLoop/MCP/L2/LLM engine/sideload 全部改走它——Rust 重写才有单一可替换执行面。
    - ✅ **已实施（W6.1）**：`src/l1/kernel/capability.py::invoke_capability` 成为唯一执行权威——未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点把 kernel seam 连到 ToolPipeline（`_register_capability_executor` → `invoke_gated`）；L2 shell 与 MCP 边界调用方已全部改走 kernel seam。同时落地 W2.2（harness posture 校验失败即拒绝）与 W2.4（RING≥2 未验证身份 G2 BLOCK）。
-3. **Phase 2（按缩放曲线选热路径，frontend-kernel-roadmap §4.2）**：优先 sync/event/allocator/process 记账等纯机制模块；只迁移机制，策略留在 Python3/config。
+3. **Phase 2（按缩放曲线选热路径，frontend-kernel-roadmap §4.2）**：优先 sync/event/allocator/process 记账等纯机制模块；只迁移机制，策略留在 Python/config。
    - ✅ **候选切片已落地（feature/root-kernel-preflight）**：Rust `platform` 已镜像 OS 值、shell/grep 命令构造、URL 拼接、临时目录派生和 TCP endpoint 解析；`paths` 已镜像 DeployMode、配置覆盖、完整 `PraxisPaths` 子路径/模板字段和 resettable store；`territory` 已提供带显式 working directory 的组件边界判断；`interrupt` 已提供五类 IRQ、按类型序号和 bounded history 记账；`errors` 已提供错误码目录、失败响应、cause 截断和显式 trace 值；`discovery` 已镜像 defaults/source/runtime 三层 registry、对象浅合并、标量替换、null section 保留默认值、未知 section 忽略和 tool/service fallback；`load_adaptive` 已镜像纯 EWMA/hysteresis/扩缩容控制律，时间显式注入；`schema` 已镜像 owner 冲突、同 owner 更新和排序快照；`rule_descriptor` 已镜像纯 severity/result、描述元数据、排序 tags 和 checker context；共享向量覆盖 POSIX/Windows、CLI/Docker、territory、interrupt、errors、discovery、load-adaptive、schema 与 rule-descriptor 分支，但不执行任何 subprocess/filesystem/socket/symlink/callback/i18n/ErrorBus/YAML 目录扫描/线程池/EventBus/catalog/Markdown 副作用。
 4. **Phase 3（下沉验收）**：每个下沉模块必须满足——无 bypass、fail-closed、审计强制、白名单非空、port 接口不变（`l1_kernel_rs` 复用同一套 params/ 常量）。
-5. **重审门槛**：每迁移一个模块前重跑本审计 §4 不变量清单；任何在 Python3 侧靠约定维持的不变量不得进入 Rust 侧。
+5. **重审门槛**：每迁移一个模块前重跑本审计 §4 不变量清单；任何在 Python 侧靠约定维持的不变量不得进入 Rust 侧。
 
-> **实施计划**：`docs/design/rust-readiness-hardening-plan.md`（WS1–WS6，Phase 0–2，全部为 Python3 侧封口，不写 Rust）。
+> **实施计划**：`docs/design/rust-readiness-hardening-plan.md`（WS1–WS6，Phase 0–2，全部为 Python 侧封口，不写 Rust）。
 
 ---
 

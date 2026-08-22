@@ -11,6 +11,8 @@ checks into validated workflows without bypassing Praxis execution controls.
 | `scripts/py/automation_manifest.py` | YAML validation and dependency-graph-port-backed deterministic DAG planning |
 | `scripts/py/automation_runner.py` | Serial execution through `ProcessPort` and optional side-channel ports |
 | `scripts/py/praxis_automation.py` | `plan`, `run`, `report`, and `doctor` CLI |
+| `scripts/py/r2_baseline_bundle.py` | Independent Rust/Python fixed-work evidence composition and validation |
+| `scripts/py/r2_baseline_analyze.py` | Descriptive scaling, tail-latency, drop, and resource aggregation |
 
 ## Contract
 
@@ -27,6 +29,16 @@ checks into validated workflows without bypassing Praxis execution controls.
   boot adapter is registered, these side channels degrade to no-ops.
 - `--dry-run` emits the planned shape without executing commands; it does not
   claim a passing run.
+- The `performance` workflow ends with `r2_baseline_bundle`, which runs the
+  release-mode Rust producer and Python reference as separate processes. The
+  resulting `.praxis/automation/r2-baseline-bundle.json` carries source
+  revision, host metadata, fixed workload parameters, and both validated
+  evidence envelopes; it is not imported by kernel runtime code.
+- `r2_baseline_analysis` consumes that bundle and emits a descriptive report
+  with per-worker throughput/scaling, p95/p99 summaries, rejection/error
+  ratios, queue/lock wait summaries, and CPU/memory medians. The report is
+  evidence-only: it has no threshold that can authorize a runtime cutover and
+  it never enters L1/L2/L3.
 
 ## Usage
 
