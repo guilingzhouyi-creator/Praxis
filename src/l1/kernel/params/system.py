@@ -1308,3 +1308,9 @@ SESSION_AUTO_RELOAD_ENABLED_DEFAULT: Final[bool] = True
 # Session history module (start/end/duration per session, queryable).
 # Operator switch (API + L2), default ON.
 SESSION_HISTORY_ENABLED_DEFAULT: Final[bool] = True
+
+# DurableJsonStore (3.3 P0.4): schema version of the store envelope, plus
+# journal/lock sidecar suffixes appended to the store path.
+DURABLE_JSON_SCHEMA_VERSION: Final[int] = 1
+DURABLE_JOURNAL_SUFFIX: Final[str] = ".journal"
+DURABLE_LOCK_SUFFIX: Final[str] = ".lock"

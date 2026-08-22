@@ -25,15 +25,29 @@ from pathlib import Path
 from typing import Any
 
 from l1.kernel.params.system import LOG_TRUNC_500, SESSION_HISTORY_ENABLED_DEFAULT
+from l3.durable_store import DurableJsonStore, DurableStoreError
 
 logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
-# session_id -> next input sequence id (assigned at input entry)
+# session_id -> next input sequence id (in-process mirror of the durable
+# cursor; the durable file is the truth across restarts — P0.5).
 _seq: dict[str, int] = {}
 # History-module operator switch (API + L2), default ON.
 _history_state: dict = {"enabled": SESSION_HISTORY_ENABLED_DEFAULT}
 _history_lock = threading.RLock()
+
+_CURSOR_FILE = ".input_seq_cursor.json"
+
+
+def sessions_dir() -> Path:
+    """Return the L3A per-session storage directory (public accessor)."""
+    return _session_dir()
+
+
+def _cursor() -> DurableJsonStore:
+    """Return the durable input-seq cursor store for the sessions dir."""
+    return DurableJsonStore(_session_dir() / _CURSOR_FILE, kind="l3a_input_seq")
 
 
 def history_status() -> dict:
@@ -77,11 +91,36 @@ def _conversation_path(session_id: str) -> Path:
 
 
 def next_input_seq(session_id: str) -> int:
-    """Assign the next input-sequence id for a session (called at input
-    entry, when the user input enters L3A)."""
+    """Assign the next input-sequence id from the DURABLE monotonic cursor.
+
+    The cursor survives restarts (P0.5): a fresh process continues where
+    the previous one stopped, so new inputs can never reuse a sequence that
+    already indexes persisted conversation/thought entries. A damaged or
+    locked cursor fails closed (raises) instead of resetting to zero —
+    callers degrade by skipping persistence rather than overwriting history.
+    """
+    if not session_id:
+        raise ValueError("session_id required")
     with _lock:
-        _seq[session_id] = _seq.get(session_id, 0) + 1
-        return _seq[session_id]
+        nxt = _seq.get(session_id)
+        if nxt is None:
+            try:
+                data = _cursor().read()
+            except DurableStoreError as e:
+                raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
+            nxt = int(data.get("cursor", {}).get(session_id, 0))
+        nxt += 1
+        _seq[session_id] = nxt
+        try:
+            data = _cursor().read()
+            data.setdefault("cursor", {})[session_id] = nxt
+            r = _cursor().write(data)
+            if not r.get("success"):
+                raise RuntimeError(r.get("error", "store write failed"))
+        except DurableStoreError as e:
+            _seq.pop(session_id, None)
+            raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
+        return nxt
 
 
 def append_turn(
@@ -381,6 +420,14 @@ def query_session_history(limit: int = 20, session_id: str = "") -> dict:
 
 
 def reset_sequences() -> None:
-    """Reset the in-memory sequence counters (tests / lifecycle)."""
+    """Reset the sequence counters — in-memory mirror AND durable cursor.
+
+    Used by tests / lifecycle reset; normal restarts must NOT call this
+    (durability of the cursor is the whole point of P0.5).
+    """
     with _lock:
         _seq.clear()
+    try:
+        _cursor().reset()
+    except Exception as e:  # noqa: BLE001 — reset is best-effort
+        logger.debug("session_json: cursor reset skipped: %s", e)

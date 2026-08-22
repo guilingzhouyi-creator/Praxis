@@ -33,6 +33,22 @@ logger = logging.getLogger(__name__)
 class SessionLoopMixin:
     """AgentLoop wiring, card-completion callbacks, and L3A memory ingestion."""
 
+    # P0.5: allocated ONCE at turn ingress, carried through conversation,
+    # thought, and tool records; None until the turn allocates it.
+    _turn_input_seq: int | None = None
+
+    def _turn_seq(self) -> int:
+        """Return this turn's input_seq, allocating exactly once (P0.5).
+
+        The conversation JSON entry and the thought-chain entry of a turn
+        MUST share one sequence — they are linked by it.
+        """
+        if self._turn_input_seq is None:
+            from .session_json import next_input_seq
+
+            self._turn_input_seq = next_input_seq(self.id)
+        return self._turn_input_seq
+
     # Host-provided attributes (declared by Session)
     _distill_convention_summary: Any
     status: Any
@@ -254,10 +270,10 @@ class SessionLoopMixin:
         # the decision-layer conversation JSON (upper = tagged user input,
         # lower = 1:1 answer; input sequence id assigned at entry).
         try:
-            from .session_json import append_turn, next_input_seq
+            from .session_json import append_turn
 
             assistant_text = str(result.get("summary") or result.get("answer") or "")[:LOG_TRUNC_500]
-            append_turn(self.id, next_input_seq(self.id), user_text, assistant_text)
+            append_turn(self.id, self._turn_seq(), user_text, assistant_text)
         except Exception:
             logger.debug("l3a session: conversation JSON persist skipped")
         tool_results = result.get("tool_call_results", []) or []
@@ -363,8 +379,8 @@ class SessionLoopMixin:
         # conversation JSON by tags) — R5 analyzes this file for knowledge-
         # graph / skill distillation.
         try:
-            from .session_json import append_thought, next_input_seq
+            from .session_json import append_thought
 
-            append_thought(self.id, self.turn_count, next_input_seq(self.id), folded)
+            append_thought(self.id, self.turn_count, self._turn_seq(), folded)
         except Exception:
             logger.debug("l3a session: thought JSON persist skipped")

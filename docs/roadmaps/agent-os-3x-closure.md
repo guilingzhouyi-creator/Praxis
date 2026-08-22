@@ -114,8 +114,12 @@ P1/P2 exit ─── production TS session rollout (after the L2 boundary roadma
 Implementation is sliced into independently reviewable worktrees:
 
 1. **Slice A:** P0.1 protocol records and compatibility fixtures. **Complete**
-2. **Slice B:** P0.2-P0.3 session identity, lifecycle, and reload.
-3. **Slice C:** P0.4-P0.6 durable store, sequence, and recovery.
+2. **Slice B:** P0.2-P0.3 session identity, lifecycle, and reload. **Complete**
+   (`feature/s-session-identity` a7998e7d — additive terminal bindings,
+   detach/close lifecycle, loud auto_reload with worker rebuild)
+3. **Slice C:** P0.4-P0.6 durable store, sequence, and recovery. **Complete**
+   (`src/l3/durable_store.py` DurableJsonStore + durable input-seq cursor +
+   per-session snapshots joined to idempotent `SessionManager.recover_from_store`)
 4. **Slice D:** P1.1-P1.2 cache and prompt telemetry.
 5. **Slice E:** P1.3-P1.6 evolution, canary, input, and provider lifecycle.
 6. **Slice F:** P2 convergence and the TypeScript protocol mirror. A read-only

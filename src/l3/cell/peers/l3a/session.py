@@ -116,7 +116,11 @@ class Session(
         try:
             from l3.agent_terminal import register_session
 
-            register_session(session_id, _p.AGENT_ID)
+            register_session(
+                session_id,
+                _p.AGENT_ID,
+                meta={"user_id": user_id, "memory_scope": memory_scope, "cell_id": cell_id, "role": role},
+            )
         except Exception:
             logger.debug("l3a session: dual-identity bind skipped")
         self.closed_at: float | None = None
@@ -308,3 +312,66 @@ class SessionManager:
         """Return the number of active sessions."""
         with self._lock:
             return len(self._sessions)
+
+    def recover_from_store(self) -> dict:
+        """Rebuild active sessions from durable snapshots (P0.6).
+
+        Idempotent: ids already registered are skipped, closed snapshots are
+        ignored, and re-running recovery leaves state unchanged. Recovered
+        sessions re-bind their terminal slot with the original identity and
+        scope fields (user_id / memory_scope / cell_id / role).
+
+        Returns:
+            dict with recovered session ids and a skipped counter.
+        """
+        import time as _t
+
+        from l3.durable_store import DurableJsonStore
+
+        from .session_json import sessions_dir
+
+        recovered: list[str] = []
+        skipped = 0
+        try:
+            paths = sorted(sessions_dir().glob("*.snapshot.json"))
+        except Exception:
+            logger.debug("l3a session: recovery scan failed", exc_info=True)
+            return {"success": True, "recovered": [], "skipped": 0}
+        for path in paths:
+            try:
+                snap = DurableJsonStore(path, kind="l3a_session_snapshot").read()
+            except Exception:
+                skipped += 1
+                continue
+            sid = str(snap.get("session_id") or "")
+            if not sid or snap.get("status") != "active":
+                skipped += 1
+                continue
+            with self._lock:
+                if sid in self._sessions:
+                    skipped += 1
+                    continue
+            try:
+                inst = Session(
+                    session_id=sid,
+                    title=str(snap.get("title") or "Recovered session"),
+                    user_id=str(snap.get("user_id") or ""),
+                    memory_scope=str(snap.get("memory_scope") or "l3a"),
+                    cell_id=str(snap.get("cell_id") or "l3a"),
+                    role=str(snap.get("role") or "l3a"),
+                )
+                inst.created_at = float(snap.get("created_at") or inst.created_at)
+                inst.last_active_at = float(snap.get("last_active_at") or _t.time())
+                inst.turn_count = int(snap.get("turn_count", 0))
+                inst.card_count = int(snap.get("card_count", 0))
+                inst.status = "active"
+                inst.epoch = ContextEpoch.create(inst.registry or ContextRegistry())
+                inst.inbox.reload()
+                with self._lock:
+                    self._sessions[sid] = inst
+                recovered.append(sid)
+                logger.info("l3a session: recovered %s (%d turns)", sid, inst.turn_count)
+            except Exception as e:
+                skipped += 1
+                logger.warning("l3a session: recovery of %s failed: %s", sid, e)
+        return {"success": True, "recovered": recovered, "skipped": skipped}
