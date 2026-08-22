@@ -117,6 +117,8 @@ class SessionAskMixin:
         self._loop.task = st.free_form or "continue after clarification"
         limits = self._resolve_limits()
         model_cfg = self._resolve_model_config()
+        # P0.5: clarification turns allocate their own fresh input_seq.
+        self._turn_input_seq = None
         result = self._loop.run(
             max_steps=limits["max_steps"],
             timeout=limits["timeout"],
