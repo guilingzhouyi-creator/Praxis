@@ -2,7 +2,7 @@
 
 Extracted from ``file_editor.py``: the patch manager and its process-wide
 singleton. Depends on the EditEngine for batch application; models live in
-``file_editor_models.py``.
+``models.py``.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from l1.kernel.params.system import PATCH_JSON_FILE
 
-from .file_editor_models import DiffEdit, Patch
+from .models import DiffEdit, Patch
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ def get_patch_manager() -> PatchManager:
     if _patch_manager is None:
         with _patch_lock:
             if _patch_manager is None:
-                from .file_editor_engine import get_engine
+                from .engine import get_engine
 
                 _patch_manager = PatchManager(get_engine())
                 _patch_manager._load_all()

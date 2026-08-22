@@ -95,8 +95,8 @@ _RESETS = {
     "l3.cell.violation_monitor": ("reset_violation_monitor", None),
     "l3.cell.peers.l3a.secretary": ("reset_secretary", None),
     "l3.cell.peers.l3a.daemon": ("reset_daemon", None),
-    "l3.services.file_editor_engine": ("reset_engine", None),
-    "l3.services.file_editor_patch": ("reset_patch_manager", None),
+    "l3.services.file_editor.engine": ("reset_engine", None),
+    "l3.services.file_editor.patch": ("reset_patch_manager", None),
     "l3.services.todo_tracker": ("reset_todo_register", None),
     "l2.i18n": ("reset_i18n", None),
 }

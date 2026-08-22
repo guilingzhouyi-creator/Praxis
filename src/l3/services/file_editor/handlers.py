@@ -2,14 +2,14 @@
 
 Extracted from ``file_editor.py``: the thin request-body adapters that map
 HTTP/API payloads onto EditEngine / PatchManager calls. Logic lives in
-``file_editor_engine.py`` / ``file_editor_patch.py``.
+``engine.py`` / ``patch.py``.
 """
 
 from __future__ import annotations
 
-from .file_editor_engine import get_engine
-from .file_editor_models import DiffEdit
-from .file_editor_patch import get_patch_manager
+from .engine import get_engine
+from .models import DiffEdit
+from .patch import get_patch_manager
 
 
 def handle_fs_edit(body: dict | None = None) -> dict:
