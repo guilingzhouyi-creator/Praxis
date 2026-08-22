@@ -181,4 +181,13 @@ if [ "$SCAN_RC" != "0" ]; then
   fi
 fi
 
+# ── 4. Shared-file handoff notice (soft — collaboration convention) ──────
+# If this commit touches shared files (scripts/sh, .githooks, config/discovery),
+# remind the agent to register the change in docs/agent-handoff/ALIGNMENT.md
+# so parallel agents can reconcile before pushing.
+SHARED_HIT="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null | grep -E '^(scripts/sh/|\.githooks/|config/discovery/)' | head -1 || true)"
+if [ -n "$SHARED_HIT" ]; then
+  echo "ℹ️  Shared-file change: $SHARED_HIT — register it in docs/agent-handoff/ALIGNMENT.md (shared exchange area) if other agents may be affected." >&2
+fi
+
 exit 0

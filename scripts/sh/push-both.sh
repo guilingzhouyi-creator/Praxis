@@ -145,6 +145,17 @@ if [ "$BRANCH" = "main" ]; then
   fi
 fi
 
+# ── Shared-file registration check (soft — warn, don't block) ────────────
+# Un-pushed commits touching shared files should register in the handoff
+# area so parallel agents can reconcile (see docs/agent-handoff/).
+if [ "$BRANCH" = "main" ]; then
+  SHARED_CHANGED="$(git diff --name-only origin/main..HEAD 2>/dev/null | grep -E '^(scripts/sh/|\.githooks/|config/discovery/)' | head -1 || true)"
+  ALIGN_TOUCHED="$(git diff --name-only origin/main..HEAD 2>/dev/null | grep -c '^docs/agent-handoff/ALIGNMENT.md' || true)"
+  if [ -n "$SHARED_CHANGED" ] && [ "$ALIGN_TOUCHED" = "0" ]; then
+    echo "[push-both] ⚠️  Shared file(s) changed ($SHARED_CHANGED) without ALIGNMENT.md registration — consider registering in docs/agent-handoff/ (soft warning)." >&2
+  fi
+fi
+
 # ── Push-safety pre-check (dual-push reliability) ────────────────────────
 # Before pushing, surface how many local commits are NOT yet on origin —
 # a silent skip here is the #1 cause of the "local != origin" drift that
