@@ -43,6 +43,15 @@ def test_corrupt_main_recovers_from_journal(tmp_path):
     assert env["payload"] == {"gen": 2}
 
 
+def test_missing_main_recovers_from_journal(tmp_path):
+    """Catastrophic main loss: the journal mirror alone restores state."""
+    s = _store(tmp_path)
+    s.write({"gen": 1})
+    s.write({"gen": 2})
+    (tmp_path / "state.json").unlink()
+    assert s.read() == {"gen": 2}
+
+
 def test_damage_beyond_journal_fails_closed(tmp_path):
     s = _store(tmp_path)
     s.write({"keep": True})
