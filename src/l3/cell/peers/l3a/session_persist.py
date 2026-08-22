@@ -44,6 +44,7 @@ class SessionPersistMixin:
     id: str
     title: str
     user_id: str
+    memory_scope: str
     turn_count: int
     card_count: int
     status: str

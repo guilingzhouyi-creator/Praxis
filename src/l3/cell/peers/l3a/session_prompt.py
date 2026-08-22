@@ -44,6 +44,8 @@ class SessionPromptMixin:
     _loop: Any
     _ctx_window_cache: int
     _model_spec_cache: dict | None
+    # P0.5: this turn's input_seq — allocated once at ingress (SessionLoopMixin).
+    _turn_input_seq: int | None
 
     def _continue_after_ask(self, text: str) -> dict:
         """Resume the loop after clarification answers (provided by SessionAskMixin)."""

@@ -32,6 +32,8 @@ class SessionAskMixin:
     _ask: Any
     _loop: Any
     history: SessionHistory
+    # P0.5: this turn's input_seq — allocated once at ingress (SessionLoopMixin).
+    _turn_input_seq: int | None
 
     def _persist_state(self) -> None:
         """Persist session state (provided by Session)."""

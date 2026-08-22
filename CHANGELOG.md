@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Chore (infra)**: lint types and fold changelog for slices B-D
 - **Chore (config)**: restore agent registry clobbered by preflight merge
 - **Chore (infra)**: refresh build and quality scaffolding
 - **Test (infra)**: synchronize cross-language harness
@@ -78,6 +79,8 @@
 
 ### 文档
 
+- **Docs (roadmaps)**: mark closure slices B and C complete
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (roadmaps)**: reconcile rust-preflight merge clobber
 - **Docs (kernel)**: refresh process group changelog
 - **Docs (kernel)**: synchronize rewrite baseline
@@ -253,6 +256,8 @@
 
 ### 新增
 
+- **Feat (l3a)**: join persistence to recovery, idempotent rebuild
+- **Feat (l3a)**: durable json store and restart-safe input-seq cursor
 - **Feat (kernel)**: expose process group read model
 - **Feat (kernel)**: add typed process group reaper
 - **Feat (kernel)**: add cooperative cancellation token
@@ -345,6 +350,7 @@
 
 ### 修复
 
+- **Fix (l3a)**: enforce session identity lifecycle and loud reload
 - **Fix (infra)**: synchronize singleton scanner path
 - **Fix (infra)**: retain snake case singleton scanner
 - **Fix (scripts)**: run judge tests per-slice on WSL

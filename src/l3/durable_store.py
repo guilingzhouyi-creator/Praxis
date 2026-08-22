@@ -46,7 +46,7 @@ try:  # POSIX advisory locking; degraded (no cross-process lock) elsewhere.
 
     _HAVE_FCNTL = True
 except ImportError:  # pragma: no cover — non-POSIX dev hosts only
-    _fcntl = None
+    _fcntl = None  # type: ignore[assignment]
     _HAVE_FCNTL = False
 
 
