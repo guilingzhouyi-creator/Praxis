@@ -120,7 +120,9 @@ Implementation is sliced into independently reviewable worktrees:
 3. **Slice C:** P0.4-P0.6 durable store, sequence, and recovery. **Complete**
    (`src/l3/durable_store.py` DurableJsonStore + durable input-seq cursor +
    per-session snapshots joined to idempotent `SessionManager.recover_from_store`)
-4. **Slice D:** P1.1-P1.2 cache and prompt telemetry.
+4. **Slice D:** P1.1-P1.2 cache and prompt telemetry. **Complete**
+   (`TieredCache.save/load` durable mirror + eviction/expiry/hit metrics;
+   versioned prompt-usage ledger with RC-period `prompt_usage_report`)
 5. **Slice E:** P1.3-P1.6 evolution, canary, input, and provider lifecycle.
 6. **Slice F:** P2 convergence and the TypeScript protocol mirror. A read-only
    mirror may start after Slice A; runtime replacement remains P0-gated.
