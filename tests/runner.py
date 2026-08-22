@@ -266,10 +266,19 @@ def _run_batch_arg(argv: list[str], parallel: bool, no_xdist: bool, maxfail: int
     return 2
 
 
-_KNOWN_FLAGS = ("--list-slices", "--parallel", "--no-xdist", "--slice", "--batch", "--maxfail", "--keep-going", "--once")
+_KNOWN_FLAGS = (
+    "--list-slices",
+    "--parallel",
+    "--no-xdist",
+    "--slice",
+    "--batch",
+    "--maxfail",
+    "--keep-going",
+    "--once",
+)
 
 
-def main() -> int:
+def main() -> int:  # noqa: PLR0911 — one return per CLI dispatch branch
     """CLI entry: slices, legacy batches, full runs, or a single pattern.
 
     Unknown ``--*`` flags are rejected loudly — they used to be silently

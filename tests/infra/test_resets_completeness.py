@@ -3,7 +3,7 @@
 Protects the ``tests/conftest.py`` ``_RESETS`` contract:
   - every registered (module, reset_fn) entry resolves to a real function
   - the known leak-prone singleton modules never drop out of ``_RESETS``
-  - every module-level singleton discovered by ``scripts/py/scan-singletons.py``
+  - every module-level singleton discovered by ``scripts/py/scan_singletons.py``
     is either registered or explicitly exempted (KNOWN_GAPS backlog)
 
 The scanner output is pre-computed and stored in
@@ -150,8 +150,8 @@ def _snapshot() -> dict:
 
 
 def _load_scanner():
-    """Load scripts/py/scan-singletons.py by path (hyphenated filename)."""
-    script = Path(__file__).resolve().parent.parent.parent / "scripts" / "py" / "scan-singletons.py"
+    """Load scripts/py/scan_singletons.py by path (hyphenated filename)."""
+    script = Path(__file__).resolve().parent.parent.parent / "scripts" / "py" / "scan_singletons.py"
     spec = importlib.util.spec_from_file_location("scan_singletons", script)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -185,7 +185,7 @@ class TestLeakProneModulesStayRegistered:
 
 
 class TestScannerBacklogGuard:
-    """scan-singletons.py discoveries must be registered or explicitly exempt."""
+    """scan_singletons.py discoveries must be registered or explicitly exempt."""
 
     def test_new_singletons_registered_or_exempt(self):
         data = _snapshot()

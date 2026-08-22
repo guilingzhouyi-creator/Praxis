@@ -66,7 +66,7 @@ agents:
     models: [deepseek-v4-flash]
     email: noreply@atomgit.com
   - name: OpenCode
-    models: [deepseek-v4-flash]
+    models: [deepseek-v4-flash, ox-alpha]
     email: noreply@opencode.ai
   - name: Claude
     models: [claude, claude-sonnet, claude-opus]

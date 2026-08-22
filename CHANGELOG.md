@@ -5,12 +5,80 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **Chore (scripts)**: normalize scaffold glue and prune junk residue
+- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
+- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
+- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
+- **Refactor (l2)**: converge settings writes on the l3 bridge
+- **Refactor (l2)**: move injection policy into l3 injection guard
+- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
+- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
+- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
+- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
+- **Refactor (l2)**: funnel model commands through the l3 bridge
+- **Refactor (l2)**: funnel system commands through the l3 bridge
+- **Refactor (l2)**: funnel memory commands through the l3 bridge
+- **Refactor (l2)**: pass explicit session to command handlers
+- **Refactor (l2)**: remove dead shell_session terminal manager
+- **Chore (docs)**: sync kernel contract golden for InputSourcePort
+- **Refactor (judge)**: trim committed dashboard to quantitative standards
+- **Test (skill)**: cover scope/priority round-trip and layer imports
+- **Style (l2)**: fold scout permission guard to one line
+- **Refactor (l2)**: unify bang commands into /intent and /scout
+- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
+- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
+- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
+- **Chore**: format fs_adapter_vfs test and refresh changelog
+- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
+- **Test (infra)**: split runner into per-layer slices
+- **Chore**: ignore atomcode runtime config
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
+
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: document scope-directory mapping and point to the field spec
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: rename Python to Python3 across docs and comments
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (tests)**: format the ts rewrite reference snippet
 - **Docs (agents)**: enforce slice-first testing and gate-linked prompts
+- **Docs**: source code optimization & TS rewrite readiness plan
 - **Docs (agents)**: compress to pointer index with checklist and gate scaffold
 - **Docs (agents)**: refresh instructions for multi-language and tests
 - **Docs (stats)**: regenerate changelog and doc snapshots for the branch
@@ -170,6 +238,9 @@
 
 ### 修复
 
+- **Fix (tests)**: push-time format fallback for no-verify commits
+- **Fix (tests)**: harden commit gates — template, bypass, env self-check
+- **Fix (tests)**: fire the type-to-file gate at commit time
 - **Fix (memory)**: let the injection gate own offensive-skill posture
 - **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
 - **Fix (l2)**: pin six dispatch-path defects behind regression tests
@@ -231,69 +302,14 @@
 - **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
 - **Fix (test)**: align githooks COAUTH fixture
 
-### 变更
-
-- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
-- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
-- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
-- **Refactor (l2)**: converge settings writes on the l3 bridge
-- **Refactor (l2)**: move injection policy into l3 injection guard
-- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
-- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
-- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
-- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
-- **Refactor (l2)**: funnel model commands through the l3 bridge
-- **Refactor (l2)**: funnel system commands through the l3 bridge
-- **Refactor (l2)**: funnel memory commands through the l3 bridge
-- **Refactor (l2)**: pass explicit session to command handlers
-- **Refactor (l2)**: remove dead shell_session terminal manager
-- **Chore (docs)**: sync kernel contract golden for InputSourcePort
-- **Refactor (judge)**: trim committed dashboard to quantitative standards
-- **Test (skill)**: cover scope/priority round-trip and layer imports
-- **Style (l2)**: fold scout permission guard to one line
-- **Refactor (l2)**: unify bang commands into /intent and /scout
-- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
-- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
-- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
-- **Chore**: format fs_adapter_vfs test and refresh changelog
-- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
-- **Test (infra)**: split runner into per-layer slices
-- **Chore**: ignore atomcode runtime config
-- **Test (infra)**: isolate durable capability fixtures
-- **Test (memory)**: document candidate rewrite seam and boundaries
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
 ### 性能
 
+- **Perf (tests)**: parameterize layer_imports gate with JSON snapshot
+- **Perf (tests)**: parameterize gate scan tests with JSON snapshots
+- **Perf (hooks)**: decouple git hooks from Python runtime
+- **Perf (tests)**: decouple script tests from Python runtime
+- **Perf (tests)**: optimize remaining hotspots and gate import tests
+- **Perf (tests)**: slice execution, runner CLI, and hotspot optimization
 - **Perf (l2)**: unblock concurrent dispatch and single-scan preselect
 - **Perf (l2)**: cache the session class and document the protocol boundary
 - **Perf (l2)**: skip the shlex round-trip on protocol command dispatch
