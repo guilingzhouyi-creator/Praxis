@@ -74,3 +74,14 @@ def test_subagent_specs_location() -> None:
     discovery = _load_yaml("config/discovery/subagent_specs.yaml")
     specs = discovery.get("subagent_specs")
     assert isinstance(specs, dict) and len(specs) >= 8, "subagent_specs registry missing or incomplete"
+
+
+def test_commit_policy_has_no_retired_json_generator() -> None:
+    """The YAML policy is canonical; removed JSON artifacts must stay absent."""
+    policy_path = os.path.join(CONFIG, "discovery", "commits.yaml")
+    with open(policy_path, encoding="utf-8") as policy_file:
+        policy_text = policy_file.read()
+    assert "SINGLE SOURCE OF TRUTH" in policy_text
+    assert "gen_commits_json.py" not in policy_text
+    assert not os.path.exists(os.path.join(CONFIG, "discovery", "commits.json"))
+    assert not os.path.exists(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))

@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = ROOT / "scripts" / "sh" / "verify-local-merge.sh"
 GATE = ROOT / "scripts" / "sh" / "verify-main-merge-gate.sh"
 CLASSIFY = ROOT / "scripts" / "py" / "classify_diff.py"
+HUNK_AUDIT = ROOT / "scripts" / "py" / "audit_merge_hunks.py"
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
@@ -40,6 +41,7 @@ def _install_gates(repo: Path) -> None:
     (repo / "scripts" / "py").mkdir(parents=True, exist_ok=True)
     shutil.copy2(GATE, repo / "scripts" / "sh" / "verify-main-merge-gate.sh")
     shutil.copy2(CLASSIFY, repo / "scripts" / "py" / "classify_diff.py")
+    shutil.copy2(HUNK_AUDIT, repo / "scripts" / "py" / "audit_merge_hunks.py")
 
 
 @pytest.fixture()
@@ -96,5 +98,13 @@ def test_requires_gate_script(scratch: Path) -> None:
     """Missing delegated gate script fails tooling (exit 3)."""
     _git(scratch, "switch", "-q", "feature/tiny")
     (scratch / "scripts" / "sh" / "verify-main-merge-gate.sh").unlink()
+    res = _run(scratch)
+    assert res.returncode == 3
+
+
+def test_requires_hunk_audit_script(scratch: Path) -> None:
+    """Missing sensitive-path audit tooling fails closed (exit 3)."""
+    _git(scratch, "switch", "-q", "feature/tiny")
+    (scratch / "scripts" / "py" / "audit_merge_hunks.py").unlink()
     res = _run(scratch)
     assert res.returncode == 3

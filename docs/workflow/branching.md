@@ -66,6 +66,12 @@ delta reaches the threshold (≥ 1000). The push-time gate (push-both.sh)
 only guards pushing main to the remotes; the local-merge gate guards the
 EARLIER step — the feature branch entering local main at all.
 
+The local gate also runs
+`python scripts/py/audit_merge_hunks.py --base main --head <branch> --check`.
+Changes under `docs/roadmaps/` and `config/discovery/` are printed at unified
+hunk granularity; a one-hunk replacement of an existing file is rejected for
+manual review. Use `--json` when attaching the inventory to a merge record.
+
 Merge with `--no-ff` to preserve the proposal record.
 
 ## 5. Working-tree hygiene (iron rule)

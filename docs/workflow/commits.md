@@ -55,6 +55,11 @@ source of truth for the Conventional-Commits contract.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
   `fix*` branches allow only `fix` commits (matches the accumulation-gate
   exemption).
+- **Retired snapshot artifacts**: `config/discovery/commits.yaml` is the only
+  commit-policy source. `config/discovery/commits.json` and
+  `scripts/py/gen_commits_json.py` are intentionally absent and must not be
+  reintroduced or referenced unless a JSON consumer is added in the same
+  reviewed change.
 - **Hook mechanics**: `commit-msg` runs BEFORE the commit object exists, so
   HEAD still points at the previous commit; merge gates read `.git/MERGE_HEAD`
   (git removes it after commit), falling back to `HEAD^2` for manual post-merge
@@ -91,6 +96,9 @@ Full breakdown: `docs/architecture/completion-judge.md`.
   conventional commit, or ask the author to rewrite the branch. Never merge
   unsigned commits and re-sign them afterwards — that rewrites history and
   force-pushes the mirror. Local agent branches are signed by construction.
+- The PR gate also runs the sensitive-path hunk audit. A full-file replacement
+  under `docs/roadmaps/` or `config/discovery/` fails closed with exit code 5;
+  review the JSON report and merge only after both branch intents are checked.
 
 ## Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`, auto-run on `push-both.sh main`)
 
