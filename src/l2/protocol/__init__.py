@@ -1,7 +1,7 @@
 """Protocol v1 — Unified Session Data Layer reference package.
 
 Language-agnostic wire contract for the L2 shell engine (see
-docs/architecture/l2-shell-engine.md). Pure Python3 reference so the planned
+docs/architecture/l2-shell-engine.md). Pure Python reference so the planned
 TypeScript mirror (parser/dispatcher/session/bridge) can be implemented and
 tested against a stable, side-effect-free baseline.
 

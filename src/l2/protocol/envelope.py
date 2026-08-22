@@ -1,7 +1,7 @@
 """Protocol v1 envelope — pure reference implementation (side-effect free).
 
 Language-agnostic wire contract for the L2 Unified Session Data Layer. This
-module is the Python3 reference for the planned TypeScript mirror
+module is the Python reference for the planned TypeScript mirror
 (parser/dispatcher/session): it imports only stdlib, keeps no module-level
 singletons, and performs no I/O — every function is a pure transform, so the
 TS port can be tested against identical expectations.
@@ -14,8 +14,6 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
-
-from l1.kernel.params.api import PROTOCOL_OUTBOX_MAXLEN
 
 PROTOCOL_VERSION: int = 1
 
@@ -33,11 +31,8 @@ KINDS: frozenset[str] = frozenset(
 ENVELOPE_FIELDS: tuple[str, ...] = ("v", "session_id", "seq", "ts", "kind", "payload")
 
 # Bounded replay window per session (recovery reads this, never the past).
-# Registered in params/api.py — TS mirror: envelope.ts OUTBOX_MAXLEN.
-OUTBOX_MAXLEN: int = PROTOCOL_OUTBOX_MAXLEN
+OUTBOX_MAXLEN: int = 1024
 
-# Control ops — TS mirror: packages/protocol-ts/src/envelope.ts
-# CONTROL_KINDS / ControlKind (same five values).
 CONTROL_ATTACH = "attach"
 CONTROL_DETACH = "detach"
 CONTROL_RESUME = "resume"
@@ -163,17 +158,7 @@ def decode_message(line: str) -> tuple[dict[str, Any] | None, str | None]:
 
 @dataclass
 class Outbox:
-    """Bounded per-session replay window; unacked messages survive recovery.
-
-    The window is shared by every view attached to the session. ``ack`` is
-    non-destructive: it only advances the acknowledged cursor, so one view
-    acknowledging a sequence never erases messages another view still needs
-    to replay. Messages beyond ``maxlen`` are evicted oldest-first, which is
-    the hard bound any view must tolerate.
-
-    TS mirror: ``packages/protocol-ts/src/envelope.ts`` Outbox — identical
-    non-destructive ack and ``unacked(after_seq)`` semantics.
-    """
+    """Bounded per-session replay window; unacked messages survive recovery."""
 
     maxlen: int = OUTBOX_MAXLEN
     _items: deque[dict[str, Any]] = field(default_factory=deque)
@@ -186,13 +171,14 @@ class Outbox:
             self._items.popleft()
 
     def ack(self, seq: int) -> None:
-        """Advance the acknowledged cursor without dropping retained messages."""
+        """Advance the acknowledged cursor, dropping covered messages."""
+        while self._items and self._items[0]["seq"] <= seq:
+            self._items.popleft()
         self._last_acked = max(self._last_acked, seq)
 
-    def unacked(self, after_seq: int | None = None) -> list[dict[str, Any]]:
-        """Return the replay window for one view cursor (messages after it)."""
-        after = self._last_acked if after_seq is None else after_seq
-        return [msg for msg in self._items if msg["seq"] > after]
+    def unacked(self) -> list[dict[str, Any]]:
+        """Return the replay window (messages after the last ack)."""
+        return list(self._items)
 
     @property
     def last_acked(self) -> int:
@@ -202,11 +188,7 @@ class Outbox:
 
 @dataclass
 class SessionCursor:
-    """Per-frontend-view cursor: attachment + acknowledged position.
-
-    TS mirror: ``packages/protocol-ts/src/envelope.ts`` SessionCursor — each
-    view keeps its own ``last_acked`` and advances independently via ``ack``.
-    """
+    """Per-frontend-view cursor: attachment + acknowledged position."""
 
     view_id: str
     session_id: str = ""
@@ -221,7 +203,3 @@ class SessionCursor:
     def detach(self) -> None:
         """Unbind the view from its session (marks it unattached)."""
         self.attached = False
-
-    def ack(self, seq: int) -> None:
-        """Advance this view's acknowledged position."""
-        self.last_acked = max(self.last_acked, seq)

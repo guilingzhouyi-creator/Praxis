@@ -7,11 +7,6 @@ default shell (``l2.shells.session.ShellSession``); this module is a thin
 accessor, NOT a separate process-global singleton — so there is exactly one
 mutable session source and per-session ``ShellSession`` instances (shell
 family) are the real owners.
-
-TS rewrite reference: state reads map onto the TS SessionView snapshot —
-the TS side never holds session state; it pulls identity + events through
-the bridge (attach/replay) exactly like this accessor pulls the family
-default shell's state.
 """
 
 from __future__ import annotations

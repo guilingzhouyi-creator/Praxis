@@ -1,9 +1,5 @@
 """TerminalShell — interactive terminal dialect over the L2 command engine.
 
-TS rewrite reference: the terminal dialect is the TUI frontend shape —
-the TS side renders a session through SessionView's tui projection and
-forwards every command via the bridge.
-
 Migrated from ``l2/shell.py`` into the shell family: the per-line dialect
 lives on ``TerminalShell.run`` (dict results, renderable by any frontend)
 and the classic REPL loop on ``TerminalShell.loop``.  The module-level
@@ -28,8 +24,8 @@ from l1.kernel.params.system import (
     TOOL_RESULT_DISPLAY_LIMIT,
 )
 from l1.kernel.ports import get_process_port
-from l2.bridge import scout_findings_display_limit
 from l2.i18n import t
+from l3.params import SCOUT_FINDINGS_DISPLAY_LIMIT
 
 from ..shell_completer import TerminalCompleter, get_aliases, get_command_help, get_command_names
 from .base import Shell
@@ -72,15 +68,15 @@ def scout_commission(task: str, agent_id: str, cell_id: str) -> dict:
     if not task:
         return {"success": False, "type": "scout", "error": "scout usage"}
     try:
-        from l2.bridge import cell as _get_cell
-        from l2.bridge import scout_pool as _get_scout_pool
+        from l3.agent.scout import get_pool as _get_scout_pool
+        from l3.cell import get_cell
 
-        cell = _get_cell(cell_id)
+        cell = get_cell(cell_id)
         if hasattr(cell, "permission") and cell.permission and not cell.permission.is_visible("scout", agent_id):
             return {"success": False, "type": "scout", "error": "scout disabled"}
         pool = _get_scout_pool()
         r = pool.commission(agent_id, task)
-        findings = [str(f)[:LOG_TRUNC_200] for f in r.get("findings", [])[: scout_findings_display_limit()]]
+        findings = [str(f)[:LOG_TRUNC_200] for f in r.get("findings", [])[:SCOUT_FINDINGS_DISPLAY_LIMIT]]
         return {
             "success": True,
             "type": "scout",
@@ -188,7 +184,7 @@ class TerminalShell(Shell):
     def _tools_result(self) -> dict:
         """Return all registered tools with descriptions; falls back to command names on error."""
         try:
-            from l2.bridge import list_tools
+            from l3.tool_system.tool_spec import list_tools
 
             tools = [{"name": tool.name, "description": tool.description[:LOG_TRUNC_50]} for tool in list_tools()]
             return {"success": True, "type": "tools", "tools": tools, "total": len(tools)}
@@ -242,7 +238,7 @@ class TerminalShell(Shell):
                 args[f"arg{i}"] = parts[i]
         try:
             from l1.kernel.capability import invoke_capability
-            from l2.bridge import get_tool
+            from l3.tool_system.tool_spec import get_tool
 
             spec = get_tool(tool_name)
             if not spec:

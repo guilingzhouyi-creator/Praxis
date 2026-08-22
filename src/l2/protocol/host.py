@@ -2,19 +2,16 @@
 
 Runs as a module (python -m l2.protocol.host): reads protocol v1 envelopes
 from stdin (one JSON object per line), writes result/ack envelopes to
-stdout. This is the Python3 reference peer for the planned TypeScript
+stdout. This is the Python reference peer for the planned TypeScript
 bridge.ts; it reuses the existing l2.l2_shell.dispatch unchanged - no
 engine modification, no behavior change, purely additive transport.
 """
 
 from __future__ import annotations
 
-import dataclasses
-import io
 import shlex
 import sys
-import threading
-from typing import Any, TextIO
+from typing import TextIO
 
 from l2.protocol.envelope import (
     CONTROL_ACK,
@@ -29,165 +26,41 @@ from l2.protocol.envelope import (
     KIND_INTENT,
     KIND_RESULT,
     Outbox,
-    SessionCursor,
     decode_message,
     encode_message,
     make_message,
-    validate_message,
 )
-from l2.protocol.records import SessionIdentity
-
-# Lazily resolved ShellSession class — every command/control hits
-# _get_session, so cache the class after the first import instead of
-# re-running the import statement on each call.
-_SHELL_SESSION: type | None = None
 
 
-class _ThreadCaptureStdout(io.TextIOBase):
-    """Process stdout proxy routing writes to per-thread capture buffers.
-
-    Installed lazily by ``_dispatch_text``: a thread inside an armed
-    dispatch window receives its writes in its own buffer; every other
-    thread passes through to the real stream untouched. This replaces the
-    process-global dispatch serialization that ``contextlib.redirect_stdout``
-    forced on threaded frontends — sessions now dispatch concurrently while
-    legacy ``print()`` output still lands in each caller's ``rendered``
-    payload (same JSONL contract, no cross-session head-of-line blocking).
-
-    TS note: TS handlers return data and never print, so the TS bridge
-    needs no counterpart for this capture layer.
-    """
-
-    def __init__(self, real: TextIO) -> None:
-        self._real = real
-        self._tls = threading.local()
-
-    def arm(self) -> io.StringIO:
-        """Start capturing this thread's writes; return the buffer."""
-        buf = io.StringIO()
-        self._tls.buf = buf
-        return buf
-
-    def disarm(self) -> None:
-        """Stop capturing this thread's writes (passthrough resumes)."""
-        self._tls.buf = None
-
-    def retarget(self, real: TextIO) -> None:
-        """Point passthrough at a new underlying stream."""
-        self._real = real
-
-    def write(self, s: str) -> int:
-        buf = getattr(self._tls, "buf", None)
-        if buf is not None:
-            return buf.write(s)
-        return self._real.write(s)
-
-    def flush(self) -> None:
-        self._real.flush()
-
-
-_CAPTURE_STDOUT: _ThreadCaptureStdout | None = None
-
-
-def _install_capture_stdout() -> _ThreadCaptureStdout:
-    """Install (or re-anchor) the process-wide capture proxy exactly once."""
-    global _CAPTURE_STDOUT
-    proxy = _CAPTURE_STDOUT
-    if proxy is None:
-        proxy = _ThreadCaptureStdout(sys.stdout)
-        _CAPTURE_STDOUT = proxy
-    current = sys.stdout
-    if current is proxy:
-        return proxy
-    # An external redirect replaced our proxy (pytest capsys, CLI plumbing):
-    # adopt that stream as the passthrough target and re-install.
-    proxy.retarget(current)
-    sys.stdout = proxy
-    return proxy
-
-
-def _dispatch_text(text: str, session, args: list[str] | None = None) -> dict:
-    """Route one input line through the existing engine (unchanged).
-
-    Legacy handler ``print()`` output (e.g. status/clear rendering) is
-    captured per-thread into a ``rendered`` payload field so the JSONL
-    stream stays clean and text reaches protocol clients as data. No
-    global lock is held: concurrent sessions dispatch in parallel, and
-    only threads whose handlers actually print pay for buffering.
-
-    TS counterpart: ``bridge.ts`` roundTrip — the TS engine returns data
-    directly, so its transport has no capture step at all.
-    """
+def _dispatch_text(text: str, session) -> dict:
+    """Route one input line through the existing engine (unchanged)."""
     from l2.l2_shell import dispatch
 
-    proxy = _install_capture_stdout()
-    buf = proxy.arm()
     try:
-        result = dispatch(text, session, args=args)
+        return dispatch(text, session)
     except Exception as e:  # pragma: no cover - defensive bridge boundary
         return {"success": False, "error": str(e)}
-    finally:
-        proxy.disarm()
-    out = dict(result) if isinstance(result, dict) else {"success": False, "error": str(result)}
-    rendered = buf.getvalue()
-    if rendered:
-        out["rendered"] = rendered
-    return out
 
 
 class ProtocolHost:
-    """Process one input envelope into output envelopes (injectable, no globals).
-
-    TS counterpart: ``src/engine/bridge.ts`` ProtocolBridge — its
-    command/attach/ack/replay methods map onto ``handle_message`` and the
-    control ops here; the TS client speaks this host's protocol v1 and never
-    re-implements the session/outbox authority it owns.
-    """
+    """Process one input envelope into output envelopes (injectable, no globals)."""
 
     def __init__(self) -> None:
-        # RLock guards every index below; web mode is threaded, and the
-        # dispatch path no longer serializes (thread-local stdout capture),
-        # so envelope handling is the only shared-state choke point left.
-        self._lock = threading.RLock()
         self._sessions: dict[str, object] = {}
-        self._identities: dict[str, SessionIdentity] = {}
-        self._cursors: dict[str, SessionCursor] = {}
-        # Per-session view index (session_id -> view_ids) so the shared
-        # watermark scan touches only the session's own views, not every
-        # cursor across all sessions.
-        self._session_views: dict[str, set[str]] = {}
         self._outboxes: dict[str, Outbox] = {}
         self._seqs: dict[str, int] = {}
 
     def _next_seq(self, session_id: str) -> int:
         """Return the next outbound sequence id for a session."""
-        with self._lock:
-            next_seq = self._seqs.get(session_id, 0) + 1
-            self._seqs[session_id] = next_seq
-            return next_seq
+        next_seq = self._seqs.get(session_id, 0) + 1
+        self._seqs[session_id] = next_seq
+        return next_seq
 
     def _get_outbox(self, session_id: str) -> Outbox:
         """Return the bounded replay window for a session."""
-        with self._lock:
-            if session_id not in self._outboxes:
-                self._outboxes[session_id] = Outbox()
-            return self._outboxes[session_id]
-
-    def _advance_shared_cursor(self, session_id: str) -> None:
-        """Advance the shared outbox watermark to the lagging attached view.
-
-        The shared ``Outbox`` cursor is the *minimum* ack across every view
-        bound to the session, so one view acknowledging never erases
-        messages another view still needs to replay (non-destructive
-        multiplexing). A session with no attached views keeps its watermark,
-        letting a fresh view replay the whole window from its own cursor.
-        """
-        min_acked = None
-        for view_id in self._session_views.get(session_id, ()):
-            cursor = self._cursors[view_id]
-            min_acked = cursor.last_acked if min_acked is None else min(min_acked, cursor.last_acked)
-        if min_acked is not None:
-            self._get_outbox(session_id).ack(min_acked)
+        if session_id not in self._outboxes:
+            self._outboxes[session_id] = Outbox()
+        return self._outboxes[session_id]
 
     def _emit(self, kind: str, payload: dict, session_id: str, trace_id: str = "") -> dict:
         """Build one outbound envelope, record it in the outbox, return it."""
@@ -197,109 +70,17 @@ class ProtocolHost:
 
     def _get_session(self, session_id: str) -> object:
         """Return the in-process ShellSession for an id, creating it lazily."""
-        with self._lock:
-            if session_id not in self._sessions:
-                global _SHELL_SESSION
-                if _SHELL_SESSION is None:
-                    from l2.shells.session import ShellSession
+        if session_id not in self._sessions:
+            from l2.shells.session import ShellSession
 
-                    _SHELL_SESSION = ShellSession
-                self._sessions[session_id] = _SHELL_SESSION(shell="protocol", session_id=session_id)
-                self._identities[session_id] = SessionIdentity(
-                    session_id=session_id,
-                    terminal_id="",
-                    process_id="",
-                )
-            return self._sessions[session_id]
-
-    def session_identity(self, session_id: str) -> dict[str, Any]:
-        """Return the protocol-shaped identity snapshot for a session.
-
-        ``SessionIdentity`` is the wire value record (mirrored in TS); the
-        runtime ShellSession keeps mutable mode/cell/agent state while this
-        snapshot carries the stable identity fields consumed by events and
-        bridges. terminal/process ownership is injected by the host later.
-        """
-        with self._lock:
-            self._get_session(session_id)
-            return dataclasses.asdict(self._identities[session_id])
-
-    def attach_view(self, view_id: str, session_id: str) -> dict[str, Any]:
-        """Bind one frontend view to a session; returns the identity snapshot.
-
-        Multiple views (web, TUI, desktop, SSH, IDE) may attach to the same
-        session; each view keeps its own ack cursor while the session outbox
-        is shared. ``view_id`` defaults to the session id for single-view
-        transports.
-        """
-        with self._lock:
-            self._get_session(session_id)
-            cursor = self._cursors.get(view_id)
-            if cursor is None:
-                cursor = SessionCursor(view_id=view_id)
-                self._cursors[view_id] = cursor
-            self._session_views.setdefault(session_id, set()).add(view_id)
-            cursor.attach(session_id)
-        return self.session_identity(session_id)
-
-    def detach_view(self, view_id: str) -> None:
-        """Unbind a frontend view from its session."""
-        with self._lock:
-            cursor = self._cursors.get(view_id)
-            if cursor is not None:
-                session_id = cursor.session_id
-                cursor.detach()
-                views = self._session_views.get(session_id)
-                if views:
-                    views.discard(view_id)
-
-    def view_cursor(self, view_id: str) -> dict[str, Any] | None:
-        """Return the per-view cursor snapshot (attachment + ack position)."""
-        with self._lock:
-            cursor = self._cursors.get(view_id)
-        if cursor is None:
-            return None
-        return dataclasses.asdict(cursor)
-
-    def session_state(self, session_id: str) -> dict[str, Any]:
-        """Return the protocol-shaped session snapshot consumed by projections."""
-        with self._lock:
-            identity = self.session_identity(session_id)
-            events = self._get_outbox(session_id).unacked()
-        return {"identity": identity, "events": events}
+            self._sessions[session_id] = ShellSession(shell="protocol", session_id=session_id)
+        return self._sessions[session_id]
 
     def handle(self, line: str) -> list[dict]:
-        """Handle one input line; returns zero or more output envelopes.
-
-        TS counterpart: bridge.ts ``roundTrip`` — the encoded JSONL line a
-        transport delivers lands here and is decoded once (validate inside
-        ``decode_message``), then dispatched without a second validation.
-        """
+        """Handle one input line; returns zero or more output envelopes."""
         msg, err = decode_message(line)
         if err is not None:
             return [self._emit(KIND_RESULT, {"success": False, "error": err}, "-")]
-        return self._handle_validated(msg)
-
-    def handle_message(self, msg: dict[str, Any]) -> list[dict]:
-        """Handle one decoded envelope dict; shared by stdio and web modes.
-
-        In-memory entry with no JSON round-trip — used by the WS bridge
-        envelope branch after ``json.loads``. TS counterpart: the host-side
-        dispatch the ProtocolBridge's command/attach/ack/replay envelopes
-        feed into (validate once via ``validateMessage``, then dispatch).
-        """
-        violations = validate_message(msg)
-        if violations:
-            return [self._emit(KIND_RESULT, {"success": False, "error": "; ".join(violations)}, "-")]
-        return self._handle_validated(msg)
-
-    def _handle_validated(self, msg: dict[str, Any]) -> list[dict]:
-        """Process an already-validated envelope (no re-validation).
-
-        ``handle`` (stdio) validates once during ``decode_message`` and
-        ``handle_message`` (web) validates once here, so the hot JSONL path
-        avoids a redundant schema pass.
-        """
         session_id = msg["session_id"]
         trace_id = msg.get("trace_id", "")
         kind = msg["kind"]
@@ -314,7 +95,7 @@ class ProtocolHost:
                 )
             else:
                 text = "/" + name + (" " + shlex.join(args) if args else "")
-                result = _dispatch_text(text, self._get_session(session_id), args=args)
+                result = _dispatch_text(text, self._get_session(session_id))
                 out.append(self._emit(KIND_RESULT, result, session_id, trace_id))
         elif kind == KIND_INTENT:
             text = str(payload.get("text", ""))
@@ -323,15 +104,7 @@ class ProtocolHost:
         elif kind == KIND_CONTROL:
             out.extend(self._handle_control(payload, session_id, trace_id))
         elif kind == KIND_ACK:
-            # Per-view acknowledgement: the view cursor advances while the
-            # shared outbox watermark follows the lagging view, so messages
-            # another view still needs are never erased.
-            view_id = str(payload.get("view_id", session_id))
-            with self._lock:
-                cursor = self._cursors.get(view_id)
-                if cursor is not None:
-                    cursor.ack(payload["ack_seq"])
-                    self._advance_shared_cursor(session_id)
+            self._get_outbox(session_id).ack(payload["ack_seq"])
             return []
         else:
             out.append(
@@ -346,56 +119,34 @@ class ProtocolHost:
         return out
 
     def _handle_control(self, payload: dict, session_id: str, trace_id: str) -> list[dict]:
-        """Process control envelopes (attach/detach/resume/recovery).
-
-        Session-flow steps (TS SessionView counterpart in session.ts):
-          attach            → session.attached event (identity snapshot)
-          resume / recovery → replay window from last_acked (view cursor)
-          ack               → advance the view cursor + shared watermark
-          detach            → session.detached event, view leaves the
-                              shared watermark (per-session view index)
-        """
+        """Process control envelopes (attach/detach/resume/recovery)."""
         op = str(payload.get("op", ""))
         target = str(payload.get("session_id", session_id))
-        view_id = str(payload.get("view_id", target))
         if op == CONTROL_ATTACH:
-            identity = self.attach_view(view_id, target)
-            return [self._emit(KIND_EVENT, {"name": "session.attached", "data": identity}, session_id, trace_id)]
-        if op == CONTROL_DETACH:
-            self.detach_view(view_id)
+            self._get_session(target)
             return [
                 self._emit(
-                    KIND_EVENT,
-                    {"name": "session.detached", "data": {"session_id": target, "view_id": view_id}},
-                    session_id,
-                    trace_id,
+                    KIND_EVENT, {"name": "session.attached", "data": {"session_id": target}}, session_id, trace_id
+                )
+            ]
+        if op == CONTROL_DETACH:
+            return [
+                self._emit(
+                    KIND_EVENT, {"name": "session.detached", "data": {"session_id": target}}, session_id, trace_id
                 )
             ]
         if op == CONTROL_ACK:
-            with self._lock:
-                cursor = self._cursors.get(view_id)
-                if cursor is not None:
-                    cursor.ack(payload.get("last_acked", -1))
-                    self._advance_shared_cursor(target)
+            self._get_outbox(target).ack(payload.get("last_acked", -1))
             return []
         if op in (CONTROL_RESUME, CONTROL_RECOVERY):
-            with self._lock:
-                self._get_session(target)
-                outbox = self._get_outbox(target)
-                cursor = self._cursors.get(view_id)
-                if cursor is not None:
-                    cursor.ack(payload.get("last_acked", -1))
-                    self._advance_shared_cursor(target)
-                    replay = outbox.unacked(cursor.last_acked)
-                else:
-                    replay = outbox.unacked(payload.get("last_acked", -1))
+            self._get_session(target)
+            outbox = self._get_outbox(target)
+            outbox.ack(payload.get("last_acked", -1))
+            replay = outbox.unacked()
             return [
                 self._emit(
                     KIND_EVENT,
-                    {
-                        "name": "session.recovered",
-                        "data": {"session_id": target, "view_id": view_id, "replay": replay},
-                    },
+                    {"name": "session.recovered", "data": {"session_id": target, "replay": replay}},
                     target,
                     trace_id,
                 )
@@ -411,9 +162,7 @@ class ProtocolHost:
                 continue
             for out in self.handle(line):
                 stdout.write(encode_message(out) + "\n")
-            # Flush once per input line so a burst of outputs batches
-            # syscalls instead of flushing per envelope.
-            stdout.flush()
+                stdout.flush()
             count += 1
         return count
 
@@ -422,23 +171,6 @@ def main() -> int:
     """Run the stdio host (python -m l2.protocol.host)."""
     host = ProtocolHost()
     return host.run(sys.stdin, sys.stdout)
-
-
-_HOST: ProtocolHost | None = None
-
-
-def get_protocol_host() -> ProtocolHost:
-    """Return the process-wide protocol host (web mode shares its session pool)."""
-    global _HOST
-    if _HOST is None:
-        _HOST = ProtocolHost()
-    return _HOST
-
-
-def reset_protocol_host() -> None:
-    """Reset the shared host for tests or a controlled restart."""
-    global _HOST
-    _HOST = None
 
 
 if __name__ == "__main__":

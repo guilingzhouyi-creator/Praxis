@@ -1,9 +1,5 @@
 """L2 Shell: extended commands — domain-split facade.
 
-TS rewrite reference: the per-domain submodules (extra_cluster / extra_mcp /
-...) are bridge-forwarded command groups — the TS side mirrors the facade
-as dispatcher registration groups, never re-implementing their L3 targets.
-
 Extracted into per-domain submodules (extra_cluster / extra_mcp /
 extra_security / extra_resources / extra_stats); this module re-exports
 every ``_cmd_*`` so ``commands/__init__.py`` and existing test imports

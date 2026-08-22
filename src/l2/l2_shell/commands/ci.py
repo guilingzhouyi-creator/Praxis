@@ -115,7 +115,6 @@ def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str, _admin
 
 def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci set <key> <value> [--cell X] [--agent Y] [--admin]` — set a review setting."""
-    from l2.bridge import settings_set
     from l4.ci_review import CI_SETTING_SUFFIXES, _is_allowed_key, _is_control_key
 
     if len(rest) < 3:
@@ -124,22 +123,21 @@ def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bo
     if not _is_allowed_key(full_key):
         return {
             "success": False,
-            "error": _t("shell.app_error.key_not_writable", full_key=full_key),
+            "error": f"key not writable: {full_key}",
             "allowed": sorted(CI_SETTING_SUFFIXES),
         }
     if _is_control_key(full_key):
         if not admin:
-            return {"success": False, "error": _t("shell.app_error.admin_confirmation_required", full_key=full_key)}
+            return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
     elif not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     value = _parse_value(" ".join(rest[2:]))
-    settings_set(full_key, value)
+    center.set(full_key, value)
     return {"success": True, "key": full_key, "value": value}
 
 
 def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci toggle [--cell X] [--agent Y] [--admin]` — flip the enabled switch."""
-    from l2.bridge import settings_set
     from l4.ci_review import _is_control_key
 
     full_key = _resolve_scope_key("enabled", cell_id, agent_id)
@@ -148,7 +146,7 @@ def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin:
     if not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
     enabled = not bool(center.get(full_key, True))
-    settings_set(full_key, enabled)
+    center.set(full_key, enabled)
     return {"success": True, "key": full_key, "enabled": enabled}
 
 
@@ -162,7 +160,7 @@ _CI_HANDLERS: dict[str, Callable] = {
 }
 
 
-def _cmd_ci(args: list[str], session=None) -> dict:
+def _cmd_ci(args: list[str]) -> dict:
     """Show CI review stats/reports, inspect or set review switches.
 
     Sub-commands: ``config [--cell X] [--agent Y]``, ``set <key> <value>
@@ -170,20 +168,20 @@ def _cmd_ci(args: list[str], session=None) -> dict:
     [--admin]``, ``list [status]``, ``show <card_id>``.
     """
     try:
-        from l2.bridge import settings_center
+        from l3.config.settings_center import get_center
         from l4.ci_review import get_service
 
         rest, cell_id, agent_id, admin = _parse_flags(args)
         svc = get_service()
-        center = settings_center()
+        center = get_center()
         if not rest:
             return {"success": True, **svc.stats()}
         handler = _CI_HANDLERS.get(rest[0].lower())
         if not handler:
             return {
                 "success": False,
-                "error": _t("shell.app_error.unknown_ci_subcommand", sub=rest[0].lower()),
+                "error": f"unknown ci subcommand: {rest[0].lower()} (expected config|set|toggle|rerun|list|show)",
             }
         return handler(svc, center, rest, cell_id, agent_id, admin)
     except Exception as e:
-        return {"success": False, "error": _t("shell.app_error.ci_review_error", error=e)}
+        return {"success": False, "error": f"[E_CI_REVIEW_CMD] {e}"}

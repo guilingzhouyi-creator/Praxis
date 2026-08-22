@@ -1,9 +1,4 @@
-"""Shared utilities — value coercion, pipeline, agent resolution.
-
-TS rewrite reference: shared helpers (coercion, pipeline splitting, agent
-resolution) are the local utility layer the TS engine's parser/builtins
-port — no authority, pure shaping of already-bridged data.
-"""
+"""Shared utilities — value coercion, pipeline, agent resolution."""
 
 from __future__ import annotations
 
@@ -64,9 +59,9 @@ def preconnect_enhanced(cell_id: str, agent_id: str, message: str = "") -> dict:
     if not basic.get("allowed"):
         return {"allowed": False, "checks": checks, "reason": basic.get("reason", "preconnect_failed")}
     try:
-        from l2.bridge import llm_engine
+        from l3.services.adapter_bridge import get_llm_engine
 
-        engine = llm_engine()
+        engine = get_llm_engine()
         provider_status = engine.provider_status() if hasattr(engine, "provider_status") else {}
         checks["llm_provider"] = provider_status
         if provider_status.get("status") == "error":
@@ -118,30 +113,24 @@ def resolve_scope(args: list[str]) -> tuple[str, str, list[str]]:
 
 def resolve_agents(scope: str, scope_id: str) -> list[str]:
     """Resolve the agent ids matching a scope (agent/cell/global)."""
-    from l2.bridge import terminals
+    from l3.agent_terminal import get_terminals
 
-    terms = terminals()
+    terms = get_terminals()
     if scope == "agent":
         return [scope_id] if scope_id in terms else []
     if scope == "cell":
         try:
-            from l2.bridge import cell_agent_ids
+            from l3.cell import get_cell
 
-            return cell_agent_ids(scope_id)
+            cell = get_cell(scope_id)
+            return list(cell._agents.keys()) if hasattr(cell, "_agents") else []
         except Exception:
             return []
     return list(terms.keys())
 
 
-def _pipeline(segments: list[str], session=None) -> dict:
-    """Execute a command pipeline: cmd1 | cmd2.
-
-    ``session`` is forwarded to every step so session-aware handlers
-    (e.g. /history) behave identically inside and outside a pipeline.
-
-    TS rewrite reference: the TS dispatcher forwards the same session
-    identity to each pipeline stage — steps never run stateless.
-    """
+def _pipeline(segments: list[str]) -> dict:
+    """Execute a command pipeline: cmd1 | cmd2."""
     segment_results: list[dict] = []
     for i, segment in enumerate(segments):
         segment = segment.strip()
@@ -157,10 +146,10 @@ def _pipeline(segments: list[str], session=None) -> dict:
         handler = _gh(cmd)
         if handler:
             try:
-                result = handler(args, session=session)
+                result = handler(args)
                 segment_results.append(result)
             except Exception as e:
-                return {"success": False, "error": _t("shell.app_error.pipeline_step_failed", step=i, cmd=cmd, error=e)}
+                return {"success": False, "error": f"pipeline step {i} '{cmd}' failed: {e}"}
         else:
-            return {"success": False, "error": _t("shell.app_error.pipeline_step_unknown_command", step=i, cmd=cmd)}
+            return {"success": False, "error": f"pipeline step {i}: unknown command: {cmd}"}
     return segment_results[-1] if segment_results else {"success": True, "output": ""}

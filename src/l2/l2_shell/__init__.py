@@ -14,7 +14,7 @@ import logging
 import shlex
 
 from l1.kernel import EVENT_TASK_ASSIGN, emit_signal
-from l1.kernel.commands import get_handler
+from l1.kernel.commands import get_command, get_handler
 from l1.kernel.commands import get_registry as _get_cmd_reg
 from l1.kernel.params.agent import SIGNAL_TARGET_L3
 
@@ -124,55 +124,7 @@ def _command_names() -> list[str]:
     return _COMMAND_NAMES_CACHE
 
 
-def _looks_like_pipeline(segments: list[str]) -> bool:
-    """Decide whether pipe-split text is a command pipeline or prose.
-
-    A pipeline's first segment must be a ``/``-command or resolve to a
-    registered command/alias; anything else is natural language that
-    happens to contain ``|`` and belongs to Direct/L3A routing. Keeps the
-    same resolution order as the ``/`` branch (handler first, then alias
-    reverse index) so both paths agree on what counts as a command.
-    """
-    head = segments[0]
-    if head.startswith("/"):
-        return True
-    words = head.split()
-    if not words:
-        return False
-    if get_handler(words[0]):
-        return True
-    resolved = _lookup_alias(words[0])
-    return bool(resolved and get_handler(resolved))
-
-
-def _history_kind(text: str) -> str:
-    """Classify an input line for the session history (command/pipeline/intent)."""
-    stripped = text.lstrip()
-    if stripped.startswith("/"):
-        return "command"
-    if "|" in text:
-        return "pipeline"
-    return "intent"
-
-
-def _alias_handler(cmd: str):
-    """Resolve an alias to its registered handler (None when unresolved)."""
-    resolved = _lookup_alias(cmd)
-    return get_handler(resolved) if resolved else None
-
-
-def t_parse_error(error: Exception) -> str:
-    """Translate a command parse failure (locale key falls back gracefully)."""
-    try:
-        from l2.i18n import t as _t
-
-        return _t("shell.error.parse_failed", error=str(error))
-    except Exception:
-        logger.warning("i18n translation failed for shell.error.parse_failed")
-        return f"command parse failed: {error}"
-
-
-def dispatch(text: str, session: ShellSession | None = None, args: list[str] | None = None) -> dict:
+def dispatch(text: str, session: ShellSession | None = None) -> dict:
     """Route user input to the active shell mode.
 
     Parser order:
@@ -184,41 +136,29 @@ def dispatch(text: str, session: ShellSession | None = None, args: list[str] | N
     ``session`` is the per-session ShellSession (shell family); when None,
     the deprecated process-global shell state is used for backward
     compatibility.
-
-    ``args`` is the protocol host's pre-parsed argument list (command
-    envelope path): when provided, the ``/`` command branch skips the
-    ``shlex.split`` round-trip — behavior is identical, one less parse per
-    command (see host.py ``_handle_validated``).
     """
-    state = session if session is not None else get_state()
-    if text and text.strip():
-        state.record(text, _history_kind(text))
-
     if "|" in text:
         segments = [s.strip() for s in text.split("|")]
-        if len(segments) >= 2 and _looks_like_pipeline(segments):
-            return _pipeline(segments, session=state)
+        if len(segments) >= 2:
+            return _pipeline(segments)
+
+    state = session if session is not None else get_state()
 
     if text.startswith("/"):
-        if args is None:
-            try:
-                parts = shlex.split(text)
-            except ValueError as e:
-                # Unbalanced quotes etc. must degrade to an error dict, never
-                # escape dispatch (protocol/API callers have no REPL guard).
-                return {"success": False, "error": t_parse_error(e)}
-            cmd = parts[0][1:]
-            args = parts[1:]
-        else:
-            # Protocol host already parsed the args; extract the name from
-            # the "/name" prefix text (command names carry no spaces).
-            cmd = text[1:].split()[0]
-        # Single authoritative handler lookup: direct name first, then the
-        # alias reverse index (O(1)); a handler exists iff the command is
-        # registered — avoids a second registry lock+scan per path.
-        handler = get_handler(cmd) or _alias_handler(cmd)
-        if handler:
-            return handler(args, session=state)
+        parts = shlex.split(text)
+        cmd = parts[0][1:]
+        args = parts[1:]
+        info = get_command(cmd)
+        if info:
+            handler = get_handler(cmd)
+            if handler:
+                return handler(args)
+        # Check aliases via reverse index (O(1) instead of O(n))
+        resolved = _lookup_alias(cmd)
+        if resolved:
+            handler = get_handler(resolved)
+            if handler:
+                return handler(args)
         try:
             from l2.i18n import t as _t
 
@@ -241,9 +181,9 @@ def _direct_message(state: ShellState, text: str) -> dict:
     Passes the response through ``guard_output``.
     """
     try:
-        from l2.bridge import cell as _get_cell
+        from l3.cell import get_cell
 
-        cell = _get_cell(state.cell_id)
+        cell = get_cell(state.cell_id)
         r = cell.send_direct_message(state.agent_id, text)
         if not r.get("success"):
             _auto_disconnect(state, r.get("error", "send_failed"))
@@ -268,9 +208,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
         return
     logger.warning("auto-disconnect from %s: %s", state.agent_id, reason)
     try:
-        from l2.bridge import cell as _get_cell
+        from l3.cell import get_cell
 
-        cell = _get_cell(state.cell_id)
+        cell = get_cell(state.cell_id)
         cell.close_direct_session(state.agent_id)
     except Exception:
         logger.warning("auto-disconnect: close_direct_session failed for %s", state.agent_id)
@@ -286,9 +226,9 @@ def _auto_disconnect(state: ShellState, reason: str) -> None:
 def _l3a_intent(text: str) -> dict:
     """Send a natural-language intent to the L3 coordinator for processing."""
     try:
-        from l2.bridge import coordinator
+        from l3.cell.peers.l3 import get_coordinator
 
-        coord = coordinator()
+        coord = get_coordinator()
         return coord.process_intent(text)
     except Exception as e:
         return {"success": False, "error": str(e)}

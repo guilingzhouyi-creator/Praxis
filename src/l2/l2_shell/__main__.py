@@ -1,9 +1,5 @@
 """L2 Shell — interactive entry point (`python -m l2.l2_shell`).
 
-TS rewrite reference: this REPL routing (``/`` commands → registry,
-``|`` pipelines, plain text → L3A intent) is the semantic model the TS
-engine's parser + dispatcher re-implements; the authority stays in Python3.
-
 Starts a REPL that routes input through ``l2.l2_shell.dispatch``: ``/``-prefixed
 commands hit the CommandRegistry, pipelines split on ``|``, and plain text falls
 back to L3A intent processing.  Type ``exit`` (or ``q``) to quit.
@@ -28,17 +24,12 @@ def _render(result) -> None:
     """Print a dispatch result dict to stdout.
 
     Prefers the pre-formatted ``output`` / ``answer`` fields; falls back to a
-    flat ``key: value`` dump for data-only results (e.g. ``/status``). The
-    ``clear`` flag is rendered here — handlers stay stdout-free so protocol
-    and TS frontends receive pure data.
+    flat ``key: value`` dump for data-only results (e.g. ``/status``).
     """
     if not isinstance(result, dict):
         print(result)
         return
     if result.get("success"):
-        if result.get("clear"):
-            print("\033[2J\033[H", end="")
-            return
         output = result.get("output")
         if output:
             print(output)
@@ -74,9 +65,6 @@ def repl() -> None:
         if line in ("help", "?"):
             line = "/help"
         try:
-            # Internal REPL path: direct dispatch (local interactive session on
-            # the global default state) — external frontends use the protocol
-            # v1 envelope via ProtocolHost instead (see handoff §1.8).
             result = dispatch(line)
         except Exception as e:
             print(t("shell.render.error", error=str(e)))

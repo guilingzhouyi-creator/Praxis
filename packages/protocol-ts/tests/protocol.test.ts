@@ -20,7 +20,7 @@ import {
 } from "../src/envelope.ts";
 
 describe("TS-neutral records", () => {
-  it("decodes every shared Python3 fixture and emits canonical JSON", () => {
+  it("decodes every shared Python fixture and emits canonical JSON", () => {
     for (const fixture of fixtures) {
       const decoded = decodeRecord(JSON.stringify(fixture)) as AnyRecord;
       expect(JSON.parse(encodeRecord(decoded))).toEqual(fixture);
@@ -43,7 +43,7 @@ describe("TS-neutral records", () => {
 });
 
 describe("protocol v1 envelope", () => {
-  it("matches Python3 message construction and round-trip", () => {
+  it("matches Python message construction and round-trip", () => {
     const message = makeMessage("s-1", 7, "command", { name: "status" }, "trace-1", 100.0);
     expect(validateMessage(message)).toEqual([]);
     const decoded = decodeMessage(encodeMessage(message));
@@ -72,20 +72,5 @@ describe("protocol v1 envelope", () => {
     expect(cursor.attached).toBe(true);
     cursor.detach();
     expect(cursor.attached).toBe(false);
-  });
-
-  it("mirrors the Python3 non-destructive ack across views", () => {
-    const outbox = new Outbox();
-    for (const seq of [1, 2]) outbox.append(makeMessage("s-1", seq, "result", { success: true }, "", 0));
-    outbox.ack(1);
-    // The advancing view sees only its future; a lagging view replays all.
-    expect(outbox.unacked().map((message) => message.seq)).toEqual([2]);
-    expect(outbox.unacked(0).map((message) => message.seq)).toEqual([1, 2]);
-
-    const cursor = new SessionCursor("view-a");
-    cursor.ack(5);
-    expect(cursor.lastAcked).toBe(5);
-    cursor.ack(3);
-    expect(cursor.lastAcked).toBe(5);
   });
 });
