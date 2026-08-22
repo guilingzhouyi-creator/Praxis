@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Chore (config)**: refresh agent registry to aug 2026 model lineups
 - **Chore (scripts)**: normalize scaffold glue and prune junk residue
 - **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
 - **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
