@@ -45,6 +45,13 @@ doc-stats:
 hooks:
 	git config core.hooksPath .githooks
 	chmod +x .githooks/pre-commit .githooks/commit-msg .githooks/post-checkout
+	@# Ensure worktrees inherit the same hooksPath and executable bits.
+	@for wt in $$(git worktree list --porcelain | awk '/^worktree /{print $$2}'); do \
+		git -C "$$wt" config core.hooksPath .githooks 2>/dev/null || true; \
+		chmod +x "$$wt/.githooks/commit-msg" "$$wt/.githooks/pre-commit" "$$wt/.githooks/post-checkout" 2>/dev/null || true; \
+	done
+	@# Commit template for strict Conventional Commits.
+	@if [ -f .githooks/commit-template.txt ]; then git config commit.template .githooks/commit-template.txt; fi
 
 precommit:
 	pre-commit run --all-files
