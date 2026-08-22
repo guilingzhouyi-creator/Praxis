@@ -136,7 +136,7 @@ def load_baseline(path: Path) -> dict[str, Any]:
 
 
 def singleton_gaps() -> int:
-    """Number of unhandled singleton modules (reuses scan-singletons.py).
+    """Number of unhandled singleton modules (reuses scan_singletons.py).
 
     Matches the completeness-guard semantics in
     ``tests/infra/test_resets_completeness.py``: a singleton module is a gap
@@ -144,7 +144,7 @@ def singleton_gaps() -> int:
     test's explicit ``KNOWN_GAPS`` exemption set.
     """
     try:
-        spec_path = ROOT / "scripts" / "py" / "scan-singletons.py"
+        spec_path = ROOT / "scripts" / "py" / "scan_singletons.py"
         import importlib.util
         import re
 

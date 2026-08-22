@@ -266,7 +266,6 @@ class TestTaskBusSignature:
         import hashlib
         import hmac
         import urllib.error
-        import urllib.request as req
 
         from l3.bus import task_bus as tb
         from l3.bus.task_bus import TaskBus, WebhookSubscriber
