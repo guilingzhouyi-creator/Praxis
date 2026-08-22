@@ -43,6 +43,26 @@ source of truth for the Conventional-Commits contract.
 | Body | Blank line after subject; explain **what** and **why** (structured Markdown: `## Sections`, `**keywords**`, `` `files` ``, `-` bullets) |
 | Trailer | `Co-Authored-By:` line last, preceded by a blank line |
 
+### Scope ↔ 目录映射（提交前按改动目录核对 scope——真相源 `config/discovery/commits.yaml` `scope_dirs:`）
+
+| 改动目录 | 可用 scope（节选——完整清单见 commits.yaml `scopes:`） |
+|---|---|
+| `src/l1/**` | kernel · sync · event · constitution · gatechain · vfs · ipc · process · allocator · params · ports · prompts |
+| `src/l2/**` | l2 · shell · i18n |
+| `src/l3/**` | l3 · cell · agent · agents · memory · cards · card · scheduler · discussion · subagent · l3a · session · skill · tools · tool · error-bus · bus · llm |
+| `src/l4/**` | ws · sandbox · mcp · search · lsp · vault · api |
+| `src/l5/**` | cli |
+| `.githooks/**` | hooks |
+| `scripts/**` | scripts · git |
+| `tests/**` | tests |
+| `docs/**` | docs · judge |
+| `config/**` | config |
+| `.github/**` | ci |
+| `crates/**` | 对应内核 scope（kernel 等） |
+| `packages/**` | 对应域 scope（如 `packages/protocol-ts/**` → l2） |
+
+- 提交前自检：`scope` 必须与改动目录对应且已注册；不确定时查 `config/discovery/commits.yaml` 的 `scopes:` + `scope_dirs:`（提交钩子按此拦截未注册/不匹配的 scope）。
+
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
   merge is gated on diff scope — see `AGENTS.md` `## Dependency management`.
 - **Commit-scan policy — single source of truth**: the Conventional-Commits

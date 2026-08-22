@@ -146,6 +146,7 @@ if [ -n "$body" ]; then
   if [ -n "$missing" ]; then
     echo "❌ Commit body lacks:$missing (AGENTS.md template — write the message per the template)." >&2
     echo "   Use: body = '## What' + '## Why' sections, **keyword** emphasis, '- ' bullets." >&2
+    echo "   Full field spec: docs/workflow/commits.md 'Message contract'." >&2
     exit 1
   fi
 fi
