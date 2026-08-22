@@ -9,6 +9,8 @@ Consent gating (engineering mode + operator opt-in) is unchanged.
 
 from __future__ import annotations
 
+import logging
+import os
 import threading
 import time
 from typing import Any
@@ -18,6 +20,8 @@ from l1.kernel.ports import (
     InputActivitySnapshot,
     InputSourcePort,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class NoopInputSource(InputSourcePort):
@@ -69,6 +73,122 @@ class MouseInputPort(NoopInputSource):
     def __init__(self) -> None:
         """Bind the pointer device name."""
         super().__init__("pointer")
+
+
+class HostInputSource(InputSourcePort):
+    """Aggregate-counting host adapter behind ``/dev/input`` (3.5, P1.5).
+
+    Degrades deterministically — ``unavailable_reason`` is one of:
+      "no-input-devices"      no matching event nodes exist
+      "permission-denied"     nodes exist but are not readable by this user
+
+    Only AGGREGATE read-chunk counts are recorded: raw bytes are never
+    parsed, stored, or logged — no key codes, no coordinates, no timing
+    beyond a coarse last-activity timestamp.
+    """
+
+    def __init__(self, name: str = "host", device_glob: str = "/dev/input/event*") -> None:
+        """Bind the source to a device-name and its event-node glob."""
+        self.name = name
+        self.device_glob = device_glob
+        self.unavailable_reason = ""
+        self._lock = threading.RLock()
+        self._running = False
+        self._stop = threading.Event()
+        self._events = 0
+        self._last = 0.0
+        self._fds: list[int] = []
+
+    def _probe(self) -> list[int]:
+        """Open readable event nodes; on failure set the reason, return []."""
+        import glob as _glob
+        import os as _os
+
+        devices = sorted(_glob.glob(self.device_glob))
+        if not devices:
+            self.unavailable_reason = "no-input-devices"
+            return []
+        fds: list[int] = []
+        try:
+            for dev in devices:
+                fds.append(_os.open(dev, _os.O_RDONLY | _os.O_NONBLOCK))
+        except PermissionError:
+            for fd in fds:
+                _os.close(fd)
+            self.unavailable_reason = "permission-denied"
+            return []
+        except OSError:
+            for fd in fds:
+                _os.close(fd)
+            self.unavailable_reason = "no-input-devices"
+            return []
+        self.unavailable_reason = ""
+        return fds
+
+    def start(self) -> bool:
+        """Probe devices and start the aggregate counting loop."""
+        with self._lock:
+            if self._running:
+                return True
+            fds = self._probe()
+            if not fds:
+                return False
+            self._fds = fds
+            self._stop.clear()
+            self._running = True
+            self._thread = threading.Thread(target=self._poll, daemon=True, name=f"host-input-{self.name}")
+            self._thread.start()
+            return True
+
+    def _poll(self) -> None:
+        """Count readable chunks across opened nodes (aggregate only)."""
+        import select as _select
+
+        try:
+            while not self._stop.is_set():
+                readable, _, _ = _select.select(self._fds, [], [], 0.25)
+                for fd in readable:
+                    try:
+                        while os.read(fd, 256):
+                            with self._lock:
+                                self._events += 1
+                                self._last = time.time()
+                    except OSError:
+                        continue
+        except Exception as e:  # noqa: BLE001 — the adapter must never crash its host
+            logger.debug("host input source %s: poll ended: %s", self.name, e)
+
+    def stop(self) -> None:
+        """Stop counting and release device handles."""
+        import contextlib
+
+        with self._lock:
+            self._running = False
+            self._stop.set()
+            for fd in self._fds:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            self._fds = []
+
+    def active(self) -> bool:
+        """Return whether the source is running and observed activity."""
+        with self._lock:
+            return bool(self._running and self._events > 0)
+
+    def last_activity(self) -> float:
+        """Return the last observed activity timestamp (0.0 when stopped)."""
+        with self._lock:
+            return self._last if self._running else 0.0
+
+
+def create_host_input_source(device: str = "keyboard", device_glob: str = "/dev/input/event*") -> HostInputSource:
+    """P1.5 factory — deterministic host adapter with explicit unavailable states.
+
+    Callers inspect :attr:`HostInputSource.unavailable_reason` after a False
+    ``start()`` to surface "unavailable-device" / "permission-denied" states
+    to operators; the controller contract degrades without code changes.
+    """
+    return HostInputSource(name=device, device_glob=device_glob)
 
 
 class FakeInputSource(InputSourcePort):
@@ -279,8 +399,11 @@ class InputActivityController:
         desired = bool(debug_enabled and configured)
         with self._lock:
             if desired and not self._enabled:
-                self._enabled = True
-                self._provider.start()
+                # P1.6: only claim enablement when the provider actually started.
+                started = self._provider.start()
+                self._enabled = bool(started)
+                if not started:
+                    self._provider.stop()
             elif not desired and self._enabled:
                 self._enabled = False
                 self._provider.stop()
@@ -303,18 +426,34 @@ class InputActivityController:
             return denied
         if enabled and not manager.is_enabled():
             return {"success": False, "error": "input monitoring requires engineering debug mode"}
+        rolled_back = False
         with self._lock:
+            previous = self._enabled
             self._enabled = bool(enabled)
             started = self._provider.start() if self._enabled else False
             if not self._enabled:
                 self._provider.stop()
+            elif not started:
+                # P1.6 transactional enable: a failed provider start must
+                # never persist false enablement — roll the flag back and
+                # keep the persisted setting in sync with reality.
+                self._provider.stop()
+                self._enabled = previous
+                rolled_back = True
+        effective = self._enabled
         try:
             from l3.config.settings_center import get_center
 
-            get_center().set("engineering_debug.input.enabled", bool(enabled))
+            get_center().set("engineering_debug.input.enabled", bool(effective))
         except Exception:
             pass
-        return {"success": True, "started": started, **self.status()}
+        result = {"started": started, **self.status()}
+        # Our verdict wins over status()'s blanket success flag.
+        result["success"] = bool(started or not enabled)
+        if rolled_back:
+            result["rolled_back"] = True
+            result["error"] = "provider start failed — enablement rolled back"
+        return result
 
 
 _controller: InputActivityController | None = None
