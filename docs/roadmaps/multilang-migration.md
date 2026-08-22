@@ -1,14 +1,14 @@
 # Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends
 
-> Status: build scaffold active (Python backend shipped; TypeScript protocol
+> Status: build scaffold active (Python3 backend shipped; TypeScript protocol
 > mirror and Rust contract workspace are in place). Associated design:
 > `docs/roadmaps/frontend-kernel-roadmap.md`
 > (Rust kernel sink, TS frontend, language-neutral contract).
 
 ## 0. Purpose
 
-Python is the current **abstraction base**, not the final language. The
-eventual stack is a Rust kernel + TypeScript + Python + HTML + C front-end
+Python3 is the current **abstraction base**, not the final language. The
+eventual stack is a Rust kernel + TypeScript + Python3 + HTML + C front-end
 family (see the frontend-kernel roadmap). The `run_code` transport (Code
 Mode / PTC) must therefore be **language-agnostic by construction** so a
 new language is one backend registration — not a framework change.
@@ -32,7 +32,7 @@ CodeLanguageBackend (ABC)
 
 Registration: `register_language_backend(backend)` /
 `get_language_backend(language)`; the default language is
-`CODE_RUN_DEFAULT_LANGUAGE` (config, currently `"python"`). `PythonLanguageBackend`
+`CODE_RUN_DEFAULT_LANGUAGE` (config, currently `"python"`). `Python3LanguageBackend`
 is registered at import time. `get_renderer()` / `register_renderer()` remain
 as backward-compatible aliases.
 
@@ -63,7 +63,7 @@ as backward-compatible aliases.
    ```
 
 2. **Register** in `tool_presentation.py` at import time (alongside
-   `PythonLanguageBackend`):
+   `Python3LanguageBackend`):
 
    ```python
    register_language_backend(TypeScriptLanguageBackend())
@@ -86,7 +86,7 @@ roadmap's Rust kernel sink (`l1_kernel_rs`):
 > **Boundary baseline**: `docs/roadmaps/kernel-boundary-audit.md` (score 42/100)
 > defines what `l1_kernel_rs` may carry — mechanism only (sync / event / process /
 > allocator / gatechain / constitution + a single invoke-capability gate). Policy
-> (skills, prompts, model registry, scheduler strategy) stays in Python/config.
+> (skills, prompts, model registry, scheduler strategy) stays in Python3/config.
 > Re-run the §4 invariant checklist before `execute()` delegates to the Rust
 > kernel's process/fs ports.
 
@@ -119,7 +119,7 @@ tools, not Code Mode language backends. They must remain outside the TS L2
 engine and the Rust kernel mechanism set.
 
 - Execution is bound to the language-neutral `ProcessPort` / `ProcessResult`
-  contract, so a Rust process adapter can replace the Python adapter without
+  contract, so a Rust process adapter can replace the Python3 adapter without
   changing `automation.yaml` schema v1 or report consumers.
 - Performance reports use a versioned JSON schema. L2 protocol measurements are
   regression evidence only; Rust migration priority still requires the fixed-work
@@ -153,7 +153,7 @@ engine and the Rust kernel mechanism set.
 
 ## 7. Build scaffold (M0.5)
 
-The language build perimeter is now executable without changing the Python
+The language build perimeter is now executable without changing the Python3
 runtime:
 
 - `packages/protocol-ts/package-lock.json` fixes the TypeScript/Vitest graph;

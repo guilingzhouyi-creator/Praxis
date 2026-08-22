@@ -64,7 +64,7 @@ while the P1 findings below must be closed before the status changes to
 4. **TS/Rust rewrite preparation.** Freeze versioned JSON schemas for mode,
    prompt metadata, and input snapshots. TypeScript must consume the API/port
    contract and never read devices or bypass authorization directly; a future
-   Rust adapter may own platform input through the same port. Keep Python as
+   Rust adapter may own platform input through the same port. Keep Python3 as
    the current reference implementation until contract and parity tests are
    green.
 
