@@ -70,6 +70,9 @@ fn leader_and_membership_are_unique_and_bounded() {
     let snapshot = groups.snapshot(group).expect("snapshot");
     assert_eq!(snapshot.members.len(), 2);
     assert_eq!(snapshot.leader, Some(leader.raw()));
+    assert_eq!(groups.state(group), Ok(ProcessGroupState::Active));
+    assert_eq!(groups.member_count(group), Ok(2));
+    assert_eq!(groups.is_empty(group), Ok(false));
 }
 
 #[test]
@@ -143,6 +146,8 @@ fn stale_and_duplicate_terminal_observations_fail_closed() {
     );
     let reaped = groups.reap_member(group, process).expect("reap");
     assert!(reaped.members.is_empty());
+    assert_eq!(groups.member_count(group), Ok(0));
+    assert_eq!(groups.is_empty(group), Ok(true));
     assert_eq!(groups.group_for_handle(process), None);
 }
 

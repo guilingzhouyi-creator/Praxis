@@ -486,6 +486,29 @@ impl ProcessGroupBook {
             .ok_or(ProcessGroupError::UnknownGroup)
     }
 
+    /// Return a group lifecycle state without allocating a snapshot.
+    pub fn state(&self, id: ProcessGroupId) -> Result<ProcessGroupState, ProcessGroupError> {
+        self.lock_state()
+            .groups
+            .get(&id)
+            .map(|group| group.state)
+            .ok_or(ProcessGroupError::UnknownGroup)
+    }
+
+    /// Return the number of members currently owned by a group.
+    pub fn member_count(&self, id: ProcessGroupId) -> Result<usize, ProcessGroupError> {
+        self.lock_state()
+            .groups
+            .get(&id)
+            .map(|group| group.members.len())
+            .ok_or(ProcessGroupError::UnknownGroup)
+    }
+
+    /// Return whether a group owns no process handles.
+    pub fn is_empty(&self, id: ProcessGroupId) -> Result<bool, ProcessGroupError> {
+        Ok(self.member_count(id)? == 0)
+    }
+
     /// Return all groups sorted by id.
     pub fn snapshots(&self) -> Vec<ProcessGroupSnapshot> {
         self.lock_state().groups.values().map(snapshot).collect()
