@@ -71,20 +71,12 @@ def agent_review_message(body: dict | None = None) -> dict:
 def _shell_dispatch(body: dict | None = None) -> dict:
     """Dispatch one shell input line through the L2 command engine.
 
-    Two modes: protocol v1 envelopes (body carries ``kind``/``v``) are
-    forwarded to the shared ProtocolHost and answered with
-    ``{"envelopes": [...]}``; legacy ``{"text", "session"}`` dict requests
-    keep the historic path. The host owns per-session ShellSession state,
-    so web clients use the same session semantics as the TS bridge.
+    Request: ``{"text": "...", "session": {...}}`` — ``text`` is the input
+    line; optional ``session`` carries per-session ShellSession fields
+    (shell/session_id) and falls back to the process-global state when
+    omitted.
     """
     body = body or {}
-    if "kind" in body or "v" in body:
-        try:
-            from l2.protocol.host import get_protocol_host
-
-            return {"success": True, "envelopes": get_protocol_host().handle_message(body)}
-        except Exception as e:
-            return {"success": False, "error": f"shell protocol dispatch failed: {e}"}
     text = str(body.get("text", ""))
     if not text:
         return {"success": False, "error": "missing 'text' field"}

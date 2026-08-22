@@ -1,4 +1,4 @@
-"""Search tool handlers — cross-platform with pure Python3 fallback."""
+"""Search tool handlers — cross-platform with pure Python fallback."""
 
 import logging
 import os
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _py_grep(pattern: str, path: str, fixed: bool = False) -> list[dict]:
-    """Pure Python3 search fallback for platforms without rg/grep."""
+    """Pure Python search fallback for platforms without rg/grep."""
     results: list[dict] = []
     if os.path.isfile(path):
         # Search a single file directly
@@ -45,10 +45,10 @@ def _py_grep(pattern: str, path: str, fixed: bool = False) -> list[dict]:
 
 
 def _run_grep(pattern: str, path: str, fixed: bool = False) -> list[dict]:
-    """Run the platform-appropriate grep command, then pure Python3 fallback.
+    """Run the platform-appropriate grep command, then pure Python fallback.
 
     Uses ``l1.kernel.platform.grep_cmd()`` for cross-platform command
-    selection (rg → grep/findstr); falls back to pure Python3 only when
+    selection (rg → grep/findstr); falls back to pure Python only when
     the command itself fails (per project convention, no hand-rolled
     platform dispatch in implementation code).
     """
@@ -62,8 +62,8 @@ def _run_grep(pattern: str, path: str, fixed: bool = False) -> list[dict]:
             return _parse_grep_output(r.stdout.splitlines())
         logger.debug("_search: grep_cmd returned %s", r.returncode)
     except Exception:
-        logger.debug("_search: grep_cmd run failed, falling back to pure Python3")
-    # Pure Python3 fallback (works on all platforms)
+        logger.debug("_search: grep_cmd run failed, falling back to pure Python")
+    # Pure Python fallback (works on all platforms)
     return _py_grep(pattern, path, fixed=fixed)
 
 

@@ -64,7 +64,7 @@ class ContextItem:
 class PromptTemplate:
     """Layered prompt template."""
 
-    role: str = ""  # Role prompt: "You are a senior Python3 engineer..."
+    role: str = ""  # Role prompt: "You are a senior Python engineer..."
     task: str = ""  # Task prompt: "Fix the bug in login.py..."
     constraints: str = ""  # Constraint prompt: "Do not modify tests..."
     context: str = ""  # Assembled context
@@ -169,7 +169,7 @@ class ContextAssembler:
             from l4.lsp.lsp import LSP_PYTHON_EXT, LocalAnalyzer
 
             p = _Path(file_path)
-            # Skip nonexistent / non-Python3 paths: LocalAnalyzer.diagnostics()
+            # Skip nonexistent / non-Python paths: LocalAnalyzer.diagnostics()
             # would fabricate a synthetic "parse error at line 1" for them,
             # misleading the agent with high-priority context.
             if not file_path or not p.is_file() or p.suffix != LSP_PYTHON_EXT:

@@ -90,8 +90,6 @@ DEFAULTS: dict[str, Any] = {
     # modifiable via the business surfaces themselves — config/admin only).
     "ci.control.api.writable": True,
     "ci.control.shell.writable": True,
-    # WS bridge port — deployment config, consumed by l4/params.py.
-    "ws_port": 8081,
     # Shell family (L2) — default dialect + master switch.  Members and
     # frontend bindings are declared in config/discovery/shells.yaml.
     "shells.enabled": True,

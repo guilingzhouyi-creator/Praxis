@@ -57,7 +57,7 @@ class SymbolSearch:
         term = name.lower()
         results: list[SearchResult] = []
 
-        # Python3 AST search — use cached AST with mtime invalidation
+        # Python AST search — use cached AST with mtime invalidation
         for file_path in root.rglob("*.py"):
             if is_ignored_path(file_path):
                 continue

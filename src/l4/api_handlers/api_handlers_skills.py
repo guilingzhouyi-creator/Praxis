@@ -223,7 +223,7 @@ def handle_skills_offensive_policy_set(body: dict | None = None) -> dict:
         return {"success": False, "error": f"permission denied: {who}"}
     update: dict[str, Any] = {"success": True}
     if "enabled" in b:
-        # Parse booleans explicitly — bool("false") is True in Python3, which
+        # Parse booleans explicitly — bool("false") is True in Python, which
         # would invert the gate when clients send string form values.
         raw = b["enabled"]
         update["enabled"] = raw in (True, "true", 1, "1")

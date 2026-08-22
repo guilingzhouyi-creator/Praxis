@@ -6,8 +6,6 @@ constants; the Rust rewrite boundary stays lean.
 
 from typing import Final
 
-from l1.kernel.settings import get_settings
-
 API_CORS_ALLOW_HEADERS: Final[str] = "Content-Type"
 API_CORS_ALLOW_METHODS: Final[str] = "GET, POST, DELETE, OPTIONS"
 API_CORS_ORIGIN: Final[str] = "*"
@@ -17,10 +15,7 @@ API_GATEWAY_QUEUE_TIMEOUT: Final[float] = 30.0
 API_MAX_BODY_BYTES: Final[int] = 1_048_576
 API_MIDDLEWARE_TIMEOUT: Final[float] = 30.0
 API_PAGE_MAX_LIMIT: Final[int] = 100
-# Deployment-configurable via praxis.yaml "ws_port" (registered in
-# kernel/settings.py DEFAULTS; TS-side default mirrors it in
-# ws.ts transport options).
-API_WS_PORT: Final[int] = int(get_settings().get("ws_port", 8081))
+API_WS_PORT: Final[int] = 8081
 DIFF_CHAR_LEVEL_MAX_LINES: Final[int] = 10
 DIFF_CONTEXT_LINES: Final[int] = 3
 DIFF_DICTIONARY_FILE: Final[str] = "diff_dictionary.bin"

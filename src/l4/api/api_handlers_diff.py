@@ -55,7 +55,7 @@ def _ast_symbols(rel_path: str) -> list[dict]:
 
     Lets the review department correlate hunks with the symbols they touch
     (function/class definitions + line numbers). Uses SymbolSearch's cached
-    AST trees; degrades to [] for non-Python3 or unreadable files.
+    AST trees; degrades to [] for non-Python or unreadable files.
     """
     if not rel_path:
         return []

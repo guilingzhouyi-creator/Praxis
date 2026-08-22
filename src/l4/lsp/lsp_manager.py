@@ -8,7 +8,7 @@ Architecture:
   └── API Handlers           — REST endpoints
 
 Supported LSP servers:
-  Python3: pyright (preferred) / pylsp
+  Python: pyright (preferred) / pylsp
   TypeScript/JS: typescript-language-server
   Go: gopls
   Rust: rust-analyzer
@@ -164,7 +164,7 @@ class LspManager:
 
     def _fallback_diagnostics(self, file_path: str) -> dict:
         """Fall back to tool-based diagnostics (pyright/json/lint)."""
-        # Python3: pyright
+        # Python: pyright
         path = Path(file_path)
         if path.suffix == ".py":
             try:
@@ -207,7 +207,7 @@ class LspManager:
         return diags
 
     def _ast_diagnostics(self, file_path: str) -> list[dict]:
-        """Basic diagnostics using Python3 ast."""
+        """Basic diagnostics using Python ast."""
         import ast
 
         diags = []

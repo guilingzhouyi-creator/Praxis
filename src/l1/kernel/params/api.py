@@ -480,8 +480,3 @@ FALLBACK_LLM_API_URL: Final[str] = "<api-url>"
 LLM_RATE_LIMIT_DEFAULT: Final[int] = 10
 # Default filesystem calls/minute rate limit
 FILESYSTEM_RATE_LIMIT_DEFAULT: Final[int] = 100
-
-# ── Protocol v1 (L2 session layer) ──
-# Bounded per-session replay window; consumed by envelope.py as
-# OUTBOX_MAXLEN (TS mirror: packages/protocol-ts/src/envelope.ts).
-PROTOCOL_OUTBOX_MAXLEN: Final[int] = 1024

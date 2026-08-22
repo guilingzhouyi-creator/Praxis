@@ -3,7 +3,7 @@
 The ``run_code`` tool is the Code Mode / PTC transport: under the ``code``
 presentation mode the registry exposes only this reserved tool plus a
 generated SDK, so the model writes a program in the configured language
-backend (Python3 today; TypeScript / Rust slots per the multi-language
+backend (Python today; TypeScript / Rust slots per the multi-language
 roadmap) that composes multi-step tool calls in one sandboxed execution
 instead of one tool-call per step. Only the program's printed output and
 return value re-enter the model context; every tool call the program makes
@@ -65,7 +65,7 @@ def _make_binding(agent_id: str):
 
 
 def _exec_program_inline(program: str, agent_id: str, timeout: float) -> dict:
-    """Execute a Python3 program in-process with injected tool bindings.
+    """Execute a Python program in-process with injected tool bindings.
 
     The program runs in a worker thread under a hard timeout (threading, not
     SIGALRM — ``signal.signal`` only works in the main thread, while the
@@ -108,7 +108,7 @@ def _exec_program_inline(program: str, agent_id: str, timeout: float) -> dict:
 def _exec_backend(backend, program_path, program: str, agent_id: str, timeout: float, cache_dir) -> dict:
     """Execute a program via the language backend.
 
-    Python3 programs run in-process with injected tool bindings so every SDK
+    Python programs run in-process with injected tool bindings so every SDK
     binding call executes the real tool through the pipeline (audit chain,
     run_code call as parent). Other languages fall back to ``backend.execute``
     (subprocess).
