@@ -44,8 +44,7 @@ class SessionPromptMixin:
     _loop: Any
     _ctx_window_cache: int
     _model_spec_cache: dict | None
-    # P0.5: this turn's input_seq — allocated once at ingress (SessionLoopMixin).
-    _turn_input_seq: int | None
+    # P0.5: turn-scoped input_seq lives in SessionLoopMixin; not re-declared here.
 
     def _continue_after_ask(self, text: str) -> dict:
         """Resume the loop after clarification answers (provided by SessionAskMixin)."""
@@ -289,7 +288,7 @@ class SessionPromptMixin:
         pre_tokens = self.context_stats()["projected_tokens"]
         # P0.5: one input_seq per turn — allocated lazily at first record
         # write and SHARED by conversation + thought + tool records.
-        self._turn_input_seq = None
+        self._turn_input_seq: int | None = None
         result = self._loop.run(
             max_steps=limits["max_steps"],
             timeout=limits["timeout"],

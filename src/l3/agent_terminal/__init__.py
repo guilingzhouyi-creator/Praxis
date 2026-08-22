@@ -3,6 +3,14 @@
 Extracted from:
   - _term_types.py: TerminalStatus, CardMode, TerminalCard, CardResult
   - _term_handlers.py: handler registry, default handlers, _HANDLER_MAP
+
+Locking discipline
+------------------
+``self._lock`` (``RLock``) is the outer lock for all mutable terminal state
+(``_workers/_running/_bound_sessions/status``). ``self._active_loop_lock``
+(``Lock``) is the inner lock for the persistent ``AgentLoop`` only. Order is
+always ``_lock → _active_loop_lock``; never the reverse, to avoid deadlock
+between ``auto_reload`` and ``reset_persistent_loop``.
 """
 
 from __future__ import annotations
@@ -449,16 +457,23 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
         Returns:
             dict with status/running/cards/paused + dual identity.
         """
+        with self._lock:
+            bound = sorted(self._bound_sessions)
+            cards = self._cards_processed
+            active = self._active_cards
+            paused = self._paused
+            running = self._running
+            status_name = self.status.name if hasattr(self.status, "name") else str(self.status)
         return {
             "session_id": self.session_id,
-            "session_ids": sorted(self._bound_sessions),
+            "session_ids": bound,
             "process_id": self.process_id,
             "agent_id": self.agent_id,
-            "status": self.status.name if hasattr(self.status, "name") else str(self.status),
-            "running": self._running,
-            "cards_processed": self._cards_processed,
-            "active_cards": self._active_cards,
-            "paused": self._paused,
+            "status": status_name,
+            "running": running,
+            "cards_processed": cards,
+            "active_cards": active,
+            "paused": paused,
         }
 
     def auto_reload(self, reason: str = "") -> dict:
@@ -477,65 +492,73 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
             dict with success flag, reload count, worker count, and the
             reached status.
         """
-        self._running = False
-        stuck: list[str] = []
-        for w in self._workers:
-            w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
-            if w.is_alive():
-                stuck.append(w.name)
-        with self._active_loop_lock:
-            self._active_loop = None
-        self._active_cards = 0
-        self._paused = False
-        self._current_card = ""
-        self._card_deadline = 0.0
-        from l1.kernel.params.agent import TERMINAL_STATE_DEFAULT as _T_STATE
+        # Serialize against dispatch/shutdown that mutate _workers/_running.
+        with self._lock:
+            self._running = False
+            stuck: list[str] = []
+            # Copy to avoid mutation during join.
+            workers_snapshot = list(self._workers)
+            for w in workers_snapshot:
+                w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
+                if w.is_alive():
+                    stuck.append(w.name)
+            with self._active_loop_lock:
+                self._active_loop = None
+            self._active_cards = 0
+            self._paused = False
+            self._current_card = ""
+            self._card_deadline = 0.0
+            from l1.kernel.params.agent import TERMINAL_STATE_DEFAULT as _T_STATE
 
-        self._loop_state = _T_STATE
-        # Rebuild: keep only live threads, then top the pool back up so a
-        # reloaded terminal actually accepts cards again.
-        self._workers = [w for w in self._workers if w.is_alive()]
-        self._running = True
-        for i in range(max(0, self._max_workers - len(self._workers))):
-            w = threading.Thread(
-                target=self._worker, daemon=True, name=f"term-{self.agent_id}-r{self._reload_count}-w{i}"
-            )
-            w.start()
-            self._workers.append(w)
-        self._reload_count += 1
-        if stuck:
-            self.status = TerminalStatus.BLOCKED
-            logger.error(
-                "agent_terminal %s: auto_reload #%d INCOMPLETE (%s) — stuck workers: %s",
-                self.agent_id,
-                self._reload_count,
-                reason or "anomaly",
-                ",".join(stuck),
+            self._loop_state = _T_STATE
+            # Rebuild: keep only live threads, then top the pool back up so a
+            # reloaded terminal actually accepts cards again.
+            self._workers = [w for w in self._workers if w.is_alive()]
+            self._running = True
+            for i in range(max(0, self._max_workers - len(self._workers))):
+                w = threading.Thread(
+                    target=self._worker, daemon=True, name=f"term-{self.agent_id}-r{self._reload_count}-w{i}"
+                )
+                w.start()
+                self._workers.append(w)
+            self._reload_count += 1
+            if stuck:
+                self.status = TerminalStatus.BLOCKED
+                logger.error(
+                    "agent_terminal %s: auto_reload #%d INCOMPLETE (%s) — stuck workers: %s",
+                    self.agent_id,
+                    self._reload_count,
+                    reason or "anomaly",
+                    ",".join(stuck),
+                )
+                return {
+                    "success": False,
+                    "error": f"reload incomplete — {len(stuck)} worker(s) missed the join deadline",
+                    "stuck_workers": stuck,
+                    "agent_id": self.agent_id,
+                    "reload_count": self._reload_count,
+                    "status": "BLOCKED",
+                    "reason": reason,
+                }
+            self.status = TerminalStatus.IDLE
+            logger.info(
+                "agent_terminal %s: auto_reload #%d (%s)", self.agent_id, self._reload_count, reason or "anomaly"
             )
             return {
-                "success": False,
-                "error": f"reload incomplete — {len(stuck)} worker(s) missed the join deadline",
-                "stuck_workers": stuck,
+                "success": True,
                 "agent_id": self.agent_id,
                 "reload_count": self._reload_count,
-                "status": "BLOCKED",
+                "status": "IDLE",
+                "workers": len(self._workers),
                 "reason": reason,
             }
-        self.status = TerminalStatus.IDLE
-        logger.info("agent_terminal %s: auto_reload #%d (%s)", self.agent_id, self._reload_count, reason or "anomaly")
-        return {
-            "success": True,
-            "agent_id": self.agent_id,
-            "reload_count": self._reload_count,
-            "status": "IDLE",
-            "workers": len(self._workers),
-            "reason": reason,
-        }
 
     def shutdown(self) -> dict:
         """Stop the terminal, join workers, and emit session_end hooks."""
-        self._running = False
-        for w in self._workers:
+        with self._lock:
+            self._running = False
+            workers = list(self._workers)
+        for w in workers:
             w.join(timeout=AGENT_TERMINAL_WORKER_JOIN_TIMEOUT)
         # Clean up any orphaned convention loops
         for _conv_id, session in list(self._convention_loops.items()):
@@ -779,6 +802,18 @@ _session_registry: dict[str, dict] = {}
 _session_registry_lock = threading.Lock()
 
 
+def _primary_bound(terminal) -> str:
+    """Return the deterministic primary session_id for a terminal.
+
+    Determinism is by lexicographic order, not ``bound_at`` chronology.
+    This keeps the election stable across restarts (``bound_at`` is
+    wall-clock and may skew) and matches the existing recovery/tests
+    that assert ``sorted`` order. If chronological primary is desired,
+    store ``bound_at`` per session and sort by it.
+    """
+    return sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+
+
 def register_session(session_id: str, agent_id: str, meta: dict | None = None) -> dict:
     """Bind a session_id to its backing terminal (dual identity).
 
@@ -841,7 +876,7 @@ def detach_session(session_id: str) -> dict:
         if terminal is not None:
             terminal._bound_sessions.discard(session_id)
             if terminal.session_id == session_id:
-                terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+                terminal.session_id = _primary_bound(terminal)
         return {"success": True, "session_id": session_id, "state": "detached"}
 
 
@@ -867,7 +902,7 @@ def close_session_binding(session_id: str) -> bool:
         if terminal is not None:
             terminal._bound_sessions.discard(session_id)
             if terminal.session_id == session_id:
-                terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+                terminal.session_id = _primary_bound(terminal)
         return True
 
 
@@ -913,7 +948,7 @@ def unregister_session(session_id: str) -> bool:
     if terminal is not None:
         terminal._bound_sessions.discard(session_id)
         if terminal.session_id == session_id:
-            terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+            terminal.session_id = _primary_bound(terminal)
     return True
 
 
@@ -925,5 +960,5 @@ def reset_sessions() -> None:
             if terminal is not None:
                 terminal._bound_sessions.discard(rec["session_id"])
                 if terminal.session_id == rec["session_id"]:
-                    terminal.session_id = sorted(terminal._bound_sessions)[0] if terminal._bound_sessions else ""
+                    terminal.session_id = _primary_bound(terminal)
         _session_registry.clear()
