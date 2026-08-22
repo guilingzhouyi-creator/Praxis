@@ -96,7 +96,10 @@ impl ProcessGroupRuntime {
         Ok(self.groups.create(name, None, member_limit)?)
     }
 
-    /// Spawn direct arguments and atomically retain the child in an active group.
+    /// Spawn direct arguments and retain the child in an active group.
+    ///
+    /// If group admission loses a concurrent lifecycle race, the child is
+    /// terminated and reaped before the group error is returned.
     pub fn spawn_args(
         &self,
         group: ProcessGroupId,
