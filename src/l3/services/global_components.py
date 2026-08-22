@@ -213,7 +213,7 @@ class L3BComponent(Component):
 
     def bus_init(self, bus: SystemBus) -> None:
         """Lazy-initialize the L3BComposite bridging two Cells."""
-        from l3.bus.l3b import L3BComposite
+        from l3.bus.l3b_composite import L3BComposite
 
         self._composite = L3BComposite(self.composite_id, self.prev_cell, self.next_cell)
 

@@ -1,4 +1,4 @@
-"""Tests for l3.bus.l3b.L3BComposite.route_subtask — HTN-B decomposition."""
+"""Tests for l3.bus.l3b_composite.L3BComposite.route_subtask — HTN-B decomposition."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ class TestL3BRouteSubtask:
     """HTN-B route decomposition — row plan, enrichment, fallback."""
 
     def _make_composite(self):
-        from l3.bus.l3b import L3BComposite
+        from l3.bus.l3b_composite import L3BComposite
 
         return L3BComposite("cell-1", "cell-2")
 
