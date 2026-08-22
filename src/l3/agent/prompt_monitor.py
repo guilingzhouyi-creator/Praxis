@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Any
 
 from l1.kernel.params.system import PROMPT_MONITOR_ENABLED_DEFAULT
+from l3.durable_store import DurableJsonStore, DurableStoreError
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,54 @@ _lock = threading.RLock()
 
 # key -> {"used": int, "ok": int, "fail": int}
 _metrics: dict[str, dict[str, int]] = {}
+
+# P1.2: durable per-VERSION ledger ("key@vN" -> counters). Survives
+# restarts; never stores any prompt text or chain-of-thought.
+_ledger_store: DurableJsonStore | None = None
+
+
+def _ledger() -> DurableJsonStore:
+    """Return the durable prompt-usage ledger (data_dir/prompts/usage.json)."""
+    global _ledger_store
+    if _ledger_store is None:
+        from pathlib import Path
+
+        from l1.kernel.paths import data_dir as _data_dir
+
+        _ledger_store = DurableJsonStore(Path(_data_dir()) / "prompts" / "usage.json", kind="l3a_prompt_usage")
+    return _ledger_store
+
+
+def _current_version(key: str) -> int:
+    """Best-effort current revision of a prompt key (0 = unversioned)."""
+    try:
+        from .prompts import prompt_versions
+
+        return int(prompt_versions().get("versions", {}).get(key, 0))
+    except Exception:
+        return 0
+
+
+def _bump_ledger(key: str, version: int, *, used: bool = False, success: bool | None = None) -> None:
+    """Append one event to the durable version ledger (bypass, never raises)."""
+    try:
+        store = _ledger()
+        data = store.read()
+        entries = data.setdefault("entries", {})
+        ck = f"{key}@v{version}"
+        e = entries.setdefault(ck, {"key": key, "version": version, "used": 0, "ok": 0, "fail": 0, "last_ts": 0.0})
+        if used:
+            e["used"] += 1
+        if success is True:
+            e["ok"] += 1
+        if success is False:
+            e["fail"] += 1
+        e["last_ts"] = time.time()
+        r = store.write(data)
+        if not r.get("success"):
+            raise DurableStoreError(str(r.get("error")))
+    except Exception as e:  # noqa: BLE001 — monitor is a bypass by contract
+        logger.debug("prompt_monitor: ledger bump skipped: %s", e)
 
 
 def prompt_monitor_status() -> dict:
@@ -76,14 +126,32 @@ def set_prompt_monitor(
 
 
 def reset_prompt_monitor() -> None:
-    """Reset the monitor (switch + metrics) for tests / lifecycle."""
+    """Reset the monitor switch and live metrics (tests / lifecycle).
+
+    The durable version ledger is intentionally KEPT — use
+    :func:`reset_prompt_ledger` for a hard telemetry wipe.
+    """
     with _lock:
         _state["enabled"] = PROMPT_MONITOR_ENABLED_DEFAULT
         _metrics.clear()
 
 
-def record_prompt_usage(key: str) -> None:
-    """Record one usage sample for a prompt key (bypass, never raises)."""
+def reset_prompt_ledger() -> None:
+    """Wipe the durable version ledger (tests / operator hard reset)."""
+    try:
+        _ledger().reset()
+    except Exception as e:  # noqa: BLE001
+        logger.debug("prompt_monitor: ledger reset skipped: %s", e)
+
+
+def record_prompt_usage(key: str, version: int | None = None) -> None:
+    """Record one usage sample for a prompt key (bypass, never raises).
+
+    Args:
+        key: the prompt registry key.
+        version: prompt revision; resolved from the versioning surface
+            when omitted (P1.2 — outcome telemetry is keyed by version).
+    """
     if not key:
         return
     with _lock:
@@ -91,6 +159,7 @@ def record_prompt_usage(key: str) -> None:
             return
         entry = _metrics.setdefault(key, {"used": 0, "ok": 0, "fail": 0})
         entry["used"] += 1
+    _bump_ledger(key, _current_version(key) if version is None else version, used=True)
 
 
 def install_prompt_hook() -> bool:
@@ -113,7 +182,7 @@ def install_prompt_hook() -> bool:
         return False
 
 
-def record_prompt_outcome(key: str, success: bool) -> None:
+def record_prompt_outcome(key: str, success: bool, version: int | None = None) -> None:
     """Record a success/failure sample for a prompt key (card/task outcome)."""
     if not key:
         return
@@ -125,6 +194,47 @@ def record_prompt_outcome(key: str, success: bool) -> None:
             entry["ok"] += 1
         else:
             entry["fail"] += 1
+    _bump_ledger(
+        key,
+        _current_version(key) if version is None else version,
+        success=success,
+    )
+
+
+def prompt_usage_report() -> dict:
+    """RC-period report: per-key@version usage/outcome from the durable ledger (P1.2).
+
+    Aggregates the DURABLE ledger (survives restarts) with the live
+    in-memory counters. Contains only counters and rates — never prompt
+    text, never chain-of-thought.
+    """
+    ledger: dict[str, dict] = {}
+    try:
+        data = _ledger().read()
+        entries = data.get("entries", {})
+        for ck, e in sorted(entries.items()):
+            used = int(e.get("used", 0))
+            ok = int(e.get("ok", 0))
+            fail = int(e.get("fail", 0))
+            ledger[ck] = {
+                "key": e.get("key", ck.split("@")[0]),
+                "version": e.get("version", 0),
+                "used": used,
+                "ok": ok,
+                "fail": fail,
+                "success_rate": round(ok / used, 3) if used else 0.0,
+                "last_ts": e.get("last_ts", 0.0),
+            }
+    except Exception as e:  # noqa: BLE001 — report degrades to live-only
+        logger.debug("prompt_monitor: ledger read skipped: %s", e)
+
+    live = prompt_monitor_stats()
+    return {
+        "success": True,
+        "ledger_keys": len(ledger),
+        "per_key_version": ledger,
+        "live": live,
+    }
 
 
 def prompt_monitor_stats() -> dict:
