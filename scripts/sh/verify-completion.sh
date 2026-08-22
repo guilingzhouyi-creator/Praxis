@@ -121,6 +121,10 @@ RUN_TOGETHER=0
 # timeouts — run tests per-slice serially instead of one full parallel run.
 IS_WSL=0
 uname -r 2>/dev/null | grep -qi microsoft && IS_WSL=1
+# Computed once, reused by every test/coverage invocation below.
+JUDGE_N="${JUDGE_PYTEST_N:-4}"
+THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
+THRESH="${THRESH:-60}"
 if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; then
   RUN_TOGETHER=1
   echo "[judge] ── 1+2. Full test suite + coverage (single run) ──"
@@ -128,9 +132,6 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
   # which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
   # thrashes memory and hangs the suite. Default 4 workers; operators may
   # override with JUDGE_PYTEST_N (0 = single process, safest).
-  JUDGE_N="${JUDGE_PYTEST_N:-4}"
-  THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
-  THRESH="${THRESH:-60}"
   if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
     S_COVERAGE=1; pass "coverage >= $THRESH%"
@@ -155,9 +156,9 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
   if [ "$IS_WSL" = "1" ]; then
     # WSL: full-suite xdist thrashes memory / exceeds command timeouts —
     # run each runner slice serially so every invocation stays bounded.
-    # Slice keys mirror tests/runner.py SLICES (benchmarks excluded).
+    # Slice keys come from tests/runner.py (single source; benchmarks excluded).
     echo "[judge] ── 1. Test slices (WSL — serial, per-slice) ──"
-    T_SLICES="infra l1 l2 l3-fast l3-mid l3-slow l4-fast l4-lsp l5 integration"
+    T_SLICES="$(python tests/runner.py --list-slices 2>/dev/null | awk '{print $1}' | grep -v '^benchmarks$' | tr '\n' ' ')"
     ALL_TESTS_OK=1
     TOTAL_PASS=0
     for s in $T_SLICES; do
@@ -179,7 +180,6 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
     M_TESTS_FAILED=null
   else
     echo "[judge] ── 1. Full test suite (standalone) ──"
-    JUDGE_N="${JUDGE_PYTEST_N:-4}"
     if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" > /tmp/judge_tests.log 2>&1; then
       S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1))"
     else
@@ -194,9 +194,6 @@ fi
 # ── 2. Coverage (standalone — tests skipped) ────────────────────────────
 if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
   echo "[judge] ── 2. Coverage (standalone, fail-under) ──"
-  THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
-  THRESH="${THRESH:-60}"
-  JUDGE_N="${JUDGE_PYTEST_N:-4}"
   if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_COVERAGE=1; pass "coverage >= $THRESH%"
   else
