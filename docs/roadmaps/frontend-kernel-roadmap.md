@@ -640,6 +640,14 @@ binding 泄漏。它是未来 caller-owned reaper 的机制接缝，不启动后
 该片仍不发送 OS signal、不创建 PTY、不启动后台 reaper、不接管 ProcessTable/AgentLoop/Provider 或
 shutdown authority；它只闭合后续 PTY/process-group adapter 所需的 Rust 机制前置边界。
 
+随后在独立 Rust 测试域新增 `process_group_runtime::ProcessGroupRuntime` 协调候选：将
+`ManagedProcessBook` 的 OS child 生命周期与 `ProcessGroupBook` 的唯一归属绑定，active 组之外拒绝
+spawn，容量拒绝时先 terminate/reap 已创建 child，再返回失败；非阻塞 sweep 与显式 timeout sweep
+均要求 managed slot 和 group member 双重回收后才发布 terminal outcome。`tests/process_group_runtime.rs`
+覆盖固定成员预算、自然退出、取消、admission rollback 与 not-found。该候选仍不创建 PTY、不发送
+OS process-group signal、不注册 ProcessTable、不启动后台 reaper，也不授予 AgentLoop、Provider、
+shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观测证据。
+
 ---
 
 ### 4.6 自动化与性能外围的重写边界

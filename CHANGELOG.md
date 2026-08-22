@@ -181,6 +181,8 @@
 
 ### 新增
 
+- **Feat (kernel)**: coordinate managed children with typed process groups
+
 - **Feat (kernel)**: expose process group read model
 - **Feat (kernel)**: add typed process group reaper
 - **Feat (kernel)**: add cooperative cancellation token

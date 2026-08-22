@@ -994,6 +994,19 @@ OS signals, create PTYs, or start a production reaper. ProcessTable runtime
 authority, terminal adapters, AgentLoop execution, and shutdown ownership
 remain outside this mechanism candidate.
 
+The `process_group_runtime::ProcessGroupRuntime` candidate now composes that
+group book with `ManagedProcessBook`. Direct-argument and shell children are
+admitted only while a group is active; failed membership admission cleans up
+the spawned child before returning the capacity error. A non-blocking sweep
+uses zero-deadline observation and an explicit timeout sweep may terminate a
+live child, but both paths require managed-child reap and group-member reap
+before reporting a terminal outcome. The independent
+`tests/process_group_runtime.rs` target covers bounded budgets, cancellation,
+admission rollback, and unknown executables. This is still a caller-owned
+coordination seam: it does not create PTYs, signal an OS process group, run a
+background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
+authority.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by
