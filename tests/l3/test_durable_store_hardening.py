@@ -69,6 +69,7 @@ def test_atomic_update_self_heals_damaged_main(tmp_path):
     s.write({"gen": 2})
     # Damage main.
     (tmp_path / "state.json").write_text('{"broken":', encoding="utf-8")
+
     # atomic_update should recover gen=2 then apply updater.
     def _inc(cur):
         nxt = dict(cur)

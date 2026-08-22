@@ -108,7 +108,6 @@ def test_cursor_concurrent_via_threads(iso):
     # In-process mirror is consistent with file.
     assert sj._seq["concurrent"] == n_threads * n_per
     # Durable file also holds max.
-    from pathlib import Path
 
     cursor_file = tmp_path / "l3a" / "sessions" / ".input_seq_cursor.json"
     env = json.loads(cursor_file.read_text(encoding="utf-8"))
