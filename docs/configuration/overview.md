@@ -182,6 +182,45 @@ Notes:
   user-defined thinking budget (Anthropic `budget_tokens`, Gemini
   `thinkingBudget`); OpenAI/DeepSeek ignore it via capability filtering.
 
+## Kernel settings facade (`src/l1/kernel/settings.py`)
+
+Kernel code reads settings through this module — it never imports L3. The
+facade is dependency-inverted: the authoritative `Settings` instance lives
+in `l3.config.settings_adapter` and is **injected at boot** via
+`set_settings_provider()`; before injection (standalone kernel use, L1-only
+tests) a pure kernel fallback backed by `DEFAULTS` answers.
+
+```python
+# src/l1/kernel/settings.py
+DEFAULTS                      # dict of ~50 dotted keys (see below)
+set_settings_provider(s)      # inject the authoritative Settings (L3) at boot
+get_settings()                # current Settings (fallback or injected)
+reset_settings()              # clear the injected provider (testing)
+inject_enabled()              # whether system-prompt injection is on
+```
+
+`DEFAULTS` covers the dotted keys consumed by kernel/L3 callers, grouped:
+
+| Domain | Example keys |
+|---|---|
+| allocator / swapper / syscall | `l1.kernel.allocator.tokens=4096`, `l1.kernel.swapper.interval=30.0`, `l1.kernel.syscall.audit_max=5000` |
+| cell / card | `cell.terminal.workers=4`, `cell.terminal.poll=0.05`, `cell.card.timeout=30.0` |
+| llm / device | `llm.provider="ollama"`, `llm.model`, `llm.max_tokens=2048`, `device.rate_limit_default=10` |
+| persistence / memory | `persistence.enabled=True`, `memory.graph.enabled=False`, `memory.compaction_mode="deterministic"` |
+| prompt injection switches | `prompt.inject.profile/constitution/skills/verification/memory/identity` (all `True`) |
+| departments / l3a secretary | `departments.enabled=False`, `l3a.secretary.enabled=True` |
+| l3a compression (3.1) | `l3a.digest.enabled`, `l3a.tool_result.enabled`, `l3a.sensitive.enabled`, `l3a.compression_guard.recursion_threshold` |
+| ci review | `ci.review.enabled=True`, `ci.review.llm_review=False`, `ci.control.api.writable=True` |
+| shells / engineering debug | `shells.enabled=True`, `shells.default="terminal"`, `engineering_debug.mode="auto"`, `engineering_debug.marker_file=".praxis/debug_mode.flag"` |
+
+The compression defaults mirror `l1.kernel.params.system` constants
+(`DIGEST_ENABLED_DEFAULT`, `TOOL_RESULT_OFFLOAD_*`, `SENSITIVE_DETECT_*`,
+`COMPRESSION_*`); the LLM model default comes from
+`l1.kernel.params.api.DEFAULT_MODEL_OLLAMA_CODER`. Callers reference the
+dotted keys via `get_settings().get("domain.key", default)`; runtime
+writes from the API/L2 (`setting` command, `/api/v2/settings`) persist
+through the injected provider to `.praxis_settings.json`.
+
 ## Reading Configuration in Code
 
 ```python
