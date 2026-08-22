@@ -62,21 +62,33 @@ scope_dirs:
 # not execute it — the detector reads env + process-chain signals, not the
 # agent's self-report.
 agents:
+  # Refreshed 2026-08-22 against vendor lineups; legacy slugs are KEPT so
+  # historical commits still validate under range rescans (never prune them).
   - name: AtomCode
-    models: [deepseek-v4-flash]
+    models: [deepseek-v4-flash, deepseek-v4-pro]
     email: noreply@atomgit.com
   - name: OpenCode
-    models: [deepseek-v4-flash]
+    models: [ox-alpha, deepseek-v4-flash, deepseek-v4-pro]
     email: noreply@opencode.ai
   - name: Claude
-    models: [claude, claude-sonnet, claude-opus]
+    models: [claude, claude-sonnet, claude-opus, claude-opus-5, claude-sonnet-5, claude-fable-5]
     email: noreply@anthropic.com
   - name: DeepSeek
-    models: [deepseek-v4-flash, deepseek-chat]
+    models: [deepseek-v4-flash, deepseek-v4-pro, deepseek-chat, deepseek-reasoner]
     email: noreply@deepseek.com
   - name: GPT
-    models: [gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini]
+    models: [gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
     email: noreply@openai.com
+  # ── Open-weight vendors (added 2026-08-22) ──
+  - name: Kimi
+    models: [kimi-k3]
+    email: noreply@moonshot.cn
+  - name: Qwen
+    models: [qwen3.8-max, qwen3.8-27b]
+    email: noreply@qwen.ai
+  - name: GLM
+    models: [glm-5.3, glm-5.2]
+    email: noreply@z.ai
 
 # Registered scopes. A `type(scope):` whose scope is NOT listed here is a
 # violation under `strict` mode (warned under `relaxed`). Keep this list in
