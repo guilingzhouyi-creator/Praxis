@@ -76,6 +76,7 @@ _RESETS = {
     "l2.l2_shell.state": ("reset_state", None),
     "l2.shells.family": ("reset_family", None),
     "l3.cell.peers.l3a": ("reset_daemon", None),
+    "l3.cell.peers.l3a.session_json": ("reset_sequences", None),
     "l3.bus.htn_planner": ("reset_service", None),
     "l4.llm.llm": ("reset_engine", None),
     "l4.llm.assembly": ("reset_assembly", None),

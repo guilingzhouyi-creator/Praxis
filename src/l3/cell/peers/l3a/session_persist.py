@@ -338,7 +338,10 @@ class SessionPersistMixin:
                     logger.debug("l3a session: ask state serialize failed")
             r = self._snapshot_store().write(payload)
             if not r.get("success"):
-                raise RuntimeError(r.get("error", "snapshot write failed"))
+                err = r.get("error", "snapshot write failed")
+                if "locked" in str(err):
+                    logger.warning("l3a session: snapshot write locked, will retry next turn: %s", err)
+                raise RuntimeError(err)
         except Exception as e:
             capture("l3a session: state persist failed", error_code="E_L3A_SESSION", component="l3a")
             logger.warning("l3a session: state persist failed: %s", e)

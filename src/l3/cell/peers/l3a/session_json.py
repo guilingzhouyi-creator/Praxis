@@ -13,6 +13,12 @@ results (P1-③). The JSON holds ONLY the user-input / model-answer pairs:
 Storage: ``<data_dir>/l3a/sessions/<session_id>_conversation.json``
 (compact JSON, no pretty-printing). The thought chain lives in a separate
 file (P1-②) and the two are linked by the session id + sequence tags.
+
+Durability: the input-seq cursor is crash-safe via ``DurableJsonStore``
+(atomic + journal + flock); conversation/thought/tool files use
+``_atomic_write_json`` (temp-file + fsync + replace + dir fsync) so a
+power-loss cannot leave a half-written JSON. All helpers are best-effort
+and never raise to the caller.
 """
 
 from __future__ import annotations
@@ -39,6 +45,14 @@ _history_lock = threading.RLock()
 
 _CURSOR_FILE = ".input_seq_cursor.json"
 
+# Cached cursor store instance (per sessions_dir) to avoid re-resolving path
+# on every turn. The cache is bypassed when the module-level ``_cursor``
+# attribute has been monkeypatched (tests replace it with a lambda); in
+# that case the patched callable is invoked directly.
+_cursor_cache: DurableJsonStore | None = None
+_cursor_cache_key: str | None = None
+_cursor_orig = None  # reference to the original _cursor for mock detection
+
 
 def sessions_dir() -> Path:
     """Return the L3A per-session storage directory (public accessor)."""
@@ -47,7 +61,21 @@ def sessions_dir() -> Path:
 
 def _cursor() -> DurableJsonStore:
     """Return the durable input-seq cursor store for the sessions dir."""
-    return DurableJsonStore(_session_dir() / _CURSOR_FILE, kind="l3a_input_seq")
+    global _cursor_cache, _cursor_cache_key
+    d = str(_session_dir())
+    if _cursor_cache is not None and _cursor_cache_key == d:
+        return _cursor_cache
+    store = DurableJsonStore(Path(d) / _CURSOR_FILE, kind="l3a_input_seq")
+    _cursor_cache = store
+    _cursor_cache_key = d
+    return store
+
+
+def _clear_cursor_cache() -> None:
+    """Clear the cached cursor store (tests may monkeypatch sessions_dir)."""
+    global _cursor_cache, _cursor_cache_key
+    _cursor_cache = None
+    _cursor_cache_key = None
 
 
 def history_status() -> dict:
@@ -87,7 +115,37 @@ def _session_dir() -> Path:
 
 
 def _conversation_path(session_id: str) -> Path:
+    """Return the conversation JSON path for *session_id*."""
     return _session_dir() / f"{session_id}_conversation.json"
+
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Atomically write *data* as compact JSON to *path* (fsync file + dir)."""
+    import contextlib
+    import os
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        # Directory fsync for durability.
+        try:
+            dfd = os.open(str(path.parent), os.O_DIRECTORY)
+            try:
+                os.fsync(dfd)
+            finally:
+                os.close(dfd)
+        except Exception:  # pragma: no cover — best-effort, non-POSIX
+            pass
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def next_input_seq(session_id: str) -> int:
@@ -96,31 +154,61 @@ def next_input_seq(session_id: str) -> int:
     The cursor survives restarts (P0.5): a fresh process continues where
     the previous one stopped, so new inputs can never reuse a sequence that
     already indexes persisted conversation/thought entries. A damaged or
-    locked cursor fails closed (raises) instead of resetting to zero —
-    callers degrade by skipping persistence rather than overwriting history.
+    locked cursor fails closed (raises ``RuntimeError``) instead of resetting
+    to zero — callers degrade by skipping persistence rather than overwriting
+    history.
+
+    Cross-process atomicity is provided by ``DurableJsonStore.atomic_update``
+    (in-process ``Lock`` + ``flock``), so concurrent processes cannot allocate
+    the same seq. The in-process mirror ``_seq`` stays as a fast cache and is
+    honored when ahead of the durable value.
+
+    Args:
+        session_id: L3A session id (file scope + reference key).
+
+    Returns:
+        The newly allocated monotonic sequence number.
+
+    Raises:
+        ValueError: when ``session_id`` is empty.
+        RuntimeError: when the cursor store is locked or damaged beyond
+            journal recovery (fail-closed, contains ``fail-closed``).
     """
     if not session_id:
         raise ValueError("session_id required")
     with _lock:
-        nxt = _seq.get(session_id)
-        if nxt is None:
-            try:
-                data = _cursor().read()
-            except DurableStoreError as e:
-                raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
-            nxt = int(data.get("cursor", {}).get(session_id, 0))
-        nxt += 1
-        _seq[session_id] = nxt
+        store = _cursor()
         try:
-            data = _cursor().read()
-            data.setdefault("cursor", {})[session_id] = nxt
-            r = _cursor().write(data)
+            holder: dict[str, int | None] = {"nxt": None}
+
+            def _inc(cur: dict) -> dict:
+                cur = dict(cur)
+                cur_cursor = cur.get("cursor", {})
+                cur_cursor = {} if not isinstance(cur_cursor, dict) else dict(cur_cursor)
+                base = int(cur_cursor.get(session_id, 0))
+                # Honor the in-process mirror when it is ahead (fast path).
+                mirror = _seq.get(session_id, 0)
+                if mirror > base:
+                    base = mirror
+                nxt = base + 1
+                holder["nxt"] = nxt
+                cur_cursor[session_id] = nxt
+                cur["cursor"] = cur_cursor
+                return cur
+
+            r = store.atomic_update(_inc)
             if not r.get("success"):
-                raise RuntimeError(r.get("error", "store write failed"))
+                err = r.get("error", "store write failed")
+                if "damaged beyond journal recovery" in str(err) or "locked" in str(err):
+                    raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {err}")
+                raise RuntimeError(err)
+            nxt = holder["nxt"]
+            if nxt is None:
+                raise RuntimeError("cursor update produced no seq")
+            _seq[session_id] = int(nxt)
+            return int(nxt)
         except DurableStoreError as e:
-            _seq.pop(session_id, None)
             raise RuntimeError(f"input-seq cursor unavailable (fail-closed): {e}") from e
-        return nxt
 
 
 def append_turn(
@@ -165,7 +253,7 @@ def append_turn(
         entries.append(entry)
         entries.sort(key=lambda e: int(e.get("seq", 0)))
         data["entries"] = entries
-        path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        _atomic_write_json(path, data)
         return {"success": True, "session_id": session_id, "entries": len(entries)}
     except Exception as e:
         logger.debug("session_json: append_turn failed: %s", e)
@@ -242,7 +330,7 @@ def append_thought(
         )
         thoughts.sort(key=lambda t: (int(t.get("turn", 0)), int(t.get("seq", 0))))
         data["thoughts"] = thoughts
-        path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        _atomic_write_json(path, data)
         return {"success": True, "session_id": session_id, "thoughts": len(thoughts)}
     except Exception as e:
         logger.debug("session_json: append_thought failed: %s", e)
@@ -307,7 +395,7 @@ def record_failed_tool(session_id: str, turn: int, tool_name: str, error: str) -
             except (OSError, ValueError):
                 data = {"session_id": session_id, "failures": []}
         data.setdefault("failures", []).append({"turn": turn, "tool": tool_name, "error": error[:LOG_TRUNC_500]})
-        path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        _atomic_write_json(path, data)
         return {"success": True, "session_id": session_id, "failures": len(data["failures"])}
     except Exception as e:
         logger.debug("session_json: record_failed_tool failed: %s", e)
@@ -349,9 +437,8 @@ def _load_history() -> dict:
 
 
 def _save_history(data: dict) -> None:
-    path = _history_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    """Persist the history envelope atomically."""
+    _atomic_write_json(_history_path(), data)
 
 
 def record_session_open(session_id: str, title: str = "") -> dict:
@@ -429,5 +516,6 @@ def reset_sequences() -> None:
         _seq.clear()
     try:
         _cursor().reset()
+        _clear_cursor_cache()
     except Exception as e:  # noqa: BLE001 — reset is best-effort
         logger.debug("session_json: cursor reset skipped: %s", e)

@@ -96,6 +96,8 @@ class Session(
         memory_scope: str = "l3a",
         cell_id: str = "l3a",
         role: str = "l3a",
+        _skip_history: bool = False,
+        _skip_register: bool = False,
     ):
         self.id = session_id
         self.title = title
@@ -104,25 +106,27 @@ class Session(
         self.created_at = time.time()
         self.last_active_at = time.time()
         # 3.3 P2-①: record the session start in the history module.
-        try:
-            from .session_json import record_session_open
+        if not _skip_history:
+            try:
+                from .session_json import record_session_open
 
-            record_session_open(session_id=session_id, title=title)
-        except Exception:
-            logger.debug("l3a session: history open record skipped")
+                record_session_open(session_id=session_id, title=title)
+            except Exception:
+                logger.debug("l3a session: history open record skipped")
         # 3.3 P0-①: bind the decision-layer session to the backing terminal
         # (dual identity: session_id <-> process_id <-> terminal) so the
         # session entity is unique and trackable in production runs.
-        try:
-            from l3.agent_terminal import register_session
+        if not _skip_register:
+            try:
+                from l3.agent_terminal import register_session
 
-            register_session(
-                session_id,
-                _p.AGENT_ID,
-                meta={"user_id": user_id, "memory_scope": memory_scope, "cell_id": cell_id, "role": role},
-            )
-        except Exception:
-            logger.debug("l3a session: dual-identity bind skipped")
+                register_session(
+                    session_id,
+                    _p.AGENT_ID,
+                    meta={"user_id": user_id, "memory_scope": memory_scope, "cell_id": cell_id, "role": role},
+                )
+            except Exception:
+                logger.debug("l3a session: dual-identity bind skipped")
         self.closed_at: float | None = None
         self.turn_count = 0
         self.card_count = 0
@@ -145,6 +149,8 @@ class Session(
         self._resumed_from: str = ""
         self._resume_todos: list[dict] = []
         self._ask: Any = None
+        # P0.5: per-turn input_seq lives in SessionLoopMixin; instance mirror
+        self._turn_input_seq: int | None = None
 
     @classmethod
     def create(
@@ -313,27 +319,69 @@ class SessionManager:
         with self._lock:
             return len(self._sessions)
 
-    def recover_from_store(self) -> dict:
+    def recover_from_store(
+        self,
+        registry: Any | None = None,
+        model_config: Any | None = None,
+        pmu: Any | None = None,
+    ) -> dict:
         """Rebuild active sessions from durable snapshots (P0.6).
 
         Idempotent: ids already registered are skipped, closed snapshots are
         ignored, and re-running recovery leaves state unchanged. Recovered
         sessions re-bind their terminal slot with the original identity and
-        scope fields (user_id / memory_scope / cell_id / role).
+        scope fields (user_id / memory_scope / cell_id / role). Truncation
+        keeps the most recently active sessions (by ``last_active_at`` or
+        file mtime) to bound startup cost.
+
+        Args:
+            registry: optional ContextRegistry to wire recovered sessions
+                into the daemon's shared registry (avoids orphan epoch).
+            model_config: optional daemon model config to wire.
+            pmu: optional PMU to wire.
 
         Returns:
             dict with recovered session ids and a skipped counter.
         """
         import time as _t
 
-        from l3.durable_store import DurableJsonStore
+        from l1.kernel.params.system import SESSION_RECOVERY_MAX_SNAPSHOTS  # noqa: I001
+        from l3.durable_store import DurableJsonStore  # noqa: I001
 
-        from .session_json import sessions_dir
+        from .session_json import sessions_dir  # noqa: I001
 
         recovered: list[str] = []
         skipped = 0
         try:
             paths = sorted(sessions_dir().glob("*.snapshot.json"))
+            if len(paths) > SESSION_RECOVERY_MAX_SNAPSHOTS:
+                total = len(paths)
+
+                # Prefer the most recently active snapshots (mtime + payload).
+                def _sort_key(p):
+                    try:
+                        # Try payload last_active_at first, fallback to mtime.
+                        raw = p.read_text(encoding="utf-8")
+                        import json as _js
+
+                        env = _js.loads(raw)
+                        la = float(env.get("payload", {}).get("last_active_at", 0) or 0)
+                        if la:
+                            return la
+                    except Exception:
+                        pass
+                    try:
+                        return p.stat().st_mtime
+                    except Exception:
+                        return 0
+
+                paths = sorted(paths, key=_sort_key, reverse=True)[:SESSION_RECOVERY_MAX_SNAPSHOTS]
+                logger.warning(
+                    "l3a session: recovery truncated %d → %d snapshots (kept most recent)",
+                    total,
+                    SESSION_RECOVERY_MAX_SNAPSHOTS,
+                )
+                skipped += total - SESSION_RECOVERY_MAX_SNAPSHOTS
         except Exception:
             logger.debug("l3a session: recovery scan failed", exc_info=True)
             return {"success": True, "recovered": [], "skipped": 0}
@@ -359,12 +407,23 @@ class SessionManager:
                     memory_scope=str(snap.get("memory_scope") or "l3a"),
                     cell_id=str(snap.get("cell_id") or "l3a"),
                     role=str(snap.get("role") or "l3a"),
+                    registry=registry,
+                    _skip_history=True,
+                    _skip_register=False,
                 )
+                # Restore snapshot truth (not wall-clock now).
                 inst.created_at = float(snap.get("created_at") or inst.created_at)
                 inst.last_active_at = float(snap.get("last_active_at") or _t.time())
                 inst.turn_count = int(snap.get("turn_count", 0))
                 inst.card_count = int(snap.get("card_count", 0))
                 inst.status = "active"
+                # Wire to daemon's shared instances when provided.
+                if registry is not None:
+                    inst.registry = registry
+                if model_config is not None:
+                    inst.model_config = model_config
+                if pmu is not None:
+                    inst.set_pmu(pmu)
                 inst.epoch = ContextEpoch.create(inst.registry or ContextRegistry())
                 inst.inbox.reload()
                 with self._lock:
