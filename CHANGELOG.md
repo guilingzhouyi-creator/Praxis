@@ -7,6 +7,7 @@
 
 ### 修复
 
+- **Fix (infra)**: audit sensitive merge hunks
 - **Fix (kernel)**: clarify group admission rollback
 - **Fix (infra)**: synchronize singleton scanner path
 - **Fix (infra)**: retain snake case singleton scanner
