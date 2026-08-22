@@ -181,13 +181,19 @@ if [ "$SCAN_RC" != "0" ]; then
   fi
 fi
 
-# ── 4. Shared-file handoff notice (soft — collaboration convention) ──────
-# If this commit touches shared files (scripts/sh, .githooks, config/discovery),
-# remind the agent to register the change in docs/agent-handoff/ALIGNMENT.md
-# so parallel agents can reconcile before pushing.
+# ── 4. Shared-file handoff gate (STRICT — register or reject) ─────────────
+# A commit touching shared files (scripts/sh, .githooks, config/discovery)
+# MUST also update docs/agent-handoff/ALIGNMENT.md (Shared-file change log)
+# so parallel agents can reconcile — otherwise the change is rejected.
 SHARED_HIT="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null | grep -E '^(scripts/sh/|\.githooks/|config/discovery/)' | head -1 || true)"
 if [ -n "$SHARED_HIT" ]; then
-  echo "ℹ️  Shared-file change: $SHARED_HIT — register it in docs/agent-handoff/ALIGNMENT.md (shared exchange area) if other agents may be affected." >&2
+  ALIGN_REGISTERED="$(git diff --cached --name-only 2>/dev/null | grep -c '^docs/agent-handoff/ALIGNMENT.md' || true)"
+  if [ "$ALIGN_REGISTERED" = "0" ]; then
+    echo "❌ Shared-file change ($SHARED_HIT) requires a registration line in docs/agent-handoff/ALIGNMENT.md (Shared-file change log)." >&2
+    echo "   Add a row (date | file | agent | change | status) to ALIGNMENT.md in THIS commit, then retry." >&2
+    exit 1
+  fi
+  echo "ℹ️  Shared-file change: $SHARED_HIT — ALIGNMENT.md registration present." >&2
 fi
 
 exit 0
