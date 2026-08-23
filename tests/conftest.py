@@ -103,6 +103,18 @@ _RESETS = {
 }
 
 
+
+# Detect agent cache: clear between test modules to prevent stale
+# attribution results from leaking across test boundaries.
+import pathlib as _pl
+_DAC = _pl.Path('.praxis') / 'detect_agent_cache.json'
+
+@pytest.fixture(autouse=True)
+def _clear_detect_cache():
+    _DAC.unlink(missing_ok=True)
+    yield
+    _DAC.unlink(missing_ok=True)
+
 @pytest.fixture(autouse=True)
 def _reset_singletons():
     """Reset known singletons before each test to prevent state pollution.
