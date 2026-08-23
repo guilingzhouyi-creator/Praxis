@@ -30,10 +30,12 @@
 | `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/builtins.ts` + 桥转发 | ⏳ 需重写（方言语法 `!`/`$`/`/` 分派） |
 | `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） | 🟡 部分：注册/查询已有；load_defaults/系统用户分离未映射 |
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | 本地投影（dict 数据 API，零句柄） | ⏳ 需重写（选择结果渲染，权威留 Python3） |
-| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin | 🟡 部分：lang builtin 已有；locale 数据未接入 |
-| `shell_completer.py` + `l2_shell/completer.py` | `TerminalCompleter.complete`/`get_command_names`/`get_aliases` | 本地补全（桥数据渲染候选） | ⏳ 需重写 |
-| `l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） | ⏳ 需重写（命令注册组） |
-| `l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python3） | ⏳ 需重写 |
+| `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
+| `shells/session.py` + host 状态容器 | `ShellSession` / `_advance_shared_cursor` | `engine/session-manager.ts`（一会话 N 视图游标 + 共享水位=落后视图） | ✅ 已实现 |
+| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin | ✅ 已实现（`src/i18n.ts`） |
+| `shell_completer.py` + `l2_shell/completer.py` | `TerminalCompleter.complete`/`get_command_names`/`get_aliases` | 本地补全（桥数据渲染候选） | ✅ 已实现（`engine/completer.ts`） |
+| `l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） | ✅ 已实现（`engine/command-groups.ts`） |
+| `l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python3） | ✅ 已实现（`engine/output-guard.ts`） |
 | `l2_shell/state.py` | `ShellState` 访问器 | `SessionView` 快照 | 🟡 部分 |
 
 ## 2. 实现批次（按依赖）
