@@ -42,12 +42,16 @@ export function sanitizePayload(payload: JsonObject): JsonObject {
   return clean;
 }
 
-/** Check whether a payload contains any forbidden key at any depth. */
+/** Check whether a payload contains any forbidden key at any depth (arrays traversed). */
 export function containsCoT(payload: JsonObject): boolean {
   for (const key of Object.keys(payload)) {
     if (FORBIDDEN_KEYS.has(key)) return true;
     const value = payload[key];
-    if (typeof value === "object" && value !== null) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === "object" && item !== null && containsCoT(item as JsonObject)) return true;
+      }
+    } else if (typeof value === "object" && value !== null) {
       if (containsCoT(value as JsonObject)) return true;
     }
   }
@@ -55,12 +59,13 @@ export function containsCoT(payload: JsonObject): boolean {
 }
 
 /** Allowed top-level payload keys per message kind (TS-mirrorable contract). */
-export const ALLOWED_PAYLOAD_KEYS: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
-  ack: new Set(["ack_seq", "view_id"]),
-  command: new Set(["name", "args"]),
-  control: new Set(["op", "session_id", "view_id", "last_acked"]),
-  event: new Set(["event_type", "data"]),
-  intent: new Set(["text"]),
-  result: new Set(["success", "output", "error"]),
-  stream_chunk: new Set(["data", "done"]),
-});
+export const ALLOWED_PAYLOAD_KEYS: Readonly<Record<import("../types.ts").MessageKind, ReadonlySet<string>>> =
+  Object.freeze({
+    ack: new Set(["ack_seq", "view_id"]),
+    command: new Set(["name", "args"]),
+    control: new Set(["op", "session_id", "view_id", "last_acked"]),
+    event: new Set(["event_type", "data"]),
+    intent: new Set(["text"]),
+    result: new Set(["success", "output", "error"]),
+    stream_chunk: new Set(["data", "done"]),
+  } as Record<import("../types.ts").MessageKind, ReadonlySet<string>>);

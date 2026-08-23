@@ -23,6 +23,36 @@ export interface StoreEnvelope<T = JsonObject> {
   payload: T;
 }
 
+/** In-memory fallback for tests and non-persistent environments. */
+export class InMemorySessionPersistence implements ISessionPersistence {
+  private store = new Map<string, SessionSnapshot>();
+
+  async save(snapshot: SessionSnapshot): Promise<void> {
+    this.store.set(snapshot.session_id, { ...snapshot });
+  }
+
+  async load(sessionId: string): Promise<SessionSnapshot | undefined> {
+    const found = this.store.get(sessionId);
+    return found ? { ...found } : undefined;
+  }
+
+  async list(): Promise<string[]> {
+    return [...this.store.keys()];
+  }
+
+  async remove(sessionId: string): Promise<void> {
+    this.store.delete(sessionId);
+  }
+
+  /** Wrap a snapshot in a StoreEnvelope with a trivial checksum (tests). */
+  static envelopeOf(snapshot: SessionSnapshot): StoreEnvelope<SessionSnapshot> {
+    const payload = JSON.stringify(snapshot);
+    let hash = 0;
+    for (let i = 0; i < payload.length; i++) hash = (hash * 31 + payload.charCodeAt(i)) >>> 0;
+    return { v: 1, kind: "session_snapshot", checksum: hash.toString(16), payload: snapshot };
+  }
+}
+
 /** What a session snapshot looks like when persisted. */
 export interface SessionSnapshot {
   session_id: string;

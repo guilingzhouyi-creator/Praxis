@@ -10,29 +10,36 @@
  * generics and `CustomEvent<T>` detail.
  */
 
-import type { SessionId, ViewId } from "../types.ts";
-
 export interface TabEvent {
   type: "session-attach" | "session-detach" | "ack" | "recovery";
   sessionId: string;
   viewId?: string;
   ackSeq?: number;
+  /** Origin tab — filled automatically, used to suppress self-echo. */
+  source?: string;
 }
 
 type Listener = (event: TabEvent) => void;
 
+/**
+ * Cross-tab session coordinator via `BroadcastChannel`.
+ *
+ * One `TabCoordinator` per tab (`tabId` must be unique per browsing
+ * context); `source` tagging prevents handling our own broadcast.
+ */
 export class TabCoordinator {
   private channel: BroadcastChannel | undefined;
   private listeners = new Set<Listener>();
 
   constructor(private readonly tabId: string) {
+    if (typeof tabId !== "string" || tabId.length === 0) throw new Error("tabId must be a non-empty string");
     try {
       this.channel = new BroadcastChannel("praxis-l2-sessions");
       this.channel.onmessage = (event) => {
         const data = event.data as TabEvent;
-        if (data && typeof data.type === "string") {
-          for (const listener of this.listeners) listener(data);
-        }
+        if (!data || typeof data.type !== "string") return;
+        if (data.source === this.tabId) return;
+        for (const listener of this.listeners) listener(data);
       };
     } catch {
       // BroadcastChannel not supported (SSR / old browser) — degrade silently.
@@ -45,11 +52,12 @@ export class TabCoordinator {
     return () => this.listeners.delete(listener);
   }
 
-  /** Broadcast a session event to all other tabs. */
+  /** Broadcast a session event to all other tabs (source is injected). */
   broadcast(event: Omit<TabEvent, "source">): void {
-    this.channel?.postMessage(event);
+    this.channel?.postMessage({ ...event, source: this.tabId });
   }
 
+  /** Close the channel and clear listeners. */
   destroy(): void {
     this.channel?.close();
     this.listeners.clear();

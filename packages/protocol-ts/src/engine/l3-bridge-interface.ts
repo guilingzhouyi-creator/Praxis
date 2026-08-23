@@ -26,15 +26,29 @@ export interface IL3Bridge {
   };
   memory: {
     digest(): Promise<Message[]>;
+    recall(query: string, limit?: number): Promise<Message[]>;
+    remember(entryType: string, content: string, ring?: number): Promise<Message[]>;
   };
   system: {
     status(): Promise<Message[]>;
+    health(): Promise<Message[]>;
   };
   model: {
     specs(): Promise<Message[]>;
+    switch(provider: string, model: string): Promise<Message[]>;
   };
   selector: {
     cellLiveness(): Promise<Message[]>;
+  };
+  card: {
+    submit(cardYaml: string): Promise<Message[]>;
+    approve(cardId: string): Promise<Message[]>;
+  };
+  l3a: {
+    send(text: string, sessionId?: string): Promise<Message[]>;
+  };
+  tool: {
+    invoke(toolName: string, paramsJson: string): Promise<Message[]>;
   };
 }
 
@@ -47,15 +61,29 @@ export function createL3Bridge(bridge: ProtocolBridge): IL3Bridge {
     },
     memory: {
       digest: () => bridge.memoryDigest(),
+      recall: (query, limit = 10) => bridge.memoryRecall(query, limit),
+      remember: (entryType, content, ring = 2) => bridge.memoryRemember(entryType, content, ring),
     },
     system: {
       status: () => bridge.systemStatus(),
+      health: () => bridge.healthCheck(),
     },
     model: {
       specs: () => bridge.modelSpecs(),
+      switch: (provider, model) => bridge.modelSwitch(provider, model),
     },
     selector: {
       cellLiveness: () => bridge.cellLiveness(),
+    },
+    card: {
+      submit: (yaml) => bridge.cardSubmit(yaml),
+      approve: (id) => bridge.cardApprove(id),
+    },
+    l3a: {
+      send: (text, sid) => bridge.l3aSend(text, sid),
+    },
+    tool: {
+      invoke: (name, params) => bridge.toolInvoke(name, params),
     },
   };
 }

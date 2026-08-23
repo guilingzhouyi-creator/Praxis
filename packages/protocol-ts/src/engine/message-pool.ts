@@ -5,7 +5,6 @@
  * object per envelope causes GC pressure. This pool preallocates a fixed set
  * of mutable objects and resets their fields on acquire, eliminating GC cost.
  *
- * TS pattern: `Object.assign` + `satisfies` operator for pool item shape.
  * Only used when the consumer guarantees no long-lived references to pooled
  * messages (stream_chunk data flows through and is discarded).
  *
@@ -14,25 +13,28 @@
  * microtask. Use the regular makeMessage() for those.
  */
 
-import { PROTOCOL_VERSION } from "../types.ts";
+import { PROTOCOL_VERSION, type MessageKind } from "../types.ts";
+import type { Message } from "../envelope.ts";
 
-interface PoolableMessage {
-  v: typeof PROTOCOL_VERSION;
-  session_id: string;
-  seq: number;
-  ts: number;
-  trace_id: string;
-  kind: string;
-  payload: Record<string, unknown>;
+/** Internal pooled shape — `_pooled` is stripped before crossing the wire. */
+interface PoolableMessage extends Message {
   _pooled: true;
 }
 
+/**
+ * Bounded pool for high-frequency `stream_chunk` envelopes.
+ *
+ * Reusing the same objects eliminates GC pressure at 10K+/sec; callers
+ * MUST `release()` after the microtask and MUST NOT retain pooled
+ * messages in `Outbox`/replay. Persistent messages use `makeMessage()`.
+ */
 export class MessagePool {
   private pool: PoolableMessage[] = [];
   private allocated = 0;
   private reused = 0;
 
   constructor(private readonly size = 64) {
+    if (!Number.isInteger(size) || size < 1) throw new Error("size must be a positive integer");
     for (let i = 0; i < size; i++) {
       this.pool.push({
         v: PROTOCOL_VERSION,
@@ -40,39 +42,47 @@ export class MessagePool {
         seq: 0,
         ts: 0,
         trace_id: "",
-        kind: "",
+        kind: "stream_chunk" as MessageKind,
         payload: {},
         _pooled: true,
-      });
+      } as PoolableMessage);
     }
   }
 
-  acquire(sessionId: string, seq: number, kind: string, traceId = ""): PoolableMessage {
+  /** Acquire a reset message; caller owns it until `release()`. */
+  acquire(sessionId: string, seq: number, kind: MessageKind = "stream_chunk", traceId = ""): PoolableMessage {
     const msg = this.pool.pop();
     if (msg) {
       this.reused++;
-    } else {
-      // Pool exhausted — allocate fresh (GC will eventually recycle).
-      this.allocated++;
-      const fresh: PoolableMessage = {
-        v: PROTOCOL_VERSION, session_id: "", seq: 0, ts: 0,
-        trace_id: "", kind: "", payload: {}, _pooled: true,
-      };
-      Object.assign(fresh, {});
-      this.fill(fresh, sessionId, seq, kind, traceId);
-      return fresh;
+      this.fill(msg, sessionId, seq, kind, traceId);
+      return msg;
     }
-    this.fill(msg, sessionId, seq, kind, traceId);
-    return msg;
+    // Pool exhausted — allocate fresh (reclaimed on next release if space).
+    this.allocated++;
+    const fresh = {
+      v: PROTOCOL_VERSION,
+      session_id: "",
+      seq: 0,
+      ts: 0,
+      trace_id: "",
+      kind: "stream_chunk" as MessageKind,
+      payload: {},
+      _pooled: true as const,
+    } as PoolableMessage;
+    this.fill(fresh, sessionId, seq, kind, traceId);
+    return fresh;
   }
 
+  /** Return a message to the pool; clears payload to avoid retaining data. */
   release(msg: PoolableMessage): void {
     if (this.pool.length < this.size) {
       msg.payload = {};
+      msg.trace_id = "";
       this.pool.push(msg);
     }
   }
 
+  /** Current pool counters (for bench/telemetry). */
   stats(): { pooled: number; allocated: number; reused: number } {
     return { pooled: this.pool.length, allocated: this.allocated, reused: this.reused };
   }
@@ -86,6 +96,7 @@ export class MessagePool {
     msg.seq = seq;
     msg.ts = Date.now() / 1000;
     msg.trace_id = traceId;
-    msg.kind = kind;
+    msg.kind = kind as MessageKind;
+    msg.payload = {};
   }
 }

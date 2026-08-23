@@ -13,12 +13,14 @@ import {
   decodeMessage, encodeMessage, makeMessage,
   type Message, type MessageKind,
 } from "../envelope.ts";
+import type { JsonValue } from "../records.ts";
 
 export type Transport = (line: string) => Promise<string[]>;
 
 export interface BridgeOptions {
   sessionId: string;
   transport: Transport;
+  /** Optional seq wrap-around (e.g. 1<<30); unset = monotonic. */
   maxSeq?: number;
 }
 
@@ -27,30 +29,45 @@ export interface RoundTripResult {
   elapsedMs: number;
 }
 
+/**
+ * Single-channel bridge to the Python3 `ProtocolHost`.
+ *
+ * Owns the client `seq` and encodes/decodes every line; transport and
+ * host own session/outbox authority. Domain helpers are thin 1:1 shims
+ * over `command()`.
+ */
 export class ProtocolBridge {
   private seq = 1;
 
-  constructor(private readonly opts: BridgeOptions) {}
+  constructor(private readonly opts: BridgeOptions) {
+    if (opts.maxSeq !== undefined && (!Number.isInteger(opts.maxSeq) || opts.maxSeq < 1)) {
+      throw new Error("maxSeq must be a positive integer");
+    }
+  }
 
   get sessionId(): string { return this.opts.sessionId; }
 
+  /** Send a command envelope; returns the host's result envelopes. */
   async command(name: string, args: readonly string[] = []): Promise<Message[]> {
-    const message = makeMessage(this.opts.sessionId, this.seq++, "command", { name, args: [...args] });
+    const message = makeMessage(this.opts.sessionId, this.nextSeq(), "command", { name, args: [...args] });
     return (await this.roundTrip(message)).messages;
   }
 
+  /** Attach a frontend view (`view_id` defaults to session on host). */
   async attach(sessionId: string, viewId?: string): Promise<Message[]> {
     const payload: Record<string, string> = { op: "attach", session_id: sessionId };
     if (viewId) payload.view_id = viewId;
     return this.send("control", payload);
   }
 
+  /** Acknowledge outbound messages up to `ackSeq` for one view. */
   async ack(ackSeq: number, viewId?: string): Promise<Message[]> {
     const payload: Record<string, number | string> = { ack_seq: ackSeq };
     if (viewId) payload.view_id = viewId;
     return this.send("ack", payload);
   }
 
+  /** Request replay from `lastAcked` for one view (recovery). */
   async replay(sessionId: string, viewId?: string, lastAcked = -1): Promise<Message[]> {
     const payload: Record<string, string | number> = { op: "recovery", session_id: sessionId, last_acked: lastAcked };
     if (viewId) payload.view_id = viewId;
@@ -58,16 +75,13 @@ export class ProtocolBridge {
   }
 
   // ── Streaming pipeline ──
-  async *stream(kind: MessageKind, payload: Record<string, import("../records.ts").JsonValue>): AsyncGenerator<Message> {
-    const message = makeMessage(this.opts.sessionId, this.seq++, kind, payload);
-    const line = encodeMessage(message);
-    const responses = await this.opts.transport(line);
-    for (const raw of responses) {
-      const decoded = decodeMessage(raw);
-      if (decoded.message) yield decoded.message;
-    }
+  /** Stream one envelope and yield decoded response messages. */
+  async *stream(kind: MessageKind, payload: Record<string, JsonValue>): AsyncGenerator<Message> {
+    const message = makeMessage(this.opts.sessionId, this.nextSeq(), kind, payload);
+    yield* this.decodeResponses(await this.transportLine(message));
   }
 
+  /** Send multiple commands sequentially (preserves order/backpressure). */
   async batch(commands: ReadonlyArray<{ name: string; args?: readonly string[] }>): Promise<Message[][]> {
     const results: Message[][] = [];
     for (const cmd of commands) results.push(await this.command(cmd.name, cmd.args));
@@ -108,26 +122,40 @@ export class ProtocolBridge {
 
   // ── Internal ──
 
-  private send(kind: MessageKind, payload: Record<string, import("../records.ts").JsonValue>): Promise<Message[]> {
-    const message = makeMessage(this.opts.sessionId, this.seq++, kind, payload);
+  private nextSeq(): number {
+    const cur = this.seq++;
+    if (this.opts.maxSeq !== undefined && this.seq > this.opts.maxSeq) this.seq = 1;
+    return cur;
+  }
+
+  private send(kind: MessageKind, payload: Record<string, JsonValue>): Promise<Message[]> {
+    const message = makeMessage(this.opts.sessionId, this.nextSeq(), kind, payload);
     return this.roundTrip(message).then((r) => r.messages);
+  }
+
+  private async transportLine(message: Message): Promise<string[]> {
+    const line = encodeMessage(message);
+    return this.opts.transport(line);
+  }
+
+  private async *decodeResponses(lines: string[]): AsyncGenerator<Message> {
+    for (const raw of lines) {
+      const decoded = decodeMessage(raw);
+      if (decoded.message) yield decoded.message;
+    }
   }
 
   private async roundTrip(message: Message): Promise<RoundTripResult> {
     const start = performance.now();
-    const line = encodeMessage(message);
-    const responses = await this.opts.transport(line);
+    const responses = await this.transportLine(message);
     const elapsedMs = performance.now() - start;
     const messages: Message[] = [];
-    for (const raw of responses) {
-      const decoded = decodeMessage(raw);
-      if (decoded.message) messages.push(decoded.message);
-    }
+    for await (const msg of this.decodeResponses(responses)) messages.push(msg);
     return { messages, elapsedMs };
   }
 }
 
-// ── Standalone stream utility ──
+/** Standalone helper — decode already-transported lines (shared with `ProtocolBridge.stream`). */
 export async function* streamResponses(
   transport: Transport,
   line: string,
