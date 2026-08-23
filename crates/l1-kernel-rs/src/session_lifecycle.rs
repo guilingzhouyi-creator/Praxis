@@ -171,14 +171,16 @@ impl SessionRecord {
         self.binding = None;
     }
 
-    /// Attach a view to this session; re-attach preserves the ack cursor.
+    /// Attach a view to this session; re-attach re-binds a retained cursor
+    /// while preserving its ack cursor.
     pub fn attach_view(&mut self, view_id: impl Into<String>) {
         let view_id = view_id.into();
-        self.views.entry(view_id.clone()).or_insert_with(|| {
+        let entry = self.views.entry(view_id.clone()).or_insert_with(|| {
             let mut cursor = SessionCursor::new(view_id);
             cursor.attach(self.identity.session_id.clone());
             cursor
         });
+        entry.attached = true;
     }
 
     /// Detach a view while retaining its cursor for later re-attach; returns
