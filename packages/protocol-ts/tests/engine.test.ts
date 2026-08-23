@@ -94,4 +94,13 @@ describe("ProtocolBridge", () => {
       view_id: "v-1",
     });
   });
+
+  it("wraps the sequence id around maxSeq", async () => {
+    const received: string[] = [];
+    // maxSeq=3 → seqs 1,2,3, then wrap back to 1.
+    const bridge = new ProtocolBridge({ sessionId: "s-1", transport: fakeHost(received), maxSeq: 3 });
+    for (let i = 0; i < 4; i++) await bridge.command("lang", []);
+    const seqs = received.map((line) => decodeMessage(line).message?.seq);
+    expect(seqs).toEqual([1, 2, 3, 1]);
+  });
 });

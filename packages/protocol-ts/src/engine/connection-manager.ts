@@ -40,7 +40,17 @@ export class ConnectionManager {
   private bridgeInstance: ProtocolBridge | undefined;
   private readonly emitter = new TypedEventEmitter();
 
-  constructor(private readonly opts: ConnectionOptions) {}
+  constructor(private readonly opts: ConnectionOptions) {
+    // Validate retry config up front: bad values silently degrade the FSM
+    // (a negative maxRetries skips every attempt and throws undefined; a
+    // non-finite delay collapses the backoff into an immediate retry storm).
+    if (opts.maxRetries !== undefined && (!Number.isInteger(opts.maxRetries) || opts.maxRetries < 0)) {
+      throw new Error(`maxRetries must be a non-negative integer, got ${String(opts.maxRetries)}`);
+    }
+    if (opts.baseDelayMs !== undefined && (!Number.isFinite(opts.baseDelayMs) || opts.baseDelayMs < 0)) {
+      throw new Error(`baseDelayMs must be a finite non-negative number, got ${String(opts.baseDelayMs)}`);
+    }
+  }
 
   /** Active bridge; throws `BRIDGE_UNAVAILABLE` when not connected. */
   get bridge(): ProtocolBridge {
@@ -95,7 +105,10 @@ export class ConnectionManager {
       }
     }
     this.setState({ status: "disconnected" });
-    throw lastError;
+    // Guarded throw: with constructor validation lastError is always set,
+    // but a defensive real error keeps callers from ever seeing `undefined`
+    // (e.g. a future code path that skips the loop).
+    throw lastError ?? new ProtocolError("BRIDGE_UNAVAILABLE", "no connection attempts made");
   }
 
   /** Disconnect gracefully and release the bridge. */
