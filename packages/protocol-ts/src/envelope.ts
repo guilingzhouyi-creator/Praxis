@@ -140,7 +140,13 @@ export function decodeMessage(line: string): DecodedMessage {
 
 // ── Outbox (bounded replay window) ───────────────────────────────
 
-/** Bounded per-session replay window (simple array, maxlen 1024). */
+/**
+ * Bounded per-session replay window (simple array, maxlen 1024).
+ *
+ * `Array.shift()` is O(n) but n≤1024 so cost is negligible vs. the
+ * ring-buffer's extra `head/count` state; kept simple for auditability.
+ * Non-destructive `ack` mirrors `src/l2/protocol/envelope.py`.
+ */
 export class Outbox {
   private items: Message[] = [];
   private acknowledged = -1;
