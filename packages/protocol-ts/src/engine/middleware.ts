@@ -1,11 +1,9 @@
 /**
  * DispatchMiddleware — composable pre/post dispatch hook chain.
  *
- * Inspired by the Python3 tool pipeline (9-step): each middleware can
- * inspect, short-circuit, or observe a command around the dispatcher.
- * Before hooks run LIFO (last registered = first executed, so the
- * outermost layer wraps inner ones); after hooks run FIFO for a stable
- * audit trail. This module is a pure chain — the dispatcher composes it.
+ * Each middleware can inspect, short-circuit, or observe a command around
+ * the dispatcher. All hooks run FIFO for simplicity; the chain is a pure
+ * value object composed by `Dispatcher`.
  */
 
 import type { ParsedCommand } from "./parser.ts";
@@ -38,28 +36,28 @@ export class MiddlewareChain {
   private readonly beforeHooks: BeforeHook[] = [];
   private readonly afterHooks: AfterHook[] = [];
 
-  /** Register a pre-dispatch interceptor. Last registered = outermost (LIFO). */
+  /** Register a pre-dispatch interceptor. */
   useBefore(hook: BeforeHook): this {
     this.beforeHooks.push(hook);
     return this;
   }
 
-  /** Register a post-dispatch observer. Runs FIFO for stable audit trail. */
+  /** Register a post-dispatch observer. */
   useAfter(hook: AfterHook): this {
     this.afterHooks.push(hook);
     return this;
   }
 
-  /** Run all before hooks LIFO; returns first non-undefined result (short-circuit). */
+  /** Run before hooks FIFO; returns first non-undefined result (short-circuit). */
   async runBefore(ctx: MiddlewareContext): Promise<CommandResult | undefined> {
-    for (let i = this.beforeHooks.length - 1; i >= 0; i--) {
-      const result = await this.beforeHooks[i](ctx);
+    for (const hook of this.beforeHooks) {
+      const result = await hook(ctx);
       if (result !== undefined) return result;
     }
     return undefined;
   }
 
-  /** Run all after hooks FIFO; never throws; awaits async observers. */
+  /** Run after hooks FIFO; never throws. */
   async runAfter(ctx: MiddlewareContext, result: CommandResult): Promise<void> {
     for (const hook of this.afterHooks) {
       try {

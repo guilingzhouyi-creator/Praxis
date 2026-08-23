@@ -30,8 +30,6 @@ interface PoolableMessage extends Message {
  */
 export class MessagePool {
   private pool: PoolableMessage[] = [];
-  private allocated = 0;
-  private reused = 0;
 
   constructor(private readonly size = 64) {
     if (!Number.isInteger(size) || size < 1) throw new Error("size must be a positive integer");
@@ -51,26 +49,19 @@ export class MessagePool {
 
   /** Acquire a reset message; caller owns it until `release()`. */
   acquire(sessionId: string, seq: number, kind: MessageKind = "stream_chunk", traceId = ""): PoolableMessage {
-    const msg = this.pool.pop();
-    if (msg) {
-      this.reused++;
-      this.fill(msg, sessionId, seq, kind, traceId);
-      return msg;
-    }
-    // Pool exhausted — allocate fresh (reclaimed on next release if space).
-    this.allocated++;
-    const fresh = {
-      v: PROTOCOL_VERSION,
-      session_id: "",
-      seq: 0,
-      ts: 0,
-      trace_id: "",
-      kind: "stream_chunk" as MessageKind,
-      payload: {},
-      _pooled: true as const,
-    } as PoolableMessage;
-    this.fill(fresh, sessionId, seq, kind, traceId);
-    return fresh;
+    const msg = this.pool.pop() ??
+      ({
+        v: PROTOCOL_VERSION,
+        session_id: "",
+        seq: 0,
+        ts: 0,
+        trace_id: "",
+        kind: "stream_chunk" as MessageKind,
+        payload: {},
+        _pooled: true as const,
+      } as PoolableMessage);
+    this.fill(msg, sessionId, seq, kind, traceId);
+    return msg;
   }
 
   /** Return a message to the pool; clears payload to avoid retaining data. */
@@ -82,9 +73,9 @@ export class MessagePool {
     }
   }
 
-  /** Current pool counters (for bench/telemetry). */
-  stats(): { pooled: number; allocated: number; reused: number } {
-    return { pooled: this.pool.length, allocated: this.allocated, reused: this.reused };
+  /** Current pooled count (bench/telemetry). */
+  stats(): { pooled: number } {
+    return { pooled: this.pool.length };
   }
 
   private fill(
