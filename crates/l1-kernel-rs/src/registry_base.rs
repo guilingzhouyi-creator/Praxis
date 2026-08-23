@@ -4,7 +4,7 @@
 //! `registry_base.MapRegistry`. Handler closures and domain-specific policy
 //! remain adapter-owned; only declarative metadata crosses this boundary.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -86,7 +86,8 @@ pub struct RegistryStats {
 
 #[derive(Debug, Default)]
 struct RegistryState {
-    items: Vec<RegisterableSpec>,
+    items: HashMap<String, RegisterableSpec>,
+    order: Vec<String>,
     registers: usize,
     unregisters: usize,
 }
@@ -139,14 +140,14 @@ impl MapRegistry {
     pub fn register(&self, spec: RegisterableSpec, _source: &str) -> bool {
         let callback = {
             let mut state = self.lock_state();
-            if let Some(index) = state.items.iter().position(|item| item.name == spec.name) {
+            if state.items.contains_key(&spec.name) {
                 if !self.allow_overwrite {
                     return false;
                 }
-                state.items[index] = spec.clone();
             } else {
-                state.items.push(spec.clone());
+                state.order.push(spec.name.clone());
             }
+            state.items.insert(spec.name.clone(), spec.clone());
             state.registers += 1;
             self.lock_register_callback().clone()
         };
@@ -160,10 +161,10 @@ impl MapRegistry {
     pub fn unregister(&self, name: &str) -> bool {
         let callback = {
             let mut state = self.lock_state();
-            let Some(index) = state.items.iter().position(|item| item.name == name) else {
+            if state.items.remove(name).is_none() {
                 return false;
-            };
-            state.items.remove(index);
+            }
+            state.order.retain(|item_name| item_name != name);
             state.unregisters += 1;
             self.lock_unregister_callback().clone()
         };
@@ -175,18 +176,16 @@ impl MapRegistry {
 
     /// Return a cloned descriptor for a name, if present.
     pub fn get(&self, name: &str) -> Option<RegisterableSpec> {
-        self.lock_state()
-            .items
-            .iter()
-            .find(|item| item.name == name)
-            .cloned()
+        self.lock_state().items.get(name).cloned()
     }
 
     /// Return descriptors in registration order, optionally filtered by category.
     pub fn list_items(&self, category: &str) -> Vec<RegisterableSpec> {
-        self.lock_state()
-            .items
+        let state = self.lock_state();
+        state
+            .order
             .iter()
+            .filter_map(|name| state.items.get(name))
             .filter(|item| category.is_empty() || item.category == category)
             .cloned()
             .collect()
@@ -194,18 +193,14 @@ impl MapRegistry {
 
     /// Return names in registration order.
     pub fn all_names(&self) -> Vec<String> {
-        self.lock_state()
-            .items
-            .iter()
-            .map(|item| item.name.clone())
-            .collect()
+        self.lock_state().order.clone()
     }
 
     /// Return counters and current category membership.
     pub fn stats(&self) -> RegistryStats {
         let state = self.lock_state();
         let mut categories = BTreeMap::new();
-        for item in &state.items {
+        for item in state.items.values() {
             *categories.entry(item.category.clone()).or_insert(0) += 1;
         }
         RegistryStats {
@@ -221,6 +216,7 @@ impl MapRegistry {
         let mut state = self.lock_state();
         let count = state.items.len();
         state.items.clear();
+        state.order.clear();
         count
     }
 

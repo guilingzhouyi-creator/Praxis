@@ -14,6 +14,7 @@ use crate::process_bridge::ProcessTableBridge;
 use crate::process_group::{
     MemberTerminal, ProcessGroupBook, ProcessReaper, ReaperBudget, ReaperObservation,
 };
+use crate::registry_base::{MapRegistry, RegisterableSpec};
 use crate::session::{SESSION_MAX_MESSAGES, SessionBook, SessionInput, SessionSpec};
 use crate::state_queue::{BoundedWorkQueue, WorkItem};
 use crate::substrate::{ProcessHandle, QueueMetrics};
@@ -199,6 +200,25 @@ pub fn run_session_book_batch(
                 shard_count,
                 submit_batch_size,
             )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total declarative registry registration and lookup sweep.
+///
+/// Each item registers a unique descriptor and immediately resolves it again.
+/// Registration order remains an observable output invariant, while the
+/// internal name lookup is measured through the Rust-native hash index.
+pub fn run_registry_base(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "registry work does not fit the target architecture")?;
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_registry_base_round(total_work, worker_count, round)?)?;
         }
     }
     report.validate_complete()?;
@@ -1184,6 +1204,77 @@ fn run_session_book_batch_round(
         elapsed_ns,
         p95_latency_ns: percentile(&batch_latencies, P95_PERCENT),
         p99_latency_ns: percentile(&batch_latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns: 0,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_registry_base_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+) -> Result<BenchmarkSample, &'static str> {
+    let registry = Arc::new(MapRegistry::new(false));
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for worker in 0..worker_count {
+        let registry = Arc::clone(&registry);
+        let next_work = Arc::clone(&next_work);
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                let name = format!("bench-registry-{round:02}-{worker:02}-{work_index:08}");
+                let mut spec = RegisterableSpec::new(name.clone());
+                spec.category = if work_index.is_multiple_of(2) {
+                    "even".to_owned()
+                } else {
+                    "odd".to_owned()
+                };
+                if !registry.register(spec, "fixed-work benchmark") {
+                    return Err("registry benchmark registration was rejected");
+                }
+                if registry.get(&name).is_none() {
+                    return Err("registry benchmark lookup missed a registered item");
+                }
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>(latencies)
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(total_work);
+    for worker in workers {
+        latencies.extend(
+            worker
+                .join()
+                .map_err(|_| "registry benchmark worker panicked")??,
+        );
+    }
+    let stats = registry.stats();
+    if latencies.len() != total_work || stats.total != total_work || stats.registers != total_work {
+        return Err("registry benchmark did not preserve fixed work");
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
         queue_wait_ns: 0,
         lock_wait_ns: 0,
         rejected: 0,

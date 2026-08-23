@@ -603,6 +603,18 @@ category filtering, public serialization, and counters. Rust callbacks are
 local adapter hooks only; Python handler closures, domain registries, source
 discovery, and runtime routing remain outside the candidate.
 
+The registry-base hot path now stores descriptors in a hash index plus an
+explicit order vector. Name admission and lookup are therefore expected O(1)
+while overwrite keeps the original position and unregister preserves the
+remaining order; public list and category views still clone in registration
+order. `run_registry_base` and `rust-registry-base-bench` emit the standard v3
+fixed-work evidence (`registry.base.lookup`). One local release sample with
+4096 items, 1/2/4 workers, and three rounds had median derived throughput of
+about 1.51M/1.52M/0.90M ops/s respectively, with zero rejections/errors; the
+4-worker p99 reached roughly 77--85 us. This is candidate evidence, not a
+stable uplift claim over the old vector implementation; an identical old/new
+comparison is required before policy promotion.
+
 The registry candidate uses `tests/fixtures/kernel_registry_vectors.json` to
 freeze name-sorted opaque section snapshots and explicit summary aggregation
 (healthy module count, process/device/syscall counts, and caller-supplied time).

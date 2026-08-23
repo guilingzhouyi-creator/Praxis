@@ -36,6 +36,7 @@
 | 2026-08-23 | crates/l1-kernel-rs/src/benchmark_runner.rs + crates/l1-kernel-rs/tests/benchmark_runner.rs + docs/architecture/l1-kernel.md + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | process.group.reaper benchmark now forces 64-member multi-sweep progress so the bounded-selection optimization is measured | in feature/root-kernel-next |
 | 2026-08-23 | crates/l1-kernel-rs/src/process_group.rs + benchmark_runner.rs + src/bin/rust-process-group-bench.rs + crates/l1-kernel-rs/tests/* + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | terminal-member counter, snapshot-free reaper fast path, isolated process.group.reaper v3 evidence | in feature/root-kernel-next |
 | 2026-08-23 | docs/workflow/commits.md + tests/infra/test_config_consistency.py | GPT (root-kernel-next) | remove stale absent-generator claim and lock the checked-in JSON mirror contract | in feature/root-kernel-next |
+| 2026-08-23 | crates/l1-kernel-rs/src/registry_base.rs + benchmark_runner.rs + src/bin/rust-registry-base-bench.rs + crates/l1-kernel-rs/tests/* + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md + Makefile | GPT (root-kernel-next) | hash-index registry lookup with stable order semantics and isolated registry.base.lookup v3 evidence | in feature/root-kernel-next |
 
 ## Clobber warnings (do not repeat)
 

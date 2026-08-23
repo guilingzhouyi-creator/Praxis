@@ -110,6 +110,13 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   registry lock once while preserving input order and independent failures.
   `session.book.batch_admission` is measured by `rust-session-batch-bench` as a
   separate batch-latency workload; it is not merged into per-session evidence.
+- The `registry_base` candidate uses a hash index plus an explicit registration
+  order vector, so name admission and lookup do not scan all descriptors while
+  overwrite and public ordering remain stable. `run_registry_base` and
+  `rust-registry-base-bench` emit `registry.base.lookup` under the same v3
+  schema. The runner records a candidate baseline only; it does not claim a
+  stable speedup until an old-vector reference is measured with the identical
+  4096-item, 1/2/4-worker, three-round workload.
 - The Rust `agent_loop` candidate owns only logical routing state: it validates
   agent/cell/session/terminal correlation, models loop lifecycle, and admits
   input/events through the Rust `Session` truth root with loop/session admission

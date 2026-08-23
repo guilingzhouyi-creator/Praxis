@@ -795,6 +795,18 @@ category filtering, public serialization, and counters. Rust callbacks are
 local adapter hooks only; Python handler closures, domain registries, source
 discovery, and runtime routing remain outside the candidate.
 
+The registry-base hot path now stores descriptors in a hash index plus an
+explicit order vector. Name admission and lookup are therefore expected O(1)
+while overwrite keeps the original position and unregister preserves the
+remaining order; public list and category views still clone in registration
+order. `run_registry_base` and `rust-registry-base-bench` emit the standard v3
+fixed-work evidence (`registry.base.lookup`). One local release sample with
+4096 items, 1/2/4 workers, and three rounds had median derived throughput of
+about 1.51M/1.52M/0.90M ops/s respectively, with zero rejections/errors; the
+4-worker p99 reached roughly 77--85 us. This is candidate evidence, not a
+stable uplift claim over the old vector implementation; an identical old/new
+comparison is required before policy promotion.
+
 The registry candidate uses `tests/fixtures/kernel_registry_vectors.json` to
 freeze name-sorted opaque section snapshots and explicit summary aggregation
 (healthy module count, process/device/syscall counts, and caller-supplied time).
@@ -1006,6 +1018,18 @@ admission rollback, and unknown executables. This is still a caller-owned
 coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
 authority.
+
+The group book keeps a terminal-member counter so repeated terminal
+observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
+separate mark-and-reap fast path that avoids cloning snapshots when the caller
+only needs a bounded success/error report, and selects at most the current
+member budget instead of cloning every handle in a draining group. The
+independent
+`process.group.reaper` fixed-work runner and `rust-process-group-bench` binary
+measure this member-reaping workload with a fixed 64-member sweep budget,
+forcing multi-sweep bounded progress separately from process spawn, queue, and
+session benchmarks; the candidate remains mechanism-only and does not grant
+runtime or shutdown authority.
 
 ### Engineering-debug boundary
 

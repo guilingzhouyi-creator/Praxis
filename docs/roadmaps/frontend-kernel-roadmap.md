@@ -281,6 +281,14 @@ HOLD、GROW/SHRINK 限幅、慢任务 `GROW_FAST`、cooldown、reset 和稳定 r
 达到 127 项。handler 闭包、领域 registry、发现/boot 注册和 runtime routing 仍由
 Python/适配器持有；该候选不接入 Port、boot 或生产执行权威，也不解除 G3/G6。
 
+随后完成 `registry_base` 热路径切片：内部改为 hash index + 显式 order vector，重复注册与
+`get` 不再扫描整个 descriptor 列表，覆盖不改变注册位置，公开列表/分类视图仍保持注册顺序。
+独立 `registry_base` 测试覆盖覆盖、删除和 clear 后的顺序不变量；`registry.base.lookup` runner
+按 4096 items、1/2/4 workers、3 rounds 输出统一 v3 吞吐、p95/p99、CPU/RSS 证据。一次本地
+release 样本的派生吞吐中位数约为 1.51M/1.52M/0.90M ops/s，零拒绝/错误；该数字仅是候选
+基线，不代表相对旧 Vec 的稳定提升，需同规格旧实现对照后才可推进策略升级。handler 闭包、
+领域 registry、发现/boot 注册和 runtime routing 仍留在 Python/适配器边界。
+
 随后完成 `identity_uid` 值边界候选：Rust 镜像前缀/长度校验、调用方注入的熵候选、
 有界碰撞重试、已存在 UID 追踪与 reset；共享 `kernel_identity_uid_vectors.json` 在
 Python/Rust 两侧通过。随机熵、持久化 binding 和身份签发权威仍由 Python 持有；该候选
