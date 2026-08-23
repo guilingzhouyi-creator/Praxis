@@ -10,11 +10,14 @@
 //! StreamChunk envelopes are outbound-only and rejected at the inbound
 //! boundary.
 
-use std::collections::VecDeque;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
 
+use crate::capability::CapabilityAuthority;
+use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use crate::outbox_registry::OutboxRegistry;
 use crate::protocol::{Message, MessageKind, ProtocolError, SessionCursor};
 use crate::session_identity::SessionIdentity;
@@ -71,28 +74,43 @@ impl Default for RouterConfig {
 /// Kind-by-kind dispatch router for the Rust protocol host.
 pub struct HostRouter {
     config: RouterConfig,
+    authority: Arc<CapabilityAuthority>,
     sessions: Mutex<SessionRegistry>,
     outboxes: Mutex<OutboxRegistry>,
+    registered: Mutex<BTreeSet<String>>,
     pending_intents: Mutex<VecDeque<Message>>,
+    response_seq: AtomicU64,
 }
 
 impl HostRouter {
     /// Build a router with an explicit configuration.
     pub fn new(config: RouterConfig) -> Self {
+        let authority = Arc::new(CapabilityAuthority::new());
+        authority.register_executor(|request| CapabilityResult {
+            success: true,
+            error: String::new(),
+            capability: request.name.clone(),
+            data: JsonObject::from([(
+                "echo".to_owned(),
+                JsonValue::String(format!("echo:{}", request.name)),
+            )]),
+        });
+        let registered = BTreeSet::from_iter(SYSTEM_COMMANDS.iter().map(|name| (*name).to_owned()));
         Self {
             config,
+            authority,
             sessions: Mutex::new(SessionRegistry::new()),
             outboxes: Mutex::new(OutboxRegistry::new()),
+            registered: Mutex::new(registered),
             pending_intents: Mutex::new(VecDeque::new()),
+            response_seq: AtomicU64::new(0),
         }
     }
 
     /// Route one decoded envelope by kind, returning any outbound responses.
     pub fn route(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         match message.kind {
-            MessageKind::Command => Err(ProtocolError::InvalidContract(
-                "command dispatch is not yet wired".to_owned(),
-            )),
+            MessageKind::Command => self.dispatch_command(message),
             MessageKind::Control => self.route_control(&message),
             MessageKind::Ack => self.apply_ack(&message),
             MessageKind::Intent => self.route_intent(message),
@@ -100,6 +118,60 @@ impl HostRouter {
             MessageKind::Result => Err(outbound_only("result")),
             MessageKind::StreamChunk => Err(outbound_only("stream_chunk")),
         }
+    }
+
+    /// Dispatch one command envelope through the capability gate.
+    pub fn dispatch_command(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        let name = message
+            .payload
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                ProtocolError::InvalidContract(
+                    "command payload requires a non-empty name".to_owned(),
+                )
+            })?;
+        {
+            let registered = self.lock_registered();
+            if !registered.contains(&name) {
+                return Err(ProtocolError::InvalidContract(format!(
+                    "unregistered command: {name}"
+                )));
+            }
+        }
+        let agent_id = self.agent_id_for(&message.session_id);
+        let request = CapabilityRequest {
+            agent_id,
+            name: name.clone(),
+            args: command_args(&message.payload),
+            domain: String::new(),
+            nature: String::new(),
+            interactive: true,
+        };
+        let result = self.authority.invoke(request);
+        let response = self.response_envelope(&message, &result);
+        self.lock_outboxes()
+            .append(&message.session_id, response.clone());
+        Ok(vec![response])
+    }
+
+    /// Register an additional command name for capability dispatch.
+    pub fn register_command(&self, name: impl Into<String>) {
+        self.lock_registered().insert(name.into());
+    }
+
+    /// Replace the wired capability executor; boot adapters are the caller.
+    pub fn register_executor<F>(&self, executor: F)
+    where
+        F: Fn(CapabilityRequest) -> CapabilityResult + Send + Sync + 'static,
+    {
+        self.authority.register_executor(executor);
+    }
+
+    /// Registered command names in stable sorted order.
+    pub fn registered_commands(&self) -> Vec<String> {
+        self.lock_registered().iter().cloned().collect()
     }
 
     /// Session identifiers currently held by the session registry.
@@ -250,6 +322,64 @@ impl HostRouter {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
+
+    fn lock_registered(&self) -> MutexGuard<'_, BTreeSet<String>> {
+        self.registered
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn agent_id_for(&self, session_id: &str) -> String {
+        if self.lock_sessions().get(session_id).is_some() {
+            session_id.to_owned()
+        } else {
+            "system".to_owned()
+        }
+    }
+
+    fn response_envelope(&self, request: &Message, result: &CapabilityResult) -> Message {
+        let output = if result.success {
+            match result.data.get("echo") {
+                Some(JsonValue::String(text)) => text.clone(),
+                _ => result.capability.clone(),
+            }
+        } else {
+            result.error.clone()
+        };
+        let payload = BTreeMap::from([
+            ("success".to_owned(), Value::Bool(result.success)),
+            ("output".to_owned(), Value::String(output)),
+        ]);
+        Message::new(
+            request.session_id.clone(),
+            self.next_response_seq(),
+            MessageKind::Result,
+            payload,
+            request.trace_id.clone().unwrap_or_default(),
+            request.ts,
+        )
+    }
+
+    fn next_response_seq(&self) -> u64 {
+        self.response_seq.fetch_add(1, Ordering::SeqCst).saturating_add(1)
+    }
+}
+
+fn command_args(payload: &BTreeMap<String, Value>) -> JsonObject {
+    let mut args = JsonObject::new();
+    if let Some(items) = payload.get("args").and_then(Value::as_array) {
+        args.insert(
+            "args".to_owned(),
+            JsonValue::Array(
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|text| JsonValue::String(text.to_owned()))
+                    .collect(),
+            ),
+        );
+    }
+    args
 }
 
 fn target_session(message: &Message) -> String {
