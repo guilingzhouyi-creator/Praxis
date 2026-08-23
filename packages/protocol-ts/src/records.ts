@@ -1,6 +1,13 @@
-/** Versioned TypeScript mirror of the Python3 TS-neutral protocol records. */
+/** Versioned TypeScript mirror of the Python3 TS-neutral protocol records.
+ *
+ * Every record type maps 1:1 to a Python3 dataclass in
+ * src/l2/protocol/records.py. Field names use snake_case to match the wire
+ * format. The `ProtocolRecord<T>` envelope carries schema versioning and
+ * record-type discrimination for safe deserialization.
+ */
 
 export const RECORD_SCHEMA_VERSION = 1 as const;
+/** All valid record type discriminants. */
 export const RECORD_TYPES = [
   "decision_summary",
   "event_envelope",
@@ -10,13 +17,18 @@ export const RECORD_TYPES = [
   "tool_failure",
 ] as const;
 
+/** Union of all record type discriminants. */
 export type RecordType = (typeof RECORD_TYPES)[number];
+/** Primitive JSON value types. */
 export type JsonPrimitive = string | number | boolean | null;
+/** Recursive JSON value: primitive, object, or array. */
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+/** JSON object with string keys and JSON-typed values. */
 export interface JsonObject {
   [key: string]: JsonValue;
 }
 
+/** Session entity identity: terminal/process/session triple with scope fields. */
 export interface SessionIdentity {
   session_id: string;
   terminal_id: string;
@@ -82,18 +94,26 @@ export interface EvidenceRef {
   metadata: JsonObject;
 }
 
+/** Versioned protocol record envelope carrying a typed payload. */
 export interface ProtocolRecord<Data = JsonObject> {
   record_type: RecordType;
   schema_version: typeof RECORD_SCHEMA_VERSION;
   data: Data;
 }
 
+/** Session identity record (typed alias for dispatch narrowing). */
 export type SessionIdentityRecord = ProtocolRecord<SessionIdentity> & { record_type: "session_identity" };
+/** Event envelope record. */
 export type EventEnvelopeRecord = ProtocolRecord<EventEnvelope> & { record_type: "event_envelope" };
+/** Session message record. */
 export type SessionMessageRecord = ProtocolRecord<SessionMessage> & { record_type: "session_message" };
+/** Tool failure record. */
 export type ToolFailureRecord = ProtocolRecord<ToolFailure> & { record_type: "tool_failure" };
+/** Decision summary record. */
 export type DecisionSummaryRecord = ProtocolRecord<DecisionSummary> & { record_type: "decision_summary" };
+/** Evidence reference record. */
 export type EvidenceRefRecord = ProtocolRecord<EvidenceRef> & { record_type: "evidence_ref" };
+/** Union of all concrete record types for exhaustive switch handling. */
 export type AnyRecord =
   | SessionIdentityRecord
   | EventEnvelopeRecord
