@@ -33,6 +33,7 @@ pub mod managed_process;
 pub mod migration;
 pub mod network;
 pub mod notify;
+pub mod outbox_registry;
 pub mod paths;
 pub mod persist;
 pub mod platform;
