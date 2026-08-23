@@ -24,8 +24,21 @@ export interface LineTransportOptions {
   timeoutMs?: number;
 }
 
-/** Returns true when a response line is the ack that closes the request. */
+/**
+ * Returns true when a response line is the ack that closes the request.
+ *
+ * Hot path: every inbound response line is tested here, and the line is
+ * decoded again by the bridge afterwards. A full JSON.parse per line is
+ * therefore pure overhead for the (common) non-ack case — we first do a
+ * cheap substring check (the serialized top-level kind field always
+ * contains `"kind":"ack"` when present), and only parse to confirm when
+ * the fast path matches.
+ */
 export function isAckLine(line: string): boolean {
+  // Fast path: most lines are results/events — reject without allocating.
+  if (!line.includes('"kind":"ack"')) return false;
+  // Slow path: substring found — confirm with a real parse (could be a
+  // payload value that happens to contain the same text).
   try {
     return JSON.parse(line).kind === "ack";
   } catch {

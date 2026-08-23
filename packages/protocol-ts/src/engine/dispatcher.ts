@@ -19,9 +19,13 @@ export type CommandHandler = (args: string[], ctx: DispatchContext) => CommandRe
 
 export class Dispatcher {
   private readonly handlers = new Map<string, CommandHandler>();
+  private sortedNames: string[] | undefined;
 
   register(name: string, handler: CommandHandler): void {
     this.handlers.set(name, handler);
+    // Invalidate the cached sorted listing — registration is rare (once per
+    // shell setup) while listCommands() feeds the help builtin on demand.
+    this.sortedNames = undefined;
   }
 
   has(name: string): boolean {
@@ -30,7 +34,12 @@ export class Dispatcher {
 
   /** Registered command names (stable, sorted) — feeds the help builtin. */
   listCommands(): string[] {
-    return [...this.handlers.keys()].sort();
+    // Cache the sorted listing: command sets are static after registration,
+    // and help can be invoked repeatedly in a long-lived session.
+    if (this.sortedNames === undefined) {
+      this.sortedNames = [...this.handlers.keys()].sort();
+    }
+    return this.sortedNames;
   }
 
   /** Dispatch a parsed command; unknown names route to the bridge. */
