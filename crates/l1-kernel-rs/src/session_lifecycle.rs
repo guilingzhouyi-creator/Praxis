@@ -7,11 +7,12 @@
 //! binding, and the epoch-seconds creation time. View cursors and the session
 //! registry share this record so the FSM, identity, and views stay coherent.
 
+use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::ProtocolError;
+use crate::protocol::{ProtocolError, SessionCursor};
 use crate::session::SESSION_MAX_ID_BYTES;
 use crate::session_identity::SessionIdentity;
 
@@ -105,7 +106,7 @@ impl SessionBinding {
     }
 }
 
-/// One host session record: identity, lifecycle, and optional live binding.
+/// One host session record: identity, lifecycle, binding, and view cursors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionRecord {
     /// Session identity (three-way separation).
@@ -116,6 +117,8 @@ pub struct SessionRecord {
     pub created_at: u64,
     /// Live terminal+process binding, absent until bound.
     pub binding: Option<SessionBinding>,
+    /// Per-session view cursors keyed by view id; views are session-scoped.
+    views: BTreeMap<String, SessionCursor>,
 }
 
 impl SessionRecord {
@@ -126,6 +129,7 @@ impl SessionRecord {
             lifecycle: SessionLifecycle::Created,
             created_at,
             binding: None,
+            views: BTreeMap::new(),
         }
     }
 
@@ -165,6 +169,127 @@ impl SessionRecord {
     /// Clear the live terminal+process binding.
     pub fn unbind(&mut self) {
         self.binding = None;
+    }
+
+    /// Attach a view to this session; re-attach preserves the ack cursor.
+    pub fn attach_view(&mut self, view_id: impl Into<String>) {
+        let view_id = view_id.into();
+        self.views.entry(view_id.clone()).or_insert_with(|| {
+            let mut cursor = SessionCursor::new(view_id);
+            cursor.attach(self.identity.session_id.clone());
+            cursor
+        });
+    }
+
+    /// Detach a view while retaining its cursor for later re-attach; returns
+    /// whether the view was registered.
+    pub fn detach_view(&mut self, view_id: &str) -> bool {
+        match self.views.get_mut(view_id) {
+            Some(cursor) => {
+                cursor.detach();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Advance one view's ack cursor monotonically, never moving it backwards.
+    pub fn ack_view(&mut self, view_id: &str, ack_seq: u64) {
+        if let Some(cursor) = self.views.get_mut(view_id) {
+            cursor.last_acked = cursor
+                .last_acked
+                .max(i64::try_from(ack_seq).unwrap_or(i64::MAX));
+        }
+    }
+
+    /// Return a cursor clone for one registered view, attached or detached.
+    pub fn view(&self, view_id: &str) -> Option<SessionCursor> {
+        self.views.get(view_id).cloned()
+    }
+
+    /// Return all view cursors for this session in deterministic view-id order.
+    pub fn list_views(&self) -> Vec<SessionCursor> {
+        self.views.values().cloned().collect()
+    }
+
+    /// Return the number of views registered for this session.
+    pub fn view_count(&self) -> usize {
+        self.views.len()
+    }
+}
+
+/// Session container keyed by session id; each record owns its view set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionRegistry {
+    sessions: BTreeMap<String, SessionRecord>,
+}
+
+impl Default for SessionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SessionRegistry {
+    /// Create an empty registry.
+    pub fn new() -> Self {
+        Self {
+            sessions: BTreeMap::new(),
+        }
+    }
+
+    /// Create and store a session record from a validated identity at the
+    /// current epoch time; rejects empty identities and duplicate session ids.
+    pub fn create(&mut self, identity: SessionIdentity) -> Result<(), ProtocolError> {
+        self.create_at(identity, now_epoch_secs())
+    }
+
+    /// Create and store a session record with a deterministic timestamp.
+    pub fn create_at(
+        &mut self,
+        identity: SessionIdentity,
+        created_at: u64,
+    ) -> Result<(), ProtocolError> {
+        identity.validate()?;
+        let session_id = identity.session_id.clone();
+        if self.sessions.contains_key(&session_id) {
+            return Err(ProtocolError::InvalidContract(format!(
+                "duplicate session id: {session_id}"
+            )));
+        }
+        self.sessions
+            .insert(session_id, SessionRecord::new(identity, created_at));
+        Ok(())
+    }
+
+    /// Return an immutable reference to one session record.
+    pub fn get(&self, session_id: &str) -> Option<&SessionRecord> {
+        self.sessions.get(session_id)
+    }
+
+    /// Return a mutable reference for lifecycle or view mutations.
+    pub fn get_mut(&mut self, session_id: &str) -> Option<&mut SessionRecord> {
+        self.sessions.get_mut(session_id)
+    }
+
+    /// Remove a session and return whether it existed.
+    pub fn remove(&mut self, session_id: &str) -> bool {
+        self.sessions.remove(session_id).is_some()
+    }
+
+    /// Return session ids in deterministic order.
+    pub fn list_ids(&self) -> Vec<String> {
+        self.sessions.keys().cloned().collect()
+    }
+
+    /// Return the number of stored sessions.
+    pub fn len(&self) -> usize {
+        self.sessions.len()
+    }
+
+    /// Return whether the registry is empty.
+    pub fn is_empty(&self) -> bool {
+        self.sessions.is_empty()
     }
 }
 
