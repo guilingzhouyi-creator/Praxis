@@ -70,3 +70,4 @@
    mirror regenerated via gen_commits_json.py after the legacy-scope
    addition above; Node-only mirror now matches canonical yaml.
    Registered per the shared-file gate.
+| 2026-08-23 | config/discovery/commits.yaml | OpenCode (ox-alpha) | register rust scope (crates/) for L1L2 docking execution | active |
