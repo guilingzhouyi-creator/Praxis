@@ -14,6 +14,7 @@ Praxis 的路线图文档集中于此目录统一管理。每条路线图登记�
 | [engineering-debug-mode.md](engineering-debug-mode.md) | 进行中(P1 缺口待闭环) | 3.5 工程调试模式：标记文件门禁、授权/隐私/硬件输入监测与 Prompt 旁路治理 | `docs/design/reviews/2026-08-16-engineering-debug-review.md`、`docs/architecture/l3-prompt-architecture.md`、`docs/configuration/overview.md` |
 | [agent-os-3x-closure.md](agent-os-3x-closure.md) | 进行中(P0 施工队列活跃；Slice A 契约冻结已完成) | 3.x 生产闭环 + TS 重写门:P0 契约冻结/会话身份/durable store/恢复，P1 运维闭环，P2 治理收敛——**会话域 P0 条目的施工权威** | `docs/roadmaps/l2-multifrontend-session-layer.md`、`docs/roadmaps/production-closure-roadmap.md`、`docs/architecture/l3-memory.md` |
 | [l2-agent-handoff.md](l2-agent-handoff.md) | 操作手册(随 main 演进) | L2 能力地图、TS 重写标准(§2 铁律/镜像同步/验收清单)、已知坑与运行环境——l2-multifrontend 路线图的配套操作性手册 | `docs/roadmaps/l2-multifrontend-session-layer.md`、`docs/architecture/l2-shell-engine.md`、`packages/protocol-ts/README.md` |
+| [l1-l2-docking.md](l1-l2-docking.md) | 已批准(D0 待启动) | L1↔L2 线缆对接:TS-L2 × Rust-L1 协议 v1 直连;审查发现(Rust Outbox ack 破坏性漂移 F1)、D0–D3 阶段计划、里程碑表、风险册——衔接 l2-ts-rewrite-mapping §5 割接阶梯 | `docs/roadmaps/l2-ts-rewrite-mapping.md`、`docs/roadmaps/frontend-kernel-roadmap.md`、`docs/design/rust-first-kernel-rewrite.md`、`docs/roadmaps/kernel-boundary-audit.md` |
 
 ## 设计 / 施工计划索引
 

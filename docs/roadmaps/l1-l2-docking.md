@@ -1,0 +1,102 @@
+# L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）
+
+> Status: approved plan (操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核)
+> 关联: `l2-ts-rewrite-mapping.md` §5 割接标准 · `frontend-kernel-roadmap.md` §4 Rust 路线 ·
+> `kernel-boundary-audit.md` 绕过路径清单 · `rust-first-kernel-rewrite.md` R0–R5 门槛
+> 审查基线: main @ e1f0dc10（2026-08-23 深度审查结论）
+
+## 0. 目标与范围
+
+将 TS 引擎（终态 L2 权威）与 Rust 内核（终态 L1）经协议 v1 线缆直接对接，
+替代当前「TS → Python host → 进程内 L1」的两跳路径。**L3 归属不在本计划范围内**
+（操作员裁定）；intent/L3A 流量仍转发至 L3 权威面，本计划只负责 L1 面操作的直连。
+
+## 1. 现状：三个代码库、两条边界
+
+| 边界 | 形态 | 状态 |
+|---|---|---|
+| Py-L2 ↔ Py-L1 | 进程内函数调用（~40 import 点：params ×12、capability ×2、ports/vfs/skill/process/event/identity_binding） | 今日生产路径；B4 绕过长于此 |
+| TS-L2 ↔ Py-host | 协议 v1 线缆（stdio/http/ws/ssh） | ✅ 已通，e2e.stdio 验证 |
+| **TS-L2 ↔ Rust-L1** | 无 | ❌ 本计划目标 |
+
+## 2. 审查发现（2026-08-23 深度审查）
+
+| # | 发现 | 严重度 | 位置 |
+|---|---|---|---|
+| F1 | Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量——与 08-22 edc5caa6 TS 漂移同类 | 🔴 阻断 | `crates/l1-kernel-rs/src/protocol.rs:889` |
+| F2 | Rust 侧只有协议验证门（`protocol_host.rs` 不分派/不执行/不持会话）；`rust-protocol-gate` bin 为回声器 | 🟠 缺口 | 同上 + `bin/rust-protocol-gate.rs` |
+| F3 | 地基成熟度超预期：60 个 Rust 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS 传输缝环境变量选 host，零改动可换 | 🟢 利好 | `crates/l1-kernel-rs/src/` |
+
+## 3. 阶段计划 D0–D3
+
+```
+D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ──→ G1–G6 割接阶梯
+   (数日)          (主体工程)           (机械缝合)          (l2-ts-rewrite-mapping §5.3)
+```
+
+### D0 — 语义修复（前置阻断项）
+
+| 任务 | 验收 |
+|---|---|
+| D0.1 Rust `Outbox::ack` 改游标式非破坏性（消息保留，仅 last_acked 单调推进） | 多视图重放测试：视图 A ack 不抹除视图 B 重放窗口 |
+| D0.2 共享水位 = 最落后视图语义对齐（`_advance_shared_cursor` 镜像） | 与 Python host 同输入产出相同游标序列 |
+| D0.3 Golden vectors 冻结：Python host 输出为参考，Rust 门逐字节复现 canonical JSON 排序 | `tests/fixtures/kernel_*_vectors.json` 纪律扩展到 envelope 向量 |
+| D0.4 seq 类型统一审查（u64/i64 混用、maxSeq 回绕边界） | 回绕向量用例双端通过 |
+
+### D1 — Rust 协议主机（工程主体）
+
+| 子阶段 | 内容 | 复用 | 新建 |
+|---|---|---|---|
+| D1a 会话权威 | 会话注册表 + 生命周期 FSM（对齐 P0.1 身份模型 terminal_id/session_id/process_id 三分离） | session_store.rs | 会话 FSM + 视图游标管理 |
+| D1b Outbox 权威 | 追加/淘汰/非破坏 ack/共享水位 | protocol.rs Outbox（D0 修复后） | per-session outbox 注册表 |
+| D1c 命令分派 | envelope → capability 路由；ring/danger 元数据裁决；审计每次调用含拒绝 | gatechain.rs + capability.rs + audit.rs | 分派路由层 + `$`(__system) 命令的 ring 门包装 |
+| D1d stdio 服务 | 应答循环镜像 `python -m l2.protocol` I/O 契约（行协议、帧上限、错误通道 stderr） | rust-protocol-gate bin | rust-protocol-host bin |
+
+**架构红利**：`$` 系统命令走线缆时强制携带 ring/danger 元数据并由 Rust capability 门裁决——边界审计 B4 绕过在新边界上天然闭合。
+
+### D2 — TS↔Rust 缝合（机械性）
+
+| 任务 | 验收 |
+|---|---|
+| D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | 现有 e2e 测试套件全绿于双 host |
+| D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | 差异清单为空或逐项记录有意分歧 |
+| D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | 双端上限一致入 schema 测试 |
+
+### 分流路由原则（D1c 核心）
+
+| 流量 | 去向 |
+|---|---|
+| `$` system / process / fs / health / status 等 L1 面操作 | Rust host 直答（capability 门内） |
+| `/engine` 命令、alias、补全 | TS 本地（纯解析/展示） |
+| intent / L3A / card / memory / tool | 经线缆转发 L3 权威面（归属另定，本计划只做透传管道） |
+
+## 4. 里程碑计划表
+
+| 里程碑 | 交付物 | 退出条件 | 规模 | 依赖 |
+|---|---|---|---|---|
+| **M-D0** | feature/rust-outbox-parity 分支 | F1 修复 + 向量绿 + cargo test/clippy 干净 | S（1–2 天） | — |
+| **M-D1a** | rust-host: 会话 FSM | 会话生命周期向量绿；身份三分离测试 | M（2–3 天） | M-D0 |
+| **M-D1b** | rust-host: outbox 注册表 | 多视图并发 attach/ack/replay 压测零漂移 | M（2–3 天） | M-D0 |
+| **M-D1c** | rust-host: capability 分派 | 全 KIND 分派矩阵 + 拒绝路径审计落盘；B4 关闭证据 | L（4–6 天） | M-D1a/b |
+| **M-D1d** | rust-protocol-host bin | 与 python host I/O 契约互验绿 | S（1–2 天） | M-D1c |
+| **M-D2** | TS↔Rust e2e 绿 | 双 host 测试矩阵全绿 + 三方向量互验 | S–M（2–3 天） | M-D1d |
+| **G1–G6** | l2-ts-rewrite-mapping §5.3 阶梯实例化 | 覆盖 ≥95/90 → 向量冻结 → 反转 e2e → 持久化互读 → 切默认+开关 → 移除旧 host | 按 §5.2 | M-D2 |
+
+关键路径：D0 → D1a/D1b（可并行） → D1c → D1d → D2 ≈ **12–17 个工作日**（单 Agent 串行估算；D1a/b 并行可压缩 2–3 天）。
+
+## 5. 风险登记册
+
+| # | 风险 | 缓解 | 触发点 |
+|---|---|---|---|
+| R1 | seq 类型/回绕差异 | D0.4 向量用例 | 编码层 |
+| R2 | 政策/机制冲突复制进 Rust（边界审计 §6：params 硬编码策略） | Rust 侧策略一律注入 + 快照驱动（rewrite 设计 §3.4） | D1c |
+| R3 | L3 归属未定导致 intent 转发目标悬空 | D2 前由操作员裁定 L3 权威面；此前 D1 只建透传管道 | D1c→D2 之间 |
+| R4 | 双 host 长期共存漂移（edc5caa6 教训） | golden vectors 进 CI；任何一侧改动必须同步向量 | 全程 |
+| R5 | Rust host 性能未达 R2 证据即被误用于生产判断 | bench 结果标注 candidate-only（现有纪律延续） | M-D1d 后 |
+
+## 6. 与既有路线图的接缝
+
+- `l2-ts-rewrite-mapping.md` §5 割接标准：本计划 D2 完成即满足其 G3「反转 e2e」的 Rust 变体；§5.3 阶梯在 M-D2 后接管。
+- `frontend-kernel-roadmap.md` §4：本计划是 §4.3 独立构建路径中「仅对保留的 TS/L2 边界定义版本化 wire contract」的落地实例。
+- `production-closure-roadmap.md` P0.5/B4：D1c 的 ring 门包装即其修复载体。
+- `agent-os-3x-closure.md` §5 约束：「TS owns no scheduler/AgentLoop/tool execution/memory promotion」在本计划的分流路由表中逐条成立。
