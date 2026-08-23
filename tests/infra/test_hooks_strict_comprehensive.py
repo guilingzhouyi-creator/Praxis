@@ -104,7 +104,15 @@ def test_hook_accepts_valid():
     import subprocess as _sp
     import tempfile as _tf
 
-    msg = "feat(hooks): add strict gate for worktree\n\nCo-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>\n"
+    # Stage a scripts/py probe so the type-to-content gate sees a matching
+    # path (feat requires src/crates/packages/scripts/...) and the scope-
+    # to-dir alignment holds (scope=scripts maps to scripts/). Avoids
+    # .githooks/ prefix which would trigger the shared-file handoff gate.
+    probe = ROOT / "scripts" / "py" / "_tmp_valid_probe.py"
+    probe.write_text("# type-to-content probe\n", encoding="utf-8")
+    _sp.run(["git", "add", str(probe)], cwd=ROOT, capture_output=True)
+
+    msg = "feat(scripts): add strict gate for worktree\n\nCo-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>\n"
     with _tf.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
         f.write(msg)
         path = f.name
@@ -113,10 +121,10 @@ def test_hook_accepts_valid():
         env["PRAXIS_AUTHOR"] = "OpenCode"
         env["PRAXIS_MODEL"] = "ox-alpha"
         r = _sp.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env, cwd=ROOT)
-        print("STDERR:", r.stderr)
-        print("STDOUT:", r.stdout)
         assert r.returncode == 0
     finally:
+        _sp.run(["git", "rm", "--cached", "-q", "--force", str(probe)], cwd=ROOT, capture_output=True)
+        probe.unlink(missing_ok=True)
         Path(path).unlink(missing_ok=True)
 
 
