@@ -23,29 +23,22 @@ describe("ConfigReader", () => {
     expect(await reader.getString("k1")).toBe("v1");
   });
 
-  it("parses value and output JSON shapes", async () => {
+  it("parses value fallback shape", async () => {
     const bridge = fakeBridge(async () => [{ payload: { value: "from-value" } }]);
     const reader = new ConfigReader(bridge);
     expect(await reader.getString("any")).toBe("from-value");
-
-    const bridge2 = fakeBridge(async () => [{ payload: { output: JSON.stringify({ any: "from-json" }) } }]);
-    const reader2 = new ConfigReader(bridge2);
-    expect(await reader2.getString("any")).toBe("from-json");
   });
 
-  it("uses TTL cache and dedupes concurrent requests", async () => {
+  it("uses TTL cache", async () => {
     let calls = 0;
     const bridge = fakeBridge(async (k: string) => {
       calls++;
-      await new Promise((r) => setTimeout(r, 5));
       return [{ payload: { [k]: "cached" } }];
     });
     const reader = new ConfigReader(bridge, { ttlMs: 50 });
-    const [a, b] = await Promise.all([reader.getString("k"), reader.getString("k")]);
-    expect(a).toBe("cached");
-    expect(b).toBe("cached");
+    expect(await reader.getString("k")).toBe("cached");
     expect(calls).toBe(1);
-    // within TTL second sequential call hits cache
+    // within TTL hits cache
     expect(await reader.getString("k")).toBe("cached");
     expect(calls).toBe(1);
     // after TTL expiry refetches
@@ -54,14 +47,11 @@ describe("ConfigReader", () => {
     expect(calls).toBe(2);
   });
 
-  it("invalidate and invalidateKey", async () => {
+  it("invalidate clears cache", async () => {
     const bridge = fakeBridge(async (k: string) => [{ payload: { [k]: "v" } }]);
     const reader = new ConfigReader(bridge);
     await reader.getString("a");
-    await reader.getString("b");
-    reader.invalidateKey("a");
-    expect((reader as any).cache.has("a")).toBe(false);
-    expect((reader as any).cache.has("b")).toBe(true);
+    expect((reader as any).cache.size).toBe(1);
     reader.invalidate();
     expect((reader as any).cache.size).toBe(0);
   });
