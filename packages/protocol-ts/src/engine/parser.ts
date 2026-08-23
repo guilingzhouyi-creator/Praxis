@@ -7,7 +7,6 @@ export interface ParsedCommand {
 
 // Module-level pattern: parsing is a hot path (every input line).
 const TOKEN_PATTERN = /"([^"]*)"|(\S+)/g;
-const SIMPLE_PATTERN = /^[^\s"]+$/;
 
 /**
  * Tokenize on whitespace with double-quote grouping.

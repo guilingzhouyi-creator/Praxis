@@ -158,6 +158,7 @@ export class Outbox {
     this.buf = new Array(maxlen);
   }
 
+  /** Append one message, evicting the oldest when at capacity (O(1)). */
   append(message: Message): void {
     if (this.count < this.maxlen) {
       this.buf[(this.head + this.count) % this.maxlen] = message;
@@ -179,16 +180,18 @@ export class Outbox {
     const after = afterSeq ?? this.acknowledged;
     const result: Message[] = [];
     for (let i = 0; i < this.count; i++) {
-      const msg = this.buf[(this.head + i) % this.buf.length];
+      const msg = this.buf[(this.head + i) % this.maxlen];
       if (msg && msg.seq > after) result.push(msg);
     }
     return result;
   }
 
+  /** Last acknowledged seq (cursor). */
   get lastAcked(): number {
     return this.acknowledged;
   }
 
+  /** Number of buffered messages (≤ maxlen). */
   get size(): number {
     return this.count;
   }
@@ -196,6 +199,11 @@ export class Outbox {
 
 // ── SessionCursor (per-view ack cursor) ────────────────────────────────
 
+/**
+ * Per-view ack cursor mirroring the Python3 host's view tracking.
+ *
+ * One cursor per frontend view; host outbox stays authoritative.
+ */
 export class SessionCursor {
   sessionId = "";
   lastAcked = -1;
@@ -203,15 +211,18 @@ export class SessionCursor {
 
   constructor(public readonly viewId: string) {}
 
+  /** Bind the view to a session. */
   attach(sessionId: string): void {
     this.sessionId = sessionId;
     this.attached = true;
   }
 
+  /** Detach the view (no longer receives replay). */
   detach(): void {
     this.attached = false;
   }
 
+  /** Advance the acknowledged position (monotonic). */
   ack(seq: number): void {
     this.lastAcked = Math.max(this.lastAcked, seq);
   }

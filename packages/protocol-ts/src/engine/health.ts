@@ -16,6 +16,12 @@ export interface HealthResult {
   error?: string;
 }
 
+/**
+ * Periodic health probe for a `ProtocolBridge`.
+ *
+ * Measures round-trip latency and exposes `latest`; caller decides UI
+ * gating/reconnect. Composable with `ConnectionManager` via `health:change`.
+ */
 export class HealthProbe {
   private timer: ReturnType<typeof setInterval> | undefined;
   private lastResult: HealthResult = { healthy: false, latencyMs: -1 };
@@ -23,23 +29,29 @@ export class HealthProbe {
   constructor(
     private readonly bridge: ProtocolBridge,
     private readonly intervalMs = 30_000,
-  ) {}
+  ) {
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0) throw new Error("intervalMs must be a positive number");
+  }
 
+  /** Start periodic probing (idempotent); fires an immediate check. */
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => void this.probe(), this.intervalMs);
     void this.probe(); // immediate first check
   }
 
+  /** Stop periodic probing. */
   stop(): void {
     clearInterval(this.timer);
     this.timer = undefined;
   }
 
+  /** Latest probe result (initially unhealthy). */
   get latest(): HealthResult {
     return this.lastResult;
   }
 
+  /** Single probe round-trip. */
   async probe(): Promise<HealthResult> {
     const start = performance.now();
     try {

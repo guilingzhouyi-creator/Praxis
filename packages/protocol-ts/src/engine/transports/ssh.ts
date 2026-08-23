@@ -12,14 +12,16 @@
  * (safety cap) and a stalled connect is bounded by the transport timeout.
  */
 
+// @ts-ignore — node:readline types require @types/node at build time
 import * as readline from "node:readline";
+// @ts-ignore — ssh2 types provided by @types/ssh2
 import { Client, type ClientChannel } from "ssh2";
 import { createLineRequestTransport, type LineTransportOptions } from "./line-transport.ts";
 import type { Transport } from "../bridge.ts";
 
 /** Minimal channel surface the engine needs (injectable for tests). */
 export interface SshChannelLike {
-  stdout: NodeJS.ReadableStream;
+  stdout: any;
   write(data: string): void;
 }
 
@@ -93,7 +95,7 @@ export function createSshTransport(options: SshTransportOptions): Transport {
   const transport = createLineRequestTransport(engineOptions);
 
   client.on("ready", () => {
-    client.exec(command, (error, stream) => {
+    client.exec(command, (error: any, stream: any) => {
       if (error || !stream) return;
       attachChannel(stream as unknown as SshChannelLike);
     });

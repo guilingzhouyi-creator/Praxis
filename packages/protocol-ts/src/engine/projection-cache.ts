@@ -1,12 +1,10 @@
 /**
  * ProjectionCache — GC-friendly memoisation of expensive projection results.
  *
- * Uses WeakRef so cached entries do not prevent garbage collection of their
- * keys. When a projection input object is collected, its cached output is
- * automatically dropped. This avoids memory leaks in long-lived sessions
- * where projections are recomputed for changing inputs.
- *
- * TS pattern: WeakRef + FinalizationRegistry for zero-cost invalidation.
+ * Uses `WeakRef` so cached entries do not prevent GC of their keys; stale
+ * entries are evicted lazily on next `getCached` (no `FinalizationRegistry`
+ * retained to keep the runtime portable). This avoids leaks in long-lived
+ * sessions where projections are recomputed for changing inputs.
  */
 
 interface CacheEntry {

@@ -1,4 +1,5 @@
-/** Command registry + dispatcher for the TS engine shell.
+/**
+ * Command registry + dispatcher for the TS engine shell.
  *
  * Enhanced (P3): template literal types constrain command names at compile
  * time, the dispatch table uses a frozen Map for O(1) lookup with zero
@@ -7,6 +8,7 @@
  */
 
 import type { ParsedCommand } from "./parser.ts";
+import type { MiddlewareChain } from "./middleware.ts";
 
 export interface DispatchContext {
   sessionId: string;
@@ -47,7 +49,9 @@ export class Dispatcher {
   private readonly sortedNames: string[] = [];
   private dirty = false;
   private wildcard: WildcardHandler | undefined;
+  private middleware: MiddlewareChain | undefined;
 
+  /** Register a handler for an exact command name. */
   register(name: string, handler: CommandHandler): void {
     this.handlers.set(name, handler);
     // Mark cache dirty; re-sort lazily on next listCommands() (registration
@@ -60,8 +64,14 @@ export class Dispatcher {
     this.wildcard = handler;
   }
 
+  /** Whether a handler exists for the given name. */
   has(name: string): boolean {
     return this.handlers.has(name);
+  }
+
+  /** Attach a middleware chain (optional composition). */
+  useMiddleware(chain: MiddlewareChain): void {
+    this.middleware = chain;
   }
 
   /** Registered command names (stable, sorted). Cached after first call. */
@@ -71,14 +81,24 @@ export class Dispatcher {
       this.sortedNames.push(...[...this.handlers.keys()].sort());
       this.dirty = false;
     }
-    return this.sortedNames;
+    return [...this.sortedNames];
   }
 
   /** Dispatch a parsed command; unknown names hit wildcard → bridge fallback. */
   async dispatch(cmd: ParsedCommand, ctx: DispatchContext): Promise<CommandResult> {
+    if (this.middleware) {
+      const intercepted = await this.middleware.runBefore({ command: cmd, ctx });
+      if (intercepted !== undefined) {
+        await this.middleware.runAfter({ command: cmd, ctx }, intercepted);
+        return intercepted;
+      }
+    }
     const handler = this.handlers.get(cmd.name);
-    if (handler) return handler(cmd.args, ctx);
-    if (this.wildcard) return this.wildcard(cmd.name, cmd.args, ctx);
-    return { kind: "bridge", command: cmd.name, args: cmd.args };
+    let result: CommandResult;
+    if (handler) result = await handler(cmd.args, ctx);
+    else if (this.wildcard) result = await this.wildcard(cmd.name, cmd.args, ctx);
+    else result = { kind: "bridge", command: cmd.name, args: cmd.args };
+    if (this.middleware) await this.middleware.runAfter({ command: cmd, ctx }, result);
+    return result;
   }
 }

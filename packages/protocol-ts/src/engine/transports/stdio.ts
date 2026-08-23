@@ -8,13 +8,14 @@
  * Built on the shared line request/response engine (line-transport.ts).
  */
 
+// @ts-ignore — node:readline types require @types/node at build time
 import * as readline from "node:readline";
 import { createLineRequestTransport, type LineTransportOptions } from "./line-transport.ts";
 import type { Transport } from "../bridge.ts";
 
 export interface StdioTransportOptions {
-  input: NodeJS.ReadableStream;
-  output: NodeJS.WritableStream;
+  input: any;
+  output: any;
   /** Maximum response lines per request (safety cap, default 256). */
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */

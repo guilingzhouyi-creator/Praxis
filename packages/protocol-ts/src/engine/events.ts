@@ -21,9 +21,14 @@ type EventKey = keyof EngineEvents;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyListener = (...args: any[]) => any;
 
+/**
+ * Compile-time safe pub/sub; heterogeneous storage is internal, public API
+ * is fully typed via `EngineEvents` mapped type.
+ */
 export class TypedEventEmitter {
   private listeners = new Map<string, Set<AnyListener>>();
 
+  /** Subscribe; returns unsubscribe. */
   on<K extends EventKey>(event: K, listener: (payload: EngineEvents[K]) => void | Promise<void>): () => void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
     const set = this.listeners.get(event)!;
@@ -31,6 +36,7 @@ export class TypedEventEmitter {
     return () => set.delete(listener as AnyListener);
   }
 
+  /** Subscribe once; auto-removes after first emit. */
   once<K extends EventKey>(event: K, listener: (payload: EngineEvents[K]) => void | Promise<void>): () => void {
     const wrapped = ((payload: EngineEvents[K]) => {
       this.off(event, wrapped);
@@ -39,10 +45,12 @@ export class TypedEventEmitter {
     return this.on(event, wrapped as any);
   }
 
+  /** Unsubscribe a listener. */
   off<K extends EventKey>(event: K, listener: (payload: EngineEvents[K]) => void | Promise<void>): void {
     this.listeners.get(event)?.delete(listener as AnyListener);
   }
 
+  /** Emit to all listeners; per-listener errors are isolated. */
   async emit<K extends EventKey>(event: K, payload: EngineEvents[K]): Promise<void> {
     const set = this.listeners.get(event);
     if (!set) return;
@@ -55,6 +63,7 @@ export class TypedEventEmitter {
     }
   }
 
+  /** Remove all listeners (lifecycle reset). */
   removeAll(): void {
     this.listeners.clear();
   }

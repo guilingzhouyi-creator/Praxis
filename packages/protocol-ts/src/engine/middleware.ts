@@ -1,14 +1,11 @@
 /**
  * DispatchMiddleware — composable pre/post dispatch hook chain.
  *
- * Mirrors the Python3 tool pipeline's 9-step execution pattern: each
- * middleware can inspect, transform, short-circuit, or observe a command
- * before and after the dispatcher resolves it. Middleware runs in
- * registration order for "before" and reverse order for "after".
- *
- * TS pattern: higher-order function composition with generics. Each
- * middleware receives the parsed command and context, and returns either
- * void (continue) or a CommandResult (short-circuit).
+ * Inspired by the Python3 tool pipeline (9-step): each middleware can
+ * inspect, short-circuit, or observe a command around the dispatcher.
+ * Before hooks run LIFO (last registered = first executed, so the
+ * outermost layer wraps inner ones); after hooks run FIFO for a stable
+ * audit trail. This module is a pure chain — the dispatcher composes it.
  */
 
 import type { ParsedCommand } from "./parser.ts";
@@ -24,26 +21,36 @@ export type BeforeHook = (
   mw: MiddlewareContext,
 ) => CommandResult | undefined | Promise<CommandResult | undefined>;
 
-/** After hook: observes the result; cannot modify it (read-only audit trail). */
-export type AfterHook = (mw: MiddlewareContext, result: CommandResult) => void;
+/** After hook: observes the result; may be async, cannot modify it. */
+export type AfterHook = (
+  mw: MiddlewareContext,
+  result: CommandResult,
+) => void | Promise<void>;
 
+/**
+ * Ordered chain of before/after hooks composable with `Dispatcher`.
+ *
+ * Dispatchers that support middleware should call `runBefore` before
+ * handler lookup and `runAfter` after resolution. The chain is reusable
+ * and `size` reflects total hooks.
+ */
 export class MiddlewareChain {
   private readonly beforeHooks: BeforeHook[] = [];
   private readonly afterHooks: AfterHook[] = [];
 
-  /** Register a pre-dispatch interceptor. Last registered = first executed. */
+  /** Register a pre-dispatch interceptor. Last registered = outermost (LIFO). */
   useBefore(hook: BeforeHook): this {
     this.beforeHooks.push(hook);
     return this;
   }
 
-  /** Register an post-dispatch observer. Runs in registration order. */
+  /** Register a post-dispatch observer. Runs FIFO for stable audit trail. */
   useAfter(hook: AfterHook): this {
     this.afterHooks.push(hook);
     return this;
   }
 
-  /** Run all before hooks in LIFO order; returns first non-undefined result (short-circuit). */
+  /** Run all before hooks LIFO; returns first non-undefined result (short-circuit). */
   async runBefore(ctx: MiddlewareContext): Promise<CommandResult | undefined> {
     for (let i = this.beforeHooks.length - 1; i >= 0; i--) {
       const result = await this.beforeHooks[i](ctx);
@@ -52,18 +59,25 @@ export class MiddlewareChain {
     return undefined;
   }
 
-  /** Run all after hooks in FIFO order (audit trail). Never throws. */
-  runAfter(ctx: MiddlewareContext, result: CommandResult): void {
+  /** Run all after hooks FIFO; never throws; awaits async observers. */
+  async runAfter(ctx: MiddlewareContext, result: CommandResult): Promise<void> {
     for (const hook of this.afterHooks) {
       try {
-        hook(ctx, result);
+        await hook(ctx, result);
       } catch (err) {
         console.error("[middleware] after-hook error:", err);
       }
     }
   }
 
+  /** Total hooks registered (before + after). */
   get size(): number {
     return this.beforeHooks.length + this.afterHooks.length;
+  }
+
+  /** Remove all hooks (test reset). */
+  clear(): void {
+    this.beforeHooks.length = 0;
+    this.afterHooks.length = 0;
   }
 }
