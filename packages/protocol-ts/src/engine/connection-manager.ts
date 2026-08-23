@@ -11,7 +11,7 @@
  */
 
 import { ProtocolBridge, type Transport } from "./bridge.ts";
-import { ProtocolError } from "./errors.ts";
+import { ProtocolError, withRetry } from "./errors.ts";
 import { TypedEventEmitter, type EngineEvents } from "./events.ts";
 
 export type ConnectionState =
@@ -79,36 +79,25 @@ export class ConnectionManager {
   /** Connect with probe + exponential backoff; idempotent when already connected. */
   async connect(): Promise<ProtocolBridge> {
     if (this.isConnected()) return this.bridge;
-    const maxRetries = this.opts.maxRetries ?? 3;
-    const baseDelay = this.opts.baseDelayMs ?? 500;
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      this.setState({
-        status: attempt === 0 ? "connecting" : "reconnecting",
-        attempt,
-      });
-      try {
-        const transport = this.opts.factory();
-        // Probe over the same transport, but do not consume the real seq.
-        const probe = new ProtocolBridge({ sessionId: this.opts.sessionId, transport });
-        await probe.systemStatus();
-        this.bridgeInstance = new ProtocolBridge({ sessionId: this.opts.sessionId, transport });
-        this.setState({ status: "connected" });
-        await this.emitter.emit("health:change", { healthy: true, latencyMs: 0 });
-        return this.bridge;
-      } catch (err) {
-        lastError = err;
-        if (attempt < maxRetries) {
-          const delay = baseDelay * Math.pow(2, attempt) + Math.random() * baseDelay;
-          await new Promise<void>((resolve) => setTimeout(resolve, delay));
-        }
-      }
+    this.setState({ status: "connecting", attempt: 0 });
+    try {
+      const transport = await withRetry(
+        async () => {
+          const t = this.opts.factory();
+          const probe = new ProtocolBridge({ sessionId: this.opts.sessionId, transport: t });
+          await probe.systemStatus();
+          return t;
+        },
+        { maxRetries: this.opts.maxRetries ?? 3, baseDelayMs: this.opts.baseDelayMs ?? 500 },
+      );
+      this.bridgeInstance = new ProtocolBridge({ sessionId: this.opts.sessionId, transport });
+      this.setState({ status: "connected" });
+      await this.emitter.emit("health:change", { healthy: true, latencyMs: 0 });
+      return this.bridge;
+    } catch (err) {
+      this.setState({ status: "disconnected" });
+      throw err;
     }
-    this.setState({ status: "disconnected" });
-    // Guarded throw: with constructor validation lastError is always set,
-    // but a defensive real error keeps callers from ever seeing `undefined`
-    // (e.g. a future code path that skips the loop).
-    throw lastError ?? new ProtocolError("BRIDGE_UNAVAILABLE", "no connection attempts made");
   }
 
   /** Disconnect gracefully and release the bridge. */

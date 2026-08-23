@@ -138,62 +138,42 @@ export function decodeMessage(line: string): DecodedMessage {
   return { message: raw as Message, error: null };
 }
 
-// ── Outbox (ring buffer, O(1) append vs O(n) shift) ────────────────────
+// ── Outbox (bounded replay window) ───────────────────────────────
 
-/**
- * Bounded per-session replay window backed by a circular buffer.
- *
- * The naive `Array.shift()` eviction is O(n); this ring buffer tracks a
- * logical head index for O(1) amortised append. Non-destructive ack
- * semantics mirror the Python3 host exactly.
- */
+/** Bounded per-session replay window (simple array, maxlen 1024). */
 export class Outbox {
-  private buf: (Message | undefined)[];
-  private head = 0;
-  private count = 0;
+  private items: Message[] = [];
   private acknowledged = -1;
 
   constructor(public readonly maxlen = OUTBOX_MAXLEN) {
     if (!Number.isInteger(maxlen) || maxlen < 1) throw new Error("maxlen must be a positive integer");
-    this.buf = new Array(maxlen);
   }
 
-  /** Append one message, evicting the oldest when at capacity (O(1)). */
+  /** Append, evicting oldest when at capacity. */
   append(message: Message): void {
-    if (this.count < this.maxlen) {
-      this.buf[(this.head + this.count) % this.maxlen] = message;
-      this.count++;
-    } else {
-      // Overwrite oldest slot.
-      this.buf[this.head] = message;
-      this.head = (this.head + 1) % this.maxlen;
-    }
+    this.items.push(message);
+    if (this.items.length > this.maxlen) this.items.shift();
   }
 
-  /** Non-destructive ack: only the cursor advances; items remain for lagging views. */
+  /** Non-destructive ack: only cursor advances. */
   ack(seq: number): void {
     this.acknowledged = Math.max(this.acknowledged, seq);
   }
 
-  /** Replay window for one view cursor (messages after afterSeq), oldest-first. */
+  /** Replay window after `afterSeq` (oldest-first). */
   unacked(afterSeq?: number): Message[] {
     const after = afterSeq ?? this.acknowledged;
-    const result: Message[] = [];
-    for (let i = 0; i < this.count; i++) {
-      const msg = this.buf[(this.head + i) % this.maxlen];
-      if (msg && msg.seq > after) result.push(msg);
-    }
-    return result;
+    return this.items.filter((m) => m.seq > after);
   }
 
-  /** Last acknowledged seq (cursor). */
+  /** Last acknowledged seq. */
   get lastAcked(): number {
     return this.acknowledged;
   }
 
-  /** Number of buffered messages (≤ maxlen). */
+  /** Buffered count (≤ maxlen). */
   get size(): number {
-    return this.count;
+    return this.items.length;
   }
 }
 

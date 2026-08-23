@@ -78,10 +78,15 @@ export class ProtocolBridge {
   /** Stream one envelope and yield decoded response messages. */
   async *stream(kind: MessageKind, payload: Record<string, JsonValue>): AsyncGenerator<Message> {
     const message = makeMessage(this.opts.sessionId, this.nextSeq(), kind, payload);
-    yield* this.decodeResponses(await this.transportLine(message));
+    const line = encodeMessage(message);
+    const responses = await this.opts.transport(line);
+    for (const raw of responses) {
+      const decoded = decodeMessage(raw);
+      if (decoded.message) yield decoded.message;
+    }
   }
 
-  /** Send multiple commands sequentially (preserves order/backpressure). */
+  /** Send multiple commands sequentially (preserves order). */
   async batch(commands: ReadonlyArray<{ name: string; args?: readonly string[] }>): Promise<Message[][]> {
     const results: Message[][] = [];
     for (const cmd of commands) results.push(await this.command(cmd.name, cmd.args));
@@ -133,24 +138,16 @@ export class ProtocolBridge {
     return this.roundTrip(message).then((r) => r.messages);
   }
 
-  private async transportLine(message: Message): Promise<string[]> {
-    const line = encodeMessage(message);
-    return this.opts.transport(line);
-  }
-
-  private async *decodeResponses(lines: string[]): AsyncGenerator<Message> {
-    for (const raw of lines) {
-      const decoded = decodeMessage(raw);
-      if (decoded.message) yield decoded.message;
-    }
-  }
-
   private async roundTrip(message: Message): Promise<RoundTripResult> {
     const start = performance.now();
-    const responses = await this.transportLine(message);
+    const line = encodeMessage(message);
+    const responses = await this.opts.transport(line);
     const elapsedMs = performance.now() - start;
     const messages: Message[] = [];
-    for await (const msg of this.decodeResponses(responses)) messages.push(msg);
+    for (const raw of responses) {
+      const decoded = decodeMessage(raw);
+      if (decoded.message) messages.push(decoded.message);
+    }
     return { messages, elapsedMs };
   }
 }

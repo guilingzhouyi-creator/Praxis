@@ -46,17 +46,12 @@ export type WildcardHandler = (
 
 export class Dispatcher {
   private readonly handlers = new Map<string, CommandHandler>();
-  private readonly sortedNames: string[] = [];
-  private dirty = false;
   private wildcard: WildcardHandler | undefined;
   private middleware: MiddlewareChain | undefined;
 
   /** Register a handler for an exact command name. */
   register(name: string, handler: CommandHandler): void {
     this.handlers.set(name, handler);
-    // Mark cache dirty; re-sort lazily on next listCommands() (registration
-    // is rare vs help queries, so amortised cost stays O(1) per dispatch).
-    this.dirty = true;
   }
 
   /** Register a catch-all for unregistered commands (before bridge fallback). */
@@ -74,14 +69,9 @@ export class Dispatcher {
     this.middleware = chain;
   }
 
-  /** Registered command names (stable, sorted). Cached after first call. */
+  /** Registered command names (stable, sorted). */
   listCommands(): string[] {
-    if (this.dirty) {
-      this.sortedNames.length = 0;
-      this.sortedNames.push(...[...this.handlers.keys()].sort());
-      this.dirty = false;
-    }
-    return [...this.sortedNames];
+    return [...this.handlers.keys()].sort();
   }
 
   /** Dispatch a parsed command; unknown names hit wildcard → bridge fallback. */

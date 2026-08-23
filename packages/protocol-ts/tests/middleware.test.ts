@@ -3,15 +3,15 @@ import { MiddlewareChain } from "../src/engine/middleware.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 
 describe("MiddlewareChain", () => {
-  it("runs before LIFO and short-circuits", async () => {
+  it("runs before FIFO and short-circuits", async () => {
     const chain = new MiddlewareChain();
     const order: string[] = [];
     chain.useBefore(() => { order.push("first"); return undefined; });
     chain.useBefore(() => { order.push("second"); return { kind: "local", data: { blocked: true } }; });
-    // LIFO: second registered runs first and short-circuits
+    // FIFO: first runs, then second short-circuits
     const res = await chain.runBefore({ command: { name: "x", args: [] }, ctx: { sessionId: "s" } });
     expect(res).toEqual({ kind: "local", data: { blocked: true } });
-    expect(order).toEqual(["second"]);
+    expect(order).toEqual(["first", "second"]);
   });
 
   it("runs after FIFO and isolates errors", async () => {

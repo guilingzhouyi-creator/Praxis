@@ -29,9 +29,7 @@ export class HealthProbe {
   constructor(
     private readonly bridge: ProtocolBridge,
     private readonly intervalMs = 30_000,
-  ) {
-    if (!Number.isFinite(intervalMs) || intervalMs <= 0) throw new Error("intervalMs must be a positive number");
-  }
+  ) {}
 
   /** Start periodic probing (idempotent); fires an immediate check. */
   start(): void {

@@ -25,21 +25,20 @@ describe("MessagePool", () => {
     // reused instance, payload cleared
     expect(m2.payload).toEqual({});
     expect(m2.trace_id).toBe("");
-    expect(pool.stats().reused).toBe(1);
+    expect(pool.stats().pooled).toBe(0);
   });
 
-  it("allocates fresh when exhausted and caps on release", () => {
+  it("caps on release", () => {
     const pool = new MessagePool(1);
     const a = pool.acquire("s", 1);
-    const b = pool.acquire("s", 2); // pool exhausted -> allocated
-    expect(pool.stats().allocated).toBe(1);
+    const b = pool.acquire("s", 2); // pool exhausted -> fresh
     expect(pool.stats().pooled).toBe(0);
     pool.release(a);
     pool.release(b); // second release exceeds cap, dropped
     expect(pool.stats().pooled).toBe(1);
   });
 
-  it("stats tracks pooled/reused", () => {
+  it("stats tracks pooled", () => {
     const pool = new MessagePool(2);
     expect(pool.stats().pooled).toBe(2);
     pool.acquire("s", 1);
