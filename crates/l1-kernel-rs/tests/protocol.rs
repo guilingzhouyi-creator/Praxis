@@ -177,6 +177,49 @@ fn regressive_acks_never_move_the_cursor_backward() {
 }
 
 #[test]
+fn shared_watermark_is_the_lagging_view_cursor() {
+    // Mirrors SessionMultiplexer.watermark (session-manager.ts): the shared
+    // watermark equals the lowest lastAcked across attached views.
+    use l1_kernel_rs::protocol::SessionMultiplexer;
+    let mut mux = SessionMultiplexer::new();
+    assert_eq!(mux.watermark(), -1, "no views -> watermark -1");
+    assert!(mux.view_ids().is_empty());
+
+    mux.attach("view-a", "s-1");
+    mux.attach("view-b", "s-1");
+    for seq in 1..=5 {
+        mux.emit(Message::new(
+            "s-1",
+            seq,
+            MessageKind::Event,
+            payload(&[("event_type", json!("tick"))]),
+            "",
+            0.0,
+        ));
+    }
+    // View A races to 4; watermark must stay at view B's -1.
+    mux.ack("view-a", 4);
+    assert_eq!(mux.watermark(), -1);
+    // View B advances to 2; watermark follows the laggard.
+    mux.ack("view-b", 2);
+    assert_eq!(mux.watermark(), 2);
+    // View B catches up fully; watermark now equals view A's position.
+    mux.ack("view-b", 5);
+    assert_eq!(mux.watermark(), 4);
+    // Detached views no longer pull the watermark (cursor retained).
+    mux.detach("view-a");
+    assert_eq!(mux.watermark(), 5);
+    // Replay windows over the shared stream are never erased by acking.
+    assert_eq!(
+        mux.replay_after(-1)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5]
+    );
+}
+
+#[test]
 fn record_type_is_public_value_only() {
     let record = ProtocolRecord {
         record_type: "evidence_ref".to_owned(),
