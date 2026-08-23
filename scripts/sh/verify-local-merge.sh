@@ -68,8 +68,11 @@ if [ ! -f "$HUNK_AUDIT" ]; then
   exit 3
 fi
 echo "[local-merge] ── sensitive-path hunk audit (main..$BRANCH) ──"
-python "$HUNK_AUDIT" --base main --head "$BRANCH" --check
-HUNK_RC=$?
+if python "$HUNK_AUDIT" --base main --head "$BRANCH" --check; then
+  HUNK_RC=0
+else
+  HUNK_RC=$?
+fi
 if [ "$HUNK_RC" -ne 0 ]; then
   if [ "$HUNK_RC" -eq 2 ]; then
     echo "[local-merge] ❌ hunk audit tooling failed." >&2

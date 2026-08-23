@@ -191,19 +191,27 @@ impl ProcessGroupRuntime {
     fn observe_and_reap(&self, handle: ProcessHandle, timeout: Duration) -> ReaperObservation {
         match self.processes.wait(handle, Duration::ZERO) {
             Ok(ManagedWaitResult::Finished(result)) => self.reap_terminal(handle, result, false),
-            Ok(ManagedWaitResult::Pending) => match self.processes.terminate(handle, timeout) {
-                Ok(result) => {
-                    let killed = self
-                        .processes
-                        .snapshot(handle)
-                        .map(|snapshot| snapshot.state == ManagedProcessState::Killed)
-                        .unwrap_or(true);
-                    self.reap_terminal(handle, result, killed)
+            Ok(ManagedWaitResult::Pending) => {
+                // Zero-deadline sweep is observation-only: a live child is
+                // left running (reported Pending), never SIGKILLed — only an
+                // explicit termination deadline may terminate live children.
+                if timeout.is_zero() {
+                    return ReaperObservation::Pending;
                 }
-                Err(ManagedProcessError::TerminationTimeout) => ReaperObservation::Pending,
-                Err(ManagedProcessError::UnknownHandle) => ReaperObservation::Unavailable,
-                Err(_) => ReaperObservation::Pending,
-            },
+                match self.processes.terminate(handle, timeout) {
+                    Ok(result) => {
+                        let killed = self
+                            .processes
+                            .snapshot(handle)
+                            .map(|snapshot| snapshot.state == ManagedProcessState::Killed)
+                            .unwrap_or(true);
+                        self.reap_terminal(handle, result, killed)
+                    }
+                    Err(ManagedProcessError::TerminationTimeout) => ReaperObservation::Pending,
+                    Err(ManagedProcessError::UnknownHandle) => ReaperObservation::Unavailable,
+                    Err(_) => ReaperObservation::Pending,
+                }
+            }
             Err(ManagedProcessError::UnknownHandle) => ReaperObservation::Unavailable,
             Err(_) => ReaperObservation::Pending,
         }

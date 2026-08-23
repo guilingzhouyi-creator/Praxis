@@ -100,6 +100,51 @@ def test_multi_hunk_full_replacement_is_rejected(monkeypatch):
     assert audits[0].whole_file_replacement is True
 
 
+def test_dash_prefixed_body_lines_are_counted(monkeypatch):
+    """A deleted line whose content starts with `-` (e.g. a markdown
+    horizontal rule or YAML document separator) must count as a deletion —
+    the old `not startswith("---")` guard silently dropped such lines and
+    let a stale-snapshot replacement bypass the whole-file guard."""
+    module = _load_script()
+    diff = "\n".join(
+        (
+            "diff --git a/docs/roadmaps/one.md b/docs/roadmaps/one.md",
+            "--- a/docs/roadmaps/one.md",
+            "+++ b/docs/roadmaps/one.md",
+            "@@ -1,3 +1 @@",
+            "-one",
+            "---",
+            "-three",
+            "+replacement",
+        )
+    )
+    monkeypatch.setattr(module, "_run_git", lambda *_args: diff)
+    monkeypatch.setattr(module, "_line_count", lambda ref, _path: 3 if ref == "main" else 1)
+    audits = module.audit("main", "feature/replace")
+    assert audits[0].whole_file_replacement is True
+
+
+def test_plus_prefixed_body_lines_are_counted(monkeypatch):
+    """An added line whose content starts with `+` must count as an
+    addition (mirror of the `-` case for symmetric counting)."""
+    module = _load_script()
+    diff = "\n".join(
+        (
+            "diff --git a/docs/roadmaps/one.md b/docs/roadmaps/one.md",
+            "--- a/docs/roadmaps/one.md",
+            "+++ b/docs/roadmaps/one.md",
+            "@@ -1 +1,2 @@",
+            "-one",
+            "+two",
+            "++three",
+        )
+    )
+    monkeypatch.setattr(module, "_run_git", lambda *_args: diff)
+    monkeypatch.setattr(module, "_line_count", lambda ref, _path: 1 if ref == "main" else 2)
+    audits = module.audit("main", "feature/replace")
+    assert audits[0].whole_file_replacement is True
+
+
 def test_small_hunk_change_passes_check(tmp_path: Path):
     repo = _repo(tmp_path)
     _git(repo, "switch", "-q", "-c", "feature/hunk")
