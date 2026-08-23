@@ -34,7 +34,11 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
+
+CACHE_TTL_S = 30.0
+CACHE_PATH = Path('.praxis') / 'detect_agent_cache.json'
 
 
 def _dsh_home() -> Path:
@@ -275,12 +279,42 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
     }
 
 
+def _cache_path() -> Path:
+    return CACHE_PATH
+
+def _read_cache() -> dict | None:
+    cp = _cache_path()
+    if not cp.exists():
+        return None
+    try:
+        data = json.loads(cp.read_text(encoding='utf-8'))
+        if time.time() - data.get('_cached_at', 0) < CACHE_TTL_S:
+            data.pop('_cached_at', None)
+            return data
+    except (ValueError, KeyError, OSError):
+        pass
+    return None
+
+def _write_cache(result: dict) -> None:
+    cp = _cache_path()
+    cp.parent.mkdir(parents=True, exist_ok=True)
+    data = {**result, '_cached_at': time.time()}
+    cp.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+def cached_detect() -> dict:
+    cached = _read_cache()
+    if cached is not None:
+        return cached
+    result = detect()
+    _write_cache(result)
+    return result
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Detect the agent framework/model from execution evidence")
     parser.add_argument("--json", action="store_true", help="emit JSON (default behavior; kept for CLI compatibility)")
     args = parser.parse_args()
     del args
-    print(json.dumps(detect(), ensure_ascii=False))
+    print(json.dumps(cached_detect(), ensure_ascii=False))
     return 0
 
 
