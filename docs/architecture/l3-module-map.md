@@ -4,8 +4,8 @@
 > **Maintenance rule**: any module add/move/rename updates this map in the
 > SAME commit. Status claims without a matching tree state are drift.
 >
-> Survey basis: main @ `ba396896` (2026-08-23), post-normalization + rust-preflight merge.
-> **TS mirror status**: `packages/protocol-ts/` — 20 modules, 77 tests, tsc clean. See §8.
+> Survey basis: main @ `32035cec` (2026-08-23), post `l2-ts-advanced-optimize` polish (simple-array Outbox, FIFO middleware, direct-sort dispatcher).
+> **TS mirror status**: `packages/protocol-ts/` — 29 modules, 77+ tests, tsc clean. See §8.
 > Regenerate counts anytime with:
 >
 > ```bash
@@ -116,12 +116,12 @@ implemented and tested (62+ tests, tsc clean):
 
 | Module | Lines | Mirrors | Status |
 |---|---|---|---|
-| `envelope.ts` | ~218 | `l2/protocol/envelope.py` | ✅ ring-buffer Outbox |
-| `records.ts` | 325 | `l2/protocol/records.py` | ✅ |
-| `types.ts` | ~100 | (type-level only) | ✅ branded IDs + discriminated union |
-| `engine/bridge.ts` | ~207 | `l2/protocol/host.py` (client side) | ✅ AsyncGenerator stream, batch, timing |
-| `engine/parser.ts` | 37 | `l2/l2_shell/__init__.py` dispatch | ✅ fast path for unquoted |
-| `engine/dispatcher.ts` | 84 | `l2/commands.py` registry | ✅ wildcard + lazy sort cache |
+| `envelope.ts` | 215 | `l2/protocol/envelope.py` | ✅ simple array Outbox (maxlen 1024, `ack` non-destructive) |
+| `records.ts` | 345 | `l2/protocol/records.py` | ✅ |
+| `types.ts` | 103 | (type-level only) | ✅ branded IDs + discriminated union |
+| `engine/bridge.ts` | 165 | `l2/protocol/host.py` (client side) | ✅ AsyncGenerator stream, batch, timing, `maxSeq` wrap |
+| `engine/parser.ts` | 36 | `l2/l2_shell/__init__.py` dispatch | ✅ fast path for unquoted |
+| `engine/dispatcher.ts` | 94 | `l2/commands.py` registry | ✅ wildcard + direct sort + middleware |
 | `engine/builtins.ts` | 40 | lang/help/clear builtins | ✅ |
 | `engine/session-manager.ts` | 136 | ProtocolHost multiplexing | ✅ non-destructive ack |
 | `engine/session.ts` | 129 | SessionView projection | ✅ |
@@ -131,17 +131,19 @@ implemented and tested (62+ tests, tsc clean):
 | `engine/completer.ts` | 64 | Tab completion | ✅ |
 | `engine/output-guard.ts` | 55 | Display safety mirror | ✅ degrade-to-allow-through |
 | `engine/command-groups.ts` | 73 | Command grouping | ✅ |
-| `engine/cot-guard.ts` | 66 | CoT privacy boundary | ✅ sanitize + detect |
-| `engine/middleware.ts` | 69 | Composable pre/post hooks | ✅ LIFO/FIFO chain |
-| `engine/message-pool.ts` | 91 | Message object pool | ✅ reset-and-reuse |
-| `engine/l3-bridge-interface.ts` | 61 | Typed L3 command surface | ✅ domain-grouped IL3Bridge |
+| `engine/cot-guard.ts` | 70 | CoT privacy boundary | ✅ sanitize + detect (FIFO) |
+| `engine/middleware.ts` | 81 | Composable pre/post hooks | ✅ FIFO chain, async `runAfter` |
+| `engine/message-pool.ts` | 93 | Message object pool | ✅ simple `Map` pool, single `pooled` stat |
+| `engine/l3-bridge-interface.ts` | 89 | Typed L3 command surface | ✅ expanded domains (memory/system/model/card/l3a/tool) |
 | `engine/errors.ts` | 66 | Structured errors with codes | ✅ ProtocolError + retry |
-| `engine/health.ts` | 57 | Bridge health probe | ✅ periodic latency check |
-| `engine/connection-manager.ts` | 84 | Transport lifecycle FSM | ✅ retry + state machine |
-| `engine/projection-cache.ts` | 45 | WeakRef projection memoisation | ✅ GC-friendly |
-| `engine/config-reader.ts` | 56 | SettingsCenter read mirror | ✅ TTL cache |
-| `engine/broadcast.ts` | 57 | BroadcastChannel multi-tab | ✅ EventTarget pub/sub |
+| `engine/health.ts` | 67 | Bridge health probe | ✅ periodic latency check |
+| `engine/connection-manager.ts` | 113 | Transport lifecycle FSM | ✅ `withRetry` + validation + typed `on` |
+| `engine/projection-cache.ts` | 24 | Simple memoisation | ✅ `Map` (no `WeakRef`) |
+| `engine/config-reader.ts` | 66 | SettingsCenter read mirror | ✅ TTL cache, single shape `payload[key]??payload.value` |
+| `engine/broadcast.ts` | 55 | BroadcastChannel multi-tab | ✅ simple `BroadcastChannel` |
 | `engine/bench.ts` | 50 | Micro-benchmark harness | ✅ drift detection |
+| `engine/command-history.ts` | 85 | Command history ring | ✅ |
+| `engine/pipeline.ts` | 94 | Pipeline semantics | ✅ |
 | `i18n.ts` | 64 | Locale data consumption | ✅ |
 | `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
 
