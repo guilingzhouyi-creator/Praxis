@@ -100,7 +100,7 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 | P1 边界迁移 | ✅ |
 | P2 协议 v1 | ✅ |
 | P3 TS 引擎 | ✅ 引擎+四 transport+WS 对接（2026-08-21 合入 main；**08-22 被 edc5caa6 移除，08-23 在 feature/l2-ts-rewrite 21a118cf 恢复**） |
-| P4 重型/移动 | ⏳（起点见 §6.5） |
+| P4 重型/移动 | ⏳（起点见 §6.5；2026-08-23 已完成分支内扩展：VSCode diff 流投影、ShellFamily、多视图 multiplexing，见 §6.4） |
 
 ### 6.1 P0 止血 — ✅（2026-08-20）
 
@@ -141,6 +141,21 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 - **剩余**：真实 SSH 端点（远端 stdio host 已通——按需接入）+ 五前端矩阵真实接入。
 - **重写标准**：见 [l2-agent-handoff.md](l2-agent-handoff.md) §2（跨语言契约 / 桥 API 对应 / 铁律 / 镜像同步 / 验收清单）。
 - 验收：TS 引擎跑通 web/TUI/轻量桌面；L3 零改动；协议 v1 作为唯一跨语言契约。
+
+### 6.4.1 分支扩展（2026-08-23，feature/l2-ts-rewrite 累计 11 提交，待合入 main）
+
+> 在 §6.4 引擎恢复基础上，按 [l2-ts-rewrite-mapping.md](l2-ts-rewrite-mapping.md)
+> 三批完成 L2 全层 TS 重写（对照路线图 §5/§8 全表）：
+
+| 批次 | 内容 | 验证 |
+|---|---|---|
+| 性能 | `isAckLine` 快速路径 3.6x、`listCommands` 缓存、parser 正则模块级 + `bench/engine-bench.ts` | bench 证据 + Vitest |
+| 第一批 | `i18n.ts`（locale 注册表 + lang 切换 builtin）、`bridge.ts` 域分组（settings/memory/system/model/selector）、dispatcher 异步支持 | Vitest 48 |
+| 第二批 | `selector.ts`（preselect/selectBy* 零句柄）、`completer.ts`（候选集 + 前缀匹配）、`command-groups.ts`（五域注册） | Vitest 48 |
+| 第三批 | `route.ts`（方言路由：pipeline/`$`/`/`/tool/L3A）、`output-guard.ts`（允许/阻止/截断镜像）、ssh.ts readiness handshake（写排队 + attach flush） | Vitest 49 |
+| P4 扩展 | `session-family.ts`（ShellFamily：bind/resolve/loadConfig/revision）、`session-manager.ts`（一会话 N 视图 + 共享水位=落后视图）、VSCode diff 流投影 `projectVscode` | **Vitest 62** + e2e stdio 真实 host 绿 |
+
+**合入状态**：分支 11 提交（恢复 1 + 文档 3 + feat 5 + perf 2）待 `merge --no-ff` 合入本地 main 后双推。
 
 ### 6.5 P4 重型/移动 — ⏳（起点：feature/l2-ts-rewrite，2026-08-23）
 

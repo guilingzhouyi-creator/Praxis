@@ -55,27 +55,36 @@
 - L1 `kernel.settings` 只作默认值只读面；ACB 槽位写属绑定域保留。
 - 收敛点：`/config`、`/settings global`、`/ci set`、`/ci toggle`。
 
-### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接；**08-23 在 feature/l2-ts-rewrite 恢复**）
+### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接；**08-23 在 feature/l2-ts-rewrite 恢复并扩展，待合入 main**）
 
 > ⚠️ **恢复记录（2026-08-23）**：引擎 2026-08-21 合入 main 后，于 08-22
 > 被 `edc5caa6`（GPT-5，`refactor(l2): align language protocol boundary`）
 > 整体移除，仅保留 envelope/records 协议镜像；同时把 TS `Outbox.ack`
 > 改为破坏性 shift（与 Python3 单真相源非破坏性 ack 漂移）。08-23 在
 > `feature/l2-ts-rewrite` `21a118cf` 恢复全部引擎文件 + 测试，并回退 ack
-> 漂移。**main 当前无引擎**——本分支是 P4 工作的唯一基础。
+> 漂移，随后按 `l2-ts-rewrite-mapping.md` 三批完成全层重写（11 提交，
+> Vitest 62，e2e 真实 host 绿），**待合入 main**。
 
 | 模块（`packages/protocol-ts/src/engine/`） | 状态 |
 |---|---|
-| `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize` |
-| `dispatcher.ts` | ✅ 注册表 + `listCommands` + 未注册回退桥标记 |
-| `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay，transport 注入） |
-| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop`（与 Python3 `projection.py` 三形状对齐） |
-| `builtins.ts` | ✅ `registerBuiltins`（lang/help/clear 本地纯展示命令） |
-| transport 适配器 | ✅ `transports/`——**共享引擎** `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio（Node readline）/ http（fetch `/api/v2/shell`）/ ws（原生 WebSocket，实例可注入）/ ssh（ssh2 channel，客户端可注入）；**异步契约** `(line) => Promise<string[]>` |
-| 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost`（`python -m l2.protocol`）打通：command 往返 + attach/replay |
-| 测试 | ✅ engine 8 + protocol 6 + session 7 + e2e 2 + transports 6（Vitest 29 passed，tsc 干净） |
+| `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize`（正则模块级，热路径优化） |
+| `dispatcher.ts` | ✅ 注册表 + `listCommands`（缓存排序）+ 未注册回退桥标记 + **异步 handler 支持** |
+| `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay）+ **域分组 helpers**（settingsGet/Set、memoryDigest、systemStatus、modelSpecs、cellLiveness） |
+| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop/Vscode`（VSCode 增量 diff 流 + watermark） |
+| `builtins.ts` | ✅ `registerBuiltins`（lang 支持 locale 切换 / help / clear） |
+| `route.ts` | ✅ 方言路由：pipeline / `$` system / `/` engine / tool / L3A 回退（纯 parseRoute + async route） |
+| `selector.ts` | ✅ preselect / selectByAgentId / selectByRole（零对象句柄，dict 数据 API） |
+| `completer.ts` | ✅ 候选集（工具 + builtins + 别名）+ 前缀匹配 + 空格后文件路径部分 |
+| `command-groups.ts` | ✅ settings / system / memory / model / selector 五域注册 |
+| `output-guard.ts` | ✅ 输出守卫镜像（允许 / 阻止替换 / 截断 100，降级放行） |
+| `session-family.ts` | ✅ ShellFamily（register/bind/resolve/loadConfig/revision/snapshot，首注册默认） |
+| `session-manager.ts` | ✅ 一会话 N 视图 + 非破坏性 ack + 共享水位=落后视图 + recovery 重放 |
+| transport 适配器 | ✅ `transports/`——共享引擎 `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio / http / ws / ssh（**readiness handshake：连接前写排队 + attach flush**）；异步契约 `(line) => Promise<string[]>` |
+| 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost` 打通：command 往返 + attach/replay |
+| 测试 | ✅ 9 文件 62 例（protocol 6 + engine 8 + session 9 + transports 7 + i18n 7 + selector/completer 10 + session-family 6 + session-manager 7 + e2e 2），tsc 干净 |
 
 协议镜像：`packages/protocol-ts/src/{envelope,records}.ts`（与 Python3 逐字段对齐，§2.4）。
+i18n：`src/i18n.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwargs 替换）。
 
 ### 1.6 Shell 命令域 — ✅ 完成
 
