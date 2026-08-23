@@ -57,11 +57,6 @@ source of truth for the Conventional-Commits contract.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
   `fix*` branches allow only `fix` commits (matches the accumulation-gate
   exemption).
-- **Retired snapshot artifacts**: `config/discovery/commits.yaml` is the only
-  commit-policy source. `config/discovery/commits.json` and
-  `scripts/py/gen_commits_json.py` are intentionally absent and must not be
-  reintroduced or referenced unless a JSON consumer is added in the same
-  reviewed change.
 - **Generated policy mirror**: after editing `config/discovery/commits.yaml`,
   run `python scripts/py/gen_commits_json.py` and include both the generator
   output and the YAML change in the same reviewed commit.

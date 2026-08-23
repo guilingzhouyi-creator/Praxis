@@ -98,3 +98,12 @@ def test_commit_policy_json_mirror_matches_yaml() -> None:
     )
     assert mirror == {key: policy[key] for key in mirror_keys if key in policy}
     assert os.path.isfile(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))
+
+
+def test_commit_policy_docs_match_generated_mirror_contract() -> None:
+    """Workflow docs must describe the checked-in Node mirror and generator."""
+    with open(os.path.join(ROOT, "docs", "workflow", "commits.md"), encoding="utf-8") as docs_file:
+        docs = docs_file.read()
+    assert "generated `config/discovery/commits.json` mirror" in docs
+    assert "`scripts/py/gen_commits_json.py`" in docs
+    assert "intentionally absent" not in docs
