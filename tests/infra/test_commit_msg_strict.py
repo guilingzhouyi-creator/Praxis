@@ -37,6 +37,25 @@ def _run_hook(msg: str, env_over: dict | None = None) -> subprocess.CompletedPro
         Path(path).unlink(missing_ok=True)
 
 
+def _stage_tmp_probe(rel_path: str) -> str:
+    """Stage a temporary NEW file so the type-to-content gate sees a match."""
+    import pathlib
+    import subprocess as _sp
+
+    p = pathlib.Path(rel_path)
+    p.write_text("# temporary commit-msg probe\n")
+    _sp.run(["git", "add", str(p)], cwd=ROOT, check=True)
+    return str(p)
+
+
+def _unstage_tmp_probe(rel_path: str) -> None:
+    import pathlib
+    import subprocess as _sp
+
+    _sp.run(["git", "rm", "--cached", "-q", rel_path], cwd=ROOT, check=True)
+    pathlib.Path(rel_path).unlink(missing_ok=True)
+
+
 def test_bypass_without_reason_rejected():
     """PRAXIS_SKIP_AUTHOR_CHECK without reason is now rejected."""
     # Hook should reject bypass without reason, not exit 0
@@ -75,10 +94,18 @@ def test_commit_template_exists_and_strict():
 
 def test_trailer_must_be_last_line():
     """Co-Authored-By must be the last line, blank line before."""
-    # Well-formed message must pass; use a non-placeholder summary (>=10 chars)
-    msg_good = "feat(core): add strict gate for hooks\n\nCo-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>\n"
-    r2 = _run_hook(msg_good)
-    assert r2.returncode == 0
+    # Well-formed message must pass; use a non-placeholder summary (>=10 chars).
+    # A `feat` subject also needs a staged file so the type-to-content gate
+    # sees a matching path (mirrors test_githooks_commit_msg.py probe pattern).
+    p = _stage_tmp_probe("src/_tmp_trailer_probe.py")
+    try:
+        msg_good = (
+            "feat(core): add strict gate for hooks\n\nCo-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>\n"
+        )
+        r2 = _run_hook(msg_good)
+        assert r2.returncode == 0
+    finally:
+        _unstage_tmp_probe(p)
 
 
 def test_worktree_hooks_independent():
