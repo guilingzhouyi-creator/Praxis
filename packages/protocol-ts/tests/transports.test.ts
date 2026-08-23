@@ -134,6 +134,51 @@ describe("ssh transport", () => {
     expect(responses).toHaveLength(2);
     expect(decodeMessage(responses[0]).message?.payload.success).toBe(true);
   });
+
+  it("queues writes issued before the channel is ready and flushes on attach", async () => {
+    // A fake client that does NOT attach immediately: the first write must
+    // be buffered (readiness handshake) and flushed once the channel lands.
+    const received: string[] = [];
+    let attach!: (channel: SshChannelLike) => void;
+    const fakeClient = {
+      on(event: string, cb: () => void) {
+        if (event === "ready") cb();
+        return this;
+      },
+      connect() {
+        return this;
+      },
+      exec(_cmd: string, cb: (err: unknown, stream?: unknown) => void) {
+        attach = (ch) => cb(null, ch);
+      },
+    };
+    const stdout = new Readable({ read() {} });
+    const options: SshTransportOptions = {
+      host: "remote",
+      username: "ops",
+      createClient: () => fakeClient as unknown as ReturnType<typeof createSshTransportOptions>,
+    };
+    const transport = createSshTransport(options);
+
+    // Issue a request before any channel exists — the write must queue.
+    const pending = transport("early");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(received).toHaveLength(0);
+
+    // Attach the channel; the queued write is flushed and answered.
+    attach({
+      stdout,
+      write: (data: string) => {
+        received.push(data);
+        stdout.push(encodeMessage(makeMessage("s", 30, "result", { success: true })) + "\n");
+        stdout.push(encodeMessage(makeMessage("s", 31, "ack", { ack_seq: 1 })) + "\n");
+      },
+    });
+    const responses = await pending;
+    expect(received).toHaveLength(1);
+    expect(received[0]).toContain("early");
+    expect(responses).toHaveLength(2);
+  });
 });
 
 function createSshTransportOptions(): never {

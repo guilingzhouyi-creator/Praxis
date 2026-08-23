@@ -6,9 +6,10 @@
  * stdio adapter. Requires the ssh2 dev dependency; the client factory is
  * injectable so tests can drive a fake channel.
  *
- * Usage note: connect + exec are asynchronous — writes before the channel
- * is ready throw (fail fast); callers should wait for the channel (see the
- * tests for the ready pattern) or extend with a readiness handshake.
+ * Readiness handshake: connect + exec are asynchronous, so writes issued
+ * before the channel exists are queued and flushed once the channel is
+ * attached — callers do not need to wait or sleep. A full queue fails fast
+ * (safety cap) and a stalled connect is bounded by the transport timeout.
  */
 
 import * as readline from "node:readline";
@@ -34,6 +35,8 @@ export interface SshTransportOptions {
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Max writes buffered while the channel connects (default 64). */
+  maxPendingWrites?: number;
   /** Injectable client factory for tests (default: ssh2 Client). */
   createClient?: () => Client;
 }
@@ -48,17 +51,24 @@ export function createSshTransport(options: SshTransportOptions): Transport {
     command = "python -m l2.protocol",
     maxLines = 256,
     timeoutMs = 5000,
+    maxPendingWrites = 64,
   } = options;
   const createClient = options.createClient ?? (() => new Client());
   const client = createClient();
 
   let channel: SshChannelLike | undefined;
   let pendingHandler: ((line: string) => void) | undefined;
+  const pendingWrites: string[] = [];
 
   const attachChannel = (stream: SshChannelLike) => {
     channel = stream;
     const rl = readline.createInterface({ input: stream.stdout, crlfDelay: Infinity });
     if (pendingHandler) rl.on("line", pendingHandler);
+    // Flush the queued writes now that the channel is ready.
+    while (pendingWrites.length > 0) {
+      const line = pendingWrites.shift()!;
+      stream.write(line);
+    }
   };
 
   const engineOptions: LineTransportOptions = {
@@ -67,8 +77,15 @@ export function createSshTransport(options: SshTransportOptions): Transport {
       if (channel) attachChannel(channel);
     },
     writeLine: (line) => {
-      if (!channel) throw new Error("ssh transport: channel not ready yet");
-      channel.write(`${line}\n`);
+      if (channel) {
+        channel.write(`${line}\n`);
+        return;
+      }
+      // Channel still connecting — queue the write (readiness handshake).
+      if (pendingWrites.length >= maxPendingWrites) {
+        throw new Error(`ssh transport: channel not ready and ${maxPendingWrites} writes queued`);
+      }
+      pendingWrites.push(`${line}\n`);
     },
     maxLines,
     timeoutMs,
