@@ -1,15 +1,12 @@
 /**
  * Protocol v1 client bridge for the TS engine.
  *
- * The single channel between the TS shell and the Python3 L3 host: every
- * envelope is built with the shared protocol mirror (envelope.ts), encoded
- * to one JSONL line, and sent over an injected async transport.
- *
- * Enhanced (P2): AsyncGenerator streaming for stream_chunk pipelines,
- * batched multi-command dispatch, and connection health probe.
+ * Single channel between TS shell and Python3 L3 host. Enhanced:
+ * AsyncGenerator streaming, batch dispatch, timing telemetry, and
+ * domain-grouped helpers covering all major Python3 bridge functions.
  *
  * Python3 counterpart: src/l2/protocol/host.py ProtocolHost — never
- * re-implement the session/outbox authority here.
+ * re-implement session/outbox authority here.
  */
 
 import {
@@ -17,24 +14,16 @@ import {
   type Message, type MessageKind,
 } from "../envelope.ts";
 
-/**
- * Line transport contract: send one encoded JSONL line, resolve with the
- * response lines. Async by contract so stdio/HTTP/WS/SSH adapters can each
- * wait on their own I/O (see src/engine/transports/).
- */
 export type Transport = (line: string) => Promise<string[]>;
 
 export interface BridgeOptions {
   sessionId: string;
   transport: Transport;
-  /** Max round trips before the bridge refuses to send (safety guard). */
   maxSeq?: number;
 }
 
-/** A single decoded response from a round trip. */
 export interface RoundTripResult {
   messages: Message[];
-  /** Wall-clock duration in milliseconds (perf telemetry). */
   elapsedMs: number;
 }
 
@@ -43,44 +32,32 @@ export class ProtocolBridge {
 
   constructor(private readonly opts: BridgeOptions) {}
 
-  get sessionId(): string {
-    return this.opts.sessionId;
-  }
+  get sessionId(): string { return this.opts.sessionId; }
 
-  /** Send one command envelope; resolves with the host's response envelopes + timing. */
   async command(name: string, args: readonly string[] = []): Promise<Message[]> {
     const message = makeMessage(this.opts.sessionId, this.seq++, "command", { name, args: [...args] });
     return (await this.roundTrip(message)).messages;
   }
 
-  /** Attach a frontend view (view_id optional, defaults to session id). */
   async attach(sessionId: string, viewId?: string): Promise<Message[]> {
     const payload: Record<string, string> = { op: "attach", session_id: sessionId };
     if (viewId) payload.view_id = viewId;
     return this.send("control", payload);
   }
 
-  /** Acknowledge receipt up to ackSeq for one view. */
   async ack(ackSeq: number, viewId?: string): Promise<Message[]> {
     const payload: Record<string, number | string> = { ack_seq: ackSeq };
     if (viewId) payload.view_id = viewId;
     return this.send("ack", payload);
   }
 
-  /** Request replay from lastAcked for one view (recovery semantics). */
   async replay(sessionId: string, viewId?: string, lastAcked = -1): Promise<Message[]> {
     const payload: Record<string, string | number> = { op: "recovery", session_id: sessionId, last_acked: lastAcked };
     if (viewId) payload.view_id = viewId;
     return this.send("control", payload);
   }
 
-  /**
-   * Stream responses as an AsyncGenerator (P2: stream_chunk pipeline).
-   *
-   * Instead of buffering all response lines before decoding, each line is
-   * yielded as soon as it arrives from the transport. Consumers use:
-   *   `for await (const msg of bridge.stream(command(...))) { ... }`
-   */
+  // ── Streaming pipeline ──
   async *stream(kind: MessageKind, payload: Record<string, import("../records.ts").JsonValue>): AsyncGenerator<Message> {
     const message = makeMessage(this.opts.sessionId, this.seq++, kind, payload);
     const line = encodeMessage(message);
@@ -91,37 +68,45 @@ export class ProtocolBridge {
     }
   }
 
-  /** Batch multiple commands in sequence; returns all results flattened. */
   async batch(commands: ReadonlyArray<{ name: string; args?: readonly string[] }>): Promise<Message[][]> {
     const results: Message[][] = [];
-    for (const cmd of commands) {
-      results.push(await this.command(cmd.name, cmd.args));
-    }
+    for (const cmd of commands) results.push(await this.command(cmd.name, cmd.args));
     return results;
   }
 
-  // ── domain-grouped helpers ────────────────────────────────────────────
+  // ── Settings domain ──
+  async settingsGet(key = ""): Promise<Message[]> { return this.command("settings_get", key ? [key] : []); }
+  async settingsSet(key: string, value: unknown): Promise<Message[]> { return this.command("settings_set", [key, JSON.stringify(value)]); }
 
-  async settingsGet(key = ""): Promise<Message[]> {
-    return this.command("settings_get", key ? [key] : []);
-  }
-  async settingsSet(key: string, value: unknown): Promise<Message[]> {
-    return this.command("settings_set", [key, JSON.stringify(value)]);
-  }
-  async memoryDigest(): Promise<Message[]> {
-    return this.command("memory_digest", []);
-  }
-  async systemStatus(): Promise<Message[]> {
-    return this.command("status", []);
-  }
-  async modelSpecs(): Promise<Message[]> {
-    return this.command("model_specs", []);
-  }
-  async cellLiveness(): Promise<Message[]> {
-    return this.command("cell_liveness", []);
+  // ── Memory domain ──
+  async memoryDigest(): Promise<Message[]> { return this.command("memory_digest", []); }
+  async memoryRecall(query: string, limit = 10): Promise<Message[]> { return this.command("memory_recall", [query, String(limit)]); }
+  async memoryRemember(entryType: string, content: string, ring = 2): Promise<Message[]> { return this.command("memory_remember", [entryType, content, String(ring)]); }
+
+  // ── System domain ──
+  async systemStatus(): Promise<Message[]> { return this.command("status", []); }
+  async healthCheck(): Promise<Message[]> { return this.command("health", []); }
+
+  // ── Model domain ──
+  async modelSpecs(): Promise<Message[]> { return this.command("model_specs", []); }
+  async modelSwitch(provider: string, model: string): Promise<Message[]> { return this.command("model_switch", [provider, model]); }
+
+  // ── Selector domain ──
+  async cellLiveness(): Promise<Message[]> { return this.command("cell_liveness", []); }
+
+  // ── Card domain ──
+  async cardSubmit(cardYaml: string): Promise<Message[]> { return this.command("card_submit", [cardYaml]); }
+  async cardApprove(cardId: string): Promise<Message[]> { return this.command("card_approve", [cardId]); }
+
+  // ── L3A domain ──
+  async l3aSend(text: string, sessionId?: string): Promise<Message[]> {
+    return this.command("l3a_send", sessionId ? [text, sessionId] : [text]);
   }
 
-  // ── internal ──────────────────────────────────────────────────────────
+  // ── Tool domain ──
+  async toolInvoke(toolName: string, paramsJson: string): Promise<Message[]> { return this.command("tool_invoke", [toolName, paramsJson]); }
+
+  // ── Internal ──
 
   private send(kind: MessageKind, payload: Record<string, import("../records.ts").JsonValue>): Promise<Message[]> {
     const message = makeMessage(this.opts.sessionId, this.seq++, kind, payload);
@@ -142,26 +127,10 @@ export class ProtocolBridge {
   }
 }
 
-// ── Streaming pipeline (P3: AsyncGenerator) ──────────────────────────
-
-/**
- * Stream a command's responses as an async generator, yielding each decoded
- * message incrementally. Unlike `command()` which buffers all responses,
- * this allows the consumer to process messages one at a time (useful for
- * long-running commands that produce progressive output).
- *
- * TS pattern: the generator delegates to the transport's line-by-line
- * resolution and filters out null decodes — zero-copy for valid envelopes.
- */
-export interface StreamOptions {
-  /** Abort signal to cancel the stream mid-flight. */
-  signal?: AbortSignal;
-}
-
+// ── Standalone stream utility ──
 export async function* streamResponses(
   transport: Transport,
   line: string,
-  _opts?: StreamOptions,
 ): AsyncGenerator<Message> {
   const responses = await transport(line);
   for (const raw of responses) {
