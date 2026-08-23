@@ -189,7 +189,10 @@
     "commit-msg",
     "changelog",
     "audit",
-    "attack"
+    "attack",
+    "l2-ts",
+    "l2-ts-rewrite",
+    "l2-ts-polish"
   ],
   "placeholder": {
     "reject_empty_summary": true,

@@ -66,3 +66,7 @@
    real history failed on unregistered scopes. Per registry convention:
    legacy scopes kept so strict mode never rejects previously-merged
    commits. Registered in this commit per the shared-file gate.
+5. `config/discovery/commits.json` (2026-08-23, OpenCode/ox-alpha):
+   mirror regenerated via gen_commits_json.py after the legacy-scope
+   addition above; Node-only mirror now matches canonical yaml.
+   Registered per the shared-file gate.
