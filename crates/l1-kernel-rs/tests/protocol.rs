@@ -112,6 +112,56 @@ fn invalid_envelopes_fail_closed() {
 }
 
 #[test]
+fn seq_bounds_fail_closed_and_clamp_safely() {
+    // Negative seq is rejected at decode (python parity: non-negative int).
+    assert!(matches!(
+        decode_message(
+            r#"{"kind":"command","payload":{"name":"x"},"seq":-1,"session_id":"s","trace_id":"","ts":1.0,"v":1}"#
+        ),
+        Err(ProtocolError::InvalidContract(_))
+    ));
+    // Float seq is rejected too.
+    assert!(matches!(
+        decode_message(
+            r#"{"kind":"command","payload":{"name":"x"},"seq":1.5,"session_id":"s","trace_id":"","ts":1.0,"v":1}"#
+        ),
+        Err(ProtocolError::InvalidContract(_))
+    ));
+    // u64::MAX round-trips exactly (python int parity, no precision loss).
+    let max = Message::new(
+        "s",
+        u64::MAX,
+        MessageKind::Event,
+        payload(&[("event_type", json!("edge"))]),
+        "",
+        100.0,
+    );
+    let line = encode_message(&max).expect("u64::MAX encodes");
+    assert!(line.contains(r#""seq":18446744073709551615"#));
+    assert_eq!(decode_message(&line).expect("decodes"), max);
+}
+
+#[test]
+fn outbox_ack_clamps_huge_seqs_without_breaking_replay() {
+    let mut outbox = Outbox::new(4).expect("capacity");
+    for seq in [1u64, 2, 3, 4] {
+        outbox.append(Message::new(
+            "s",
+            seq,
+            MessageKind::Event,
+            payload(&[("event_type", json!("tick"))]),
+            "",
+            0.0,
+        ));
+    }
+    // A client seq above i64::MAX must not panic or corrupt the window.
+    outbox.ack(u64::MAX);
+    assert_eq!(outbox.last_acked(), i64::MAX);
+    // Replay window still intact (non-destructive).
+    assert_eq!(outbox.unacked().len(), 4);
+}
+
+#[test]
 fn record_unknown_fields_are_removed() {
     let raw = r#"{"record_type":"session_identity","schema_version":1,"data":{"session_id":"s","terminal_id":"t","process_id":"p","future":true}}"#;
     let record = decode_record(raw).expect("record decodes");
