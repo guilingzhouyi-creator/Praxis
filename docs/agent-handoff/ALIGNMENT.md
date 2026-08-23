@@ -39,6 +39,7 @@
 | 2026-08-23 | crates/l1-kernel-rs/src/registry_base.rs + benchmark_runner.rs + src/bin/rust-registry-base-bench.rs + crates/l1-kernel-rs/tests/* + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md + Makefile | GPT (root-kernel-next) | hash-index registry lookup with stable order semantics and isolated registry.base.lookup v3 evidence | in feature/root-kernel-next |
 | 2026-08-23 | docs/roadmaps/l2-ts-rewrite-mapping.md | GPT (root-kernel-next) | carry forward the latest main-tree TS mapping document so the merge audit does not treat it as a deletion | in feature/root-kernel-next |
 | 2026-08-23 | shared governance files and Rust kernel baseline | GPT (root-kernel-integration) | merge current kernel line on top of main while preserving mainline hook/config semantics | resolved in feature/root-kernel-integration |
+| 2026-08-23 | scripts/sh/verify-local-merge.sh + scripts/py/audit_merge_hunks.py + tests/infra/test_merge_hunks.py | AtomCode | review-driven: guard hunk-audit against set -e (exit-code mapping), count `-`/`+`-prefixed body lines (whole-file guard bypass) | in feature/l2-finalize (this commit) |
 
 ## Clobber warnings (do not repeat)
 

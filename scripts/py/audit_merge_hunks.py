@@ -118,9 +118,9 @@ def audit(base: str, head: str) -> list[FileAudit]:
             )
             current.hunks.append(hunk)
             continue
-        if hunk is not None and line.startswith("+") and not line.startswith("+++"):
+        if hunk is not None and line.startswith("+"):
             hunk.additions += 1
-        elif hunk is not None and line.startswith("-") and not line.startswith("---"):
+        elif hunk is not None and line.startswith("-"):
             hunk.deletions += 1
 
     for item in audits.values():
