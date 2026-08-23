@@ -103,6 +103,18 @@ _RESETS = {
 }
 
 
+
+# Detect agent cache: clear between test modules to prevent stale
+# attribution results from leaking across test boundaries.
+import pathlib as _pl
+_DAC = _pl.Path('.praxis') / 'detect_agent_cache.json'
+
+@pytest.fixture(autouse=True)
+def _clear_detect_cache():
+    _DAC.unlink(missing_ok=True)
+    yield
+    _DAC.unlink(missing_ok=True)
+
 @pytest.fixture(autouse=True)
 def _reset_singletons():
     """Reset known singletons before each test to prevent state pollution.
@@ -257,3 +269,14 @@ def terminal():
     from l3.agent_terminal import get_terminal
 
     return get_terminal("test-agent", role="reader", territory=["."])
+
+# ── Deterministic ordering (infra slice) ──────────────────────────────
+# pytest-random-order shuffles test order causing cross-test pollution.
+# Pinning to seed=0 ensures reproducible runs.
+
+
+def pytest_configure(config):
+    """Pin random-order seed for deterministic execution."""
+    plugin = config.pluginmanager.get_plugin("random_order")
+    if plugin:
+        config.option.random_order_seed = "0"

@@ -22,12 +22,37 @@ def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, cwd=ROOT, env=env)
 
 
+def _stage_tmp_probe(rel_path: str) -> str:
+    """Stage a temporary NEW file so the type-to-content gate sees a match."""
+    import pathlib
+    import subprocess as _sp
+
+    p = pathlib.Path(rel_path)
+    p.write_text("# temporary commit-strict probe\n")
+    _sp.run(["git", "add", str(p)], cwd=ROOT, check=True)
+    return str(p)
+
+
+def _unstage_tmp_probe(rel_path: str) -> None:
+    import pathlib
+    import subprocess as _sp
+
+    _sp.run(["git", "rm", "--cached", "-q", rel_path], cwd=ROOT, check=True)
+    pathlib.Path(rel_path).unlink(missing_ok=True)
+
+
 def test_lint_msg_passes():
     """Valid message passes."""
-    msg = f"feat(hooks): add strict gate\n\n{COAUTH}\n"
-    r = _run("--msg", msg)
-    assert r.returncode == 0
-    assert "OK" in r.stdout
+    # `feat(hooks)` scope maps to .githooks/ — stage a probe there so the
+    # scope-content gate sees a matching path.
+    p = _stage_tmp_probe(".githooks/_tmp_enforcer_probe")
+    try:
+        msg = f"feat(hooks): add strict gate\n\n{COAUTH}\n"
+        r = _run("--msg", msg)
+        assert r.returncode == 0
+        assert "OK" in r.stdout
+    finally:
+        _unstage_tmp_probe(p)
 
 
 def test_lint_msg_fails_without_trailer():

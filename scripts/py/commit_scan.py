@@ -453,7 +453,9 @@ def main() -> int:
             violations += validate_subject(subject, branch=args.branch)
             parsed = parse_subject(subject)
             staged = _staged_files()
-            if parsed:
+            if parsed and staged:
+                # Content checks only fire when there ARE staged files —
+                # an empty index (test context / --msg-only) skips them.
                 ctype, cscope, _summary = parsed
                 violations += validate_type_content(ctype, staged)
                 violations += validate_scope_content(cscope, staged)

@@ -13,38 +13,56 @@ export type { JsonObject };
 declare const __brand_SessionId: unique symbol;
 declare const __brand_ViewId: unique symbol;
 
+/** Branded session identifier — prevents cross-assignment with other string IDs. */
 export type SessionId = string & { readonly [__brand_SessionId]: true };
+/** Branded frontend view identifier within one session. */
 export type ViewId = string & { readonly [__brand_ViewId]: true };
 
+/** Lift a raw string into a branded SessionId (zero runtime cost). */
 export function asSessionId(raw: string): SessionId { return raw as SessionId; }
+/** Lift a raw string into a branded ViewId (no runtime cost). */
 export function asViewId(raw: string): ViewId { return raw as ViewId; }
 
 // ── Protocol constants ────────────────────────────────────────────────
 
+/** Protocol wire format version (v1). */
 export const PROTOCOL_VERSION = 1 as const;
+/** Maximum number of messages retained in the per-session replay window. */
 export const OUTBOX_MAXLEN = 1024;
+/** All valid message kind discriminants. */
 export const KINDS = ["ack","command","control","event","intent","result","stream_chunk"] as const;
+/** Union of all message kind discriminants. */
 export type MessageKind = (typeof KINDS)[number];
+/** Valid control operations for session lifecycle management. */
 export const CONTROL_OPS = ["attach","detach","resume","recovery","ack"] as const;
+/** Union of control operation names. */
 export type ControlOp = (typeof CONTROL_OPS)[number];
 
 // ── Per-kind payloads ─────────────────────────────────────────────────
 
+/** Acknowledgement: confirms receipt up to `ack_seq` for one view. */
 export interface AckPayload { ack_seq: number; view_id?: string }
+/** Command dispatch: named command with string arguments. */
 export interface CommandPayload { name: string; args?: readonly string[] }
+/** Control operation: session lifecycle (attach/detach/resume/recovery/ack). */
 export interface ControlPayload {
   op: ControlOp; session_id?: string; view_id?: string; last_acked?: number;
 }
+/** Event notification: typed event with optional structured data. */
 export interface EventPayload { event_type: string; data?: JsonObject }
+/** Intent: natural language input routed to the L3A decision layer. */
 export interface IntentPayload { text: string; [key: string]: string | number | boolean | null | undefined }
+/** Result: command/intent execution outcome. */
 export interface ResultPayload {
   success: boolean; output?: string; error?: string;
   [key: string]: string | number | boolean | null | undefined;
 }
+/** Stream chunk: incremental output fragment for progressive rendering. */
 export interface StreamChunkPayload { data: string; done?: boolean }
 
 // ── Discriminated message union ───────────────────────────────────────
 
+/** Shared envelope fields common to every message kind. */
 interface MessageBase {
   v: typeof PROTOCOL_VERSION;
   session_id: string;
