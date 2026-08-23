@@ -73,6 +73,19 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
     fi
   fi
   # If the merge message has a custom body (not just the auto-generated line),
+  # it is hand-authored content — its subject must respect the 72-char
+  # contract like any other commit. Pure git-generated merges (single-line
+  # "Merge branch '...'") stay exempt.
+  MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
+  BODY_LINES=$(printf '%s\n' "$msg" | tail -n +2 | grep -cvE '^\s*$' || true)
+  if [ "${BODY_LINES:-0}" -gt 0 ] && [ "${#MERGE_SUBJECT}" -gt 72 ]; then
+    echo "❌ Custom merge subject exceeds 72 chars (${#MERGE_SUBJECT}):" >&2
+    echo "   Hand-authored merge messages follow the Conventional-Commits" >&2
+    echo "   subject contract (AGENTS.md). Shorten the subject." >&2
+    echo "   Fix the message, or set PRAXIS_SKIP_AUTHOR_CHECK=1 to bypass." >&2
+    exit 1
+  fi
+  # If the merge message has a custom body (not just the auto-generated line),
   # it should follow Conventional Commits format for traceability.
   if printf '%s' "$msg" | grep -qE '^[A-Za-z]+\('; then
     # Custom merge message — validate subject format.

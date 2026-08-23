@@ -63,6 +63,25 @@ def test_merge_message_exempt():
     assert run_hook("Merge branch 'feature/x'\n") == 0
 
 
+def test_git_generated_merge_single_line_still_exempt():
+    # A pure git-generated merge (single line, no custom body) is NOT a
+    # hand-authored message — even a long branch name stays exempt.
+    long_subject = "Merge branch 'feature/" + "a" * 80 + "'\n"
+    assert run_hook(long_subject) == 0
+
+
+def test_custom_merge_subject_over_72_rejected():
+    # A hand-authored merge message (custom body present) must respect the
+    # 72-char subject contract; a long subject is now rejected.
+    long_subject = "Merge branch 'feature/" + "b" * 80 + "'\n\n"
+    assert run_hook(long_subject + "Hand-written merge body.\n") == 1
+
+
+def test_custom_merge_subject_within_72_passes():
+    # A custom merge body with a short subject still passes the hook.
+    assert run_hook("Merge branch 'feature/x'\n\nHand-written merge body.\n") == 0
+
+
 # ── shared-file handoff gate (strict — register or reject) ───────────────
 
 

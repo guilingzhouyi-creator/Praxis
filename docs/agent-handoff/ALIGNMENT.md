@@ -55,3 +55,7 @@
    unclean main tree — the code landed under the wrong attribution.
    Before committing on main, `git status --short` first; if the tree is
    not clean, do NOT `git add -A` across unrelated working changes.
+3. `.githooks/commit-msg` (2026-08-23): P2#1 scaffolding-audit hardening —
+   custom merge messages (hand-authored body present) now enforce the
+   72-char subject contract; pure git-generated single-line merges stay
+   exempt. Registered in this commit per the shared-file gate.
