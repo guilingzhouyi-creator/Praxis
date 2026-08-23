@@ -1,308 +1,242 @@
-//! Golden lifecycle and registry vectors for the host session FSM.
+//! Independent integration coverage for the Rust session truth boundary.
 
-use l1_kernel_rs::protocol::ProtocolError;
-use l1_kernel_rs::session::SESSION_MAX_ID_BYTES;
-use l1_kernel_rs::session_identity::SessionIdentity;
-use l1_kernel_rs::session_lifecycle::{
-    SessionBinding, SessionLifecycle, SessionRecord, SessionRegistry,
+use std::sync::Arc;
+use std::thread;
+
+use l1_kernel_rs::session::{
+    MessageRole, SESSION_CHECKPOINT_VERSION, SESSION_CONTRACT_VERSION, Session, SessionBook,
+    SessionError, SessionInput, SessionSpec, SessionState,
 };
 
-fn identity(session_id: &str) -> SessionIdentity {
-    SessionIdentity::new(session_id, "term-1", "proc-1").expect("identity is valid")
-}
-
-fn record_in(state: SessionLifecycle) -> SessionRecord {
-    let mut record = SessionRecord::new(identity("s-1"), 0);
-    match state {
-        SessionLifecycle::Created => {}
-        SessionLifecycle::Ready => record
-            .transition(SessionLifecycle::Ready)
-            .expect("created to ready"),
-        SessionLifecycle::Running => {
-            record
-                .transition(SessionLifecycle::Ready)
-                .expect("created to ready");
-            record
-                .transition(SessionLifecycle::Running)
-                .expect("ready to running");
-        }
-        SessionLifecycle::Paused => {
-            record
-                .transition(SessionLifecycle::Ready)
-                .expect("created to ready");
-            record
-                .transition(SessionLifecycle::Running)
-                .expect("ready to running");
-            record
-                .transition(SessionLifecycle::Paused)
-                .expect("running to paused");
-        }
-        SessionLifecycle::Closing => {
-            record
-                .transition(SessionLifecycle::Ready)
-                .expect("created to ready");
-            record
-                .transition(SessionLifecycle::Running)
-                .expect("ready to running");
-            record
-                .transition(SessionLifecycle::Closing)
-                .expect("running to closing");
-        }
-        SessionLifecycle::Stopped => {
-            record
-                .transition(SessionLifecycle::Ready)
-                .expect("created to ready");
-            record
-                .transition(SessionLifecycle::Running)
-                .expect("ready to running");
-            record
-                .transition(SessionLifecycle::Closing)
-                .expect("running to closing");
-            record
-                .transition(SessionLifecycle::Stopped)
-                .expect("closing to stopped");
-        }
-        SessionLifecycle::Failed => unreachable!("failed is reached by transition"),
-    }
-    record
+fn spec(id: &str, max_messages: usize) -> SessionSpec {
+    SessionSpec::new(id, "agent-1", "cell-1", "operator", max_messages)
 }
 
 #[test]
-fn identity_rejects_empty_required_fields() {
+fn input_sequence_and_cursor_pages_are_authoritative_and_fifo() {
+    let session = Session::new(spec("session-seq", 8)).expect("valid session");
+    assert_eq!(session.state(), SessionState::Created);
+    assert_eq!(
+        session.append_input("m-0", "before active", 1),
+        Err(SessionError::NotWritable(SessionState::Created))
+    );
+    session.activate().expect("activate");
+
+    let first = session
+        .append_input("m-1", "hello", 10)
+        .expect("first input");
+    assert_eq!(first.sequence, 1);
+    assert_eq!(first.input_seq, 1);
+    let event = session
+        .append_event("m-2", 1, MessageRole::Assistant, "hi", 11)
+        .expect("assistant event");
+    assert_eq!(event.sequence, 2);
+    assert_eq!(event.input_seq, 1);
+    let second = session
+        .append_input("m-3", "next", 12)
+        .expect("second input");
+    assert_eq!(second.input_seq, 2);
+    assert_eq!(
+        session.append_event("m-bad", 99, MessageRole::Tool, "bad", 13),
+        Err(SessionError::UnknownInputSequence(99))
+    );
+
+    let first_page = session.messages_page(None, 2).expect("first page");
+    assert_eq!(first_page.items.len(), 2);
+    assert_eq!(first_page.total, 3);
+    assert_eq!(first_page.next_cursor, Some(2));
+    let second_page = session
+        .messages_page(first_page.next_cursor, 2)
+        .expect("second page");
+    assert_eq!(second_page.items.len(), 1);
+    assert_eq!(second_page.items[0].sequence, 3);
+    assert_eq!(second_page.next_cursor, None);
+}
+
+#[test]
+fn lifecycle_and_recovery_require_explicit_transitions() {
+    let session = Session::new(spec("session-life", 8)).expect("valid session");
+    assert_eq!(
+        session.close(true),
+        Err(SessionError::InvalidTransition {
+            from: SessionState::Created,
+            to: SessionState::Closed,
+        })
+    );
+    session.activate().expect("activate");
+    session.append_input("m-1", "work", 1).expect("input");
+    session.close(false).expect("crash marker");
+    assert_eq!(session.state(), SessionState::Crashed);
+    assert_eq!(
+        session.append_input("m-2", "blocked", 2),
+        Err(SessionError::NotWritable(SessionState::Crashed))
+    );
+    assert!(!session.checkpoint().snapshot.clean_shutdown);
+    session.recover().expect("recover to created");
+    session.activate().expect("reactivate");
+    session.close(true).expect("clean close");
+    assert_eq!(session.state(), SessionState::Closed);
+    assert_eq!(
+        session.append_event("m-3", 1, MessageRole::Tool, "closed", 3),
+        Err(SessionError::NotWritable(SessionState::Closed))
+    );
+}
+
+#[test]
+fn checkpoint_round_trip_preserves_wire_values_and_rejects_future_versions() {
+    let session = Session::new(spec("session-checkpoint", 8)).expect("valid session");
+    session.activate().expect("activate");
+    session.append_input("m-1", "persist", 42).expect("input");
+    session
+        .append_event("m-2", 1, MessageRole::Tool, "result", 43)
+        .expect("event");
+    let checkpoint = session.checkpoint();
+    assert_eq!(checkpoint.checkpoint_version, SESSION_CHECKPOINT_VERSION);
+    assert_eq!(
+        checkpoint.snapshot.contract_version,
+        SESSION_CONTRACT_VERSION
+    );
+    let encoded = serde_json::to_vec(&checkpoint).expect("encode checkpoint");
+    let decoded = serde_json::from_slice(&encoded).expect("decode checkpoint");
+    let restored = Session::from_checkpoint(decoded).expect("restore checkpoint");
+    assert_eq!(restored.snapshot(), session.snapshot());
+
+    let mut future = checkpoint;
+    future.checkpoint_version += 1;
     assert!(matches!(
-        SessionIdentity::new("", "t", "p"),
-        Err(ProtocolError::InvalidContract(_))
+        Session::from_checkpoint(future),
+        Err(SessionError::InvalidSnapshot(_))
     ));
-    assert!(SessionIdentity::new("s", "", "p").is_err());
-    assert!(SessionIdentity::new("s", "t", "").is_err());
 }
 
 #[test]
-fn identity_defaults_optional_fields() {
-    let id = identity("s-1");
-    assert_eq!(id.session_id, "s-1");
-    assert_eq!(id.terminal_id, "term-1");
-    assert_eq!(id.process_id, "proc-1");
-    assert_eq!(id.user_id, "");
-    assert_eq!(id.role, "");
-    assert_eq!(id.cell_id, "");
-    assert_eq!(id.memory_scope, "");
+fn bounded_history_and_message_ids_fail_closed() {
+    let session = Session::new(spec("session-bound", 2)).expect("valid session");
+    session.activate().expect("activate");
+    session.append_input("m-1", "one", 1).expect("first");
+    session
+        .append_event("m-2", 1, MessageRole::Assistant, "two", 2)
+        .expect("second");
+    assert_eq!(
+        session.append_event("m-2", 1, MessageRole::Tool, "duplicate", 3),
+        Err(SessionError::DuplicateMessage("m-2".to_owned()))
+    );
+    assert_eq!(
+        session.append_input("m-3", "full", 4),
+        Err(SessionError::HistoryFull)
+    );
+    assert_eq!(
+        session.messages_page(None, 0),
+        Err(SessionError::InvalidPage)
+    );
+    assert_eq!(
+        session.messages_page(Some(999), 1),
+        Err(SessionError::InvalidPage)
+    );
+    let error_wire = serde_json::to_string(&SessionError::HistoryFull).expect("error serializes");
+    assert!(error_wire.contains("history_full"));
 }
 
 #[test]
-fn identity_with_optional_sets_all_fields() {
-    let id = identity("s-1").with_optional("user-1", "operator", "cell-1", "mem");
-    assert_eq!(id.user_id, "user-1");
-    assert_eq!(id.role, "operator");
-    assert_eq!(id.cell_id, "cell-1");
-    assert_eq!(id.memory_scope, "mem");
-}
-
-#[test]
-fn identity_rejects_overlong_fields() {
-    let overlong = "x".repeat(SESSION_MAX_ID_BYTES + 1);
-    assert!(SessionIdentity::new(&overlong, "t", "p").is_err());
-    assert!(SessionIdentity::new("s", &overlong, "p").is_err());
-    assert!(SessionIdentity::new("s", "t", &overlong).is_err());
-}
-
-#[test]
-fn lifecycle_full_walk_created_to_stopped() {
-    let mut record = SessionRecord::new(identity("s-1"), 1_700_000_000);
-    assert_eq!(record.state(), SessionLifecycle::Created);
-    for (next, expected) in [
-        (SessionLifecycle::Ready, SessionLifecycle::Ready),
-        (SessionLifecycle::Running, SessionLifecycle::Running),
-        (SessionLifecycle::Paused, SessionLifecycle::Paused),
-        (SessionLifecycle::Running, SessionLifecycle::Running),
-        (SessionLifecycle::Closing, SessionLifecycle::Closing),
-        (SessionLifecycle::Stopped, SessionLifecycle::Stopped),
-    ] {
-        record.transition(next).expect("valid transition");
-        assert_eq!(record.state(), expected);
+fn sharded_book_admits_parallel_sessions_and_returns_sorted_snapshots() {
+    let book = Arc::new(SessionBook::new(4).expect("valid shard count"));
+    let workers = (0..8)
+        .map(|worker| {
+            let book = Arc::clone(&book);
+            thread::spawn(move || {
+                for index in 0..16 {
+                    let id = format!("session-{worker:02}-{index:02}");
+                    let session = book.create(spec(&id, 4)).expect("session admission");
+                    session.activate().expect("activate");
+                    session
+                        .append_input(format!("{id}-message"), "payload", index)
+                        .expect("input");
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    for worker in workers {
+        worker.join().expect("session worker joins");
     }
+    let snapshots = book.snapshots();
+    assert_eq!(snapshots.len(), 128);
+    assert!(snapshots.windows(2).all(|pair| {
+        pair[0].spec.session_id < pair[1].spec.session_id
+            && pair[0].messages.len() == 1
+            && pair[0].next_input_seq == 2
+    }));
+    assert!(book.get("session-03-07").is_some());
 }
 
 #[test]
-fn lifecycle_rejects_invalid_transitions_and_keeps_state() {
-    let mut record = SessionRecord::new(identity("s-1"), 0);
-    assert!(!record.can_transition(SessionLifecycle::Paused));
-    assert!(record.transition(SessionLifecycle::Paused).is_err());
-    assert_eq!(record.state(), SessionLifecycle::Created);
-    assert!(record.transition(SessionLifecycle::Stopped).is_err());
-
-    record.transition(SessionLifecycle::Ready).expect("valid");
-    assert!(!record.can_transition(SessionLifecycle::Created));
-    assert!(record.transition(SessionLifecycle::Created).is_err());
-    assert!(record.transition(SessionLifecycle::Stopped).is_err());
-    assert!(record.transition(SessionLifecycle::Paused).is_err());
-    assert_eq!(record.state(), SessionLifecycle::Ready);
-}
-
-#[test]
-fn lifecycle_failed_is_reachable_from_every_state() {
-    for state in [
-        SessionLifecycle::Created,
-        SessionLifecycle::Ready,
-        SessionLifecycle::Running,
-        SessionLifecycle::Paused,
-        SessionLifecycle::Closing,
-        SessionLifecycle::Stopped,
-    ] {
-        let mut record = record_in(state);
-        record
-            .transition(SessionLifecycle::Failed)
-            .expect("any state may fail");
-        assert_eq!(record.state(), SessionLifecycle::Failed);
-    }
-}
-
-#[test]
-fn lifecycle_failed_is_terminal() {
-    let mut record = record_in(SessionLifecycle::Running);
-    record
-        .transition(SessionLifecycle::Failed)
-        .expect("running to failed");
-    assert_eq!(record.state(), SessionLifecycle::Failed);
-    for target in [
-        SessionLifecycle::Created,
-        SessionLifecycle::Ready,
-        SessionLifecycle::Running,
-        SessionLifecycle::Paused,
-        SessionLifecycle::Closing,
-        SessionLifecycle::Stopped,
-        SessionLifecycle::Failed,
-    ] {
-        assert!(!record.can_transition(target));
-        assert!(record.transition(target).is_err());
-        assert_eq!(record.state(), SessionLifecycle::Failed);
-    }
-}
-
-#[test]
-fn record_holds_created_at_and_binding() {
-    let mut record = SessionRecord::new(identity("s-1"), 1_700_000_000);
-    assert_eq!(record.created_at, 1_700_000_000);
-    assert!(record.binding.is_none());
-    let binding = SessionBinding::new("term-x", "proc-y").expect("binding is valid");
-    record.bind(binding.clone());
-    assert_eq!(record.binding, Some(binding));
-    record.unbind();
-    assert!(record.binding.is_none());
-}
-
-#[test]
-fn session_binding_rejects_empty_fields() {
-    assert!(SessionBinding::new("", "p").is_err());
-    assert!(SessionBinding::new("t", "").is_err());
-}
-
-#[test]
-fn views_attach_detach_are_session_scoped() {
-    let mut record = SessionRecord::new(identity("s-1"), 0);
-    record.attach_view("view-a");
-    record.attach_view("view-b");
-    assert_eq!(record.view_count(), 2);
-    assert_eq!(record.list_views().len(), 2);
-    let attached = record.view("view-a").expect("view-a registered");
-    assert_eq!(attached.view_id, "view-a");
-    assert_eq!(attached.session_id, "s-1");
-    assert_eq!(attached.last_acked, -1);
-    assert!(attached.attached);
-
-    assert!(record.detach_view("view-a"));
-    assert!(!record.detach_view("missing"));
-    let detached = record.view("view-a").expect("cursor retained on detach");
-    assert!(!detached.attached);
-}
-
-#[test]
-fn view_ack_is_monotonic_across_reattach() {
-    let mut record = SessionRecord::new(identity("s-1"), 0);
-    record.attach_view("view-a");
-    record.ack_view("view-a", 5);
-    record.ack_view("view-a", 3);
-    assert_eq!(record.view("view-a").unwrap().last_acked, 5);
-    record.detach_view("view-a");
-    record.attach_view("view-a");
-    let cursor = record.view("view-a").expect("re-attached");
-    assert!(cursor.attached);
-    assert_eq!(cursor.last_acked, 5);
-}
-
-#[test]
-fn views_are_isolated_between_sessions() {
-    let mut registry = SessionRegistry::new();
-    registry.create(identity("s-1")).unwrap();
-    registry.create(identity("s-2")).unwrap();
-    {
-        let first = registry.get_mut("s-1").expect("s-1 present");
-        first.attach_view("view-a");
-        first.ack_view("view-a", 7);
-        first.detach_view("view-a");
-    }
-    {
-        let second = registry.get_mut("s-2").expect("s-2 present");
-        second.attach_view("view-a");
-        assert!(second.view("view-a").unwrap().attached);
-        assert_eq!(second.view("view-a").unwrap().last_acked, -1);
-        assert_eq!(second.view_count(), 1);
-    }
-    let first = registry.get("s-1").expect("s-1 still present");
-    assert_eq!(first.view_count(), 1);
-    assert!(!first.view("view-a").unwrap().attached);
-}
-
-#[test]
-fn registry_create_get_remove_list() {
-    let mut registry = SessionRegistry::new();
-    assert!(registry.is_empty());
-    registry.create(identity("s-1")).unwrap();
-    registry.create(identity("s-2")).unwrap();
-    assert_eq!(registry.len(), 2);
-    assert_eq!(registry.list_ids(), ["s-1", "s-2"]);
-    assert!(registry.get("s-1").is_some());
-    assert!(registry.get("missing").is_none());
-
-    assert!(registry.remove("s-1"));
-    assert!(!registry.remove("s-1"));
-    assert_eq!(registry.list_ids(), ["s-2"]);
-    assert!(registry.get("s-1").is_none());
-}
-
-#[test]
-fn registry_rejects_invalid_identity_and_duplicates() {
-    let mut registry = SessionRegistry::new();
-    let invalid = SessionIdentity {
-        session_id: String::new(),
-        terminal_id: "t".to_owned(),
-        process_id: "p".to_owned(),
-        user_id: String::new(),
-        role: String::new(),
-        cell_id: String::new(),
-        memory_scope: String::new(),
-    };
-    assert!(registry.create(invalid).is_err());
-    assert!(registry.is_empty());
-
-    registry.create(identity("s-1")).unwrap();
+fn closed_sessions_can_be_removed_only_after_clean_close() {
+    let book = SessionBook::default();
+    let crashed = book
+        .create(spec("session-crashed", 4))
+        .expect("create crashed session");
+    crashed.activate().expect("activate");
+    crashed.close(false).expect("crash");
     assert!(matches!(
-        registry.create(identity("s-1")),
-        Err(ProtocolError::InvalidContract(_))
+        book.remove_closed("session-crashed"),
+        Err(SessionError::NotWritable(SessionState::Crashed))
     ));
-    assert_eq!(registry.len(), 1);
+
+    let clean = book
+        .create(spec("session-clean", 4))
+        .expect("create clean session");
+    clean.activate().expect("activate");
+    clean.close(true).expect("close");
+    let checkpoint = book.remove_closed("session-clean").expect("remove");
+    assert_eq!(checkpoint.snapshot.state, SessionState::Closed);
+    assert!(book.get("session-clean").is_none());
 }
 
 #[test]
-fn registry_create_at_is_deterministic_and_mutable() {
-    let mut registry = SessionRegistry::new();
-    registry.create_at(identity("s-1"), 1_700_000_000).unwrap();
-    assert_eq!(registry.get("s-1").unwrap().created_at, 1_700_000_000);
-    assert_eq!(registry.get("s-1").unwrap().state(), SessionLifecycle::Created);
-    registry
-        .get_mut("s-1")
-        .expect("s-1 present")
-        .transition(SessionLifecycle::Ready)
-        .expect("created to ready");
-    assert_eq!(registry.get("s-1").unwrap().state(), SessionLifecycle::Ready);
+fn batch_admission_preserves_input_order_and_partial_failures() {
+    let book = SessionBook::new(4).expect("valid shard count");
+    book.create(spec("session-existing", 4))
+        .expect("existing session");
+    let results = book.create_batch(vec![
+        spec("session-a", 4),
+        SessionSpec::new("session-invalid", "agent-1", "cell-1", "operator", 0),
+        spec("session-existing", 4),
+        spec("session-b", 4),
+    ]);
+    assert_eq!(results.len(), 4);
+    assert_eq!(
+        results[0].as_ref().expect("first admitted").id(),
+        "session-a"
+    );
+    assert!(matches!(results[1], Err(SessionError::InvalidCapacity)));
+    assert!(matches!(
+        results[2],
+        Err(SessionError::DuplicateSession(ref id)) if id == "session-existing"
+    ));
+    assert_eq!(
+        results[3].as_ref().expect("last admitted").id(),
+        "session-b"
+    );
+    assert_eq!(book.snapshots().len(), 3);
+}
+
+#[test]
+fn input_batch_holds_one_session_boundary_and_preserves_partial_success() {
+    let session = Session::new(spec("session-input-batch", 3)).expect("valid session");
+    session.activate().expect("activate");
+    let results = session.append_input_batch(vec![
+        SessionInput::new("message-1", "first", 1),
+        SessionInput::new("message-1", "duplicate", 2),
+        SessionInput::new("message-2", "second", 3),
+    ]);
+
+    assert_eq!(results.len(), 3);
+    assert_eq!(results[0].as_ref().expect("first input").input_seq, 1);
+    assert_eq!(
+        results[1],
+        Err(SessionError::DuplicateMessage("message-1".to_owned()))
+    );
+    assert_eq!(results[2].as_ref().expect("second input").input_seq, 2);
+    assert_eq!(session.message_count(), 2);
+    assert_eq!(session.snapshot().next_input_seq, 3);
+    assert!(session.append_input_batch(Vec::new()).is_empty());
 }
