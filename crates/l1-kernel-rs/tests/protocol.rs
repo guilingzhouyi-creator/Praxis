@@ -81,9 +81,99 @@ fn outbox_evicts_and_acknowledges_in_order() {
             .iter()
             .map(|message| message.seq)
             .collect::<Vec<_>>(),
-        [3]
+        [2, 3]
     );
     assert_eq!(outbox.last_acked(), 2);
+    assert_eq!(
+        outbox
+            .unacked_after(1)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [2, 3]
+    );
+    assert_eq!(
+        outbox
+            .unacked_after(2)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [3]
+    );
+}
+
+#[test]
+fn multi_view_replay_window_survives_other_view_acks() {
+    // View A acknowledges early; view B (lagging) must still replay the full
+    // retained window. A destructive ack would erase B's replay data.
+    let mut outbox = Outbox::new(8).expect("capacity");
+    for seq in 1..=5 {
+        outbox.append(Message::new(
+            "s",
+            seq,
+            MessageKind::Event,
+            payload(&[("event_type", json!("tick"))]),
+            "",
+            0.0,
+        ));
+    }
+    // View A races ahead.
+    outbox.ack(4);
+    // View B still attached at -1: full replay must be available.
+    assert_eq!(
+        outbox
+            .unacked_after(-1)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5],
+        "view B replay window must survive view A ack"
+    );
+    // View B advancing to 2 still sees 3..5.
+    assert_eq!(
+        outbox
+            .unacked_after(2)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [3, 4, 5]
+    );
+}
+
+#[test]
+fn outbox_eviction_bounds_replay_window_but_keeps_ack_cursor() {
+    let mut outbox = Outbox::new(2).expect("capacity");
+    outbox.ack(99);
+    for seq in 100..=102 {
+        outbox.append(Message::new(
+            "s",
+            seq,
+            MessageKind::Event,
+            payload(&[("event_type", json!("tick"))]),
+            "",
+            0.0,
+        ));
+    }
+    // Capacity bound still applies to the buffered window.
+    assert_eq!(outbox.unacked().len(), 2);
+    // Ack cursor stays monotonic across eviction.
+    assert_eq!(outbox.last_acked(), 99);
+    assert_eq!(
+        outbox
+            .unacked_after(99)
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [101, 102]
+    );
+}
+
+#[test]
+fn regressive_acks_never_move_the_cursor_backward() {
+    let mut outbox = Outbox::new(4).expect("capacity");
+    outbox.ack(10);
+    outbox.ack(3);
+    assert_eq!(outbox.last_acked(), 10);
 }
 
 #[test]

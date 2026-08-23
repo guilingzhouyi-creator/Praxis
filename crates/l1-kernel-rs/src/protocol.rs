@@ -899,6 +899,17 @@ impl Outbox {
         self.items.iter().cloned().collect()
     }
 
+    /// Return messages with sequence strictly greater than `after_seq`
+    /// (per-view replay window, mirroring `src/l2/protocol/envelope.py`
+    /// `Outbox.unacked(after_seq)`).
+    pub fn unacked_after(&self, after_seq: i64) -> Vec<Message> {
+        self.items
+            .iter()
+            .filter(|message| i64::try_from(message.seq).unwrap_or(i64::MAX) > after_seq)
+            .cloned()
+            .collect()
+    }
+
     /// Return the highest acknowledged sequence, or -1 before acknowledgement.
     pub const fn last_acked(&self) -> i64 {
         self.last_acked
