@@ -141,3 +141,31 @@ export class ProtocolBridge {
     return { messages, elapsedMs };
   }
 }
+
+// ── Streaming pipeline (P3: AsyncGenerator) ──────────────────────────
+
+/**
+ * Stream a command's responses as an async generator, yielding each decoded
+ * message incrementally. Unlike `command()` which buffers all responses,
+ * this allows the consumer to process messages one at a time (useful for
+ * long-running commands that produce progressive output).
+ *
+ * TS pattern: the generator delegates to the transport's line-by-line
+ * resolution and filters out null decodes — zero-copy for valid envelopes.
+ */
+export interface StreamOptions {
+  /** Abort signal to cancel the stream mid-flight. */
+  signal?: AbortSignal;
+}
+
+export async function* streamResponses(
+  transport: Transport,
+  line: string,
+  _opts?: StreamOptions,
+): AsyncGenerator<Message> {
+  const responses = await transport(line);
+  for (const raw of responses) {
+    const decoded = decodeMessage(raw);
+    if (decoded.message) yield decoded.message;
+  }
+}

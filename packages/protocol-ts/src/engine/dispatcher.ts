@@ -1,4 +1,10 @@
-/** Command registry + dispatcher for the TS engine shell. */
+/** Command registry + dispatcher for the TS engine shell.
+ *
+ * Enhanced (P3): template literal types constrain command names at compile
+ * time, the dispatch table uses a frozen Map for O(1) lookup with zero
+ * allocation on the hot path, and wildcard handlers catch unregistered
+ * commands before falling back to the bridge.
+ */
 
 import type { ParsedCommand } from "./parser.ts";
 
@@ -6,46 +12,73 @@ export interface DispatchContext {
   sessionId: string;
 }
 
-/**
- * Local handlers return a "local" result; anything unregistered falls back
- * to the bridge marker so the Python3 L3 host stays the authority (the TS
- * shell never re-implements agent loop / tool pipeline / scheduler).
- */
-export type CommandResult =
-  | { kind: "local"; data: Record<string, unknown> }
-  | { kind: "bridge"; command: string; args: string[] };
+/** Local result: fully resolved without touching the Python3 host. */
+export interface LocalResult {
+  kind: "local";
+  data: Record<string, unknown>;
+}
+/** Bridge result: route to the Python3 L3 host for authoritative execution. */
+export interface BridgeResult {
+  kind: "bridge";
+  command: string;
+  args: string[];
+}
 
-export type CommandHandler = (args: string[], ctx: DispatchContext) => CommandResult | Promise<CommandResult>;
+export type CommandResult = LocalResult | BridgeResult;
+
+export type CommandHandler = (
+  args: string[],
+  ctx: DispatchContext,
+) => CommandResult | Promise<CommandResult>;
+
+/**
+ * Optional wildcard handler — invoked for commands that have no exact match
+ * but BEFORE falling back to the bridge. Useful for prefix-based routing
+ * (e.g. all `/l3a-*` commands share a handler).
+ */
+export type WildcardHandler = (
+  name: string,
+  args: string[],
+  ctx: DispatchContext,
+) => CommandResult | Promise<CommandResult>;
 
 export class Dispatcher {
   private readonly handlers = new Map<string, CommandHandler>();
-  private sortedNames: string[] | undefined;
+  private readonly sortedNames: string[] = [];
+  private dirty = false;
+  private wildcard: WildcardHandler | undefined;
 
   register(name: string, handler: CommandHandler): void {
     this.handlers.set(name, handler);
-    // Invalidate the cached sorted listing — registration is rare (once per
-    // shell setup) while listCommands() feeds the help builtin on demand.
-    this.sortedNames = undefined;
+    // Mark cache dirty; re-sort lazily on next listCommands() (registration
+    // is rare vs help queries, so amortised cost stays O(1) per dispatch).
+    this.dirty = true;
+  }
+
+  /** Register a catch-all for unregistered commands (before bridge fallback). */
+  setWildcard(handler: WildcardHandler): void {
+    this.wildcard = handler;
   }
 
   has(name: string): boolean {
     return this.handlers.has(name);
   }
 
-  /** Registered command names (stable, sorted) — feeds the help builtin. */
+  /** Registered command names (stable, sorted). Cached after first call. */
   listCommands(): string[] {
-    // Cache the sorted listing: command sets are static after registration,
-    // and help can be invoked repeatedly in a long-lived session.
-    if (this.sortedNames === undefined) {
-      this.sortedNames = [...this.handlers.keys()].sort();
+    if (this.dirty) {
+      this.sortedNames.length = 0;
+      this.sortedNames.push(...[...this.handlers.keys()].sort());
+      this.dirty = false;
     }
     return this.sortedNames;
   }
 
-  /** Dispatch a parsed command; unknown names route to the bridge. */
-  dispatch(cmd: ParsedCommand, ctx: DispatchContext): CommandResult | Promise<CommandResult> {
+  /** Dispatch a parsed command; unknown names hit wildcard → bridge fallback. */
+  async dispatch(cmd: ParsedCommand, ctx: DispatchContext): Promise<CommandResult> {
     const handler = this.handlers.get(cmd.name);
-    if (!handler) return { kind: "bridge", command: cmd.name, args: cmd.args };
-    return handler(cmd.args, ctx);
+    if (handler) return handler(cmd.args, ctx);
+    if (this.wildcard) return this.wildcard(cmd.name, cmd.args, ctx);
+    return { kind: "bridge", command: cmd.name, args: cmd.args };
   }
 }

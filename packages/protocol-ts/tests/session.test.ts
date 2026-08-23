@@ -47,11 +47,11 @@ function sessionHost(received: string[]): Transport {
 describe("session projection", () => {
   const state = { identity: IDENTITY, events: EVENTS };
 
-  it("web shape passes the protocol through", () => {
+  it("web shape passes the protocol through", async () => {
     expect(projectWeb(state)).toEqual({ frontend: "web", session: IDENTITY, events: EVENTS });
   });
 
-  it("tui shape renders table rows with summaries", () => {
+  it("tui shape renders table rows with summaries", async () => {
     const out = projectTui(state);
     expect(out.headers).toEqual(["seq", "kind", "summary"]);
     expect(out.rows).toEqual([
@@ -61,14 +61,14 @@ describe("session projection", () => {
     ]);
   });
 
-  it("desktop shape renders rich-text blocks", () => {
+  it("desktop shape renders rich-text blocks", async () => {
     const out = projectDesktop(state);
     expect(out.blocks[0]).toMatchObject({ type: "heading", text: "Session s-1" });
     expect(out.blocks[1]).toMatchObject({ type: "text" });
     expect(out.blocks[2]).toMatchObject({ type: "event", seq: 1 });
   });
 
-  it("vscode shape renders an incremental diff stream", () => {
+  it("vscode shape renders an incremental diff stream", async () => {
     const out = projectVscode(state);
     expect(out.frontend).toBe("vscode");
     expect(out.diffs).toEqual([
@@ -79,11 +79,11 @@ describe("session projection", () => {
     expect(out.watermark).toBe(2);
   });
 
-  it("unknown frontends fall back to web", () => {
+  it("unknown frontends fall back to web", async () => {
     expect(project("ide-lsp", state).frontend).toBe("web");
   });
 
-  it("vscode frontend routes to the diff-stream projection", () => {
+  it("vscode frontend routes to the diff-stream projection", async () => {
     const out = project("vscode", state);
     expect(out.frontend).toBe("vscode");
     expect((out as { diffs: unknown[] }).diffs).toHaveLength(2);
@@ -114,27 +114,27 @@ describe("SessionView end-to-end", () => {
 });
 
 describe("builtins", () => {
-  it("registers local-only commands and lists them via help", () => {
+  it("registers local-only commands and lists them via help", async () => {
     const dispatcher = new Dispatcher();
     registerBuiltins(dispatcher);
-    expect(dispatcher.dispatch({ name: "lang", args: [] }, { sessionId: "s-1" })).toEqual({
+    expect(await dispatcher.dispatch({ name: "lang", args: [] }, { sessionId: "s-1" })).toEqual({
       kind: "local",
       data: { lang: "en" },
     });
-    expect(dispatcher.dispatch({ name: "help", args: [] }, { sessionId: "s-1" })).toEqual({
+    expect(await dispatcher.dispatch({ name: "help", args: [] }, { sessionId: "s-1" })).toEqual({
       kind: "local",
       data: { commands: ["clear", "help", "lang"] },
     });
-    expect(dispatcher.dispatch({ name: "help", args: ["lang"] }, { sessionId: "s-1" })).toEqual({
+    expect(await dispatcher.dispatch({ name: "help", args: ["lang"] }, { sessionId: "s-1" })).toEqual({
       kind: "local",
       data: { command: "lang", registered: true },
     });
-    expect(dispatcher.dispatch({ name: "clear", args: [] }, { sessionId: "s-1" }).kind).toBe("local");
+    expect((await dispatcher.dispatch({ name: "clear", args: [] }, { sessionId: "s-1" })).kind).toBe("local");
   });
 
-  it("still falls unknown commands back to the bridge", () => {
+  it("still falls unknown commands back to the bridge", async () => {
     const dispatcher = new Dispatcher();
     registerBuiltins(dispatcher);
-    expect(dispatcher.dispatch({ name: "memory", args: ["digest"] }, { sessionId: "s-1" }).kind).toBe("bridge");
+    expect((await dispatcher.dispatch({ name: "memory", args: ["digest"] }, { sessionId: "s-1" })).kind).toBe("bridge");
   });
 });
