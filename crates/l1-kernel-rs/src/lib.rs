@@ -52,6 +52,7 @@ pub mod runtime;
 pub mod scheduler;
 pub mod schema;
 pub mod session;
+pub mod session_identity;
 pub mod session_store;
 pub mod state_layout;
 pub mod state_queue;
