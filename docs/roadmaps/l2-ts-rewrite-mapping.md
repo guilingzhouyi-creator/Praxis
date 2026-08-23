@@ -66,3 +66,38 @@
 - 每批：`tsc --noEmit` + `vitest run` 全绿 + 端到端（spawn 真实
   Python3 ProtocolHost）不回归。
 - 镜像同步：协议改动 Python3/TS 双端同步（handoff §2.4）。
+
+
+## 5. Authority 割接标准（2026-08-23 定向）
+
+> **方向确认（操作员 2026-08-23）**：Python3 仅作抽象快速迭代基座，**TS L2 是终态权威**，
+> 承载上层会话接入面并对接 Rust L1 内核。本节定义真相源从 Python3 `ProtocolHost`
+> 迁移到 TS 引擎的验收标准；未全部满足前维持双端共存（铁律 §3）。
+
+### 5.1 权威迁移范围
+
+| 真相源 | 现权威（Python3） | 目标权威（TS） |
+|---|---|---|
+| Outbox 追加/淘汰 | `protocol/host.py _emit` | `engine/outbox`（envelope.ts 已镜像） |
+| Ack 游标推进 | `_advance_shared_cursor` | `session-manager.ts`（共享水位=落后视图） |
+| 会话注册表 | `_get_session` 惰性创建 | `session-manager.ts` 会话生命周期 |
+| Envelope 校验 | `validate_message` | `validateMessage`（golden vectors 锁定） |
+
+### 5.2 割接前置门槛（全部满足才可切换）
+
+1. **覆盖证据**：authority 四模块（envelope / session-manager / bridge / records）
+   stmts ≥ 95% 且 branch ≥ 90%（当前 94.4% / 91.1%，envelope 97.9% 已达标）。
+2. **行为等价**：协议 v1 全 KIND golden vectors 双端跑同结果——Python3 输出作为
+   参考向量冻结，TS 必须逐字节复现 canonical JSON 排序。
+3. **E2E 反转测试**：现有 e2e.stdio（TS 客户端 → Python3 host）通过后，补
+   反转形态——Python3 客户端 → TS host，同一测试矩阵全绿。
+4. **持久化兼容**：会话游标/outbox 快照文件可被双端互读（round-trip 不丢字段）。
+5. **回滚路径**：割接后保留 Python3 host 一个版本周期，配置开关可切回。
+
+### 5.3 割接执行序
+
+```
+G1 覆盖达标 → G2 向量冻结 → G3 反转 e2e 绿 → G4 持久化互读 → G5 切默认 + 开关 → G6 移除 Python3 host（一个版本后）
+```
+
+每步独立提交、独立证据；任一步失败回退上一步状态。

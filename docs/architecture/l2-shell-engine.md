@@ -154,7 +154,7 @@ are **additive** - no existing engine behavior was changed.
 
 | Asset | Path | Purpose |
 |---|---|---|
-| Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay) + `SessionCursor`; stdlib-only, zero singletons, zero I/O |
+| Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay, `maxlen=1024`) + `SessionCursor`; stdlib-only, zero singletons, zero I/O; TS mirror uses simple array (`push/shift/filter`) for auditability |
 | JSON Schemas | `src/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
 | TS-neutral records | `src/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
