@@ -18,7 +18,8 @@ def test_template_exists_and_strict():
     assert "Co-Authored-By" in txt
     assert "72" in txt
     assert "English" in txt
-    assert "\n\nCo-Authored-By" in txt
+    # blank line before the trailer example — raw or commented presentation
+    assert "\n\nCo-Authored-By" in txt or "\n#\n# Co-Authored-By" in txt
 
 
 def test_template_check_passes():

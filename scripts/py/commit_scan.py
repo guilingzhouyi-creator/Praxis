@@ -343,6 +343,21 @@ def scan_range_bodies(rev_range: str, branch: str = "", policy: dict | None = No
     return advisories
 
 
+def _staged_files() -> list[str]:
+    """Return staged file names (hook context); [] outside a repo or on error."""
+    import subprocess as _sp
+
+    try:
+        out = _sp.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            capture_output=True,
+            text=True,
+        )
+        return [line for line in out.stdout.splitlines() if line]
+    except Exception:
+        return []
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate commit subject(s) against the project commit policy")
     parser.add_argument("--subject", help="single commit subject line to validate")
@@ -400,6 +415,17 @@ def main() -> int:
                 except Exception:
                     detected = None
             violations = validate_coauthored_by(args.msg, detected=detected)
+            # Full contract for complete-message validation (commit-msg hook
+            # fallback when node is absent — mirrors validate-commit.mjs):
+            # subject shape + branch-type policy + staged type/scope content.
+            subject = args.msg.splitlines()[0] if args.msg else ""
+            violations += validate_subject(subject, branch=args.branch)
+            parsed = parse_subject(subject)
+            staged = _staged_files()
+            if parsed:
+                ctype, cscope, _summary = parsed
+                violations += validate_type_content(ctype, staged)
+                violations += validate_scope_content(cscope, staged)
             if not violations:
                 print(
                     "[commit-scan] OK — Co-Authored-By matches registry + runtime"

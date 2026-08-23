@@ -112,7 +112,6 @@ def test_hook_accepts_valid():
         env = _os.environ.copy()
         env["PRAXIS_AUTHOR"] = "OpenCode"
         env["PRAXIS_MODEL"] = "ox-alpha"
-        env["PATH"] = f"/tmp:{env.get('PATH', '')}"
         r = _sp.run(["bash", str(HOOK), path], capture_output=True, text=True, env=env, cwd=ROOT)
         print("STDERR:", r.stderr)
         print("STDOUT:", r.stdout)
