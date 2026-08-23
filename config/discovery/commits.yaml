@@ -193,6 +193,9 @@ scopes:
   - changelog
   - audit
   - attack
+  - l2-ts
+  - l2-ts-rewrite
+  - l2-ts-polish
 
 # Placeholder-subject guard — rejects subjects that carry no real content.
 placeholder:

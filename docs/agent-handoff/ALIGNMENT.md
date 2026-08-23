@@ -59,3 +59,10 @@
    custom merge messages (hand-authored body present) now enforce the
    72-char subject contract; pure git-generated single-line merges stay
    exempt. Registered in this commit per the shared-file gate.
+4. `config/discovery/commits.yaml` (2026-08-23, OpenCode/ox-alpha):
+   registered legacy scopes `l2-ts` / `l2-ts-rewrite` / `l2-ts-polish` —
+   commits with these scopes exist in merged history (feature/l2-ts-rewrite
+   11-commit wave + feature/l2-ts-polish rebuild); scan_range tests over
+   real history failed on unregistered scopes. Per registry convention:
+   legacy scopes kept so strict mode never rejects previously-merged
+   commits. Registered in this commit per the shared-file gate.
