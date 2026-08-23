@@ -65,6 +65,41 @@ export class ProtocolBridge {
     return this.roundTrip(message);
   }
 
+  // ── domain-grouped command helpers ────────────────────────────────────
+  // Each maps 1:1 to a Python3 command semantic (config/commands.yaml
+  // categories); the host stays the authority and answers with result
+  // envelopes. The TS side never re-implements the domain logic.
+
+  /** settings domain — read all/one setting, write one (single write authority is the host). */
+  async settingsGet(key = ""): Promise<Message[]> {
+    return this.command("settings_get", key ? [key] : []);
+  }
+
+  /** settings domain — write a key; value travels as its JSON representation. */
+  async settingsSet(key: string, value: unknown): Promise<Message[]> {
+    return this.command("settings_set", [key, JSON.stringify(value)]);
+  }
+
+  /** memory domain — digest list (L3A compression operator state). */
+  async memoryDigest(): Promise<Message[]> {
+    return this.command("memory_digest", []);
+  }
+
+  /** system domain — status/health summary from the host. */
+  async systemStatus(): Promise<Message[]> {
+    return this.command("status", []);
+  }
+
+  /** model domain — resolved model-spec snapshot (mirrors /model specs). */
+  async modelSpecs(): Promise<Message[]> {
+    return this.command("model_specs", []);
+  }
+
+  /** selector domain — cell/agent reachability dicts (zero object handles). */
+  async cellLiveness(): Promise<Message[]> {
+    return this.command("cell_liveness", []);
+  }
+
   /** Encode, send, and decode every response line. */
   private async roundTrip(message: Message): Promise<Message[]> {
     const line = encodeMessage(message);

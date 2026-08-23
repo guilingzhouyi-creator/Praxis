@@ -15,7 +15,7 @@ export type CommandResult =
   | { kind: "local"; data: Record<string, unknown> }
   | { kind: "bridge"; command: string; args: string[] };
 
-export type CommandHandler = (args: string[], ctx: DispatchContext) => CommandResult;
+export type CommandHandler = (args: string[], ctx: DispatchContext) => CommandResult | Promise<CommandResult>;
 
 export class Dispatcher {
   private readonly handlers = new Map<string, CommandHandler>();
@@ -43,7 +43,7 @@ export class Dispatcher {
   }
 
   /** Dispatch a parsed command; unknown names route to the bridge. */
-  dispatch(cmd: ParsedCommand, ctx: DispatchContext): CommandResult {
+  dispatch(cmd: ParsedCommand, ctx: DispatchContext): CommandResult | Promise<CommandResult> {
     const handler = this.handlers.get(cmd.name);
     if (!handler) return { kind: "bridge", command: cmd.name, args: cmd.args };
     return handler(cmd.args, ctx);
