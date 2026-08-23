@@ -8,6 +8,7 @@ parseability, and the subagent_specs location contract.
 from __future__ import annotations
 
 import glob
+import json
 import os
 import sys
 
@@ -76,12 +77,24 @@ def test_subagent_specs_location() -> None:
     assert isinstance(specs, dict) and len(specs) >= 8, "subagent_specs registry missing or incomplete"
 
 
-def test_commit_policy_has_no_retired_json_generator() -> None:
-    """The YAML policy is canonical; removed JSON artifacts must stay absent."""
+def test_commit_policy_json_mirror_matches_yaml() -> None:
+    """The generated Node mirror must match the YAML policy inputs."""
     policy_path = os.path.join(CONFIG, "discovery", "commits.yaml")
     with open(policy_path, encoding="utf-8") as policy_file:
-        policy_text = policy_file.read()
-    assert "SINGLE SOURCE OF TRUTH" in policy_text
-    assert "gen_commits_json.py" not in policy_text
-    assert not os.path.exists(os.path.join(CONFIG, "discovery", "commits.json"))
-    assert not os.path.exists(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))
+        policy = yaml.safe_load(policy_file) or {}
+    mirror_path = os.path.join(CONFIG, "discovery", "commits.json")
+    with open(mirror_path, encoding="utf-8") as mirror_file:
+        mirror = json.load(mirror_file)
+    mirror_keys = (
+        "types",
+        "scope_dirs",
+        "agents",
+        "scopes",
+        "placeholder",
+        "max_subject_chars",
+        "body",
+        "strictness",
+        "type_content_rules",
+    )
+    assert mirror == {key: policy[key] for key in mirror_keys if key in policy}
+    assert os.path.isfile(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))

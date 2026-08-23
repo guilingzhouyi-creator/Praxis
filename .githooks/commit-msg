@@ -181,4 +181,11 @@ if [ "$SCAN_RC" != "0" ]; then
   fi
 fi
 
+# ── 3b. Node validator (type/scope registration + must_include) ──────────
+# The Node mirror is optional in minimal environments; Python commit_scan.py
+# remains the push-time backstop when Node or its generated policy is absent.
+if command -v node >/dev/null 2>&1 && [ -f scripts/js/validate-commit.mjs ]; then
+  node scripts/js/validate-commit.mjs "$msg_file" >&2 || exit 1
+fi
+
 exit 0

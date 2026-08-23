@@ -91,7 +91,7 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 - **English + Conventional Commits** `type(scope): summary` ≤ 72 chars, lowercase start, no markdown, no trailing period
 - **Exactly ONE `Co-Authored-By:` trailer** last, preceded by blank line: `Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`
 - **Attribution verified for TRUTH**: cross-checked against agents registry + live execution evidence (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected
-- **Single source of truth**: `config/discovery/commits.yaml` consumed by every gate (`commit-msg`, `verify-pr-merge.sh`, `generate_changelog.py`, `pr-review.yml`)
+- **Single source of truth**: `config/discovery/commits.yaml` is canonical; `scripts/py/gen_commits_json.py` refreshes the Node-only `config/discovery/commits.json` mirror used by the commit hook
 - **CompletionJudge decides "done"**: `bash scripts/sh/verify-completion.sh` (11 dimensions) — only COMPLETE authorizes done
 - **Mainline net-delta gate**: ≥ 1000 net code, three locks (comment stripping / symmetric deletion / hygiene ceiling)
 
