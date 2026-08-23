@@ -83,6 +83,7 @@ pub struct HostRouter {
     outboxes: Mutex<OutboxRegistry>,
     registered: Mutex<BTreeSet<String>>,
     pending_intents: Mutex<VecDeque<Message>>,
+    upstream: Mutex<Option<Arc<dyn L3Upstream>>>,
     response_seq: AtomicU64,
 }
 
@@ -115,6 +116,7 @@ impl HostRouter {
             outboxes: Mutex::new(OutboxRegistry::new()),
             registered: Mutex::new(registered),
             pending_intents: Mutex::new(VecDeque::new()),
+            upstream: Mutex::new(None),
             response_seq: AtomicU64::new(0),
         }
     }
@@ -285,6 +287,16 @@ impl HostRouter {
         self.lock_pending().len()
     }
 
+    /// Buffered intents awaiting an L3 upstream pipe, in arrival order.
+    pub fn pending_intents(&self) -> Vec<Message> {
+        self.lock_pending().iter().cloned().collect()
+    }
+
+    /// Wire or detach the L3 upstream pipe for intent passthrough.
+    pub fn set_upstream(&self, upstream: Option<Arc<dyn L3Upstream>>) {
+        *self.lock_upstream() = upstream;
+    }
+
     /// Return the dispatch audit trail for inspection or journal wiring.
     pub fn audit(&self) -> Arc<AuditLog> {
         Arc::clone(&self.audit)
@@ -420,14 +432,20 @@ impl HostRouter {
     }
 
     fn forward_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
-        let mut pending = self.lock_pending();
-        if pending.len() >= self.config.intent_buffer_cap {
-            return Err(ProtocolError::InvalidContract(
-                "intent buffer overflow (fail-closed)".to_owned(),
-            ));
+        let upstream = self.lock_upstream().clone();
+        match upstream {
+            Some(pipe) => pipe.forward(message).map(|_| Vec::new()),
+            None => {
+                let mut pending = self.lock_pending();
+                if pending.len() >= self.config.intent_buffer_cap {
+                    return Err(ProtocolError::InvalidContract(
+                        "intent buffer overflow (fail-closed)".to_owned(),
+                    ));
+                }
+                pending.push_back(message);
+                Ok(Vec::new())
+            }
         }
-        pending.push_back(message);
-        Ok(Vec::new())
     }
 
     fn lock_sessions(&self) -> MutexGuard<'_, SessionRegistry> {
@@ -446,6 +464,12 @@ impl HostRouter {
 
     fn lock_registered(&self) -> MutexGuard<'_, BTreeSet<String>> {
         self.registered
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_upstream(&self) -> MutexGuard<'_, Option<Arc<dyn L3Upstream>>> {
+        self.upstream
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
