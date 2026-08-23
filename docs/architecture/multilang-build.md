@@ -332,7 +332,9 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
 - The Rust `process_group` module adds generation-safe membership and bounded
   caller-driven reaping without owning OS process-group signals or shutdown.
   Its terminal-member counter removes the repeated whole-map terminal scan, and
-  `ProcessReaper::sweep` uses a mark-and-reap path that avoids unused snapshots.
+  `ProcessReaper::sweep` uses a mark-and-reap path that avoids unused snapshots
+  and selects only the current member budget instead of cloning unobserved
+  handles.
   The independent `process.group.reaper` fixed-work runner and
   `rust-process-group-bench` binary keep this evidence separate from process
   spawn, queue, and session workloads; no runtime authority is promoted.

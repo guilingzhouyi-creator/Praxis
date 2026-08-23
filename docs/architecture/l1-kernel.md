@@ -818,7 +818,9 @@ authority.
 The group book keeps a terminal-member counter so repeated terminal
 observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
 separate mark-and-reap fast path that avoids cloning snapshots when the caller
-only needs a bounded success/error report. The independent
+only needs a bounded success/error report, and selects at most the current
+member budget instead of cloning every handle in a draining group. The
+independent
 `process.group.reaper` fixed-work runner and `rust-process-group-bench` binary
 measure this member-reaping workload separately from process spawn, queue, and
 session benchmarks; the candidate remains mechanism-only and does not grant

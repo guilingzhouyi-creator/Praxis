@@ -211,6 +211,12 @@ pub struct ProcessGroupBook {
     state: Mutex<GroupBookState>,
 }
 
+struct ReaperPlan {
+    id: ProcessGroupId,
+    generation: u64,
+    handles: Vec<ProcessHandle>,
+}
+
 impl ProcessGroupBook {
     /// Create an empty group book with explicit capacities.
     pub fn new(max_groups: usize, max_members: usize) -> Result<Self, ProcessGroupError> {
@@ -552,6 +558,39 @@ impl ProcessGroupBook {
             .collect()
     }
 
+    fn reaper_plans(&self, max_groups: usize, max_members: usize) -> (u64, Vec<ReaperPlan>) {
+        let state = self.lock_state();
+        let mut remaining = max_members;
+        let mut groups_inspected = 0_u64;
+        let mut plans = Vec::new();
+        for group in state
+            .groups
+            .values()
+            .filter(|group| group.state == ProcessGroupState::Draining)
+            .take(max_groups)
+        {
+            groups_inspected = groups_inspected.saturating_add(1);
+            let handles = if remaining == 0 {
+                Vec::new()
+            } else {
+                let handles = group
+                    .members
+                    .values()
+                    .take(remaining)
+                    .map(|member| member.handle)
+                    .collect::<Vec<_>>();
+                remaining -= handles.len();
+                handles
+            };
+            plans.push(ReaperPlan {
+                id: group.id,
+                generation: group.generation,
+                handles,
+            });
+        }
+        (groups_inspected, plans)
+    }
+
     fn lock_state(&self) -> MutexGuard<'_, GroupBookState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -638,23 +677,16 @@ impl ProcessReaper {
         budget: ReaperBudget,
         mut observe: impl FnMut(ProcessHandle) -> ReaperObservation,
     ) -> ReaperReport {
-        let plans = self.groups.draining_plans(budget.max_groups);
+        let (groups_inspected, plans) = self
+            .groups
+            .reaper_plans(budget.max_groups, budget.max_members);
         let mut report = ReaperReport {
-            groups_inspected: plans.len() as u64,
+            groups_inspected,
             ..ReaperReport::default()
         };
-        let mut remaining = budget.max_members;
         for plan in plans {
-            for raw in &plan.handles {
-                if remaining == 0 {
-                    return report;
-                }
-                remaining -= 1;
+            for handle in plan.handles {
                 report.members_inspected = report.members_inspected.saturating_add(1);
-                let Some(handle) = ProcessHandle::from_raw(*raw) else {
-                    report.errors = report.errors.saturating_add(1);
-                    continue;
-                };
                 match observe(handle) {
                     ReaperObservation::Pending => {
                         report.pending = report.pending.saturating_add(1);
@@ -664,7 +696,7 @@ impl ProcessReaper {
                     }
                     ReaperObservation::Terminal(outcome) => {
                         match self.groups.mark_terminal_and_reap(
-                            plan_id(&plan),
+                            plan.id,
                             plan.generation,
                             handle,
                             outcome,
@@ -765,8 +797,4 @@ fn termination_plan(group: &ProcessGroupRecord) -> ProcessGroupTerminationPlan {
         reason: group.reason.clone(),
         handles: group.members.keys().copied().collect(),
     }
-}
-
-fn plan_id(plan: &ProcessGroupTerminationPlan) -> ProcessGroupId {
-    ProcessGroupId::new(plan.group_id).expect("plans only contain valid group ids")
 }
