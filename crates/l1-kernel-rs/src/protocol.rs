@@ -886,11 +886,10 @@ impl Outbox {
         }
     }
 
-    /// Advance the acknowledgement cursor and drop covered messages.
+    /// Advance the acknowledgement cursor without dropping buffered messages
+    /// (non-destructive, mirroring `src/l2/protocol/envelope.py`: one view's
+    /// ack must never erase another view's replay window).
     pub fn ack(&mut self, seq: u64) {
-        while self.items.front().is_some_and(|message| message.seq <= seq) {
-            self.items.pop_front();
-        }
         self.last_acked = self.last_acked.max(i64::try_from(seq).unwrap_or(i64::MAX));
     }
 
