@@ -21,6 +21,7 @@ buffers, and config discovery. 64 files / ~11,000 lines across
 | `l3/agent_terminal/` | 3 | Terminal binding: territory + role + agent identity → concrete executor (filesystem/tool access) |
 | `l3/boot/` | 6 | 7-step bootstrap (`boot.py`), factory reset / singleton reset / disk wipe (`lifecycle.py`), wiring adapters → ports (`wiring.py`) |
 | `l3/resource_buffer/` | 4 | Buffer manager for bounded resource pools (executors, tokens) |
+| `packages/protocol-ts/` | 30+ | L2 TS engine: protocol v1 wire contract, session multiplexer, bridge client, transports (stdio/http/ws/ssh), middleware, output guard |
 | `l3/config/` | 14 | `ConfigDiscovery` — auto-loads `config/discovery/*.yaml` at boot (departments, diff languages, etc.) |
 | `l4/search/` | 4 | FTS5 + AST symbol search (`SymbolSearch.symbols_in_file`, `search_engine.py`) used by diff review |
 | `l4/llm_worker/` | 5 | Background LLM workers (async generation outside request paths) |
