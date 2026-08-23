@@ -55,7 +55,14 @@
 - L1 `kernel.settings` 只作默认值只读面；ACB 槽位写属绑定域保留。
 - 收敛点：`/config`、`/settings global`、`/ci set`、`/ci toggle`。
 
-### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接已合入 main）
+### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接；**08-23 在 feature/l2-ts-rewrite 恢复**）
+
+> ⚠️ **恢复记录（2026-08-23）**：引擎 2026-08-21 合入 main 后，于 08-22
+> 被 `edc5caa6`（GPT-5，`refactor(l2): align language protocol boundary`）
+> 整体移除，仅保留 envelope/records 协议镜像；同时把 TS `Outbox.ack`
+> 改为破坏性 shift（与 Python3 单真相源非破坏性 ack 漂移）。08-23 在
+> `feature/l2-ts-rewrite` `21a118cf` 恢复全部引擎文件 + 测试，并回退 ack
+> 漂移。**main 当前无引擎**——本分支是 P4 工作的唯一基础。
 
 | 模块（`packages/protocol-ts/src/engine/`） | 状态 |
 |---|---|
