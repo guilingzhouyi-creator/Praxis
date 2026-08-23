@@ -95,3 +95,25 @@ class BaselineDispatcher extends Dispatcher {
 }
 const elapsedBaseline = runDispatcher((d) => makeDispatcher(d as Dispatcher));
 console.log(`baseline (re-sort per call)                 500000 calls in ${elapsedBaseline.toFixed(1)}ms`);
+
+console.log("\n── parseLine / tokenize (every input line) ──────────────────────");
+// Structured args: parseLine yields {name, args[]} directly — no second
+// shlex pass, which the Python3 shell needs for its / command path.
+import { parseLine, tokenize } from "../src/engine/parser.ts";
+
+const INPUT_LINES = [
+  "status",
+  "/status",
+  'settings-set llm.model "deepseek-v4-flash"',
+  'card "fix the token ring" cell-a',
+  "help",
+  "memory-digest",
+  "cells",
+  'model-specs scout',
+];
+bench("parseLine (structured {name, args})", () => {
+  for (const line of INPUT_LINES) parseLine(line);
+}, ITERS);
+bench("tokenize (raw split)", () => {
+  for (const line of INPUT_LINES) tokenize(line);
+}, ITERS);

@@ -5,15 +5,19 @@ export interface ParsedCommand {
   args: string[];
 }
 
+// Module-level pattern: parsing is a hot path (every input line), and a
+// per-call regex literal would recompile on each invocation.
+const TOKEN_PATTERN = /"([^"]*)"|(\S+)/g;
+
 /**
  * Tokenize on whitespace with double-quote grouping, mirroring the Python3
  * shell's split semantics for the TS engine's parser module.
  */
 export function tokenize(input: string): string[] {
   const tokens: string[] = [];
-  const pattern = /"([^"]*)"|(\S+)/g;
+  TOKEN_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = pattern.exec(input)) !== null) {
+  while ((match = TOKEN_PATTERN.exec(input)) !== null) {
     tokens.push(match[1] ?? match[2]);
   }
   return tokens;
