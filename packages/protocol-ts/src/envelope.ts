@@ -9,16 +9,16 @@
 // ── Type re-exports from types.ts ──────────────────────────────────────
 export {
   PROTOCOL_VERSION, OUTBOX_MAXLEN, KINDS, CONTROL_OPS,
-  asSessionId, asViewId, asTraceId,
+  asSessionId, asViewId,
 } from "./types.ts";
 export type {
   MessageKind, ControlOp,
-  SessionId, ViewId, TraceId,
+  SessionId, ViewId,
   AckPayload, CommandPayload, ControlPayload,
   EventPayload, IntentPayload, ResultPayload, StreamChunkPayload,
   TypedMessage, DecodedMessage, Message,
-  JsonObject, JsonValue,
 } from "./types.ts";
+export type { JsonObject, JsonValue } from "./records.ts";
 
 import type { JsonObject } from "./records.ts";
 import type { Message, MessageKind, DecodedMessage } from "./types.ts";
