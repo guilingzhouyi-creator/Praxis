@@ -64,6 +64,7 @@ scope_dirs:
   judge: docs/
   git: scripts/
   hooks: .githooks/
+  rust: crates/
 
 # Registered authoring agents for Co-Authored-By attribution. The commit-msg
 # gate compares the trailer the agent wrote against BOTH this registry and
@@ -196,6 +197,7 @@ scopes:
   - l2-ts
   - l2-ts-rewrite
   - l2-ts-polish
+  - rust
 
 # Placeholder-subject guard — rejects subjects that carry no real content.
 placeholder:

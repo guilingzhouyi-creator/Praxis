@@ -886,17 +886,37 @@ impl Outbox {
         }
     }
 
-    /// Advance the acknowledgement cursor and drop covered messages.
+    /// Advance the acknowledgement cursor without dropping buffered messages
+    /// (non-destructive, mirroring `src/l2/protocol/envelope.py`: one view's
+    /// ack must never erase another view's replay window).
     pub fn ack(&mut self, seq: u64) {
-        while self.items.front().is_some_and(|message| message.seq <= seq) {
-            self.items.pop_front();
-        }
         self.last_acked = self.last_acked.max(i64::try_from(seq).unwrap_or(i64::MAX));
     }
 
     /// Return messages retained for replay.
     pub fn unacked(&self) -> Vec<Message> {
         self.items.iter().cloned().collect()
+    }
+
+    /// Return the number of messages currently retained for replay.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Return whether no messages are currently retained for replay.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// Return messages with sequence strictly greater than `after_seq`
+    /// (per-view replay window, mirroring `src/l2/protocol/envelope.py`
+    /// `Outbox.unacked(after_seq)`).
+    pub fn unacked_after(&self, after_seq: i64) -> Vec<Message> {
+        self.items
+            .iter()
+            .filter(|message| i64::try_from(message.seq).unwrap_or(i64::MAX) > after_seq)
+            .cloned()
+            .collect()
     }
 
     /// Return the highest acknowledged sequence, or -1 before acknowledgement.
@@ -938,5 +958,90 @@ impl SessionCursor {
     /// Detach the view while retaining its cursor.
     pub fn detach(&mut self) {
         self.attached = false;
+    }
+}
+
+/// Multi-view session multiplexer mirroring
+/// `packages/protocol-ts/src/engine/session-manager.ts` `SessionMultiplexer`:
+/// one shared event stream, per-view ack cursors, non-destructive replay
+/// windows, and a shared watermark equal to the lagging view's cursor.
+pub struct SessionMultiplexer {
+    events: Vec<Message>,
+    views: std::collections::BTreeMap<String, SessionCursor>,
+}
+
+impl Default for SessionMultiplexer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SessionMultiplexer {
+    /// Create an empty multiplexer with no views.
+    pub fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            views: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// Record one outbound event in the shared stream.
+    pub fn emit(&mut self, message: Message) {
+        self.events.push(message);
+    }
+
+    /// Attach a view (no-op if already attached).
+    pub fn attach(&mut self, view_id: impl Into<String>, session_id: impl Into<String>) {
+        let view_id = view_id.into();
+        self.views.entry(view_id.clone()).or_insert_with(|| {
+            let mut cursor = SessionCursor::new(view_id);
+            cursor.attach(session_id);
+            cursor
+        });
+    }
+
+    /// Detach a view, retaining its cursor for later re-attach.
+    pub fn detach(&mut self, view_id: &str) {
+        if let Some(view) = self.views.get_mut(view_id) {
+            view.detach();
+        }
+    }
+
+    /// Advance one view's ack cursor (non-destructive: other views keep
+    /// their replay windows over the shared stream).
+    pub fn ack(&mut self, view_id: &str, ack_seq: u64) {
+        if let Some(view) = self.views.get_mut(view_id) {
+            view.last_acked = view
+                .last_acked
+                .max(i64::try_from(ack_seq).unwrap_or(i64::MAX));
+        }
+    }
+
+    /// Replay the shared stream after `after_seq` (recovery semantics).
+    pub fn replay_after(&self, after_seq: i64) -> Vec<Message> {
+        self.events
+            .iter()
+            .filter(|message| i64::try_from(message.seq).unwrap_or(i64::MAX) > after_seq)
+            .cloned()
+            .collect()
+    }
+
+    /// Shared watermark = the lagging attached view's last_acked (lowest of
+    /// all views); -1 when no view is attached (mirrors
+    /// `SessionMultiplexer.watermark`; detached views are excluded because
+    /// the TS multiplexer deletes them from the view map on detach).
+    pub fn watermark(&self) -> i64 {
+        let mut lowest = i64::MAX;
+        for view in self.views.values() {
+            if view.attached {
+                lowest = lowest.min(view.last_acked);
+            }
+        }
+        if lowest == i64::MAX { -1 } else { lowest }
+    }
+
+    /// Attached view identifiers in insertion-stable order.
+    pub fn view_ids(&self) -> Vec<String> {
+        self.views.keys().cloned().collect()
     }
 }

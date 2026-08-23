@@ -31,7 +31,8 @@
     "ci": ".github/",
     "judge": "docs/",
     "git": "scripts/",
-    "hooks": ".githooks/"
+    "hooks": ".githooks/",
+    "rust": "crates/"
   },
   "agents": [
     {
@@ -192,7 +193,8 @@
     "attack",
     "l2-ts",
     "l2-ts-rewrite",
-    "l2-ts-polish"
+    "l2-ts-polish",
+    "rust"
   ],
   "placeholder": {
     "reject_empty_summary": true,
