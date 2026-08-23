@@ -983,11 +983,11 @@ impl SessionMultiplexer {
     /// Attach a view (no-op if already attached).
     pub fn attach(&mut self, view_id: impl Into<String>, session_id: impl Into<String>) {
         let view_id = view_id.into();
-        if !self.views.contains_key(&view_id) {
-            let mut cursor = SessionCursor::new(&view_id);
+        self.views.entry(view_id.clone()).or_insert_with(|| {
+            let mut cursor = SessionCursor::new(view_id);
             cursor.attach(session_id);
-            self.views.insert(view_id, cursor);
-        }
+            cursor
+        });
     }
 
     /// Detach a view, retaining its cursor for later re-attach.
