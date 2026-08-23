@@ -18,6 +18,7 @@ use serde_json::Value;
 
 use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
+use crate::gatechain::{GateChain, GatePolicy, GateRequest};
 use crate::outbox_registry::OutboxRegistry;
 use crate::protocol::{Message, MessageKind, ProtocolError, SessionCursor};
 use crate::session_identity::SessionIdentity;
@@ -75,6 +76,7 @@ impl Default for RouterConfig {
 pub struct HostRouter {
     config: RouterConfig,
     authority: Arc<CapabilityAuthority>,
+    gatechain: Arc<GateChain>,
     sessions: Mutex<SessionRegistry>,
     outboxes: Mutex<OutboxRegistry>,
     registered: Mutex<BTreeSet<String>>,
@@ -95,10 +97,16 @@ impl HostRouter {
                 JsonValue::String(format!("echo:{}", request.name)),
             )]),
         });
+        let gatechain = GateChain::with_policy(GatePolicy {
+            escalation_danger: SYSTEM_RING_RISK,
+            ..GatePolicy::default()
+        });
+        gatechain.register_tools([SYSTEM_TOOL]);
         let registered = BTreeSet::from_iter(SYSTEM_COMMANDS.iter().map(|name| (*name).to_owned()));
         Self {
             config,
             authority,
+            gatechain: Arc::new(gatechain),
             sessions: Mutex::new(SessionRegistry::new()),
             outboxes: Mutex::new(OutboxRegistry::new()),
             registered: Mutex::new(registered),
@@ -110,7 +118,18 @@ impl HostRouter {
     /// Route one decoded envelope by kind, returning any outbound responses.
     pub fn route(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         match message.kind {
-            MessageKind::Command => self.dispatch_command(message),
+            MessageKind::Command => {
+                let name = message
+                    .payload
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if SYSTEM_COMMANDS.contains(&name) {
+                    self.dispatch_system(message)
+                } else {
+                    self.dispatch_command(message)
+                }
+            }
             MessageKind::Control => self.route_control(&message),
             MessageKind::Ack => self.apply_ack(&message),
             MessageKind::Intent => self.route_intent(message),
@@ -118,6 +137,51 @@ impl HostRouter {
             MessageKind::Result => Err(outbound_only("result")),
             MessageKind::StreamChunk => Err(outbound_only("stream_chunk")),
         }
+    }
+
+    /// Dispatch one system-class command through gatechain ring adjudication.
+    pub fn dispatch_system(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        let name = message
+            .payload
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                ProtocolError::InvalidContract(
+                    "command payload requires a non-empty name".to_owned(),
+                )
+            })?;
+        let ring = system_ring(&message.payload);
+        let danger = system_danger(&message.payload, ring);
+        let approved = system_approved(&message.payload);
+        let agent_id = self.agent_id_for(&message.session_id);
+        let mut gate_request = GateRequest::new(SYSTEM_TOOL, agent_id.clone());
+        gate_request.interactive = true;
+        gate_request.interactive_ring = ring;
+        gate_request.danger_override = Some(danger);
+        gate_request.pre_approved = approved;
+        gate_request.timestamp = Some(message.ts);
+        let verdict = self.gatechain.check(&gate_request);
+        if !verdict.allowed {
+            let reason = format!(
+                "system command {name} blocked by gatechain ({})",
+                verdict.decision.as_str()
+            );
+            return Err(ProtocolError::InvalidContract(reason));
+        }
+        let request = CapabilityRequest {
+            agent_id,
+            name: name.clone(),
+            args: command_args(&message.payload),
+            domain: String::new(),
+            nature: String::new(),
+            interactive: true,
+        };
+        let result = self.authority.invoke(request);
+        let response = self.response_envelope(&message, &result);
+        self.lock_outboxes()
+            .append(&message.session_id, response.clone());
+        Ok(vec![response])
     }
 
     /// Dispatch one command envelope through the capability gate.
@@ -132,6 +196,11 @@ impl HostRouter {
                     "command payload requires a non-empty name".to_owned(),
                 )
             })?;
+        if SYSTEM_COMMANDS.contains(&name.as_str()) {
+            return Err(ProtocolError::InvalidContract(format!(
+                "system command {name} requires ring adjudication"
+            )));
+        }
         {
             let registered = self.lock_registered();
             if !registered.contains(&name) {
@@ -380,6 +449,33 @@ fn command_args(payload: &BTreeMap<String, Value>) -> JsonObject {
         );
     }
     args
+}
+
+fn system_ring(payload: &BTreeMap<String, Value>) -> u8 {
+    payload
+        .get("ring")
+        .and_then(Value::as_u64)
+        .map_or(1, |ring| u8::try_from(ring).unwrap_or(u8::MAX))
+        .max(1)
+}
+
+fn system_danger(payload: &BTreeMap<String, Value>, ring: u8) -> u8 {
+    payload
+        .get("danger")
+        .and_then(Value::as_u64)
+        .map_or(ring, |danger| u8::try_from(danger).unwrap_or(u8::MAX))
+        .max(1)
+}
+
+fn system_approved(payload: &BTreeMap<String, Value>) -> bool {
+    payload
+        .get("approved")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || payload
+            .get("pre_approved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
 }
 
 fn target_session(message: &Message) -> String {
