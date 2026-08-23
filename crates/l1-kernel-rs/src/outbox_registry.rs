@@ -1,23 +1,44 @@
-//! Bounded per-session outbox registry and per-view ack cursors mirroring
-//! `ProtocolHost._outboxes` (`src/l2/protocol/host.py`) together with the
-//! `SessionManager` view multiplexer (`packages/protocol-ts`).
+//! Bounded per-session outbox registry, per-view ack cursors, and eviction
+//! metrics mirroring `ProtocolHost._outboxes` (`src/l2/protocol/host.py`)
+//! together with the `SessionManager` view multiplexer
+//! (`packages/protocol-ts`).
 //!
 //! Each session materializes its replay window lazily on first use and the
 //! window is dropped together with the session. Views attach to a session
 //! with their own monotonic ack cursors; a view's ack never erases another
-//! view's replay window. The registry is a plain data container; runtime
-//! session state and transport stay adapter-owned.
+//! view's replay window. Aggregate counters (appends, evictions, acks) and
+//! live session/view counts are exposed via [`OutboxMetrics`]. The registry
+//! is a plain data container; runtime session state and transport stay
+//! adapter-owned.
 
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 use crate::protocol::{Message, Outbox, ProtocolError, SessionCursor, OUTBOX_MAXLEN};
 
+/// Aggregate runtime counters and live counts over the registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutboxMetrics {
+    /// Total messages appended across sessions.
+    pub appended_total: u64,
+    /// Messages dropped to capacity across sessions.
+    pub evicted_total: u64,
+    /// Total acknowledgement operations across sessions.
+    pub acks_total: u64,
+    /// Current live session count.
+    pub live_sessions: usize,
+    /// Current attached view count (detached cursors excluded).
+    pub live_views: usize,
+}
+
 /// Bounded per-session replay-window registry.
 pub struct OutboxRegistry {
     maxlen: usize,
     outboxes: BTreeMap<String, Outbox>,
     views: BTreeMap<(String, String), SessionCursor>,
+    appended_total: u64,
+    evicted_total: u64,
+    acks_total: u64,
 }
 
 impl Default for OutboxRegistry {
@@ -33,6 +54,9 @@ impl OutboxRegistry {
             maxlen: OUTBOX_MAXLEN,
             outboxes: BTreeMap::new(),
             views: BTreeMap::new(),
+            appended_total: 0,
+            evicted_total: 0,
+            acks_total: 0,
         }
     }
 
@@ -47,6 +71,9 @@ impl OutboxRegistry {
             maxlen,
             outboxes: BTreeMap::new(),
             views: BTreeMap::new(),
+            appended_total: 0,
+            evicted_total: 0,
+            acks_total: 0,
         })
     }
 
@@ -57,14 +84,21 @@ impl OutboxRegistry {
             .or_insert_with(|| Outbox::new(self.maxlen).expect("registry maxlen is validated"))
     }
 
-    /// Append one outbound message to a session's replay window.
+    /// Append one outbound message to a session's replay window, counting any
+    /// messages evicted to capacity.
     pub fn append(&mut self, session_id: &str, message: Message) {
-        self.get_or_create(session_id).append(message);
+        let outbox = self.get_or_create(session_id);
+        let before = outbox.len();
+        outbox.append(message);
+        let evicted = before.saturating_add(1).saturating_sub(self.maxlen);
+        self.appended_total += 1;
+        self.evicted_total += u64::try_from(evicted).unwrap_or(u64::MAX);
     }
 
     /// Advance a session's ack cursor without dropping buffered messages.
     pub fn ack(&mut self, session_id: &str, seq: u64) {
         self.get_or_create(session_id).ack(seq);
+        self.acks_total += 1;
     }
 
     /// Drop a session's outbox together with any views bound to it.
@@ -109,6 +143,7 @@ impl OutboxRegistry {
             cursor.last_acked = cursor
                 .last_acked
                 .max(i64::try_from(seq).unwrap_or(i64::MAX));
+            self.acks_total += 1;
         }
     }
 
@@ -144,5 +179,16 @@ impl OutboxRegistry {
             }
         }
         if lowest == i64::MAX { -1 } else { lowest }
+    }
+
+    /// Return aggregate counters and current live counts.
+    pub fn metrics(&self) -> OutboxMetrics {
+        OutboxMetrics {
+            appended_total: self.appended_total,
+            evicted_total: self.evicted_total,
+            acks_total: self.acks_total,
+            live_sessions: self.outboxes.len(),
+            live_views: self.views.values().filter(|cursor| cursor.attached).count(),
+        }
     }
 }

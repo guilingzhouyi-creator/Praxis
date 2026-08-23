@@ -898,6 +898,16 @@ impl Outbox {
         self.items.iter().cloned().collect()
     }
 
+    /// Return the number of messages currently retained for replay.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Return whether no messages are currently retained for replay.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Return messages with sequence strictly greater than `after_seq`
     /// (per-view replay window, mirroring `src/l2/protocol/envelope.py`
     /// `Outbox.unacked(after_seq)`).
