@@ -38,13 +38,19 @@
 
 ## 2. 实现批次（按依赖）
 
-1. **第一批（本轮）**：`bridge.ts` 命令域分组（与 Python3 命令语义 1:1，
+1. **第一批（2026-08-23 ✅）**：`bridge.ts` 命令域分组（与 Python3 命令语义 1:1，
    dict 返回优先）+ `i18n` locale 数据接入（`lang` builtin 返回真实
    locale 列表）+ 协议层 parser 结构化 args（免 shlex）。
-2. **第二批**：selector 投影（cell/agent 选择结果渲染）+ completer
+2. **第二批（2026-08-23 ✅）**：selector 投影（cell/agent 选择结果渲染）+ completer
    （命令名/别名/工具名候选）+ 命令组注册（对齐 commands_settings 域）。
-3. **第三批**：ShellFamily/方言解析（`!`/`$`/`/` 路由到 dispatcher +
-   桥转发）+ output_guard 镜像。
+3. **第三批（2026-08-23 ✅）**：ShellFamily/方言解析（`engine/route.ts`：
+   `!`/`$`/`/` 路由到 dispatcher + 桥转发，管道 + L3A 回退）+ output_guard
+   镜像（`engine/output-guard.ts`）+ ssh transport readiness handshake
+   （连接前写入排队、attach 后 flush）。
+
+> 三批已全部完成并合入分支（Vitest 49 passed，e2e stdio 真实 Python3
+> host 不回归）。剩余可选：ShellFamily 前端绑定映射（session.ts
+> 已覆盖 SessionView）、移动端真实 SSH 端点（远端 stdio host 已通，按需接入）。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 
