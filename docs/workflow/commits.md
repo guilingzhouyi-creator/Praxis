@@ -48,13 +48,18 @@ source of truth for the Conventional-Commits contract.
 - **Commit-scan policy — single source of truth**: the Conventional-Commits
   contract (type whitelist, registered scopes, placeholder guard, branch-type
   policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
-  `scripts/py/commit_scan.py`. All gates consume it — `.githooks/commit-msg`,
+  `scripts/py/commit_scan.py`. Python gates consume it directly; the Node hook
+  uses the generated `config/discovery/commits.json` mirror refreshed by
+  `scripts/py/gen_commits_json.py`. All gates consume the same contract — `.githooks/commit-msg`,
   `scripts/sh/verify-pr-merge.sh`, `scripts/py/generate_changelog.py`,
   `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
   script; add a type/scope to `commits.yaml` and every gate learns it.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
   `fix*` branches allow only `fix` commits (matches the accumulation-gate
   exemption).
+- **Generated policy mirror**: after editing `config/discovery/commits.yaml`,
+  run `python scripts/py/gen_commits_json.py` and include both the generator
+  output and the YAML change in the same reviewed commit.
 - **Hook mechanics**: `commit-msg` runs BEFORE the commit object exists, so
   HEAD still points at the previous commit; merge gates read `.git/MERGE_HEAD`
   (git removes it after commit), falling back to `HEAD^2` for manual post-merge
@@ -91,6 +96,10 @@ Full breakdown: `docs/architecture/completion-judge.md`.
   conventional commit, or ask the author to rewrite the branch. Never merge
   unsigned commits and re-sign them afterwards — that rewrites history and
   force-pushes the mirror. Local agent branches are signed by construction.
+- The PR gate also runs the sensitive-path hunk audit. Opaque full-file
+  replacements (including multi-hunk rewrites) or deletions under
+  `docs/roadmaps/` or `config/discovery/` fail closed with exit code 5; review
+  the JSON report and merge only after both branch intents are checked.
 
 ## Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`, auto-run on `push-both.sh main`)
 

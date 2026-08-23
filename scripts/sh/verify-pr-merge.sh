@@ -19,6 +19,7 @@
 #   2 — subject violation (non-English or non-Conventional-Commits subject)
 #   3 — usage / branch resolution error
 #   4 — merge-tree conflict (branch does not merge cleanly onto base)
+#   5 — sensitive-path hunk audit rejection/tooling failure
 
 set -euo pipefail
 
@@ -142,8 +143,34 @@ N_FILES="$(printf '%s\n' "$CHANGED" | wc -l | tr -d ' ')"
 echo "[verify-pr-merge] changed files ($N_FILES):"
 printf '%s\n' "$CHANGED" | sed 's/^/     /'
 
-# ── 4. Merge conflict pre-check (merge-tree --write-tree) ─────────────────
-echo "[verify-pr-merge] ── 4. Merge conflict pre-check ───────────────────────"
+# ── 4. Sensitive-path hunk audit ─────────────────────────────────────────
+# Roadmaps and discovery registries are stateful. A branch that replaces an
+# entire existing file in one hunk needs explicit human review instead of
+# silently carrying an old snapshot into the merge.
+HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+if [ ! -f "$HUNK_AUDIT" ]; then
+  echo "[verify-pr-merge] ❌ $HUNK_AUDIT is missing; cannot audit sensitive paths." >&2
+  exit 5
+fi
+echo "[verify-pr-merge] ── 4. Sensitive-path hunk audit ───────────────────"
+if python "$HUNK_AUDIT" --base "$MERGE_BASE" --head "$BRANCH" --check; then
+  HUNK_RC=0
+else
+  HUNK_RC=$?
+fi
+if [ "$HUNK_RC" -ne 0 ]; then
+  if [ "$HUNK_RC" -eq 2 ]; then
+    echo "[verify-pr-merge] ❌ sensitive-path hunk audit tooling failed." >&2
+  else
+    echo "[verify-pr-merge] ❌ sensitive-path hunk audit rejected the branch." >&2
+  fi
+  echo "[verify-pr-merge]    Review docs/roadmaps/ and config/discovery/ hunks before merging." >&2
+  exit 5
+fi
+echo "[verify-pr-merge] ✅ sensitive-path hunk audit passed."
+
+# ── 5. Merge conflict pre-check (merge-tree --write-tree) ────────────────
+echo "[verify-pr-merge] ── 5. Merge conflict pre-check ───────────────────────"
 if git merge-tree --write-tree "$MAIN_BASE" "$BRANCH" >/dev/null 2>&1; then
   echo "[verify-pr-merge] ✅ merge is clean (no conflicts vs $MAIN_BASE)."
 else

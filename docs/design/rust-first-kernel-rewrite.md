@@ -287,6 +287,17 @@ authority. PTY/session adapters, ProcessTableBridge wiring, GateChain and
 capability admission, AgentLoop execution, and R4/R5 cutover remain outside
 this candidate.
 
+The follow-on `process_group_runtime::ProcessGroupRuntime` candidate composes
+the typed group book with `ManagedProcessBook` at the Rust boundary. It admits
+direct or shell children only into active groups, rolls back a child when group
+capacity rejects membership, and exposes both zero-deadline and explicit
+timeout reaper sweeps. A terminal result is published only after the managed
+child slot and the group membership have both been reaped. The independent
+runtime test target covers fixed member budgets, cancellation, rollback, and
+not-found execution. This remains an adapter seam, not production process
+supervision: PTY, OS process-group signaling, ProcessTable registration,
+AgentLoop execution, background reaping, and R4/R5 cutover remain open.
+
 `scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output

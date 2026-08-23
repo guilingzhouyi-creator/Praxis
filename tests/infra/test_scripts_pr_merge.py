@@ -18,6 +18,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = ROOT / "scripts" / "sh" / "verify-pr-merge.sh"
+HUNK_AUDIT = ROOT / "scripts" / "py" / "audit_merge_hunks.py"
 
 requires_gpg = pytest.mark.skipif(shutil.which("gpg") is None, reason="gpg is not installed")
 
@@ -73,6 +74,8 @@ class ScratchRepo:
             ("core.hooksPath", str(tmp_path / "no-hooks")),
         ):
             subprocess.run(["git", "config", key, value], check=True, cwd=self.dir)
+        (self.dir / "scripts" / "py").mkdir(parents=True)
+        shutil.copy2(HUNK_AUDIT, self.dir / "scripts" / "py" / "audit_merge_hunks.py")
         self.commit("feat(core): base", {"f.txt": "hi"}, signed=True)
 
     def commit(self, subject: str, files: dict[str, str], signed: bool = True) -> None:

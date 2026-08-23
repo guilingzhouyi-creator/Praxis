@@ -8,6 +8,7 @@ parseability, and the subagent_specs location contract.
 from __future__ import annotations
 
 import glob
+import json
 import os
 import sys
 
@@ -74,3 +75,35 @@ def test_subagent_specs_location() -> None:
     discovery = _load_yaml("config/discovery/subagent_specs.yaml")
     specs = discovery.get("subagent_specs")
     assert isinstance(specs, dict) and len(specs) >= 8, "subagent_specs registry missing or incomplete"
+
+
+def test_commit_policy_json_mirror_matches_yaml() -> None:
+    """The generated Node mirror must match the YAML policy inputs."""
+    policy_path = os.path.join(CONFIG, "discovery", "commits.yaml")
+    with open(policy_path, encoding="utf-8") as policy_file:
+        policy = yaml.safe_load(policy_file) or {}
+    mirror_path = os.path.join(CONFIG, "discovery", "commits.json")
+    with open(mirror_path, encoding="utf-8") as mirror_file:
+        mirror = json.load(mirror_file)
+    mirror_keys = (
+        "types",
+        "scope_dirs",
+        "agents",
+        "scopes",
+        "placeholder",
+        "max_subject_chars",
+        "body",
+        "strictness",
+        "type_content_rules",
+    )
+    assert mirror == {key: policy[key] for key in mirror_keys if key in policy}
+    assert os.path.isfile(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))
+
+
+def test_commit_policy_docs_match_generated_mirror_contract() -> None:
+    """Workflow docs must describe the checked-in Node mirror and generator."""
+    with open(os.path.join(ROOT, "docs", "workflow", "commits.md"), encoding="utf-8") as docs_file:
+        docs = docs_file.read()
+    assert "generated `config/discovery/commits.json` mirror" in docs
+    assert "`scripts/py/gen_commits_json.py`" in docs
+    assert "intentionally absent" not in docs

@@ -39,6 +39,7 @@ _NODE_KEYS = (
 
 
 def main() -> int:
+    """Regenerate the Node policy mirror from the YAML source."""
     with YAML_PATH.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     payload = {k: data[k] for k in _NODE_KEYS if k in data}

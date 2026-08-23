@@ -162,6 +162,7 @@
     "config",
     "scripts",
     "tests",
+    "services",
     "infra",
     "ci",
     "deps",

@@ -13,6 +13,7 @@
 - **Feat (l3a)**: join persistence to recovery, idempotent rebuild
 - **Feat (l3a)**: durable json store and restart-safe input-seq cursor
 - **Feat (kernel)**: expose process group read model
+- **Feat (kernel)**: coordinate managed process groups
 - **Feat (kernel)**: add typed process group reaper
 - **Feat (kernel)**: add cooperative cancellation token
 - **Feat (kernel)**: add rust execution protocol runtime
@@ -355,6 +356,8 @@
 
 ### 修复
 
+- **Fix (infra)**: audit sensitive merge hunks
+- **Fix (kernel)**: clarify group admission rollback
 - **Fix (l3a)**: enforce session identity lifecycle and loud reload
 - **Fix (infra)**: synchronize singleton scanner path
 - **Fix (infra)**: retain snake case singleton scanner
