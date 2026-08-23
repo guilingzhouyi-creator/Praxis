@@ -39,11 +39,11 @@ fn process_bridge_runner_preserves_fixed_work_and_joint_reap() {
 
 #[test]
 fn process_group_runner_preserves_fixed_work_and_reaps_all_members() {
-    let spec = FixedWorkSpec::new("process.group.reaper", 64, vec![1, 2], 1).expect("valid spec");
+    let spec = FixedWorkSpec::new("process.group.reaper", 129, vec![1, 2], 1).expect("valid spec");
     let report = run_process_group(spec).expect("process-group runner succeeds");
     assert!(report.validate_complete().is_ok());
     assert!(report.samples.iter().all(|sample| {
-        sample.completed_work_items == 64
+        sample.completed_work_items == 129
             && sample.rejected == 0
             && sample.errors == 0
             && sample.queue_wait_ns == 0

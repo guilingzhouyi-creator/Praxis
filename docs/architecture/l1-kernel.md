@@ -822,7 +822,8 @@ only needs a bounded success/error report, and selects at most the current
 member budget instead of cloning every handle in a draining group. The
 independent
 `process.group.reaper` fixed-work runner and `rust-process-group-bench` binary
-measure this member-reaping workload separately from process spawn, queue, and
+measure this member-reaping workload with a fixed 64-member sweep budget,
+forcing multi-sweep bounded progress separately from process spawn, queue, and
 session benchmarks; the candidate remains mechanism-only and does not grant
 runtime or shutdown authority.
 

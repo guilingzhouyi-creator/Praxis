@@ -28,6 +28,7 @@ const CONSUMER_BATCH_SIZE: usize = 32;
 const WORKER_POOL_IDLE_TIMEOUT_MS: u64 = 100;
 const PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const MANAGED_PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
+const PROCESS_GROUP_SWEEP_MEMBER_BUDGET: usize = 64;
 
 #[derive(Debug, Clone, Copy, Default)]
 struct ResourceSnapshot {
@@ -423,18 +424,27 @@ fn run_process_group_round(
     for (reaper, group, member_count) in workers {
         threads.push(thread::spawn(move || {
             let operation_started = Instant::now();
-            let report = reaper.sweep(
-                ReaperBudget::new(1, member_count)
-                    .map_err(|_| "process-group benchmark budget is invalid")?,
-                |_handle| ReaperObservation::Terminal(MemberTerminal::Exited(0)),
-            );
-            if report.groups_inspected != 1
-                || report.members_inspected != member_count as u64
-                || report.reaped != member_count as u64
-                || report.pending != 0
-                || report.unavailable != 0
-                || report.errors != 0
-            {
+            let mut reaped = 0_u64;
+            while reaped < member_count as u64 {
+                let remaining = member_count as u64 - reaped;
+                let member_budget =
+                    remaining.min(PROCESS_GROUP_SWEEP_MEMBER_BUDGET as u64) as usize;
+                let report = reaper.sweep(
+                    ReaperBudget::new(1, member_budget)
+                        .map_err(|_| "process-group benchmark budget is invalid")?,
+                    |_handle| ReaperObservation::Terminal(MemberTerminal::Exited(0)),
+                );
+                if report.groups_inspected != 1
+                    || report.pending != 0
+                    || report.unavailable != 0
+                    || report.errors != 0
+                    || report.reaped == 0
+                {
+                    return Err("process-group benchmark did not preserve bounded progress");
+                }
+                reaped = reaped.saturating_add(report.reaped);
+            }
+            if reaped != member_count as u64 {
                 return Err("process-group benchmark did not preserve fixed work");
             }
             let _ = group;
