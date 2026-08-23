@@ -7,30 +7,30 @@ import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
 
 describe("parser", () => {
-  it("tokenizes with double-quote grouping", () => {
+  it("tokenizes with double-quote grouping", async () => {
     expect(tokenize('say "hello world" ok')).toEqual(["say", "hello world", "ok"]);
   });
 
-  it("splits a line into command name and args", () => {
+  it("splits a line into command name and args", async () => {
     expect(parseLine("/status -v")).toEqual({ name: "/status", args: ["-v"] });
   });
 
-  it("handles blank input", () => {
+  it("handles blank input", async () => {
     expect(parseLine("   ")).toEqual({ name: "", args: [] });
   });
 });
 
 describe("dispatcher", () => {
-  it("routes registered commands to local handlers", () => {
+  it("routes registered commands to local handlers", async () => {
     const dispatcher = new Dispatcher();
     dispatcher.register("lang", () => ({ kind: "local", data: { lang: "en" } }));
-    const result = dispatcher.dispatch({ name: "lang", args: [] }, { sessionId: "s-1" });
+    const result = await dispatcher.dispatch({ name: "lang", args: [] }, { sessionId: "s-1" });
     expect(result).toEqual({ kind: "local", data: { lang: "en" } });
   });
 
-  it("falls unknown commands back to the bridge", () => {
+  it("falls unknown commands back to the bridge", async () => {
     const dispatcher = new Dispatcher();
-    const result = dispatcher.dispatch({ name: "memory", args: ["digest"] }, { sessionId: "s-1" });
+    const result = await dispatcher.dispatch({ name: "memory", args: ["digest"] }, { sessionId: "s-1" });
     expect(result).toEqual({ kind: "bridge", command: "memory", args: ["digest"] });
   });
 });
