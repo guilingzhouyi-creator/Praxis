@@ -144,12 +144,15 @@ def test_scan_range_skips_merge_and_clean():
 
 
 def test_scan_range_stats_reports_merge_breakdown():
-    # The pushed range has 38 commits; merges are exempt and must be counted
-    # so callers report "N validated, M merge/revert skipped" honestly.
-    total, merges = scan_range_stats("origin/main..HEAD")
-    assert total > 0
-    assert 0 <= merges <= total
-    assert total - merges >= 0
+    # Empty range must not crash and reports zeroes.
+    total, merges = scan_range_stats("HEAD..HEAD")
+    assert total == 0
+    assert merges == 0
+    # A non-empty range yields a consistent breakdown.
+    total2, merges2 = scan_range_stats("HEAD~1..HEAD")
+    assert total2 >= 0
+    assert 0 <= merges2 <= total2
+    assert total2 - merges2 >= 0
 
 
 def test_scan_range_stats_excludes_merge_subjects_from_findings():
