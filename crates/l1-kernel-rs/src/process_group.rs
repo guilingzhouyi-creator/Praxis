@@ -194,6 +194,7 @@ struct ProcessGroupRecord {
     leader: Option<ProcessHandle>,
     generation: u64,
     reason: String,
+    terminal_members: usize,
     members: BTreeMap<u64, GroupMemberRecord>,
 }
 
@@ -284,6 +285,7 @@ impl ProcessGroupBook {
                 leader,
                 generation: 0,
                 reason: String::new(),
+                terminal_members: 0,
                 members,
             },
         );
@@ -409,25 +411,41 @@ impl ProcessGroupBook {
         if group.generation != generation {
             return Err(ProcessGroupError::StaleGeneration);
         }
-        let member = group
-            .members
-            .get_mut(&handle.raw())
-            .ok_or(ProcessGroupError::UnknownMember)?;
-        if member.handle != handle {
-            return Err(ProcessGroupError::UnknownMember);
-        }
-        if member.state.is_terminal() {
-            return Err(ProcessGroupError::AlreadyTerminal);
-        }
-        member.state = terminal_state(outcome);
-        if group
-            .members
-            .values()
-            .all(|member| member.state.is_terminal())
-        {
-            group.state = ProcessGroupState::Stopped;
-        }
+        mark_terminal_member(group, handle, outcome)?;
         Ok(snapshot(group))
+    }
+
+    /// Mark one terminal member and remove it without allocating a snapshot.
+    ///
+    /// Caller-owned reapers only need the success/error boundary. Keeping this
+    /// path separate from [`Self::mark_terminal`] avoids cloning every member
+    /// state twice during a bounded sweep while preserving the snapshot API
+    /// for inspection callers.
+    pub fn mark_terminal_and_reap(
+        &self,
+        id: ProcessGroupId,
+        generation: u64,
+        handle: ProcessHandle,
+        outcome: MemberTerminal,
+    ) -> Result<(), ProcessGroupError> {
+        let mut state = self.lock_state();
+        {
+            let group = state
+                .groups
+                .get_mut(&id)
+                .ok_or(ProcessGroupError::UnknownGroup)?;
+            if group.state != ProcessGroupState::Draining {
+                return Err(ProcessGroupError::InvalidState(group.state));
+            }
+            if group.generation != generation {
+                return Err(ProcessGroupError::StaleGeneration);
+            }
+            mark_terminal_member(group, handle, outcome)?;
+            group.members.remove(&handle.raw());
+            group.terminal_members = group.terminal_members.saturating_sub(1);
+        }
+        state.handle_groups.remove(&handle);
+        Ok(())
     }
 
     /// Reap one terminal member after the host has consumed its resources.
@@ -453,6 +471,7 @@ impl ProcessGroupBook {
                 return Err(ProcessGroupError::MembersPending);
             }
             group.members.remove(&handle.raw());
+            group.terminal_members = group.terminal_members.saturating_sub(1);
             snapshot(group)
         };
         state.handle_groups.remove(&handle);
@@ -644,16 +663,13 @@ impl ProcessReaper {
                         report.unavailable = report.unavailable.saturating_add(1);
                     }
                     ReaperObservation::Terminal(outcome) => {
-                        match self.groups.mark_terminal(
+                        match self.groups.mark_terminal_and_reap(
                             plan_id(&plan),
                             plan.generation,
                             handle,
                             outcome,
                         ) {
-                            Ok(_) => match self.groups.reap_member(plan_id(&plan), handle) {
-                                Ok(_) => report.reaped = report.reaped.saturating_add(1),
-                                Err(_) => report.errors = report.errors.saturating_add(1),
-                            },
+                            Ok(()) => report.reaped = report.reaped.saturating_add(1),
                             Err(_) => report.errors = report.errors.saturating_add(1),
                         }
                     }
@@ -695,6 +711,29 @@ fn terminal_state(outcome: MemberTerminal) -> GroupMemberState {
             reason: bounded_reason(reason),
         },
     }
+}
+
+fn mark_terminal_member(
+    group: &mut ProcessGroupRecord,
+    handle: ProcessHandle,
+    outcome: MemberTerminal,
+) -> Result<(), ProcessGroupError> {
+    let member = group
+        .members
+        .get_mut(&handle.raw())
+        .ok_or(ProcessGroupError::UnknownMember)?;
+    if member.handle != handle {
+        return Err(ProcessGroupError::UnknownMember);
+    }
+    if member.state.is_terminal() {
+        return Err(ProcessGroupError::AlreadyTerminal);
+    }
+    member.state = terminal_state(outcome);
+    group.terminal_members = group.terminal_members.saturating_add(1);
+    if group.terminal_members == group.members.len() {
+        group.state = ProcessGroupState::Stopped;
+    }
+    Ok(())
 }
 
 fn snapshot(group: &ProcessGroupRecord) -> ProcessGroupSnapshot {

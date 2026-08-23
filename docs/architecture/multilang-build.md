@@ -329,6 +329,13 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   reserved before spawn. PTY/process-group semantics, capability policy,
   ProcessTable registration, AgentLoop routing, and runtime authority remain
   open adapter/cutover work.
+- The Rust `process_group` module adds generation-safe membership and bounded
+  caller-driven reaping without owning OS process-group signals or shutdown.
+  Its terminal-member counter removes the repeated whole-map terminal scan, and
+  `ProcessReaper::sweep` uses a mark-and-reap path that avoids unused snapshots.
+  The independent `process.group.reaper` fixed-work runner and
+  `rust-process-group-bench` binary keep this evidence separate from process
+  spawn, queue, and session workloads; no runtime authority is promoted.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name

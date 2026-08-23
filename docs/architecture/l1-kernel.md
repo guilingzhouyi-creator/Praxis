@@ -815,6 +815,15 @@ coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
 authority.
 
+The group book keeps a terminal-member counter so repeated terminal
+observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
+separate mark-and-reap fast path that avoids cloning snapshots when the caller
+only needs a bounded success/error report. The independent
+`process.group.reaper` fixed-work runner and `rust-process-group-bench` binary
+measure this member-reaping workload separately from process spawn, queue, and
+session benchmarks; the candidate remains mechanism-only and does not grant
+runtime or shutdown authority.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

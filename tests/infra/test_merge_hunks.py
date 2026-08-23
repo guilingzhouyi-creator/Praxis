@@ -66,6 +66,40 @@ def test_whole_file_replacement_is_rejected(tmp_path: Path, monkeypatch):
     assert module.main(["--base", "main", "--head", "feature/replace", "--check"]) == 1
 
 
+def test_sensitive_file_deletion_is_rejected(tmp_path: Path, monkeypatch):
+    repo = _repo(tmp_path)
+    _git(repo, "switch", "-q", "-c", "feature/delete")
+    (repo / "docs" / "roadmaps" / "one.md").unlink()
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "docs(roadmaps): remove stale roadmap")
+    module = _load_script()
+    monkeypatch.setattr(module, "ROOT", repo)
+    audits = module.audit("main", "feature/delete")
+    assert audits[0].deleted_file is True
+    assert module.main(["--base", "main", "--head", "feature/delete", "--check"]) == 1
+
+
+def test_multi_hunk_full_replacement_is_rejected(monkeypatch):
+    module = _load_script()
+    diff = "\n".join(
+        (
+            "diff --git a/docs/roadmaps/one.md b/docs/roadmaps/one.md",
+            "--- a/docs/roadmaps/one.md",
+            "+++ b/docs/roadmaps/one.md",
+            "@@ -1 +1 @@",
+            "-old one",
+            "+new one",
+            "@@ -3 +3 @@",
+            "-old three",
+            "+new three",
+        )
+    )
+    monkeypatch.setattr(module, "_run_git", lambda *_args: diff)
+    monkeypatch.setattr(module, "_line_count", lambda *_args: 2)
+    audits = module.audit("main", "feature/replace")
+    assert audits[0].whole_file_replacement is True
+
+
 def test_small_hunk_change_passes_check(tmp_path: Path):
     repo = _repo(tmp_path)
     _git(repo, "switch", "-q", "-c", "feature/hunk")

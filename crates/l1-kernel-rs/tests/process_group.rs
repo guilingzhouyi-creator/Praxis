@@ -152,6 +152,22 @@ fn stale_and_duplicate_terminal_observations_fail_closed() {
 }
 
 #[test]
+fn mark_terminal_and_reap_fast_path_releases_member_ownership() {
+    let groups = book();
+    let process = handle(13, 4);
+    let group = groups
+        .create("fast-reap", Some(process), None)
+        .expect("create");
+    let plan = groups.begin_termination(group, "fast path").expect("plan");
+    groups
+        .mark_terminal_and_reap(group, plan.generation, process, MemberTerminal::Exited(0))
+        .expect("mark and reap");
+    assert_eq!(groups.member_count(group), Ok(0));
+    assert_eq!(groups.group_for_handle(process), None);
+    assert_eq!(groups.state(group), Ok(ProcessGroupState::Stopped));
+}
+
+#[test]
 fn terminal_outcomes_are_bounded_and_snapshot_round_trips() {
     let groups = book();
     let failed = handle(20, 1);

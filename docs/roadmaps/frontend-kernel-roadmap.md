@@ -648,6 +648,13 @@ spawn，容量拒绝时先 terminate/reap 已创建 child，再返回失败；�
 OS process-group signal、不注册 ProcessTable、不启动后台 reaper，也不授予 AgentLoop、Provider、
 shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观测证据。
 
+随后完成 process-group reaper 热路径优化：`ProcessGroupBook` 以终态成员计数替代每次
+`mark_terminal` 的全成员扫描，`ProcessReaper::sweep` 使用不生成 snapshot 的
+`mark_terminal_and_reap` 快路径。独立 `process.group.reaper` fixed-work runner 与
+`rust-process-group-bench` binary 按 4096 items、1/2/4 workers、3 rounds 输出统一 v3
+吞吐、尾延迟和资源证据；它只测 caller-owned 机制回收，不改变 PTY、OS process-group signal、
+ProcessTable、AgentLoop 或 shutdown authority 的边界。
+
 ---
 
 ### 4.6 自动化与性能外围的重写边界

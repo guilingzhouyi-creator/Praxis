@@ -11,6 +11,9 @@ use crate::managed_process::{ManagedProcessBook, ManagedWaitResult};
 use crate::process::{ProcessTable, ProcessTableConfig};
 use crate::process_adapter::{ProcessAdapter, ProcessAdapterConfig};
 use crate::process_bridge::ProcessTableBridge;
+use crate::process_group::{
+    MemberTerminal, ProcessGroupBook, ProcessReaper, ReaperBudget, ReaperObservation,
+};
 use crate::session::{SESSION_MAX_MESSAGES, SessionBook, SessionInput, SessionSpec};
 use crate::state_queue::{BoundedWorkQueue, WorkItem};
 use crate::substrate::{ProcessHandle, QueueMetrics};
@@ -350,6 +353,119 @@ pub fn run_process_bridge(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'stat
     }
     report.validate_complete()?;
     Ok(report)
+}
+
+/// Run a fixed-total caller-owned process-group reaper sweep.
+///
+/// Each worker owns an independent group so the fixed-work report measures
+/// group-member terminal admission and reaping under the requested worker
+/// count. No OS child, PTY, process-group signal, or background reaper is
+/// involved; this is a mechanism-only lock/contention workload.
+pub fn run_process_group(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "process-group work does not fit the target architecture")?;
+    if total_work == 0 {
+        return Err("process-group work must be positive");
+    }
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count =
+            usize::try_from(workers).map_err(|_| "process-group worker count is not supported")?;
+        if worker_count == 0 || worker_count > total_work {
+            return Err("process-group worker count must not exceed fixed work");
+        }
+        for round in 0..spec.rounds {
+            report.push(run_process_group_round(total_work, worker_count, round)?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+fn run_process_group_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+) -> Result<BenchmarkSample, &'static str> {
+    let base = total_work / worker_count;
+    let remainder = total_work % worker_count;
+    let mut workers = Vec::with_capacity(worker_count);
+    for worker in 0..worker_count {
+        let member_count = base + usize::from(worker < remainder);
+        let groups = Arc::new(
+            ProcessGroupBook::new(1, member_count)
+                .map_err(|_| "process-group book creation failed")?,
+        );
+        let group = groups
+            .create(
+                format!("bench-process-group-{round:02}-{worker:02}"),
+                None,
+                None,
+            )
+            .map_err(|_| "process-group creation failed")?;
+        for slot in 0..member_count {
+            let handle = ProcessHandle::new((slot + 1) as u32, 1)
+                .ok_or("process-group benchmark handle creation failed")?;
+            groups
+                .join(group, handle)
+                .map_err(|_| "process-group member admission failed")?;
+        }
+        let reaper = ProcessReaper::new(groups);
+        reaper
+            .request_stop(group, "fixed-work benchmark")
+            .map_err(|_| "process-group stop planning failed")?;
+        workers.push((reaper, group, member_count));
+    }
+
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut threads = Vec::with_capacity(worker_count);
+    for (reaper, group, member_count) in workers {
+        threads.push(thread::spawn(move || {
+            let operation_started = Instant::now();
+            let report = reaper.sweep(
+                ReaperBudget::new(1, member_count)
+                    .map_err(|_| "process-group benchmark budget is invalid")?,
+                |_handle| ReaperObservation::Terminal(MemberTerminal::Exited(0)),
+            );
+            if report.groups_inspected != 1
+                || report.members_inspected != member_count as u64
+                || report.reaped != member_count as u64
+                || report.pending != 0
+                || report.unavailable != 0
+                || report.errors != 0
+            {
+                return Err("process-group benchmark did not preserve fixed work");
+            }
+            let _ = group;
+            Ok::<_, &'static str>(operation_started.elapsed().as_nanos().max(1) as u64)
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(worker_count);
+    for thread in threads {
+        latencies.push(
+            thread
+                .join()
+                .map_err(|_| "process-group benchmark worker panicked")??,
+        );
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns: 0,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
 }
 
 fn run_managed_process_round(

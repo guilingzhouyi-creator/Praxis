@@ -96,9 +96,10 @@ Full breakdown: `docs/architecture/completion-judge.md`.
   conventional commit, or ask the author to rewrite the branch. Never merge
   unsigned commits and re-sign them afterwards — that rewrites history and
   force-pushes the mirror. Local agent branches are signed by construction.
-- The PR gate also runs the sensitive-path hunk audit. A full-file replacement
-  under `docs/roadmaps/` or `config/discovery/` fails closed with exit code 5;
-  review the JSON report and merge only after both branch intents are checked.
+- The PR gate also runs the sensitive-path hunk audit. Opaque full-file
+  replacements (including multi-hunk rewrites) or deletions under
+  `docs/roadmaps/` or `config/discovery/` fail closed with exit code 5; review
+  the JSON report and merge only after both branch intents are checked.
 
 ## Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`, auto-run on `push-both.sh main`)
 

@@ -99,7 +99,7 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 
 - Feature branches only (`feature/*`); merge with `--no-ff` after double-green
 - **Local-merge gate**: `bash scripts/sh/verify-local-merge.sh` before merging into local main
-- **Sensitive-path hunk gate**: merge gates audit `docs/roadmaps/` and `config/discovery/`; full-file replacements fail closed for review
+- **Sensitive-path hunk gate**: merge gates audit `docs/roadmaps/` and `config/discovery/`; opaque full-file replacements and deletions fail closed for review
 - **Branch accumulation quality gate**: ≥ 5 unmerged commits AND ≥ 4000 net lines vs main → BLOCKED until review clears
 - **Parallel collaboration**: one agent per domain, one worktree per agent, merge order K→M/T/S→C/B→A
 

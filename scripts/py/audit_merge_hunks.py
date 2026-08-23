@@ -54,6 +54,7 @@ class FileAudit:
     new_lines: int
     hunks: list[HunkAudit] = field(default_factory=list)
     whole_file_replacement: bool = False
+    deleted_file: bool = False
 
 
 def _run_git(*args: str) -> str:
@@ -123,15 +124,17 @@ def audit(base: str, head: str) -> list[FileAudit]:
             hunk.deletions += 1
 
     for item in audits.values():
-        if len(item.hunks) != 1 or item.old_lines <= 0 or item.new_lines <= 0:
+        if item.old_lines > 0 and item.new_lines == 0:
+            item.deleted_file = True
             continue
-        only = item.hunks[0]
-        item.whole_file_replacement = (
-            only.old_start == 1
-            and only.old_count == item.old_lines
-            and only.new_start == 1
-            and only.new_count == item.new_lines
-        )
+        if item.old_lines <= 0 or item.new_lines <= 0:
+            continue
+        additions = sum(hunk.additions for hunk in item.hunks)
+        deletions = sum(hunk.deletions for hunk in item.hunks)
+        # A replacement can be split into several hunks when the diff
+        # algorithm finds unrelated matching context. Aggregate counts so a
+        # stale snapshot cannot evade the guard by changing hunk boundaries.
+        item.whole_file_replacement = additions == item.new_lines and deletions == item.old_lines
     return list(audits.values())
 
 
@@ -140,6 +143,7 @@ def _report(audits: list[FileAudit]) -> dict[str, object]:
         "sensitive_prefixes": list(SENSITIVE_PREFIXES),
         "files": [asdict(item) for item in audits],
         "whole_file_replacements": [item.path for item in audits if item.whole_file_replacement],
+        "deleted_files": [item.path for item in audits if item.deleted_file],
     }
 
 
@@ -164,20 +168,27 @@ def main(argv: list[str] | None = None) -> int:
         print("[merge-hunks] no sensitive files changed")
     else:
         for item in audits:
-            marker = " WHOLE_FILE_REPLACEMENT" if item.whole_file_replacement else ""
+            marker = ""
+            if item.whole_file_replacement:
+                marker = " WHOLE_FILE_REPLACEMENT"
+            elif item.deleted_file:
+                marker = " DELETED"
             print(f"[merge-hunks] {item.path}: {len(item.hunks)} hunk(s){marker}")
             for hunk in item.hunks:
                 print(f"  {hunk.header} (+{hunk.additions}/-{hunk.deletions})")
 
     replacements = report["whole_file_replacements"]
-    if args.check and replacements:
+    deleted_files = report["deleted_files"]
+    if args.check and (replacements or deleted_files):
         print(
-            "[merge-hunks] REJECTED: sensitive files contain whole-file replacements; "
+            "[merge-hunks] REJECTED: sensitive paths contain opaque replacements or deletions; "
             "review each hunk against both branch intents before merging:",
             file=sys.stderr,
         )
         for path in replacements:
             print(f"  - {path}", file=sys.stderr)
+        for path in deleted_files:
+            print(f"  - {path} (deleted)", file=sys.stderr)
         return 1
     return 0
 
