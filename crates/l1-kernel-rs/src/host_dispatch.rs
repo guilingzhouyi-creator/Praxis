@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
 
+use crate::audit::AuditLog;
 use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use crate::gatechain::{GateChain, GatePolicy, GateRequest};
@@ -77,6 +78,7 @@ pub struct HostRouter {
     config: RouterConfig,
     authority: Arc<CapabilityAuthority>,
     gatechain: Arc<GateChain>,
+    audit: Arc<AuditLog>,
     sessions: Mutex<SessionRegistry>,
     outboxes: Mutex<OutboxRegistry>,
     registered: Mutex<BTreeSet<String>>,
@@ -87,7 +89,8 @@ pub struct HostRouter {
 impl HostRouter {
     /// Build a router with an explicit configuration.
     pub fn new(config: RouterConfig) -> Self {
-        let authority = Arc::new(CapabilityAuthority::new());
+        let audit = Arc::new(AuditLog::new());
+        let authority = Arc::new(CapabilityAuthority::with_audit(Arc::clone(&audit)));
         authority.register_executor(|request| CapabilityResult {
             success: true,
             error: String::new(),
@@ -107,6 +110,7 @@ impl HostRouter {
             config,
             authority,
             gatechain: Arc::new(gatechain),
+            audit,
             sessions: Mutex::new(SessionRegistry::new()),
             outboxes: Mutex::new(OutboxRegistry::new()),
             registered: Mutex::new(registered),
@@ -131,7 +135,7 @@ impl HostRouter {
                 }
             }
             MessageKind::Control => self.route_control(&message),
-            MessageKind::Ack => self.apply_ack(&message),
+            MessageKind::Ack => self.route_ack(message),
             MessageKind::Intent => self.route_intent(message),
             MessageKind::Event => Err(outbound_only("event")),
             MessageKind::Result => Err(outbound_only("result")),
@@ -167,8 +171,12 @@ impl HostRouter {
                 "system command {name} blocked by gatechain ({})",
                 verdict.decision.as_str()
             );
+            self.audit_dispatch("system", &agent_id, &name, ring, false, &reason);
+            let _ = self.audit.flush();
             return Err(ProtocolError::InvalidContract(reason));
         }
+        self.audit_dispatch("system", &agent_id, &name, ring, true, "");
+        let _ = self.audit.flush();
         let request = CapabilityRequest {
             agent_id,
             name: name.clone(),
@@ -197,21 +205,33 @@ impl HostRouter {
                 )
             })?;
         if SYSTEM_COMMANDS.contains(&name.as_str()) {
+            let agent_id = self.agent_id_for(&message.session_id);
+            self.audit_dispatch(
+                "command",
+                &agent_id,
+                &name,
+                0,
+                false,
+                "system command requires ring adjudication",
+            );
+            let _ = self.audit.flush();
             return Err(ProtocolError::InvalidContract(format!(
                 "system command {name} requires ring adjudication"
             )));
         }
+        let agent_id = self.agent_id_for(&message.session_id);
         {
             let registered = self.lock_registered();
             if !registered.contains(&name) {
+                self.audit_dispatch("command", &agent_id, &name, 0, false, "unregistered command");
+                let _ = self.audit.flush();
                 return Err(ProtocolError::InvalidContract(format!(
                     "unregistered command: {name}"
                 )));
             }
         }
-        let agent_id = self.agent_id_for(&message.session_id);
         let request = CapabilityRequest {
-            agent_id,
+            agent_id: agent_id.clone(),
             name: name.clone(),
             args: command_args(&message.payload),
             domain: String::new(),
@@ -219,6 +239,8 @@ impl HostRouter {
             interactive: true,
         };
         let result = self.authority.invoke(request);
+        self.audit_dispatch("command", &agent_id, &name, 0, result.success, &result.error);
+        let _ = self.audit.flush();
         let response = self.response_envelope(&message, &result);
         self.lock_outboxes()
             .append(&message.session_id, response.clone());
@@ -263,6 +285,16 @@ impl HostRouter {
         self.lock_pending().len()
     }
 
+    /// Return the dispatch audit trail for inspection or journal wiring.
+    pub fn audit(&self) -> Arc<AuditLog> {
+        Arc::clone(&self.audit)
+    }
+
+    /// Return audit row count and journal error count.
+    pub fn audit_stats(&self) -> (usize, u64) {
+        self.audit.stats()
+    }
+
     fn route_control(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let op = message
             .payload
@@ -270,7 +302,8 @@ impl HostRouter {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        match op.as_str() {
+        let agent_id = self.agent_id_for(&message.session_id);
+        let result = match op.as_str() {
             "attach" => self.control_attach(message),
             "detach" => self.control_detach(message),
             "resume" => self.control_resume(message),
@@ -279,7 +312,10 @@ impl HostRouter {
             _ => Err(ProtocolError::InvalidContract(format!(
                 "control payload has unknown op: {op}"
             ))),
-        }
+        };
+        self.audit_outcome(&result, "control", &agent_id, &op, 0);
+        let _ = self.audit.flush();
+        result
     }
 
     fn control_attach(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
@@ -367,7 +403,23 @@ impl HostRouter {
         Ok(Vec::new())
     }
 
+    fn route_ack(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        let agent_id = self.agent_id_for(&message.session_id);
+        let result = self.apply_ack(&message);
+        self.audit_outcome(&result, "ack", &agent_id, "ack", 0);
+        let _ = self.audit.flush();
+        result
+    }
+
     fn route_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        let agent_id = self.agent_id_for(&message.session_id);
+        let result = self.forward_intent(message);
+        self.audit_outcome(&result, "intent", &agent_id, "intent", 0);
+        let _ = self.audit.flush();
+        result
+    }
+
+    fn forward_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let mut pending = self.lock_pending();
         if pending.len() >= self.config.intent_buffer_cap {
             return Err(ProtocolError::InvalidContract(
@@ -403,6 +455,39 @@ impl HostRouter {
             session_id.to_owned()
         } else {
             "system".to_owned()
+        }
+    }
+
+    fn audit_dispatch(
+        &self,
+        kind: &str,
+        agent_id: &str,
+        command: &str,
+        ring: u8,
+        allowed: bool,
+        reason: &str,
+    ) {
+        let decision = if allowed { "allowed" } else { "denied" };
+        self.audit.record_fields(
+            format!("dispatch.{kind}"),
+            agent_id,
+            allowed,
+            reason,
+            format!("command={command} ring={ring} decision={decision}"),
+        );
+    }
+
+    fn audit_outcome(
+        &self,
+        result: &Result<Vec<Message>, ProtocolError>,
+        kind: &str,
+        agent_id: &str,
+        command: &str,
+        ring: u8,
+    ) {
+        match result {
+            Ok(_) => self.audit_dispatch(kind, agent_id, command, ring, true, ""),
+            Err(error) => self.audit_dispatch(kind, agent_id, command, ring, false, &error.to_string()),
         }
     }
 
