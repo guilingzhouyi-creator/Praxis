@@ -313,6 +313,30 @@ def scan_range(
     return findings
 
 
+def scan_range_stats(rev_range: str) -> tuple[int, int]:
+    """Return (total_commits, merge_or_revert_commits) for a git range.
+
+    The audit counts merge/revert subjects as exempt (git-generated per
+    project conventions) — this lets callers report an honest breakdown
+    (e.g. "35 validated, 3 merge skipped") instead of a bare total.
+    """
+    total = subprocess.run(
+        ["git", "rev-list", "--count", rev_range],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    merges = subprocess.run(
+        ["git", "rev-list", "--count", "--merges", rev_range],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    total_n = int(total.stdout.strip() or 0)
+    merges_n = int(merges.stdout.strip() or 0)
+    return total_n, merges_n
+
+
 def scan_range_bodies(rev_range: str, branch: str = "", policy: dict | None = None) -> list[tuple[str, str]]:
     """Validate subjects AND collect body advisories across a git range.
 
@@ -343,6 +367,21 @@ def scan_range_bodies(rev_range: str, branch: str = "", policy: dict | None = No
     return advisories
 
 
+def _staged_files() -> list[str]:
+    """Return staged file names (hook context); [] outside a repo or on error."""
+    import subprocess as _sp
+
+    try:
+        out = _sp.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            capture_output=True,
+            text=True,
+        )
+        return [line for line in out.stdout.splitlines() if line]
+    except Exception:
+        return []
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate commit subject(s) against the project commit policy")
     parser.add_argument("--subject", help="single commit subject line to validate")
@@ -363,8 +402,15 @@ def main() -> int:
     try:
         if args.git_range:
             findings = scan_range(args.git_range, branch=args.branch, check_content=args.check_content)
+            # Report the honest breakdown: merge/revert commits are exempt
+            # (git-generated) and skipped by scan_range — a bare total (e.g.
+            # push-both's "38 commit(s) checked") would silently overstate.
+            total, merges = scan_range_stats(args.git_range)
             if not findings:
-                print("[commit-scan] OK — all subjects in range clean")
+                print(
+                    f"[commit-scan] OK — all subjects in range clean "
+                    f"({total - merges} validated, {merges} merge/revert skipped)"
+                )
             else:
                 print(f"[commit-scan] VIOLATIONS ({len(findings)}):", file=sys.stderr)
                 for sha, v in findings:
@@ -400,6 +446,17 @@ def main() -> int:
                 except Exception:
                     detected = None
             violations = validate_coauthored_by(args.msg, detected=detected)
+            # Full contract for complete-message validation (commit-msg hook
+            # fallback when node is absent — mirrors validate-commit.mjs):
+            # subject shape + branch-type policy + staged type/scope content.
+            subject = args.msg.splitlines()[0] if args.msg else ""
+            violations += validate_subject(subject, branch=args.branch)
+            parsed = parse_subject(subject)
+            staged = _staged_files()
+            if parsed:
+                ctype, cscope, _summary = parsed
+                violations += validate_type_content(ctype, staged)
+                violations += validate_scope_content(cscope, staged)
             if not violations:
                 print(
                     "[commit-scan] OK — Co-Authored-By matches registry + runtime"

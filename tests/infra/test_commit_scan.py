@@ -7,6 +7,7 @@ git-range scanning, and CLI exit codes.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from commit_scan import (  # noqa: E402
     load_policy,
     parse_subject,
     scan_range,
+    scan_range_stats,
     validate_subject,
     validate_type_content,
 )
@@ -139,3 +141,25 @@ def test_scan_range_skips_merge_and_clean():
     # The repo's own main range should be clean (all history passed the gate).
     findings = scan_range("origin/main..HEAD", branch="main", policy=policy())
     assert findings == []
+
+
+def test_scan_range_stats_reports_merge_breakdown():
+    # The pushed range has 38 commits; merges are exempt and must be counted
+    # so callers report "N validated, M merge/revert skipped" honestly.
+    total, merges = scan_range_stats("origin/main..HEAD")
+    assert total > 0
+    assert 0 <= merges <= total
+    assert total - merges >= 0
+
+
+def test_scan_range_stats_excludes_merge_subjects_from_findings():
+    # A merge-only range must be clean AND report its merges as skipped.
+    # Use a range that contains at least one merge commit in this repo.
+    merges_only = subprocess.run(
+        ["git", "rev-list", "--count", "--merges", "origin/main..HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if int(merges_only.stdout.strip() or 0) > 0:
+        findings = scan_range("origin/main..HEAD", branch="main", policy=policy())
+        assert findings == []

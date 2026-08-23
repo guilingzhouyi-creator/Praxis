@@ -33,7 +33,13 @@ def run_hook(message: str) -> int:
 
 
 def test_valid_conventional_passes():
-    assert run_hook(f"feat(core): add token ring revocation\n\n{COAUTH}\n") == 0
+    # A real feat commit stages source files — model that so the type-to-
+    # content gate sees a qualifying path instead of judging an empty index.
+    p = _stage_tmp_probe("src/_tmp_valid_probe.py")
+    try:
+        assert run_hook(f"feat(core): add token ring revocation\n\n{COAUTH}\n") == 0
+    finally:
+        _unstage_tmp_probe(p)
 
 
 def test_missing_coauth_rejected():

@@ -31,8 +31,11 @@ def check_template() -> list[str]:
         violations.append("template missing '72' length hint")
     if "English" not in text:
         violations.append("template missing 'English' requirement")
-    # Check for blank line before trailer example
-    if "\n\nCo-Authored-By" not in text:
+    # Blank line before the trailer example — accepts both the raw form
+    # (``\n\nCo-Authored-By``, which git would prefill into new commits)
+    # and the commented presentation (``#\n# Co-Authored-By``) that keeps
+    # the template from prefilling an attribution line.
+    if "\n\nCo-Authored-By" not in text and "\n#\n# Co-Authored-By" not in text:
         violations.append("template should show blank line before Co-Authored-By")
     return violations
 

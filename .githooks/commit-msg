@@ -193,11 +193,21 @@ if [ "$SCAN_RC" != "0" ]; then
   fi
 fi
 
-# ── 3b. Node validator (type/scope registration + must_include) ──────────
-# validate-commit.mjs mirrors scripts/py/commit_scan.py; skipped when node
-# is absent (WSL side) — the push-time audit (commit_scan.py) is the backstop.
+# ── 3b. Validator (type/scope registration + must_include) ───────────────
+# Primary: validate-commit.mjs (node). Fallback when node is absent (WSL
+# side): scripts/py/commit_scan.py enforces the SAME commits.yaml contract
+# (scope registration + type-to-content consistency) so the gate never
+# silently degrades to pass-through.
 if command -v node >/dev/null 2>&1; then
   node scripts/js/validate-commit.mjs "$msg_file" >&2 || exit 1
+else
+  PY="$(command -v python3 || command -v python || true)"
+  if [ -n "$PY" ] && "$PY" -c "import yaml" >/dev/null 2>&1; then
+    BR="$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"
+    "$PY" scripts/py/commit_scan.py --branch "$BR" --msg "$(cat "$msg_file")" --check-content >&2 || exit 1
+  else
+    echo "⚠️  node and python+yaml both unavailable — type/scope/must_include validation SKIPPED" >&2
+  fi
 fi
 
 # ── 4. Shared-file handoff gate (STRICT — register or reject) ─────────────
