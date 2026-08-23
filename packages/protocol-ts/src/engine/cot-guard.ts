@@ -42,16 +42,15 @@ export function sanitizePayload(payload: JsonObject): JsonObject {
   return clean;
 }
 
-/** Check whether a payload contains any forbidden key at any depth (arrays traversed). */
+/** Check whether a payload contains any forbidden key at any depth. */
 export function containsCoT(payload: JsonObject): boolean {
-  for (const key of Object.keys(payload)) {
+  for (const [key, value] of Object.entries(payload)) {
     if (FORBIDDEN_KEYS.has(key)) return true;
-    const value = payload[key];
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (typeof item === "object" && item !== null && containsCoT(item as JsonObject)) return true;
+        if (item && typeof item === "object" && containsCoT(item as JsonObject)) return true;
       }
-    } else if (typeof value === "object" && value !== null) {
+    } else if (value && typeof value === "object") {
       if (containsCoT(value as JsonObject)) return true;
     }
   }
