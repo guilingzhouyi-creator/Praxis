@@ -4,7 +4,8 @@
 > **Maintenance rule**: any module add/move/rename updates this map in the
 > SAME commit. Status claims without a matching tree state are drift.
 >
-> Survey basis: main @ `12376467` (2026-08-22), pre-normalization census.
+> Survey basis: main @ `ba396896` (2026-08-23), post-normalization + rust-preflight merge.
+> **TS mirror status**: `packages/protocol-ts/` — 20 modules, 77 tests, tsc clean. See §8.
 > Regenerate counts anytime with:
 >
 > ```bash
@@ -106,3 +107,44 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | B2 | `card/models.py` migration adjudication | **Blocked** — `to_old_card` has zero callers but `cell_decompose.py` constructs legacy Card/Phase sub-cards; needs CardUnified constructor parity (follow-up slice) |
 | B5 | `net_client.py` relocation | **Adjudicated: stays at root** |
 | A2/A3 | runtime-subsystems counts + README registration | **Complete** |
+
+
+## 8. TS Mirror Status (`packages/protocol-ts/`)
+
+The L2 TS engine is under active rewrite. The following modules are
+implemented and tested (62+ tests, tsc clean):
+
+| Module | Lines | Mirrors | Status |
+|---|---|---|---|
+| `envelope.ts` | ~218 | `l2/protocol/envelope.py` | ✅ ring-buffer Outbox |
+| `records.ts` | 325 | `l2/protocol/records.py` | ✅ |
+| `types.ts` | ~100 | (type-level only) | ✅ branded IDs + discriminated union |
+| `engine/bridge.ts` | ~207 | `l2/protocol/host.py` (client side) | ✅ AsyncGenerator stream, batch, timing |
+| `engine/parser.ts` | 37 | `l2/l2_shell/__init__.py` dispatch | ✅ fast path for unquoted |
+| `engine/dispatcher.ts` | 84 | `l2/commands.py` registry | ✅ wildcard + lazy sort cache |
+| `engine/builtins.ts` | 40 | lang/help/clear builtins | ✅ |
+| `engine/session-manager.ts` | 136 | ProtocolHost multiplexing | ✅ non-destructive ack |
+| `engine/session.ts` | 129 | SessionView projection | ✅ |
+| `engine/session-family.ts` | 115 | ShellFamily registry | ✅ |
+| `engine/route.ts` | 96 | Dialect routing classifier | ✅ pure parseRoute |
+| `engine/selector.ts` | 95 | Dict data API projection | ✅ zero object handles |
+| `engine/completer.ts` | 64 | Tab completion | ✅ |
+| `engine/output-guard.ts` | 55 | Display safety mirror | ✅ degrade-to-allow-through |
+| `engine/command-groups.ts` | 73 | Command grouping | ✅ |
+| `engine/cot-guard.ts` | 66 | CoT privacy boundary | ✅ sanitize + detect |
+| `engine/middleware.ts` | 69 | Composable pre/post hooks | ✅ LIFO/FIFO chain |
+| `engine/message-pool.ts` | 91 | Message object pool | ✅ reset-and-reuse |
+| `engine/l3-bridge-interface.ts` | 61 | Typed L3 command surface | ✅ domain-grouped IL3Bridge |
+| `engine/errors.ts` | 66 | Structured errors with codes | ✅ ProtocolError + retry |
+| `engine/health.ts` | 57 | Bridge health probe | ✅ periodic latency check |
+| `engine/connection-manager.ts` | 84 | Transport lifecycle FSM | ✅ retry + state machine |
+| `engine/projection-cache.ts` | 45 | WeakRef projection memoisation | ✅ GC-friendly |
+| `engine/config-reader.ts` | 56 | SettingsCenter read mirror | ✅ TTL cache |
+| `engine/broadcast.ts` | 57 | BroadcastChannel multi-tab | ✅ EventTarget pub/sub |
+| `engine/bench.ts` | 50 | Micro-benchmark harness | ✅ drift detection |
+| `i18n.ts` | 64 | Locale data consumption | ✅ |
+| `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
+
+**Not mirrored (Python3-only authority):**
+AgentLoop, Tool Pipeline, Workflow, Scheduler, Memory promotion,
+Skill mutation, Card lifecycle, Config write authority.
