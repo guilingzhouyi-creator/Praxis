@@ -1,34 +1,15 @@
-/**
- * ProjectionCache — GC-friendly memoisation of expensive projection results.
- *
- * Uses `WeakRef` so cached entries do not prevent GC of their keys; stale
- * entries are evicted lazily on next `getCached` (no `FinalizationRegistry`
- * retained to keep the runtime portable). This avoids leaks in long-lived
- * sessions where projections are recomputed for changing inputs.
- */
+/** Simple memoisation for expensive projections (keyed by string). */
+const registry = new Map<string, unknown>();
 
-interface CacheEntry {
-  ref: WeakRef<object>;
-  value: unknown;
-}
-
-const registry = new Map<string, CacheEntry>();
-
-/** Get a cached projection result, or compute and cache a new one. */
+/** Get cached or compute and cache. */
 export function getCached<T extends object, R>(
   key: string,
-  source: T,
+  _source: T,
   compute: (source: T) => R,
 ): R {
-  const entry = registry.get(key);
-  if (entry) {
-    const obj = entry.ref.deref();
-    if (obj === source) return entry.value as R;
-    // Source object was GC'd or replaced — drop stale entry.
-    registry.delete(key);
-  }
-  const value = compute(source);
-  registry.set(key, { ref: new WeakRef(source), value });
+  if (registry.has(key)) return registry.get(key) as R;
+  const value = compute(_source);
+  registry.set(key, value);
   return value;
 }
 
