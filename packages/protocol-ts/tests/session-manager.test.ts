@@ -1,0 +1,104 @@
+/**
+ * SessionManager tests: multi-view multiplexing, per-view non-destructive
+ * ack, shared watermark = lagging view, and bridge round-trips.
+ */
+
+import { describe, expect, it } from "vitest";
+import { encodeMessage, makeMessage, type Message } from "../src/envelope.ts";
+import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
+import { SessionManager, SessionMultiplexer } from "../src/engine/session-manager.ts";
+
+describe("SessionMultiplexer", () => {
+  it("delivers emitted events to every bound view", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.attach("tui");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    expect(mux.viewState("web")?.unacked).toHaveLength(2);
+    expect(mux.viewState("tui")?.unacked).toHaveLength(2);
+  });
+
+  it("acks non-destructively per view; other views keep their windows", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.attach("tui");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    mux.ack("web", 1);
+    // web acked seq 1, keeps seq 2; tui keeps both.
+    expect(mux.viewState("web")?.unacked.map((e) => e.seq)).toEqual([2]);
+    expect(mux.viewState("tui")?.unacked.map((e) => e.seq)).toEqual([1, 2]);
+  });
+
+  it("shared watermark follows the lagging view", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.attach("tui");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    mux.ack("web", 2); // web caught up
+    expect(mux.watermark()).toBe(-1); // tui still at -1 → lagging
+    mux.ack("tui", 2);
+    expect(mux.watermark()).toBe(2);
+  });
+
+  it("replay rebuilds the window from the event stream", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    const window = mux.replay("web", 1);
+    expect(window.map((e) => e.seq)).toEqual([2]);
+  });
+
+  it("attach is idempotent and detach removes the view", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.attach("web");
+    expect(mux.listViews()).toEqual(["web"]);
+    mux.detach("web");
+    expect(mux.listViews()).toEqual([]);
+  });
+});
+
+describe("SessionManager over a fake bridge", () => {
+  /** Fake host: answers attach/ack/replay with the expected control events. */
+  function fakeBridge(received: string[]): ProtocolBridge {
+    const transport: Transport = async (line) => {
+      received.push(line);
+      const decoded = JSON.parse(line) as Message;
+      if (decoded.kind === "control") {
+        if (decoded.payload.op === "attach") {
+          return [
+            encodeMessage(
+              makeMessage(decoded.session_id, 100, "event", { name: "session.attached", data: { session_id: decoded.payload.session_id } }),
+            ),
+          ];
+        }
+        if (decoded.payload.op === "recovery") {
+          return [encodeMessage(makeMessage(decoded.session_id, 101, "event", { name: "session.recovered", data: { session_id: decoded.payload.session_id } }))];
+        }
+      }
+      return [];
+    };
+    return new ProtocolBridge({ sessionId: "s-1", transport });
+  }
+
+  it("attach round-trips and records the host's attached event", async () => {
+    const received: string[] = [];
+    const manager = new SessionManager(fakeBridge(received));
+    const state = await manager.attach("s-9", "web");
+    expect(state.viewId).toBe("web");
+    expect(manager.listSessions()).toContain("s-9");
+    expect(received[0]).toContain('"op":"attach"');
+  });
+
+  it("replay merges host recovery events into the local window", async () => {
+    const manager = new SessionManager(fakeBridge([]));
+    await manager.attach("s-9", "web");
+    const events = await manager.replay("s-9", "web", -1);
+    expect(events.some((e) => e.payload.name === "session.recovered")).toBe(true);
+    expect(manager.watermark("s-9")).toBe(-1);
+  });
+});
