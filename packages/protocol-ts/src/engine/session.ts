@@ -1,11 +1,12 @@
 /**
  * Session view projection — one session state, per-frontend shapes.
  *
- * Mirrors the Python3 projection registry (src/l2/protocol/projection.py):
- * web pass-through, TUI table rows, desktop rich-text blocks, and an
- * unknown-frontend fallback to web. A SessionView binds one frontend view
- * to a session via the bridge and keeps its own ack cursor — the TS side
- * never owns the runtime outbox.
+ * TS-side standalone projection shapes (web pass-through, TUI table rows,
+ * desktop rich-text blocks, VSCode incremental diff stream, and an
+ * unknown-frontend fallback to web). The Python3 host owns the runtime
+ * outbox and cursors; the TS side only renders snapshots. A SessionView
+ * binds one frontend view to a session via the bridge and keeps its own
+ * ack cursor — the TS side never owns the runtime outbox.
  */
 
 import type { Message } from "../envelope.ts";
@@ -59,10 +60,34 @@ export function projectDesktop(state: SessionState): Record<string, unknown> {
   return { frontend: "desktop", blocks };
 }
 
+/**
+ * VSCode symbiotic shape — an incremental diff stream for the editor panel.
+ *
+ * The IDE renders deltas by seq instead of full re-renders: each event
+ * carries a stable id (seq), kind, summary and optional trace id, so the
+ * panel can apply updates in place. Events are ordered by seq; the last
+ * seq is the panel's watermark for the next diff request.
+ */
+export function projectVscode(state: SessionState): Record<string, unknown> {
+  const diffs = state.events.map((event) => ({
+    id: event.seq,
+    kind: event.kind,
+    summary: summarize(event),
+    trace_id: event.trace_id ?? "",
+  }));
+  return {
+    frontend: "vscode",
+    session: state.identity,
+    diffs,
+    watermark: diffs.length > 0 ? diffs[diffs.length - 1].id : -1,
+  };
+}
+
 export const PROJECTIONS: Record<string, Projection> = {
   web: projectWeb,
   tui: projectTui,
   desktop: projectDesktop,
+  vscode: projectVscode,
 };
 
 /** Project one session snapshot into a frontend shape (unknown → web). */

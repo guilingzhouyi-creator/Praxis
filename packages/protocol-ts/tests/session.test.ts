@@ -8,7 +8,7 @@ import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
-import { project, projectDesktop, projectTui, projectWeb, SessionView } from "../src/engine/session.ts";
+import { project, projectDesktop, projectTui, projectVscode, projectWeb, SessionView } from "../src/engine/session.ts";
 
 const IDENTITY = { session_id: "s-1", terminal_id: "", process_id: "", role: "operator", cell_id: "cell-a" };
 const EVENTS: Message[] = [
@@ -68,8 +68,25 @@ describe("session projection", () => {
     expect(out.blocks[2]).toMatchObject({ type: "event", seq: 1 });
   });
 
+  it("vscode shape renders an incremental diff stream", () => {
+    const out = projectVscode(state);
+    expect(out.frontend).toBe("vscode");
+    expect(out.diffs).toEqual([
+      { id: 1, kind: "event", summary: "session.attached", trace_id: "" },
+      { id: 2, kind: "result", summary: "", trace_id: "" },
+    ]);
+    // The last seq is the panel watermark for the next diff request.
+    expect(out.watermark).toBe(2);
+  });
+
   it("unknown frontends fall back to web", () => {
     expect(project("ide-lsp", state).frontend).toBe("web");
+  });
+
+  it("vscode frontend routes to the diff-stream projection", () => {
+    const out = project("vscode", state);
+    expect(out.frontend).toBe("vscode");
+    expect((out as { diffs: unknown[] }).diffs).toHaveLength(2);
   });
 });
 
