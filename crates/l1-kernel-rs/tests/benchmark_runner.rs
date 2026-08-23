@@ -3,9 +3,10 @@
 use l1_kernel_rs::benchmark::FixedWorkSpec;
 use l1_kernel_rs::benchmark_runner::{
     run_agent_loop, run_agent_loop_batch, run_agent_loop_registry_lookup, run_managed_process,
-    run_process_adapter, run_process_bridge, run_queue_contention, run_queue_contention_blocking,
-    run_session_book, run_session_book_batch, run_terminal_book, run_terminal_book_batch,
-    run_worker_pool_batch, run_worker_pool_batch_submit,
+    run_process_adapter, run_process_bridge, run_process_group, run_queue_contention,
+    run_queue_contention_blocking, run_registry_base, run_session_book, run_session_book_batch,
+    run_terminal_book, run_terminal_book_batch, run_worker_pool_batch,
+    run_worker_pool_batch_submit,
 };
 
 #[test]
@@ -35,6 +36,27 @@ fn process_bridge_runner_preserves_fixed_work_and_joint_reap() {
             && sample.rejected == 0
             && sample.p99_latency_ns >= sample.p95_latency_ns
     }));
+}
+
+#[test]
+fn process_group_runner_preserves_fixed_work_and_reaps_all_members() {
+    let spec = FixedWorkSpec::new("process.group.reaper", 129, vec![1, 2], 1).expect("valid spec");
+    let report = run_process_group(spec).expect("process-group runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 129
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.queue_wait_ns == 0
+            && sample.lock_wait_ns == 0
+            && sample.p99_latency_ns >= sample.p95_latency_ns
+    }));
+}
+
+#[test]
+fn process_group_runner_rejects_more_workers_than_fixed_work() {
+    let spec = FixedWorkSpec::new("process.group.reaper", 1, vec![2], 1).expect("valid spec");
+    assert!(run_process_group(spec).is_err());
 }
 
 #[test]
@@ -113,6 +135,19 @@ fn session_book_runner_preserves_fixed_work_and_reports_tail_latency() {
 fn session_book_runner_rejects_zero_shards() {
     let spec = FixedWorkSpec::new("session.book.admission", 4, vec![1], 1).expect("valid spec");
     assert!(run_session_book(spec, 0).is_err());
+}
+
+#[test]
+fn registry_base_runner_preserves_fixed_work_and_lookup_tail() {
+    let spec = FixedWorkSpec::new("registry.base.lookup", 64, vec![1, 2], 1).expect("valid spec");
+    let report = run_registry_base(spec).expect("registry runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 64
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.p99_latency_ns >= sample.p95_latency_ns
+    }));
 }
 
 #[test]

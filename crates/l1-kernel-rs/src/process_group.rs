@@ -194,6 +194,7 @@ struct ProcessGroupRecord {
     leader: Option<ProcessHandle>,
     generation: u64,
     reason: String,
+    terminal_members: usize,
     members: BTreeMap<u64, GroupMemberRecord>,
 }
 
@@ -208,6 +209,12 @@ pub struct ProcessGroupBook {
     max_groups: usize,
     max_members: usize,
     state: Mutex<GroupBookState>,
+}
+
+struct ReaperPlan {
+    id: ProcessGroupId,
+    generation: u64,
+    handles: Vec<ProcessHandle>,
 }
 
 impl ProcessGroupBook {
@@ -284,6 +291,7 @@ impl ProcessGroupBook {
                 leader,
                 generation: 0,
                 reason: String::new(),
+                terminal_members: 0,
                 members,
             },
         );
@@ -409,25 +417,41 @@ impl ProcessGroupBook {
         if group.generation != generation {
             return Err(ProcessGroupError::StaleGeneration);
         }
-        let member = group
-            .members
-            .get_mut(&handle.raw())
-            .ok_or(ProcessGroupError::UnknownMember)?;
-        if member.handle != handle {
-            return Err(ProcessGroupError::UnknownMember);
-        }
-        if member.state.is_terminal() {
-            return Err(ProcessGroupError::AlreadyTerminal);
-        }
-        member.state = terminal_state(outcome);
-        if group
-            .members
-            .values()
-            .all(|member| member.state.is_terminal())
-        {
-            group.state = ProcessGroupState::Stopped;
-        }
+        mark_terminal_member(group, handle, outcome)?;
         Ok(snapshot(group))
+    }
+
+    /// Mark one terminal member and remove it without allocating a snapshot.
+    ///
+    /// Caller-owned reapers only need the success/error boundary. Keeping this
+    /// path separate from [`Self::mark_terminal`] avoids cloning every member
+    /// state twice during a bounded sweep while preserving the snapshot API
+    /// for inspection callers.
+    pub fn mark_terminal_and_reap(
+        &self,
+        id: ProcessGroupId,
+        generation: u64,
+        handle: ProcessHandle,
+        outcome: MemberTerminal,
+    ) -> Result<(), ProcessGroupError> {
+        let mut state = self.lock_state();
+        {
+            let group = state
+                .groups
+                .get_mut(&id)
+                .ok_or(ProcessGroupError::UnknownGroup)?;
+            if group.state != ProcessGroupState::Draining {
+                return Err(ProcessGroupError::InvalidState(group.state));
+            }
+            if group.generation != generation {
+                return Err(ProcessGroupError::StaleGeneration);
+            }
+            mark_terminal_member(group, handle, outcome)?;
+            group.members.remove(&handle.raw());
+            group.terminal_members = group.terminal_members.saturating_sub(1);
+        }
+        state.handle_groups.remove(&handle);
+        Ok(())
     }
 
     /// Reap one terminal member after the host has consumed its resources.
@@ -453,6 +477,7 @@ impl ProcessGroupBook {
                 return Err(ProcessGroupError::MembersPending);
             }
             group.members.remove(&handle.raw());
+            group.terminal_members = group.terminal_members.saturating_sub(1);
             snapshot(group)
         };
         state.handle_groups.remove(&handle);
@@ -531,6 +556,39 @@ impl ProcessGroupBook {
             .take(max_groups)
             .map(termination_plan)
             .collect()
+    }
+
+    fn reaper_plans(&self, max_groups: usize, max_members: usize) -> (u64, Vec<ReaperPlan>) {
+        let state = self.lock_state();
+        let mut remaining = max_members;
+        let mut groups_inspected = 0_u64;
+        let mut plans = Vec::new();
+        for group in state
+            .groups
+            .values()
+            .filter(|group| group.state == ProcessGroupState::Draining)
+            .take(max_groups)
+        {
+            groups_inspected = groups_inspected.saturating_add(1);
+            let handles = if remaining == 0 {
+                Vec::new()
+            } else {
+                let handles = group
+                    .members
+                    .values()
+                    .take(remaining)
+                    .map(|member| member.handle)
+                    .collect::<Vec<_>>();
+                remaining -= handles.len();
+                handles
+            };
+            plans.push(ReaperPlan {
+                id: group.id,
+                generation: group.generation,
+                handles,
+            });
+        }
+        (groups_inspected, plans)
     }
 
     fn lock_state(&self) -> MutexGuard<'_, GroupBookState> {
@@ -619,23 +677,16 @@ impl ProcessReaper {
         budget: ReaperBudget,
         mut observe: impl FnMut(ProcessHandle) -> ReaperObservation,
     ) -> ReaperReport {
-        let plans = self.groups.draining_plans(budget.max_groups);
+        let (groups_inspected, plans) = self
+            .groups
+            .reaper_plans(budget.max_groups, budget.max_members);
         let mut report = ReaperReport {
-            groups_inspected: plans.len() as u64,
+            groups_inspected,
             ..ReaperReport::default()
         };
-        let mut remaining = budget.max_members;
         for plan in plans {
-            for raw in &plan.handles {
-                if remaining == 0 {
-                    return report;
-                }
-                remaining -= 1;
+            for handle in plan.handles {
                 report.members_inspected = report.members_inspected.saturating_add(1);
-                let Some(handle) = ProcessHandle::from_raw(*raw) else {
-                    report.errors = report.errors.saturating_add(1);
-                    continue;
-                };
                 match observe(handle) {
                     ReaperObservation::Pending => {
                         report.pending = report.pending.saturating_add(1);
@@ -644,16 +695,13 @@ impl ProcessReaper {
                         report.unavailable = report.unavailable.saturating_add(1);
                     }
                     ReaperObservation::Terminal(outcome) => {
-                        match self.groups.mark_terminal(
-                            plan_id(&plan),
+                        match self.groups.mark_terminal_and_reap(
+                            plan.id,
                             plan.generation,
                             handle,
                             outcome,
                         ) {
-                            Ok(_) => match self.groups.reap_member(plan_id(&plan), handle) {
-                                Ok(_) => report.reaped = report.reaped.saturating_add(1),
-                                Err(_) => report.errors = report.errors.saturating_add(1),
-                            },
+                            Ok(()) => report.reaped = report.reaped.saturating_add(1),
                             Err(_) => report.errors = report.errors.saturating_add(1),
                         }
                     }
@@ -697,6 +745,29 @@ fn terminal_state(outcome: MemberTerminal) -> GroupMemberState {
     }
 }
 
+fn mark_terminal_member(
+    group: &mut ProcessGroupRecord,
+    handle: ProcessHandle,
+    outcome: MemberTerminal,
+) -> Result<(), ProcessGroupError> {
+    let member = group
+        .members
+        .get_mut(&handle.raw())
+        .ok_or(ProcessGroupError::UnknownMember)?;
+    if member.handle != handle {
+        return Err(ProcessGroupError::UnknownMember);
+    }
+    if member.state.is_terminal() {
+        return Err(ProcessGroupError::AlreadyTerminal);
+    }
+    member.state = terminal_state(outcome);
+    group.terminal_members = group.terminal_members.saturating_add(1);
+    if group.terminal_members == group.members.len() {
+        group.state = ProcessGroupState::Stopped;
+    }
+    Ok(())
+}
+
 fn snapshot(group: &ProcessGroupRecord) -> ProcessGroupSnapshot {
     ProcessGroupSnapshot {
         contract_version: PROCESS_GROUP_CONTRACT_VERSION,
@@ -726,8 +797,4 @@ fn termination_plan(group: &ProcessGroupRecord) -> ProcessGroupTerminationPlan {
         reason: group.reason.clone(),
         handles: group.members.keys().copied().collect(),
     }
-}
-
-fn plan_id(plan: &ProcessGroupTerminationPlan) -> ProcessGroupId {
-    ProcessGroupId::new(plan.group_id).expect("plans only contain valid group ids")
 }

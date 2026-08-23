@@ -55,6 +55,24 @@ fn public_view_excludes_private_metadata_and_truncates_description() {
 }
 
 #[test]
+fn hash_lookup_keeps_registration_order_across_overwrite_and_remove() {
+    let registry = MapRegistry::new(true);
+    assert!(registry.register(RegisterableSpec::new("first"), "fixture"));
+    assert!(registry.register(RegisterableSpec::new("second"), "fixture"));
+
+    let mut replacement = RegisterableSpec::new("first");
+    replacement.category = "updated".to_owned();
+    assert!(registry.register(replacement, "fixture"));
+    assert_eq!(registry.all_names(), ["first", "second"]);
+    assert_eq!(registry.get("first").unwrap().category, "updated");
+
+    assert!(registry.unregister("first"));
+    assert_eq!(registry.all_names(), ["second"]);
+    assert_eq!(registry.clear(), 1);
+    assert!(registry.all_names().is_empty());
+}
+
+#[test]
 fn shared_registry_vectors_match_python_reference() {
     let vector: RegistryVector = serde_json::from_str(include_str!(
         "../../../tests/fixtures/kernel_registry_base_vectors.json"

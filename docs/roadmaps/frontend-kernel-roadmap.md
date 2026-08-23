@@ -281,6 +281,14 @@ HOLD、GROW/SHRINK 限幅、慢任务 `GROW_FAST`、cooldown、reset 和稳定 r
 达到 127 项。handler 闭包、领域 registry、发现/boot 注册和 runtime routing 仍由
 Python/适配器持有；该候选不接入 Port、boot 或生产执行权威，也不解除 G3/G6。
 
+随后完成 `registry_base` 热路径切片：内部改为 hash index + 显式 order vector，重复注册与
+`get` 不再扫描整个 descriptor 列表，覆盖不改变注册位置，公开列表/分类视图仍保持注册顺序。
+独立 `registry_base` 测试覆盖覆盖、删除和 clear 后的顺序不变量；`registry.base.lookup` runner
+按 4096 items、1/2/4 workers、3 rounds 输出统一 v3 吞吐、p95/p99、CPU/RSS 证据。一次本地
+release 样本的派生吞吐中位数约为 1.51M/1.52M/0.90M ops/s，零拒绝/错误；该数字仅是候选
+基线，不代表相对旧 Vec 的稳定提升，需同规格旧实现对照后才可推进策略升级。handler 闭包、
+领域 registry、发现/boot 注册和 runtime routing 仍留在 Python/适配器边界。
+
 随后完成 `identity_uid` 值边界候选：Rust 镜像前缀/长度校验、调用方注入的熵候选、
 有界碰撞重试、已存在 UID 追踪与 reset；共享 `kernel_identity_uid_vectors.json` 在
 Python/Rust 两侧通过。随机熵、持久化 binding 和身份签发权威仍由 Python 持有；该候选
@@ -639,6 +647,23 @@ binding 泄漏。它是未来 caller-owned reaper 的机制接缝，不启动后
 `tests/process_group.rs` 覆盖容量、重复归属、leader、stale generation、终态、序列化和固定工作回收。
 该片仍不发送 OS signal、不创建 PTY、不启动后台 reaper、不接管 ProcessTable/AgentLoop/Provider 或
 shutdown authority；它只闭合后续 PTY/process-group adapter 所需的 Rust 机制前置边界。
+
+随后在独立 Rust 测试域新增 `process_group_runtime::ProcessGroupRuntime` 协调候选：将
+`ManagedProcessBook` 的 OS child 生命周期与 `ProcessGroupBook` 的唯一归属绑定，active 组之外拒绝
+spawn，容量拒绝时先 terminate/reap 已创建 child，再返回失败；非阻塞 sweep 与显式 timeout sweep
+均要求 managed slot 和 group member 双重回收后才发布 terminal outcome。`tests/process_group_runtime.rs`
+覆盖固定成员预算、自然退出、取消、admission rollback 与 not-found。该候选仍不创建 PTY、不发送
+OS process-group signal、不注册 ProcessTable、不启动后台 reaper，也不授予 AgentLoop、Provider、
+shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观测证据。
+
+随后完成 process-group reaper 热路径优化：`ProcessGroupBook` 以终态成员计数替代每次
+`mark_terminal` 的全成员扫描，`ProcessReaper::sweep` 使用不生成 snapshot 的
+`mark_terminal_and_reap` 快路径，并按本轮 `max_members` 只选择有界 handle 前缀，避免
+复制未观察成员；runner 固定使用 64-member sweep budget，多轮完成全部固定工作。
+独立 `process.group.reaper` fixed-work runner 与
+`rust-process-group-bench` binary 按 4096 items、1/2/4 workers、3 rounds 输出统一 v3
+吞吐、尾延迟和资源证据；它只测 caller-owned 机制回收，不改变 PTY、OS process-group signal、
+ProcessTable、AgentLoop 或 shutdown authority 的边界。
 
 ---
 

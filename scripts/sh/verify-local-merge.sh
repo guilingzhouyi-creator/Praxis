@@ -58,6 +58,29 @@ fi
 
 echo "[local-merge] branch: $BRANCH (target: local main)"
 
+# ── Sensitive-path hunk audit ───────────────────────────────────────────
+# Roadmaps and discovery registries are stateful; a stale branch snapshot
+# must not replace either tree as one opaque hunk. Keep this before the
+# quantitative gate so an otherwise-qualifying branch cannot bypass review.
+HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+if [ ! -f "$HUNK_AUDIT" ]; then
+  echo "[local-merge] ERROR: $HUNK_AUDIT not found" >&2
+  exit 3
+fi
+echo "[local-merge] ── sensitive-path hunk audit (main..$BRANCH) ──"
+python "$HUNK_AUDIT" --base main --head "$BRANCH" --check
+HUNK_RC=$?
+if [ "$HUNK_RC" -ne 0 ]; then
+  if [ "$HUNK_RC" -eq 2 ]; then
+    echo "[local-merge] ❌ hunk audit tooling failed." >&2
+    exit 3
+  fi
+  echo "[local-merge] ❌ sensitive-path hunk audit rejected the branch." >&2
+  echo "[local-merge]    Review docs/roadmaps/ and config/discovery/ hunks before merging." >&2
+  exit 1
+fi
+echo "[local-merge] ✅ sensitive-path hunk audit passed"
+
 # ── Commit audit — every commit on the branch must pass commit_scan ──────
 SCAN="scripts/py/commit_scan.py"
 if [ -f "$SCAN" ]; then
@@ -79,8 +102,11 @@ if [ ! -f "$GATE" ]; then
   exit 3
 fi
 
-MAIN_BASE=main bash "$GATE" "$BRANCH"
-RC=$?
+if MAIN_BASE=main bash "$GATE" "$BRANCH"; then
+  RC=0
+else
+  RC=$?
+fi
 
 # ── Anti "forgot the tests" — judge test-state notice (soft) ────────────
 # If the most recent judge run skipped the tests dimension, surface it

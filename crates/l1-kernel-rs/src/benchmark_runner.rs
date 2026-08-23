@@ -11,6 +11,10 @@ use crate::managed_process::{ManagedProcessBook, ManagedWaitResult};
 use crate::process::{ProcessTable, ProcessTableConfig};
 use crate::process_adapter::{ProcessAdapter, ProcessAdapterConfig};
 use crate::process_bridge::ProcessTableBridge;
+use crate::process_group::{
+    MemberTerminal, ProcessGroupBook, ProcessReaper, ReaperBudget, ReaperObservation,
+};
+use crate::registry_base::{MapRegistry, RegisterableSpec};
 use crate::session::{SESSION_MAX_MESSAGES, SessionBook, SessionInput, SessionSpec};
 use crate::state_queue::{BoundedWorkQueue, WorkItem};
 use crate::substrate::{ProcessHandle, QueueMetrics};
@@ -25,6 +29,7 @@ const CONSUMER_BATCH_SIZE: usize = 32;
 const WORKER_POOL_IDLE_TIMEOUT_MS: u64 = 100;
 const PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const MANAGED_PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
+const PROCESS_GROUP_SWEEP_MEMBER_BUDGET: usize = 64;
 
 #[derive(Debug, Clone, Copy, Default)]
 struct ResourceSnapshot {
@@ -201,6 +206,25 @@ pub fn run_session_book_batch(
     Ok(report)
 }
 
+/// Run a fixed-total declarative registry registration and lookup sweep.
+///
+/// Each item registers a unique descriptor and immediately resolves it again.
+/// Registration order remains an observable output invariant, while the
+/// internal name lookup is measured through the Rust-native hash index.
+pub fn run_registry_base(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "registry work does not fit the target architecture")?;
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_registry_base_round(total_work, worker_count, round)?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
 /// Run a fixed-total logical AgentLoop input-admission sweep.
 ///
 /// One loop/session/terminal identity is shared by the worker sweep so the
@@ -350,6 +374,128 @@ pub fn run_process_bridge(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'stat
     }
     report.validate_complete()?;
     Ok(report)
+}
+
+/// Run a fixed-total caller-owned process-group reaper sweep.
+///
+/// Each worker owns an independent group so the fixed-work report measures
+/// group-member terminal admission and reaping under the requested worker
+/// count. No OS child, PTY, process-group signal, or background reaper is
+/// involved; this is a mechanism-only lock/contention workload.
+pub fn run_process_group(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "process-group work does not fit the target architecture")?;
+    if total_work == 0 {
+        return Err("process-group work must be positive");
+    }
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count =
+            usize::try_from(workers).map_err(|_| "process-group worker count is not supported")?;
+        if worker_count == 0 || worker_count > total_work {
+            return Err("process-group worker count must not exceed fixed work");
+        }
+        for round in 0..spec.rounds {
+            report.push(run_process_group_round(total_work, worker_count, round)?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+fn run_process_group_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+) -> Result<BenchmarkSample, &'static str> {
+    let base = total_work / worker_count;
+    let remainder = total_work % worker_count;
+    let mut workers = Vec::with_capacity(worker_count);
+    for worker in 0..worker_count {
+        let member_count = base + usize::from(worker < remainder);
+        let groups = Arc::new(
+            ProcessGroupBook::new(1, member_count)
+                .map_err(|_| "process-group book creation failed")?,
+        );
+        let group = groups
+            .create(
+                format!("bench-process-group-{round:02}-{worker:02}"),
+                None,
+                None,
+            )
+            .map_err(|_| "process-group creation failed")?;
+        for slot in 0..member_count {
+            let handle = ProcessHandle::new((slot + 1) as u32, 1)
+                .ok_or("process-group benchmark handle creation failed")?;
+            groups
+                .join(group, handle)
+                .map_err(|_| "process-group member admission failed")?;
+        }
+        let reaper = ProcessReaper::new(groups);
+        reaper
+            .request_stop(group, "fixed-work benchmark")
+            .map_err(|_| "process-group stop planning failed")?;
+        workers.push((reaper, group, member_count));
+    }
+
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut threads = Vec::with_capacity(worker_count);
+    for (reaper, group, member_count) in workers {
+        threads.push(thread::spawn(move || {
+            let operation_started = Instant::now();
+            let mut reaped = 0_u64;
+            while reaped < member_count as u64 {
+                let remaining = member_count as u64 - reaped;
+                let member_budget =
+                    remaining.min(PROCESS_GROUP_SWEEP_MEMBER_BUDGET as u64) as usize;
+                let report = reaper.sweep(
+                    ReaperBudget::new(1, member_budget)
+                        .map_err(|_| "process-group benchmark budget is invalid")?,
+                    |_handle| ReaperObservation::Terminal(MemberTerminal::Exited(0)),
+                );
+                if report.groups_inspected != 1
+                    || report.pending != 0
+                    || report.unavailable != 0
+                    || report.errors != 0
+                    || report.reaped == 0
+                {
+                    return Err("process-group benchmark did not preserve bounded progress");
+                }
+                reaped = reaped.saturating_add(report.reaped);
+            }
+            if reaped != member_count as u64 {
+                return Err("process-group benchmark did not preserve fixed work");
+            }
+            let _ = group;
+            Ok::<_, &'static str>(operation_started.elapsed().as_nanos().max(1) as u64)
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(worker_count);
+    for thread in threads {
+        latencies.push(
+            thread
+                .join()
+                .map_err(|_| "process-group benchmark worker panicked")??,
+        );
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns: 0,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
 }
 
 fn run_managed_process_round(
@@ -1058,6 +1204,77 @@ fn run_session_book_batch_round(
         elapsed_ns,
         p95_latency_ns: percentile(&batch_latencies, P95_PERCENT),
         p99_latency_ns: percentile(&batch_latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns: 0,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_registry_base_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+) -> Result<BenchmarkSample, &'static str> {
+    let registry = Arc::new(MapRegistry::new(false));
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for worker in 0..worker_count {
+        let registry = Arc::clone(&registry);
+        let next_work = Arc::clone(&next_work);
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                let name = format!("bench-registry-{round:02}-{worker:02}-{work_index:08}");
+                let mut spec = RegisterableSpec::new(name.clone());
+                spec.category = if work_index.is_multiple_of(2) {
+                    "even".to_owned()
+                } else {
+                    "odd".to_owned()
+                };
+                if !registry.register(spec, "fixed-work benchmark") {
+                    return Err("registry benchmark registration was rejected");
+                }
+                if registry.get(&name).is_none() {
+                    return Err("registry benchmark lookup missed a registered item");
+                }
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>(latencies)
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(total_work);
+    for worker in workers {
+        latencies.extend(
+            worker
+                .join()
+                .map_err(|_| "registry benchmark worker panicked")??,
+        );
+    }
+    let stats = registry.stats();
+    if latencies.len() != total_work || stats.total != total_work || stats.registers != total_work {
+        return Err("registry benchmark did not preserve fixed work");
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
         queue_wait_ns: 0,
         lock_wait_ns: 0,
         rejected: 0,

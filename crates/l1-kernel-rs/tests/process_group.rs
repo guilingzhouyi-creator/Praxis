@@ -152,6 +152,22 @@ fn stale_and_duplicate_terminal_observations_fail_closed() {
 }
 
 #[test]
+fn mark_terminal_and_reap_fast_path_releases_member_ownership() {
+    let groups = book();
+    let process = handle(13, 4);
+    let group = groups
+        .create("fast-reap", Some(process), None)
+        .expect("create");
+    let plan = groups.begin_termination(group, "fast path").expect("plan");
+    groups
+        .mark_terminal_and_reap(group, plan.generation, process, MemberTerminal::Exited(0))
+        .expect("mark and reap");
+    assert_eq!(groups.member_count(group), Ok(0));
+    assert_eq!(groups.group_for_handle(process), None);
+    assert_eq!(groups.state(group), Ok(ProcessGroupState::Stopped));
+}
+
+#[test]
 fn terminal_outcomes_are_bounded_and_snapshot_round_trips() {
     let groups = book();
     let failed = handle(20, 1);
@@ -218,6 +234,39 @@ fn reaper_sweep_is_fixed_work_and_reaps_terminal_members() {
     let remaining = groups.snapshot(group).expect("remaining");
     assert_eq!(remaining.members.len(), 2);
     assert_eq!(remaining.state, ProcessGroupState::Draining);
+}
+
+#[test]
+fn reaper_budget_limits_handle_selection_but_inspects_all_selected_groups() {
+    let groups = book();
+    let first = handle(33, 1);
+    let second = handle(34, 1);
+    let first_group = groups
+        .create("first", Some(first), None)
+        .expect("first group");
+    let second_group = groups
+        .create("second", Some(second), None)
+        .expect("second group");
+    groups
+        .join(first_group, handle(35, 1))
+        .expect("first member");
+    groups
+        .join(second_group, handle(36, 1))
+        .expect("second member");
+    let reaper = ProcessReaper::new(Arc::clone(&groups));
+    reaper
+        .request_stop(first_group, "bounded")
+        .expect("stop first");
+    reaper
+        .request_stop(second_group, "bounded")
+        .expect("stop second");
+    let report = reaper.sweep(ReaperBudget::new(2, 1).expect("budget"), |_| {
+        ReaperObservation::Terminal(MemberTerminal::Exited(0))
+    });
+    assert_eq!(report.groups_inspected, 2);
+    assert_eq!(report.members_inspected, 1);
+    assert_eq!(report.reaped, 1);
+    assert_eq!(report.errors, 0);
 }
 
 #[test]
