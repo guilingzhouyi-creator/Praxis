@@ -2,16 +2,19 @@
 //!
 //! The dispatch layer is the wire boundary of the future Rust protocol host.
 //! It routes a decoded v1 envelope KIND-BY-KIND while keeping the L1/L2
-//! authority rules: L1-side operations (commands and `$`-style system,
-//! status, health, process/fs operations) resolve through the capability
-//! gate after gatechain ring/danger adjudication; intent and L3A traffic
-//! passes through to an opaque L3 upstream pipe; ack and control messages
-//! resolve through the session and outbox registries. Event, Result, and
-//! StreamChunk envelopes are outbound-only and rejected at the inbound
-//! boundary.
+//! authority rules (see docs/architecture/l2-shell-engine.md rulings):
+//! R4 — host-derived authorization fields never travel on the wire and are
+//! rejected before routing; ring/danger MAY be declared as gate inputs but
+//! confer no approval. R7 — gate denials, unregistered commands, and
+//! unwired executors produce `result{success:false}` envelopes (recorded in
+//! the session outbox); only protocol-level violations (banned fields,
+//! outbound-only kinds, buffer overflow) fail at the transport layer.
+//! L1-side operations resolve through the capability gate after gatechain
+//! ring/danger adjudication; intent and L3A traffic passes through to an
+//! opaque L3 upstream pipe; ack and control messages resolve through the
+//! session and outbox registries.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
@@ -33,6 +36,10 @@ pub const SYSTEM_TOOL: &str = "__system";
 pub const SYSTEM_RING_RISK: u8 = 3;
 /// System-class command names resolved through the gatechain.
 pub const SYSTEM_COMMANDS: [&str; 5] = ["__system", "status", "health", "ps", "fs"];
+/// Host-derived authorization fields banned from inbound payloads (R4):
+/// approval authority is adapter-injected, never wire-declared.
+pub const HOST_DERIVED_FIELDS: [&str; 4] =
+    ["approved", "pre_approved", "full_power", "harness_auto_approved"];
 /// Default terminal identifier for a control attach without a binding.
 pub const DEFAULT_TERMINAL_ID: &str = "terminal";
 /// Default process identifier for a control attach without a binding.
@@ -84,23 +91,20 @@ pub struct HostRouter {
     registered: Mutex<BTreeSet<String>>,
     pending_intents: Mutex<VecDeque<Message>>,
     upstream: Mutex<Option<Arc<dyn L3Upstream>>>,
-    response_seq: AtomicU64,
+    /// Per-session response sequence counters (R2): monotonic per session,
+    /// never process-global.
+    response_seqs: Mutex<BTreeMap<String, u64>>,
 }
 
 impl HostRouter {
     /// Build a router with an explicit configuration.
+    ///
+    /// The capability authority starts UNWIRED: every command is answered
+    /// with a fail-closed denial envelope until a boot adapter registers an
+    /// executor via [`Self::register_executor`] (R7).
     pub fn new(config: RouterConfig) -> Self {
         let audit = Arc::new(AuditLog::new());
         let authority = Arc::new(CapabilityAuthority::with_audit(Arc::clone(&audit)));
-        authority.register_executor(|request| CapabilityResult {
-            success: true,
-            error: String::new(),
-            capability: request.name.clone(),
-            data: JsonObject::from([(
-                "echo".to_owned(),
-                JsonValue::String(format!("echo:{}", request.name)),
-            )]),
-        });
         let gatechain = GateChain::with_policy(GatePolicy {
             escalation_danger: SYSTEM_RING_RISK,
             ..GatePolicy::default()
@@ -117,12 +121,16 @@ impl HostRouter {
             registered: Mutex::new(registered),
             pending_intents: Mutex::new(VecDeque::new()),
             upstream: Mutex::new(None),
-            response_seq: AtomicU64::new(0),
+            response_seqs: Mutex::new(BTreeMap::new()),
         }
     }
 
     /// Route one decoded envelope by kind, returning any outbound responses.
     pub fn route(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        match message.kind {
+            MessageKind::Command | MessageKind::Control => reject_host_derived(&message.payload)?,
+            _ => {}
+        }
         match message.kind {
             MessageKind::Command => {
                 let name = message
@@ -174,11 +182,12 @@ impl HostRouter {
                 verdict.decision.as_str()
             );
             self.audit_dispatch("system", &agent_id, &name, ring, false, &reason);
-            let _ = self.audit.flush();
-            return Err(ProtocolError::InvalidContract(reason));
+            let response = self.denial_envelope(&message, &reason);
+            self.lock_outboxes()
+                .append(&message.session_id, response.clone());
+            return Ok(vec![response]);
         }
         self.audit_dispatch("system", &agent_id, &name, ring, true, "");
-        let _ = self.audit.flush();
         let request = CapabilityRequest {
             agent_id,
             name: name.clone(),
@@ -208,18 +217,12 @@ impl HostRouter {
             })?;
         if SYSTEM_COMMANDS.contains(&name.as_str()) {
             let agent_id = self.agent_id_for(&message.session_id);
-            self.audit_dispatch(
-                "command",
-                &agent_id,
-                &name,
-                0,
-                false,
-                "system command requires ring adjudication",
-            );
-            let _ = self.audit.flush();
-            return Err(ProtocolError::InvalidContract(format!(
-                "system command {name} requires ring adjudication"
-            )));
+            let reason = "system command requires ring adjudication".to_owned();
+            self.audit_dispatch("command", &agent_id, &name, 0, false, &reason);
+            let response = self.denial_envelope(&message, &format!("system command {name} {reason}"));
+            self.lock_outboxes()
+                .append(&message.session_id, response.clone());
+            return Ok(vec![response]);
         }
         let agent_id = self.agent_id_for(&message.session_id);
         {
@@ -233,10 +236,11 @@ impl HostRouter {
                     false,
                     "unregistered command",
                 );
-                let _ = self.audit.flush();
-                return Err(ProtocolError::InvalidContract(format!(
-                    "unregistered command: {name}"
-                )));
+                let response =
+                    self.denial_envelope(&message, &format!("unregistered command: {name}"));
+                self.lock_outboxes()
+                    .append(&message.session_id, response.clone());
+                return Ok(vec![response]);
             }
         }
         let request = CapabilityRequest {
@@ -256,7 +260,6 @@ impl HostRouter {
             result.success,
             &result.error,
         );
-        let _ = self.audit.flush();
         let response = self.response_envelope(&message, &result);
         self.lock_outboxes()
             .append(&message.session_id, response.clone());
@@ -342,7 +345,6 @@ impl HostRouter {
             ))),
         };
         self.audit_outcome(&result, "control", &agent_id, &op, 0);
-        let _ = self.audit.flush();
         result
     }
 
@@ -435,7 +437,6 @@ impl HostRouter {
         let agent_id = self.agent_id_for(&message.session_id);
         let result = self.apply_ack(&message);
         self.audit_outcome(&result, "ack", &agent_id, "ack", 0);
-        let _ = self.audit.flush();
         result
     }
 
@@ -443,7 +444,6 @@ impl HostRouter {
         let agent_id = self.agent_id_for(&message.session_id);
         let result = self.forward_intent(message);
         self.audit_outcome(&result, "intent", &agent_id, "intent", 0);
-        let _ = self.audit.flush();
         result
     }
 
@@ -544,9 +544,23 @@ impl HostRouter {
             ("success".to_owned(), Value::Bool(result.success)),
             ("output".to_owned(), Value::String(output)),
         ]);
+        self.envelope(request, payload)
+    }
+
+    /// Fail-closed denial envelope (R7): rejections travel as structured
+    /// results so clients never wait on a transport-level error.
+    fn denial_envelope(&self, request: &Message, error: &str) -> Message {
+        let payload = BTreeMap::from([
+            ("success".to_owned(), Value::Bool(false)),
+            ("error".to_owned(), Value::String(error.to_owned())),
+        ]);
+        self.envelope(request, payload)
+    }
+
+    fn envelope(&self, request: &Message, payload: BTreeMap<String, Value>) -> Message {
         Message::new(
             request.session_id.clone(),
-            self.next_response_seq(),
+            self.next_response_seq(&request.session_id),
             MessageKind::Result,
             payload,
             request.trace_id.clone().unwrap_or_default(),
@@ -554,10 +568,18 @@ impl HostRouter {
         )
     }
 
-    fn next_response_seq(&self) -> u64 {
-        self.response_seq
-            .fetch_add(1, Ordering::SeqCst)
-            .saturating_add(1)
+    /// Next outbound sequence for one session (R2): per-session monotonic.
+    fn next_response_seq(&self, session_id: &str) -> u64 {
+        let mut seqs = self.lock_response_seqs();
+        let counter = seqs.entry(session_id.to_owned()).or_insert(0);
+        *counter = counter.saturating_add(1);
+        *counter
+    }
+
+    fn lock_response_seqs(&self) -> MutexGuard<'_, BTreeMap<String, u64>> {
+        self.response_seqs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -616,4 +638,18 @@ fn target_session(message: &Message) -> String {
 
 fn outbound_only(kind: &str) -> ProtocolError {
     ProtocolError::InvalidContract(format!("outbound-only message kind: {kind}"))
+}
+
+/// R4: reject inbound payloads carrying host-derived authorization fields.
+/// Approval authority is injected by identity/posture adapters at the
+/// GateRequest boundary; a wire declaration must never confer it.
+fn reject_host_derived(payload: &BTreeMap<String, Value>) -> Result<(), ProtocolError> {
+    for field in HOST_DERIVED_FIELDS {
+        if payload.contains_key(field) {
+            return Err(ProtocolError::InvalidContract(format!(
+                "payload carries host-derived authorization field: {field}"
+            )));
+        }
+    }
+    Ok(())
 }

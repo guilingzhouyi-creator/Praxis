@@ -1,13 +1,16 @@
 //! Host dispatch integration tests: kind-by-kind routing matrix, ring-gated
-//! system commands (boundary audit B4), persistent audit rows, L3 upstream
-//! passthrough, session registry effects, and a canonical Result response
-//! golden vector.
+//! system commands (boundary audit B4), conformance rulings R2/R4/R7
+//! (per-session response seq, banned authorization fields, denial-as-envelope),
+//! persistent audit rows, L3 upstream passthrough, session registry effects,
+//! and a canonical Result response golden vector.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use l1_kernel_rs::contract::CapabilityResult;
-use l1_kernel_rs::host_dispatch::{HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS};
+use l1_kernel_rs::contract::{CapabilityResult, JsonValue};
+use l1_kernel_rs::host_dispatch::{
+    HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS,
+};
 use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
 use l1_kernel_rs::session_lifecycle::SessionLifecycle;
 use serde_json::json;
@@ -23,14 +26,11 @@ fn command(name: &str, session_id: &str, seq: u64) -> Message {
     )
 }
 
-fn system_command(name: &str, ring: u8, approved: bool, session_id: &str, seq: u64) -> Message {
-    let mut payload = BTreeMap::from([
+fn system_command(name: &str, ring: u8, session_id: &str, seq: u64) -> Message {
+    let payload = BTreeMap::from([
         ("name".to_owned(), json!(name)),
         ("ring".to_owned(), json!(ring)),
     ]);
-    if approved {
-        payload.insert("approved".to_owned(), json!(true));
-    }
     Message::new(session_id, seq, MessageKind::Command, payload, "", 100.0)
 }
 
@@ -54,6 +54,20 @@ fn control(op: &str, session_id: &str, view_id: Option<&str>, seq: u64) -> Messa
         payload.insert("view_id".to_owned(), json!(view));
     }
     Message::new(session_id, seq, MessageKind::Control, payload, "", 100.0)
+}
+
+/// Echo executor mirroring the historical default so success-path vectors
+/// stay stable — but it is now EXPLICITLY wired per test (fail-closed R7).
+fn wire_echo_executor(router: &HostRouter) {
+    router.register_executor(|request| CapabilityResult {
+        success: true,
+        error: String::new(),
+        capability: request.name.clone(),
+        data: BTreeMap::from([(
+            "echo".to_owned(),
+            JsonValue::String(format!("echo:{}", request.name)),
+        )]),
+    });
 }
 
 struct RecordingUpstream {
@@ -80,9 +94,10 @@ impl L3Upstream for RecordingUpstream {
 }
 
 #[test]
-fn command_approved_dispatches_through_capability_gate() {
+fn command_with_wired_executor_dispatches_through_capability_gate() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
+    wire_echo_executor(&router);
     let responses = router
         .route(command("hello", "s-1", 7))
         .expect("dispatches");
@@ -92,6 +107,25 @@ fn command_approved_dispatches_through_capability_gate() {
     assert_eq!(responses[0].payload["output"], json!("echo:hello"));
     assert_eq!(responses[0].session_id, "s-1");
     assert_eq!(responses[0].seq, 1);
+}
+
+#[test]
+fn unwired_executor_answers_fail_closed_denial_envelope() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("hello");
+    let responses = router.route(command("hello", "s-1", 7)).expect("dispatches");
+    assert_eq!(responses[0].payload["success"], json!(false));
+    assert_eq!(
+        responses[0].payload["output"],
+        json!("no execution authority (fail-closed)")
+    );
+    let denied = router
+        .audit()
+        .query(10, None)
+        .into_iter()
+        .find(|row| row.op == "dispatch.command" && !row.success)
+        .expect("denied audit row");
+    assert!(denied.error.contains("fail-closed"));
 }
 
 #[test]
@@ -119,12 +153,16 @@ fn command_denied_by_executor_is_wrapped_as_failed_result() {
 }
 
 #[test]
-fn unknown_command_fails_closed_and_is_audited() {
+fn unknown_command_answers_denial_envelope_and_is_audited() {
     let router = HostRouter::new(RouterConfig::default());
-    let error = router
-        .route(command("nonsense", "s-1", 7))
-        .expect_err("unregistered command fails closed");
-    assert!(error.to_string().contains("unregistered command: nonsense"));
+    let responses = router.route(command("nonsense", "s-1", 7)).expect("envelope");
+    assert_eq!(responses[0].kind, MessageKind::Result);
+    assert_eq!(responses[0].payload["success"], json!(false));
+    assert_eq!(
+        responses[0].payload["error"],
+        json!("unregistered command: nonsense")
+    );
+    // The denial is retained in the session outbox for recovery replay.
     assert!(
         !router
             .registered_commands()
@@ -147,12 +185,15 @@ fn unknown_command_fails_closed_and_is_audited() {
 }
 
 #[test]
-fn system_ring3_without_approval_is_denied_and_audited() {
+fn system_ring3_without_approval_yields_gatechain_denial_envelope() {
     let router = HostRouter::new(RouterConfig::default());
-    let error = router
-        .route(system_command("status", 3, false, "s-1", 1))
-        .expect_err("ring 3 without approval is denied");
-    assert!(error.to_string().contains("blocked by gatechain (BLOCK)"));
+    let responses = router
+        .route(system_command("status", 3, "s-1", 1))
+        .expect("denial travels as an envelope");
+    assert_eq!(responses[0].kind, MessageKind::Result);
+    assert_eq!(responses[0].payload["success"], json!(false));
+    let error = responses[0].payload["error"].as_str().expect("error text");
+    assert!(error.contains("blocked by gatechain (BLOCK)"), "{error}");
     let denied = router
         .audit()
         .query(20, None)
@@ -166,14 +207,60 @@ fn system_ring3_without_approval_is_denied_and_audited() {
 }
 
 #[test]
-fn system_ring3_with_approval_passes_and_ring1_is_safe() {
+fn r4_banned_authorization_fields_are_rejected_before_routing() {
     let router = HostRouter::new(RouterConfig::default());
-    let approved = router
-        .route(system_command("status", 3, true, "s-1", 1))
-        .expect("ring 3 with approval passes");
-    assert_eq!(approved[0].payload["success"], json!(true));
+    for field in ["approved", "pre_approved", "full_power", "harness_auto_approved"] {
+        let mut payload = BTreeMap::from([
+            ("name".to_owned(), json!("status")),
+            ("ring".to_owned(), json!(3)),
+        ]);
+        payload.insert(field.to_owned(), json!(true));
+        let message = Message::new("s-1", 1, MessageKind::Command, payload, "", 100.0);
+        let error = router
+            .route(message)
+            .expect_err("wire approval must be rejected");
+        assert!(
+            error.to_string().contains("host-derived authorization"),
+            "{field}: {error}"
+        );
+        let control = Message::new(
+            "s-1",
+            2,
+            MessageKind::Control,
+            BTreeMap::from([
+                ("op".to_owned(), json!("attach")),
+                ("session_id".to_owned(), json!("s-1")),
+                (field.to_owned(), json!(true)),
+            ]),
+            "",
+            100.0,
+        );
+        let error = router.route(control).expect_err("control ban too");
+        assert!(error.to_string().contains("host-derived authorization"));
+    }
+}
+
+#[test]
+fn declared_ring_danger_still_route_as_gate_inputs() {
+    let router = HostRouter::new(RouterConfig::default());
+    let mut payload = BTreeMap::from([
+        ("name".to_owned(), json!("status")),
+        ("ring".to_owned(), json!(1)),
+        ("danger".to_owned(), json!(2)),
+    ]);
+    payload.insert("view_hint".to_owned(), json!("ignored"));
+    let message = Message::new("s-1", 1, MessageKind::Command, payload, "", 100.0);
+    let responses = router.route(message).expect("declaration routes");
+    // Unwired executor → fail-closed denial envelope, NOT transport error.
+    assert_eq!(responses[0].payload["success"], json!(false));
+}
+
+#[test]
+fn system_ring1_is_safe_when_executor_is_wired() {
+    let router = HostRouter::new(RouterConfig::default());
+    wire_echo_executor(&router);
     let safe = router
-        .route(system_command("health", 1, false, "s-1", 2))
+        .route(system_command("health", 1, "s-1", 2))
         .expect("ring 1 is safe by default");
     assert_eq!(safe[0].payload["success"], json!(true));
     let allowed = router
@@ -182,7 +269,6 @@ fn system_ring3_with_approval_passes_and_ring1_is_safe() {
         .into_iter()
         .find(|row| row.op == "dispatch.system" && row.success)
         .expect("allowed system audit row");
-    assert!(allowed.detail.contains("ring=3"));
     assert!(allowed.detail.contains("decision=allowed"));
 }
 
@@ -279,7 +365,8 @@ fn control_recovery_replays_the_session_outbox() {
     let replayed = router.route(recovery).expect("recovery replays the outbox");
     assert_eq!(replayed.len(), 1);
     assert_eq!(replayed[0].kind, MessageKind::Result);
-    assert_eq!(replayed[0].payload["success"], json!(true));
+    assert_eq!(replayed[0].payload["success"], json!(false));
+    assert_eq!(replayed[0].payload["output"], json!("no execution authority (fail-closed)"));
 }
 
 #[test]
@@ -351,6 +438,7 @@ fn intent_without_upstream_buffers_and_overflow_fails_closed() {
 fn command_agent_id_comes_from_session_or_system() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
+    wire_echo_executor(&router);
     router
         .route(control("attach", "s-1", Some("view-a"), 1))
         .expect("attach");
@@ -365,6 +453,7 @@ fn command_agent_id_comes_from_session_or_system() {
 
     let fresh = HostRouter::new(RouterConfig::default());
     fresh.register_command("hello");
+    wire_echo_executor(&fresh);
     fresh.route(command("hello", "s-9", 1)).expect("dispatch");
     let row = fresh
         .audit()
@@ -379,15 +468,16 @@ fn command_agent_id_comes_from_session_or_system() {
 fn audit_allowed_and_denied_dispatches_appear_with_correct_fields() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
+    wire_echo_executor(&router);
     router
         .route(command("hello", "s-1", 1))
         .expect("allowed command");
     router
-        .route(system_command("status", 3, false, "s-1", 2))
-        .expect_err("denied system command");
+        .route(system_command("status", 3, "s-1", 2))
+        .expect("gate denial envelope");
     router
         .route(command("nonsense", "s-1", 3))
-        .expect_err("unregistered command");
+        .expect("unregistered denial envelope");
     let rows = router.audit().query(20, None);
     let allowed = rows
         .iter()
@@ -395,7 +485,6 @@ fn audit_allowed_and_denied_dispatches_appear_with_correct_fields() {
         .expect("allowed command row");
     assert!(allowed.detail.contains("command=hello"));
     assert!(allowed.detail.contains("decision=allowed"));
-    assert!(allowed.success);
     let denied_system = rows
         .iter()
         .find(|row| row.op == "dispatch.system" && !row.success)
@@ -406,6 +495,7 @@ fn audit_allowed_and_denied_dispatches_appear_with_correct_fields() {
     let denied_unregistered = rows
         .iter()
         .find(|row| row.op == "dispatch.command" && !row.success)
+        .filter(|row| row.error.contains("unregistered"))
         .expect("denied unregistered row");
     assert!(denied_unregistered.error.contains("unregistered"));
     assert!(denied_unregistered.detail.contains("decision=denied"));
@@ -418,6 +508,7 @@ fn audit_allowed_and_denied_dispatches_appear_with_correct_fields() {
 fn result_response_golden_vector_matches_canonical_json() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
+    wire_echo_executor(&router);
     let responses = router.route(command("hello", "s-1", 7)).expect("dispatch");
     assert_eq!(responses.len(), 1);
     let line = encode_message(&responses[0]).expect("response encodes");
@@ -426,4 +517,17 @@ fn result_response_golden_vector_matches_canonical_json() {
         r#"{"kind":"result","payload":{"output":"echo:hello","success":true},"seq":1,"session_id":"s-1","trace_id":"","ts":100.0,"v":1}"#
     );
     assert_eq!(decode_message(&line).expect("decodes"), responses[0]);
+}
+
+#[test]
+fn response_seq_is_per_session_not_global() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("hello");
+    wire_echo_executor(&router);
+    let first_a = router.route(command("hello", "s-a", 1)).expect("a1");
+    let first_b = router.route(command("hello", "s-b", 1)).expect("b1");
+    let second_a = router.route(command("hello", "s-a", 2)).expect("a2");
+    assert_eq!(first_a[0].seq, 1, "session a starts at 1");
+    assert_eq!(first_b[0].seq, 1, "session b starts at its own 1 (R2)");
+    assert_eq!(second_a[0].seq, 2, "session a continues monotonically");
 }
