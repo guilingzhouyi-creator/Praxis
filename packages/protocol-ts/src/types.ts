@@ -38,6 +38,26 @@ export const CONTROL_OPS = ["attach","detach","resume","recovery","ack"] as cons
 /** Union of control operation names. */
 export type ControlOp = (typeof CONTROL_OPS)[number];
 
+/**
+ * Wire-contract constants are exempt from the params rule and inlined
+ * identically in all three implementations (ruling R8).
+ */
+/** Maximum accepted JSONL frame size per host (1 MiB, ruling R5). */
+export const MAX_FRAME_BYTES = 1024 * 1024 as const;
+/** Truncation cap applied to `$` system command output (rendering layer). */
+export const SYSTEM_OUTPUT_MAX_CHARS = 64_000 as const;
+/**
+ * Host-derived authorization fields banned from inbound payloads (R4):
+ * they are GateRequest inputs derived by identity/posture adapters and
+ * must never travel on the wire.
+ */
+export const HOST_DERIVED_FIELDS: readonly string[] = [
+  "approved",
+  "pre_approved",
+  "full_power",
+  "harness_auto_approved",
+] as const;
+
 // ── Per-kind payloads ─────────────────────────────────────────────────
 
 /** Acknowledgement: confirms receipt up to `ack_seq` for one view. */

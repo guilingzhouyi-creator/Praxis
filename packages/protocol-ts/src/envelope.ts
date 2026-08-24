@@ -23,7 +23,7 @@ export type { JsonObject, JsonValue } from "./records.ts";
 import type { JsonObject } from "./records.ts";
 import type { Message, MessageKind, DecodedMessage } from "./types.ts";
 import { canonicalJson } from "./records.ts";
-import { PROTOCOL_VERSION, OUTBOX_MAXLEN } from "./types.ts";
+import { PROTOCOL_VERSION, OUTBOX_MAXLEN, HOST_DERIVED_FIELDS } from "./types.ts";
 
 // ── Runtime helpers ────────────────────────────────────────────────────
 
@@ -57,6 +57,14 @@ const CONTROL_OPS_SET = new Set<string>(["attach", "detach", "resume", "recovery
 
 function validatePayload(kind: MessageKind, payload: JsonObject): string[] {
   const errors: string[] = [];
+  // R4: authorization fields are host-derived (adapter-injected GateRequest
+  // inputs); they never travel on the wire. ring/danger MAY be declared.
+  if (
+    (kind === "command" || kind === "control")
+    && HOST_DERIVED_FIELDS.some((field) => field in payload)
+  ) {
+    errors.push("payload carries host-derived authorization fields");
+  }
   if (kind === "command") {
     if (typeof payload.name !== "string" || payload.name.length === 0)
       errors.push("command payload requires a non-empty name");
