@@ -27,7 +27,7 @@ while the P1 findings below must be closed before the status changes to
 | Prompt management | Developer prompt overlays, version metadata, rollback, and baseline restoration | `l1.kernel.prompts` integration |
 | Prompt monitoring | Bypass observations are best-effort published through EventBus, ReferenceChannel, and StatsCenter | `prompt_monitor.py` |
 | Input privacy | Port contract exposes aggregate keyboard/pointer activity only; no key values or pointer coordinates are retained | `InputActivityPort` / `InputActivitySnapshot` |
-| Verification | Focused slice tests pass: 12 tests in engineering-debug and input-activity suites | `tests/l3/tool_system/` |
+| Verification | Focused slice tests pass: 13 tests in engineering-debug and input-activity suites | `tests/l3/tool_system/` |
 
 ## 3. Open work, ordered by priority
 

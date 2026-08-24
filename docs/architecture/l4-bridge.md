@@ -1,7 +1,7 @@
 # L4 — Bridge Layer
 
-The boundary: HTTP API (291 routes), LLM engine, realtime channels,
-sandbox, auth, filesystem, RPC. 107 files / 21,436 lines; 32 handler
+The boundary: HTTP API (368 routes), LLM engine, realtime channels,
+sandbox, auth, filesystem, RPC. 113 files / 23,539 lines; 34 handler
 modules.
 
 ## Responsibility boundary
@@ -15,10 +15,10 @@ modules.
 
 | Subsystem | Files | Role |
 |-----------|-------|------|
-| `api/` | gateway (route index + signature cache), routes (291), middleware, endpoints manifest (validate) | HTTP surface |
-| `api_handlers/` | 32 modules | dict-in/dict-out handlers per domain |
+| `api/` | gateway (route index + signature cache), routes (368), middleware, endpoints manifest (validate) | HTTP surface |
+| `api_handlers/` | 34 modules | dict-in/dict-out handlers per domain |
 | `llm/` | engine + providers (OpenAI/Anthropic/DeepSeek/Ollama/mock), `http_pool` keep-alive | model calls, effort-tier normalization, capability probes |
-| `sse/` | `sse_bridge.py` | one-way event stream (`/api/events`, event-type filter) |
+| `sse/` | `sse_bridge.py` | one-way event stream (`/api/v2/events`, event-type filter) |
 | `ws/` | `ws_bridge.py` (websockets.sync, `API_WS_PORT=8081`) | bidirectional: subscribe/unsubscribe/rpc messages |
 | `rpc/` | protocol + transport + `server.py` (`RPC_SERVER_PORT=42110`) | distributed method invocation |
 | `sandbox/` | COW isolation + exec sandbox (per-thread event loop) | safe tool execution |

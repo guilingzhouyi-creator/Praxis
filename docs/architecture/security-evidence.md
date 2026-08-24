@@ -1,6 +1,7 @@
 # L3 — Security Evidence Chain (attack-posture bypass audit)
 
-`l3/tool_system/security_evidence.py` records every attack-posture event as
+`l3/tool_system/security_evidence/` (package: core.py, facade.py, models.py)
+records every attack-posture event as
 deterministic, tamper-evident evidence chains and analyzes them into
 verdicts. It answers "was this offensive use *warranted*?" with a
 queryable, verifiable record — not a log line that can be argued away.

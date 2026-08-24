@@ -24,7 +24,7 @@
 | # | 发现 | 严重度 | 位置 |
 |---|---|---|---|
 | F1 | Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量——与 08-22 edc5caa6 TS 漂移同类 | 🔴 阻断 | `crates/l1-kernel-rs/src/protocol.rs:889` |
-| F2 | Rust 侧只有协议验证门（`protocol_host.rs` 不分派/不执行/不持会话）；`rust-protocol-gate` bin 为回声器 | 🟠 缺口 | 同上 + `bin/rust-protocol-gate.rs` |
+| F2 | Rust 侧只有协议验证门（`protocol_host.rs` 不分派/不执行/不持会话）；`rust-protocol-gate` bin 为回声器 | 🟠 缺口 | 同上 + `crates/l1-kernel-rs/src/bin/rust-protocol-gate.rs` |
 | F3 | 地基成熟度超预期：60 个 Rust 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS 传输缝环境变量选 host，零改动可换 | 🟢 利好 | `crates/l1-kernel-rs/src/` |
 
 ## 3. 阶段计划 D0–D3

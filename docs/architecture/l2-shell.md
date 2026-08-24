@@ -1,7 +1,7 @@
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 51 YAML commands + 63 `_cmd_*` handler functions (15 code-only),
+command engine — 51 YAML commands + 65 `_cmd_*` handler functions (17 code-only),
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model
@@ -88,7 +88,8 @@ invisible to `dispatch` and every shell dialect.
 - Engine contract: `dispatch(text, session=None) -> dict` (`|` pipeline,
   `/` commands, Direct mode, L3A intent)
 - L3A direct session routing: `_handle_direct` → `intent_parse` → card
-- Tool execution via the single gated capability seam (`l1.kernel.capability.invoke_capability`, wired at boot to the L3 ToolPipeline adapter)
+- Tool execution via the single gated capability seam
+  (`l1.kernel.capability.invoke_capability`, wired at boot to the L3 ToolPipeline adapter)
 - Event emission: shell state changes / human corrections
   (`reference_channel.human_correction` — a profile collector source)
 - HTTP contract (language-agnostic, see `l5-user.md`):
