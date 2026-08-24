@@ -122,3 +122,6 @@ docs/notes/随笔/
 
 # ── Claude Code local settings (personal runtime state, never committed) ──
 .claude/
+
+# ── Serena agent local runtime state (cache / memories / local config, never committed) ──
+.serena/

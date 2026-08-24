@@ -1,7 +1,7 @@
 # L1 — Kernel Layer
 
-The bare-metal kernel: what every upper layer builds on. 68 files /
-17,919 lines; 1,175 constants across 8 `params/` modules (mechanism-only —
+The bare-metal kernel: what every upper layer builds on. 69 files /
+18,635 lines; 1,213 constants across 8 `params/` modules (mechanism-only —
 see *Kernel surface boundary* below).
 
 ## Responsibility boundary
@@ -31,7 +31,7 @@ see *Kernel surface boundary* below).
 | `model_registry.py` / `commands.py` | Transition shims (WS5.2/5.3): implementations moved to `l4/llm/model_registry.py` / `l2/commands.py` |
 | `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
 | `prompts.py` | Transition shim (WS5.3): implementation moved to `l3/agent/prompts.py`; kernel keeps the import path for compat |
-| `params/*` | 1,175 compile-time constants — mechanism-only after WS5.4 (kernel/allocator/sync/gatechain/tool/system); business constants live in `l3/params.py` (agent/card-gate/review/scout) and `l4/params.py` (API/eval/diff/security-gate) |
+| `params/*` | 1,213 compile-time constants — mechanism-only after WS5.4 (kernel/allocator/sync/gatechain/tool/system); business constants live in `l3/params.py` (agent/card-gate/review/scout) and `l4/params.py` (API/eval/diff/security-gate) |
 
 
 ## Kernel surface boundary (Rust readiness)
@@ -47,7 +47,9 @@ capability-authority, G1-G5 gatechain, Constitution rule/evaluation shapes,
 provider-neutral VFS mount/cache mechanics, platform value/command descriptions,
 deployment path derivation, lifecycle FSM, schema versioning, ordered migration
 runner, pure load-adaptive control law, metadata-only registry base and summary,
-deterministic device bookkeeping, explicit health-result aggregation, memory-ring swap planning, and tool-call fingerprint chaining, but it remains candidate-only until a
+deterministic device bookkeeping, explicit health-result aggregation,
+memory-ring swap planning, and tool-call fingerprint chaining, but it remains
+candidate-only until a
 fixed-work performance evidence, semantic invariant vectors, and a
 cutover/recovery decision; the preflight branch keeps the Python kernel as its
 runtime implementation until the independent Rust build reaches R4/R5.

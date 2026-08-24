@@ -1,7 +1,7 @@
 # L3 — Memory System (4 rings + side-channels)
 
 How agents remember: operational rings, lossless archive, and the bypass
-side-channels (Mer / R5 / User Profile). 41 files / 8,545 lines.
+side-channels (Mer / R5 / User Profile). 47 files / 11,039 lines.
 
 ## Four-ring architecture
 
@@ -117,7 +117,7 @@ cases. See `cross-cutting.md` for the full injection table.
 ## Contract surface
 
 - `/api/v2/memory*` (store/recall/stats), `/api/v2/memory/graph*` (R5),
-  `/api/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
+  `/api/v2/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
 - `/api/v2/memory/filter` (M1 domain-filter switches),
   `/api/v2/memory/corpus` (M4 correction-corpus export),
   `/api/v2/memory/digest` (conversation digest cache),

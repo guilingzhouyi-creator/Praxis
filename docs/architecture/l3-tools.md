@@ -1,7 +1,7 @@
-# L3 — Tool Layer (72 definitions, 20 handlers + tool system)
+# L3 — Tool Layer (78 definitions, 22 handlers + tool system)
 
-The tool layer is what agents can do. 72 tool definitions live in
-`config/tools.yaml` (ring/danger/parameters); 20 handler modules in
+The tool layer is what agents can do. 78 tool definitions live in
+`config/tools.yaml` (ring/danger/parameters); 22 handler modules in
 `l3/tools/` produce structured dicts for the 9-step pipeline;
 `l3/tool_system/` (13 files) defines how tools are declared, registered,
 gated, and executed (plus the security evidence chain,
@@ -39,7 +39,7 @@ gated, and executed (plus the security evidence chain,
 | `tool_spec.py` | ToolSpec — plugin registration, `tools_*.py` auto-discovery, execution middleware, categories, JSON export |
 | `tool_registry.py` | ToolRegistry — MapRegistry-based: mute system, plugins, middleware |
 | `tool_policy.py` | 3-layer visibility (handler / LLM context / pipeline) — SESSION > AGENT > ROLE > CELL > GLOBAL; `require_approval` |
-| `tool_pipeline.py` | **9-step pipeline**: ring check → rate limit → constitution → GateChain G1–G5 → approval → execute → audit → record |
+| `tool_pipeline.py` | **9-step pipeline**: DVG prerequisites → clearance → approval → rate limit → constitution → GateChain G1–G5 → sandbox → execute → record |
 | `tool_params.py` | ParamSpec / ReturnSpec declarations with type validation |
 | `tool_mode.py` | global read/write mode (write = all rings, read = Ring 1 only) |
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
@@ -72,7 +72,7 @@ the G4 bypass are recorded via the injected L1 metric sink
 
 ## Config surface
 
-- `config/tools.yaml` — 68 tool definitions by ring layer (danger, params)
+- `config/tools.yaml` — 78 tool definitions by ring layer (danger, params)
 - `config/discovery/tool_registry.yaml` — optional runtime definitions using
   the API's `ToolConfig.register_from_dict` path; `deps`/`depends_on` are
   supported, ring/cap checks apply, and handlers stay inside `l3.tools.*`.

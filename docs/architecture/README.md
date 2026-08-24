@@ -15,8 +15,8 @@ flowchart TB
         TUI["TUI (contract-ready, not yet built)"]
     end
     subgraph L4["L4 Bridge"]
-        GW["API gateway 291 routes /api/v2/"]
-        SSE["SSE /api/events"]
+        GW["API gateway 368 routes /api/v2/"]
+        SSE["SSE /api/v2/events"]
         WS["WS bridge :8081 subscribe/rpc"]
         RPC["RPC server :42110"]
         LLM["LLM engine + providers"]
@@ -33,15 +33,15 @@ flowchart TB
         BUS["buses / scheduler / services"]
     end
     subgraph L2["L2 Shell"]
-        SH["51 YAML commands + 63 code / i18n / completer"]
+        SH["51 YAML commands + 17 code / i18n / completer"]
     end
     subgraph L1["L1 Kernel"]
         EVT["EventBus"]
         PROC["ProcessTable"]
         GATE["GateChain G1-G5"]
         CONST["Constitution"]
-        PORTS["Ports (15 ABC abstractions)"]
-        PARAMS["params: 1,057 constants"]
+        PORTS["Ports (18 ABC abstractions)"]
+        PARAMS["params: 1,213 constants"]
     end
 
     CLI --> GW
@@ -71,13 +71,13 @@ flowchart TB
 | Layer | Document | Responsibility |
 |-------|----------|----------------|
 | L5 | [l5-user.md](l5-user.md) | CLI entry, user-facing contract, TUI surface |
-| L4 | [l4-bridge.md](l4-bridge.md) | API gateway (291 routes), WS/SSE/RPC channels, sandbox, auth, fs |
+| L4 | [l4-bridge.md](l4-bridge.md) | API gateway (368 routes), WS/SSE/RPC channels, sandbox, auth, fs |
 | L4 | [l4-llm.md](l4-llm.md) | LLM providers, effort tiers, strategy packs, model_spec cascade |
 | L3 | [l3-module-map.md](l3-module-map.md) | **Reference contract**: directory x function x ownership-domain matrix, cross-directory family index, naming adjudications |
 | L3 | [l3-card-lifecycle.md](l3-card-lifecycle.md) | Card end-to-end: produce → execute → approve → archive |
 | L3 | [l3-memory.md](l3-memory.md) | 4-ring memory + side-channels (Mer / R5 / User Profile) + injection |
 | L3 | [l3a-central.md](l3a-central.md) | L3A decision layer: the central office (sessions, ask, cardwrite, profile) |
-| L3 | [l3-tools.md](l3-tools.md) | 20 tool implementations + tool system (spec/registry/policy/pipeline) |
+| L3 | [l3-tools.md](l3-tools.md) | 22 tool implementations + tool system (spec/registry/policy/pipeline) |
 | L3 | [l3-tool-presentation.md](l3-tool-presentation.md) | Code Mode / PTC: presentation modes (native/code/both), run_code transport, per-Cell program cache |
 | L3 | [l3-prompt-architecture.md](l3-prompt-architecture.md) | Unified layered system prompts: Cell/global libraries (sub-libs), versioning, bypass monitor |
 | L3 | [l3-bus.md](l3-bus.md) | IPC protocol (20+ message types) + buses + ReferenceChannel causal recorder |
@@ -104,12 +104,8 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 45 files / 6,587 lines |
-| L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 113 files / 23,539 lines |
 | L1 Kernel | 69 files / 18,635 lines |
-| L2 Shell | 45 files / 6,587 lines |
+| L2 Shell | 45 files / 6,630 lines |
 | L3 Cell | 350 files / 79,288 lines |
 | L4 Bridge | 113 files / 23,539 lines |
 | L5 User | 2 files / 599 lines |
@@ -118,12 +114,6 @@ flowchart TB
 | L3 Card | 27 files / 6,451 lines |
 | L3 Services | 45 files / 11,590 lines |
 | L3 Bus | 17 files / 4,396 lines |
-| L3 Agent | 36 files / 7,483 lines |
-| L4 Handlers | 34 files / 6,411 lines |
-| API routes | 368 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,263 |
-| Health | 0.757 (grade B) |
 | L3 Agent | 37 files / 8,800 lines |
 | L4 Handlers | 34 files / 6,411 lines |
 | API routes | 368 (`/api/v2/*` versioned) |
@@ -133,11 +123,15 @@ flowchart TB
 
 ## Reading path
 
-1. **New to Praxis**: [l1-kernel.md](l1-kernel.md) → [l3-card-lifecycle.md](l3-card-lifecycle.md) → [l3a-central.md](l3a-central.md)
-2. **Frontend / contract work**: [l4-bridge.md](l4-bridge.md) → [l5-user.md](l5-user.md) → [cross-cutting.md](cross-cutting.md)
-3. **Memory / agents**: [l3-memory.md](l3-memory.md) → [l3-scheduler.md](l3-scheduler.md) → [l3-tools.md](l3-tools.md)
+1. **New to Praxis**: [l1-kernel.md](l1-kernel.md) → [l3-card-lifecycle.md](l3-card-lifecycle.md)
+   → [l3a-central.md](l3a-central.md)
+2. **Frontend / contract work**: [l4-bridge.md](l4-bridge.md) → [l5-user.md](l5-user.md)
+   → [cross-cutting.md](cross-cutting.md)
+3. **Memory / agents**: [l3-memory.md](l3-memory.md) → [l3-scheduler.md](l3-scheduler.md)
+   → [l3-tools.md](l3-tools.md)
 4. **Data / training / buses**: [l3-bus.md](l3-bus.md) → [cross-cutting.md](cross-cutting.md)
-5. **Security / posture**: [security-evidence.md](security-evidence.md) → [l1-kernel.md](l1-kernel.md) (GateChain) → [l3-tools.md](l3-tools.md)
+5. **Security / posture**: [security-evidence.md](security-evidence.md) → [l1-kernel.md](l1-kernel.md)
+   (GateChain) → [l3-tools.md](l3-tools.md)
 6. **Governance / QA / skills**: [cross-cutting.md](cross-cutting.md)
 
 ## Main data flows

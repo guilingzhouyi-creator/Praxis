@@ -7,19 +7,22 @@ this tree carries the detail.
 
 ## Layout
 
-| Path | Contents | Language |
-|---|---|---|
-| [architecture/](architecture/README.md) | Layer reference L1–L5, cross-cutting, skill system, security, sandbox-diff — entry: `README.md` | EN |
-| [configuration/](configuration/overview.md) | Three-layer configuration system overview | EN |
-| [workflow/](workflow/branching.md) | Branching + parallel collaboration discipline (companion to `AGENTS.md`) | EN |
-| [design/](design/) | Active design docs (`praxis-*`), `reviews/` (recent audits) | mixed |
-| [design/archive/](design/archive/) | Closed-out reviews and design snapshots — **intentionally untracked** (see Maintenance rules) | mixed |
-| [decisions/](decisions/) | Historical MVP / tech-stack decision records | zh |
-| [roadmaps/](roadmaps/README.md) | Centralized roadmap index — entry: `README.md` | zh |
-| [notes/](notes/) | Personal notes (cognitive formula; `随笔/` not tracked) | zh |
-| [issues/](issues/TEMPLATE.md) | Issue specification template | EN |
-| [judge-stats.md](judge-stats.md) | CompletionJudge effectiveness dashboard — **auto-updated**, never hand-edit | EN |
-| [completion-judge.md](architecture/completion-judge.md) | CompletionJudge spec: verdict contract (COMPLETE/PARTIAL/INCOMPLETE), 11 checks, shared log, statistics conventions | EN |
+| Path | Kind | Contents | Language |
+|---|---|---|---|
+| [architecture/](architecture/README.md) | Reference | Layer reference L1–L5, cross-cutting, skill system, security, sandbox-diff — entry: `README.md`; LLM-friendly pointer: `architecture/llms.txt` (generated) | EN |
+| [configuration/](configuration/overview.md) | Reference | Three-layer configuration system overview | EN |
+| [project-structure.md](project-structure.md) | Reference | Repo layout & directory naming rules | mixed |
+| [workflow/](workflow/branching.md) | Workflow | Branching + parallel collaboration discipline (companion to `AGENTS.md`) | EN |
+| [agent-handoff/](agent-handoff/README.md) | Coordination | Shared handoff area for parallel agents: `ALIGNMENT.md` register, domain ownership, clobber warnings | EN |
+| [design/](design/) | Record | Active design docs (`praxis-*`), `reviews/` (recent audits) | mixed |
+| [design/archive/](design/archive/) | Record | Closed-out reviews and design snapshots — **intentionally untracked** (see Maintenance rules) | mixed |
+| [decisions/](decisions/) | Record | Historical MVP / tech-stack decision records | zh |
+| [roadmaps/](roadmaps/README.md) | Planning | Centralized roadmap index — entry: `README.md` | zh |
+| [notes/](notes/) | Record | Personal notes (cognitive formula; `随笔/` not tracked) | zh |
+| [issues/](issues/TEMPLATE.md) | Workflow | Issue specification template | EN |
+| [contracts/](contracts/) | Contract | Machine-readable contracts (`kernel-contract.json`) | EN |
+| [judge-stats.md](judge-stats.md) | Generated | CompletionJudge effectiveness dashboard — **auto-updated**, never hand-edit | EN |
+| [completion-judge.md](architecture/completion-judge.md) | Reference | CompletionJudge spec: verdict contract (COMPLETE/PARTIAL/INCOMPLETE), 11 checks, shared log, statistics conventions | EN |
 
 ## Reading paths
 

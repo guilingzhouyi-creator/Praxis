@@ -25,7 +25,7 @@
 | E2 | 依赖方向系统性违规并被制度化：`test_layer_imports.py` ALLOWLIST 共 114 条，其中 **74 条来自 L2**（67→L3、7→L4）；"L2→L1 only" 名存实亡 | `tests/infra/test_layer_imports.py:17-46` |
 | E3 | 默认交互路径断裂：`_l3a_intent` 中 `from .cell.peers.l3 import get_coordinator` 解析为 `l2.l2_shell.cell`，实测任意自由文本返回 `No module named 'l2.l2_shell.cell'` | `src/l2/l2_shell/__init__.py:229` |
 | E4 | HEAD 公开 `execute_tool_spec`（仅 mute/校验/middleware/ResultStore/counter，无 clearance/approval/rate/constitution/gatechain/sandbox），L2 terminal 与 L4 MCP 直调 → CRITICAL BYPASS；WT 已改名 `_execute_tool_spec` 私有化并新增 `invoke_gated` 单门（`interactive=True`），`test_single_execution_gate.py` 通过 | `src/l3/tool_system/tool_spec.py:378/381`、`src/l3/tool_system/invoke.py`、`tests/infra/test_single_execution_gate.py` |
-| E5 | 三张进程/终端表并存：L1 `ProcessTable`（PCB，逻辑进程权威）、L3 `_terminals`（AgentTerminal 注册表，运行态权威）、L2 `TerminalManager`（`subprocess.Popen` + SIGTERM/SIGKILL，**全库 0 调用方，死代码**；已于 2026-08-20 P0 删除） | `src/l1/kernel/process.py:184`、`src/l3/agent_terminal/__init__.py:564`、~~`src/l2/shell_session.py:73-137`~~ |
+| E5 | 三张进程/终端表并存：L1 `ProcessTable`（PCB，逻辑进程权威）、L3 `_terminals`（AgentTerminal 注册表，运行态权威）、L2 `TerminalManager`（`subprocess.Popen` + SIGTERM/SIGKILL，**全库 0 调用方，死代码**；计划删除，main 上仍存在） | `src/l1/kernel/process.py:184`、`src/l3/agent_terminal/__init__.py:564`、`src/l2/shell_session.py:73-137` |
 | E6 | 配置权威碎片化 ≥4 存储且 L2 均可写：L1 `kernel.settings`（/config、/departments）、L3 `SettingsCenter`（.praxis_settings.json，/settings、/model switch）、ACB slots（/settings cell|agent）、`ci.review.*`（/ci set） | `src/l1/kernel/settings.py:175`、`src/l3/config/settings_center.py:206` |
 | E7 | 事件/审计多头：L1 EventBus + L3 error_bus + observability_bus + central_security.audit_log + ProcessTable.audit_log；L2 至少写 2 读 4，含 `emit_signal(EVENT_TASK_ASSIGN)`（shell 发布内核任务路由事件） | `src/l2/l2_shell/__init__.py:218-223` |
 | E8 | 安全策略内嵌 Shell：`selector.py` 自带注入模式表 + `_llm_reviewer` 回调 + allow/deny 裁决；`output_guard.py` "intercept dangerous responses" | `src/l2/selector.py:188-246,368-379`、`src/l2/l2_shell/output_guard.py` |
@@ -104,7 +104,7 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 ### 6.1 P0 止血 — ✅（2026-08-20）
 
-- 工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）；G1 fail-closed；`_execute_tool_spec` 私有化；`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）；删除 `shell_session.py` 死代码。
+- 工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）；G1 fail-closed；`_execute_tool_spec` 私有化；`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）；删除 `shell_session.py` 死代码（main 上仍存在，见 E5）。
 - 验收：门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen。
 
 ### 6.2 P1 边界迁移 — ✅（2026-08-20/21）

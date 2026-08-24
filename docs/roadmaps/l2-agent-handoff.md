@@ -17,7 +17,9 @@
 
 状态图例：✅ 完成 · 🟡 骨架/部分 · ⏳ 未开始
 
-### 1.1 协议 v1（统一会话契约）— ✅ 完成
+> ⚠️ **main 状态核对（2026-08-24）**：下表 `src/l2/bridge.py`、`src/l2/protocol/projection.py`、`src/l3/services/injection_guard.py` 及 `tests/l2/test_projection.py`、`tests/l4/test_shell_protocol.py` 在 main 上**尚不存在**——它们是 TS 重写目标态/分支态（见 `l2-ts-rewrite-mapping.md`），非 main 现状。main 实际只有 `src/l2/protocol/{envelope,host,records,schema}.py` 与 `tests/l2/test_protocol_v1.py`、`test_protocol_records.py`。
+
+### 1.1 协议 v1（统一会话契约）— ✅ 完成（main 部分）
 
 | 模块 | 关键符号 | 状态 |
 |---|---|---|

@@ -18,7 +18,6 @@ config/
                              as a boot section (its keys are intentionally unregistered,
                              so boot discovery ignores it with a warning)
     danger_levels.yaml     — Tool danger levels, gate mappings, ring maps
-    error_codes.yaml       — Error code definitions and i18n translations
     engineering_debug.yaml — Marker-gated engineering/debug defaults
     providers.yaml         — LLM provider URLs, model names, env vars, IPC sockets
 ```
@@ -37,14 +36,17 @@ config/
 
 ### Layer 1: params/*.py
 
-Atomic constants (timeouts, limits, thresholds) defined in five sub-modules:
+Atomic constants (timeouts, limits, thresholds) defined in eight sub-modules:
 
 | File | Purpose | Example |
 |------|---------|---------|
 | `kernel.py` | Allocator, sync, process, gatechain, VFS | `ALLOCATOR_DEFAULTS.tokens=4096` |
+| `allocator.py` | Token allocation + GC | `TOKEN_GC_INTERVAL=60.0` |
+| `gatechain.py` | G1–G5 gate chain defaults | `GATECHAIN_ESCALATION_DANGER=80` |
+| `sync.py` | Lock / semaphore / event defaults | `SYNC_EVENT_QUEUE_MAX=256` |
 | `agent.py` | Agent roles, terminal, loop, card, scout | `AGENT_LOOP_DEFAULT_TIMEOUT=120.0` |
 | `tool.py` | Tool danger, timeouts, rate limits, HTN | `TOOL_BUILD_TIMEOUT=300` |
-| `api.py` | API gateway, LLM, network, IPC, env vars | `API_GATEWAY_PORT=8080` |
+| `api.py` | API gateway, LLM, network, IPC, env vars | `RPC_SERVER_PORT=42110` |
 | `system.py` | Cache, memory rings, data paths, truncation | `LOG_TRUNC_200=200` |
 
 ### Layer 2: config/discovery/*.yaml (ConfigDiscovery)
@@ -58,8 +60,10 @@ noted):
 
 `build_detectors`, `test_detectors`, `provider_urls`, `ring_gates`,
 `gatechain_danger_levels`, `constitution`, `tool_rates`, `services`,
-`skill_dirs`, `shell_aliases`, `tool`, `persistence`, `service_limits`,
-`engineering_debug`, `automation`
+`skill_dirs`, `shell_aliases`, `shells`, `tool`, `persistence`,
+`service_limits`, `engineering_debug`, `automation`, `posture`, `review`,
+`departments`, `diff_languages`, `diff_dictionary`, `dvg`, `identities`,
+`subagent_specs`, `identity_roles`
 
 YAML files only carry the sections that override the code defaults:
 
@@ -72,6 +76,14 @@ YAML files only carry the sections that override the code defaults:
 | `providers.yaml` | `provider_urls` |
 | `service_limits.yaml` | `service_limits` |
 | `automation.yaml` | `automation` |
+| `shells.yaml` | `shells` |
+| `posture.yaml` | `posture` |
+| `review.yaml` | `review` |
+| `departments.yaml` | `departments` |
+| `diff_languages.yaml` | `diff_languages`, `diff_dictionary` |
+| `identity_roles.yaml` | `identities`, `identity_roles` |
+| `subagent_specs.yaml` | `subagent_specs` |
+| `dvg.yaml` / `tool_registry.yaml` | per-tool dynamic declarations (read by boot steps, not boot sections) |
 
 **Adding new values**: Simply add new keys to the appropriate YAML file. No code changes needed.
 
@@ -253,7 +265,7 @@ Loading chain: `config_loader` (`cfg_prompts` handler) →
 → consumers (agent_loop_context, verifier, review, ...) → LLM context
 injection via `agent_loop_context._inject_extra_context`.
 
-- Use `python -m l3...` / API `GET /api/v2/prompts` (if exposed) or
+- Use `python -m l3...` / API `GET /api/v2/engineering-debug/prompts` or
   `list_prompts()` to enumerate available keys and their source.
 - Prompt strings are data (registry-managed), not params constants:
   they stay in `prompts.py`/praxis.yaml rather than `params/`.
