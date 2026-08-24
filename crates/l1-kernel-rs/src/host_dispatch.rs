@@ -167,13 +167,14 @@ impl HostRouter {
             })?;
         let ring = system_ring(&message.payload);
         let danger = system_danger(&message.payload, ring);
-        let approved = system_approved(&message.payload);
         let agent_id = self.agent_id_for(&message.session_id);
         let mut gate_request = GateRequest::new(SYSTEM_TOOL, agent_id.clone());
         gate_request.interactive = true;
         gate_request.interactive_ring = ring;
         gate_request.danger_override = Some(danger);
-        gate_request.pre_approved = approved;
+        // R4: approval authority is adapter-injected only — a boot adapter
+        // may set gate_request.pre_approved/full_power from identity or
+        // posture state; it can never originate from this wire payload.
         gate_request.timestamp = Some(message.ts);
         let verdict = self.gatechain.check(&gate_request);
         if !verdict.allowed {
@@ -544,7 +545,7 @@ impl HostRouter {
             ("success".to_owned(), Value::Bool(result.success)),
             ("output".to_owned(), Value::String(output)),
         ]);
-        self.envelope(request, payload)
+        self.envelope(request, MessageKind::Result, payload)
     }
 
     /// Fail-closed denial envelope (R7): rejections travel as structured
@@ -554,14 +555,34 @@ impl HostRouter {
             ("success".to_owned(), Value::Bool(false)),
             ("error".to_owned(), Value::String(error.to_owned())),
         ]);
-        self.envelope(request, payload)
+        self.envelope(request, MessageKind::Result, payload)
     }
 
-    fn envelope(&self, request: &Message, payload: BTreeMap<String, Value>) -> Message {
+    /// Transport-level acknowledgement for one accepted input, mirroring
+    /// `ProtocolHost.handle` in `src/l2/protocol/host.py`: every decoded
+    /// inbound envelope receives an ack carrying its inbound seq.
+    pub fn ack_envelope(&self, request: &Message) -> Message {
+        let payload = BTreeMap::from([("ack_seq".to_owned(), Value::from(request.seq))]);
+        self.envelope(request, MessageKind::Ack, payload)
+    }
+
+    /// Structured denial envelope for a protocol-level routing violation,
+    /// bound to the offending envelope's session (used by stdio adapters
+    /// that must answer even when [`Self::route`] returns Err).
+    pub fn error_envelope_for(&self, request: &Message, error: &str) -> Message {
+        self.denial_envelope(request, error)
+    }
+
+    fn envelope(
+        &self,
+        request: &Message,
+        kind: MessageKind,
+        payload: BTreeMap<String, Value>,
+    ) -> Message {
         Message::new(
             request.session_id.clone(),
             self.next_response_seq(&request.session_id),
-            MessageKind::Result,
+            kind,
             payload,
             request.trace_id.clone().unwrap_or_default(),
             request.ts,
@@ -614,17 +635,6 @@ fn system_danger(payload: &BTreeMap<String, Value>, ring: u8) -> u8 {
         .and_then(Value::as_u64)
         .map_or(ring, |danger| u8::try_from(danger).unwrap_or(u8::MAX))
         .max(1)
-}
-
-fn system_approved(payload: &BTreeMap<String, Value>) -> bool {
-    payload
-        .get("approved")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-        || payload
-            .get("pre_approved")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
 }
 
 fn target_session(message: &Message) -> String {
