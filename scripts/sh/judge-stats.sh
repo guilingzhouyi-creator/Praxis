@@ -93,6 +93,11 @@ for r in rows:
     uniq.append(r)
 rows = sorted(uniq, key=lambda r: r.get("ts", ""))
 
+# Drop no-op runs: a record whose checks are ALL zero (e.g. a fully-skipped
+# fast invocation) executed nothing and must not count toward runs or the
+# completion rate. Records without a checks dict (legacy) are kept.
+rows = [r for r in rows if not ((r.get("checks") or {}) and all(v == 0 for v in r["checks"].values()))]
+
 # Mode: explicit `mode` field wins; legacy records derive it from the check
 # flags (any flag 0 = skipped = fast). Never mix full and fast runs in one
 # completion/duration statistic — they measure different things.
