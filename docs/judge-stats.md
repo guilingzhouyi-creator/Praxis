@@ -1,7 +1,7 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 253 | **COMPLETE**: 34 (13%) | **PARTIAL**: 56 (22%, fast mode — checks skipped) | **INCOMPLETE**: 163 (64%, machine 'not done')
-**Mode split**: full 91 / fast 162 (fast = at least one check skipped)
+**Runs**: 219 | **COMPLETE**: 34 (16%) | **PARTIAL**: 22 (10%, fast mode — checks skipped) | **INCOMPLETE**: 163 (74%, machine 'not done')
+**Mode split**: full 91 / fast 128 (fast = at least one check skipped)
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
@@ -9,12 +9,12 @@
 | 2026-08-15 | 10 | 0 | 0% |
 | 2026-08-16 | 38 | 5 | 13% |
 | 2026-08-17 | 45 | 0 | 0% |
-| 2026-08-18 | 23 | 4 | 17% |
+| 2026-08-18 | 22 | 4 | 18% |
 | 2026-08-19 | 22 | 10 | 45% |
 | 2026-08-20 | 8 | 4 | 50% |
 | 2026-08-21 | 21 | 4 | 19% |
-| 2026-08-22 | 34 | 7 | 21% |
-| 2026-08-23 | 29 | 0 | 0% |
+| 2026-08-22 | 25 | 7 | 28% |
+| 2026-08-23 | 5 | 0 | 0% |
 | 2026-08-24 | 2 | 0 | 0% |
 
 **Failures by check** (most frequent evidence gaps):
