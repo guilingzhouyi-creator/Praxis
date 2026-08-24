@@ -101,6 +101,27 @@ class TestEnvelope:
         """The kind vocabulary is exactly the protocol set."""
         assert {"intent", "command", "event", "result", "stream_chunk", "control", "ack"} == KINDS
 
+    def test_r3_ts_must_be_finite_and_never_encoded(self) -> None:
+        """R3: NaN/Infinity timestamps are rejected and never emitted."""
+        msg = make_message("s", 1, KIND_INTENT, {"text": "hi"}, ts=float("nan"))
+        assert validate_message(msg)
+        raised = False
+        try:
+            encode_message(msg)
+        except ValueError:
+            raised = True
+        assert raised, "encode_message must reject non-finite ts"
+
+    def test_r4_banned_authorization_fields_never_decode(self) -> None:
+        """R4: wire-declared approval authority fails decode on all kinds."""
+        for field in ("approved", "pre_approved", "full_power", "harness_auto_approved"):
+            command = make_message("s", 1, KIND_COMMAND, {"name": "__system", "args": [], field: True})
+            decoded, err = decode_message(encode_message(command))
+            assert decoded is None and err is not None and "authorization" in err
+            control = make_message("s", 2, KIND_CONTROL, {"op": "attach", field: True})
+            decoded, err = decode_message(encode_message(control))
+            assert decoded is None and err is not None and "authorization" in err
+
 
 class TestOutbox:
     """Bounded replay window semantics."""
@@ -114,7 +135,7 @@ class TestOutbox:
         assert box.last_acked == -1
 
     def test_ack_advances_cursor(self) -> None:
-        """Acking drops covered messages and moves the cursor."""
+        """Acking moves the cursor; unacked() filters by it (R1)."""
         box = Outbox()
         box.append(make_message("s", 1, KIND_RESULT, {"success": True}))
         box.append(make_message("s", 2, KIND_RESULT, {"success": True}))
@@ -122,12 +143,21 @@ class TestOutbox:
         assert [m["seq"] for m in box.unacked()] == [2]
         assert box.last_acked == 1
 
+    def test_ack_is_non_destructive_for_other_views(self) -> None:
+        """R1: recovery from -1 still replays the full retained window."""
+        box = Outbox()
+        for seq in (1, 2, 3):
+            box.append(make_message("s", seq, KIND_RESULT, {"success": True}))
+        box.ack(2)
+        assert [m["seq"] for m in box.unacked()] == [3]
+        assert [m["seq"] for m in box.unacked(-1)] == [1, 2, 3]
+
     def test_cap_evicts_oldest(self) -> None:
         """The window is bounded at OUTBOX_MAXLEN."""
         box = Outbox(maxlen=3)
         for i in range(5):
             box.append(make_message("s", i, KIND_RESULT, {"success": True}))
-        assert [m["seq"] for m in box.unacked()] == [2, 3, 4]
+        assert [m["seq"] for m in box.unacked(-1)] == [2, 3, 4]
         assert OUTBOX_MAXLEN >= 3
 
 

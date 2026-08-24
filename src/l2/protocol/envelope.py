@@ -1,15 +1,16 @@
-"""Protocol v1 envelope — pure reference implementation (side-effect free).
+"""Protocol v1 envelope — frozen legacy reference (side-effect free).
 
-Language-agnostic wire contract for the L2 Unified Session Data Layer. This
-module is the Python reference for the planned TypeScript mirror
-(parser/dispatcher/session): it imports only stdlib, keeps no module-level
-singletons, and performs no I/O — every function is a pure transform, so the
-TS port can be tested against identical expectations.
+DEPRECATED as normative source: `packages/protocol-ts` is the authority
+(docs/architecture/l2-shell-engine.md, "Protocol v1 conformance rulings").
+This module is kept byte-compatible with the TS/Rust semantics until the
+G6 cut-over retires it: non-destructive `Outbox.ack` (R1), finite-`ts`
+validation and encoding (R3). Stdlib-only, no singletons, no I/O.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -40,6 +41,15 @@ CONTROL_RECOVERY = "recovery"
 CONTROL_ACK = "ack"
 CONTROL_KINDS: frozenset[str] = frozenset(
     {CONTROL_ATTACH, CONTROL_DETACH, CONTROL_RESUME, CONTROL_RECOVERY, CONTROL_ACK}
+)
+
+# R4: authorization fields are host-derived (adapter-injected GateRequest
+# inputs) and must never travel on the wire.
+HOST_DERIVED_FIELDS: tuple[str, ...] = (
+    "approved",
+    "pre_approved",
+    "full_power",
+    "harness_auto_approved",
 )
 
 
@@ -84,7 +94,7 @@ def validate_message(msg: dict[str, Any]) -> list[str]:
     if not isinstance(kind, str) or kind not in KINDS:
         errors.append(f"unknown kind: {kind!r}")
     ts = msg.get("ts")
-    if isinstance(ts, bool) or not isinstance(ts, (int, float)):
+    if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts):
         errors.append("ts must be a number")
     if "trace_id" in msg and not isinstance(msg["trace_id"], str):
         errors.append("trace_id must be a string")
@@ -99,6 +109,8 @@ def validate_message(msg: dict[str, Any]) -> list[str]:
 def _validate_payload(kind: str, payload: dict[str, Any]) -> list[str]:
     """Validate the required fields for one message kind."""
     errors: list[str] = []
+    if kind in (KIND_COMMAND, KIND_CONTROL) and any(f in payload for f in HOST_DERIVED_FIELDS):
+        errors.append("payload carries host-derived authorization fields")
     if kind == KIND_COMMAND:
         name = payload.get("name")
         args = payload.get("args", [])
@@ -135,8 +147,12 @@ def _validate_payload(kind: str, payload: dict[str, Any]) -> list[str]:
 
 
 def encode_message(msg: dict[str, Any]) -> str:
-    """Serialize one envelope to a canonical JSON line (stable key order)."""
-    return json.dumps(msg, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    """Serialize one envelope to a canonical JSON line (stable key order).
+
+    Non-finite floats (NaN/Infinity) raise ValueError: R3 forbids emitting
+    frames that strict JSON parsers on the Rust/TS side cannot read.
+    """
+    return json.dumps(msg, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
 
 
 def decode_message(line: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -158,7 +174,11 @@ def decode_message(line: str) -> tuple[dict[str, Any] | None, str | None]:
 
 @dataclass
 class Outbox:
-    """Bounded per-session replay window; unacked messages survive recovery."""
+    """Bounded per-session replay window; unacked messages survive recovery.
+
+    R1 (non-destructive ack): one view's acknowledgement only advances the
+    cursor and never erases retained messages another view still needs.
+    """
 
     maxlen: int = OUTBOX_MAXLEN
     _items: deque[dict[str, Any]] = field(default_factory=deque)
@@ -171,14 +191,13 @@ class Outbox:
             self._items.popleft()
 
     def ack(self, seq: int) -> None:
-        """Advance the acknowledged cursor, dropping covered messages."""
-        while self._items and self._items[0]["seq"] <= seq:
-            self._items.popleft()
+        """Advance the acknowledged cursor without dropping retained messages."""
         self._last_acked = max(self._last_acked, seq)
 
-    def unacked(self) -> list[dict[str, Any]]:
-        """Return the replay window (messages after the last ack)."""
-        return list(self._items)
+    def unacked(self, after_seq: int | None = None) -> list[dict[str, Any]]:
+        """Return the replay window for one view cursor (messages after it)."""
+        after = self._last_acked if after_seq is None else after_seq
+        return [msg for msg in self._items if msg["seq"] > after]
 
     @property
     def last_acked(self) -> int:
