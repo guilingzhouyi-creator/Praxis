@@ -1,16 +1,101 @@
 /**
  * Shell route — dialect routing for one input line.
  *
- * Mirrors the Python3 routing chain (src/l2/l2_shell/__init__.py dispatch +
- * src/l2/shells/terminal.py TerminalShell.run): pipeline, `$` system, `/`
- * engine command, direct tool call, and the L3A intent fallback. The route
- * classifies a line purely (parseRoute) and executes it against the
- * dispatcher + bridge (route); the host stays the authority for anything
- * beyond local parsing/display.
+ * Normative routing chain (see docs/architecture/l2-shell-engine.md
+ * "Protocol v1 conformance rulings" R6): `$` system → `/` engine command
+ * → `|` pipeline → direct tool call → L3A intent. Argument splitting is
+ * quote-aware (shlex-compatible subset), so a `|` inside quotes never
+ * misroutes into the pipeline.
  */
 
 import type { ProtocolBridge } from "./bridge.ts";
 import type { Dispatcher } from "./dispatcher.ts";
+
+/**
+ * Split a line on unquoted occurrences of `sep`, honoring single quotes,
+ * double quotes, and backslash escapes. Quotes are removed from the
+ * resulting segments; escaped separators survive literally.
+ */
+export function splitUnquoted(text: string, sep: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  let escaped = false;
+  for (const ch of text) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch === sep) {
+      segments.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (escaped) current += "\\";
+  segments.push(current);
+  return segments;
+}
+
+/** Split an argument string on whitespace, honoring quotes and escapes. */
+export function splitArgs(text: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  let escaped = false;
+  let started = false;
+  const flush = () => {
+    if (started) args.push(current);
+    current = "";
+    started = false;
+  };
+  for (const ch of text) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && !quote) {
+      escaped = true;
+      started = started || true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+      started = true;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      started = true;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      flush();
+      continue;
+    }
+    current += ch;
+    started = true;
+  }
+  flush();
+  return args;
+}
 
 /** Pure dialect classification of one input line. */
 export type DialectRoute =
@@ -22,17 +107,12 @@ export type DialectRoute =
   | { kind: "l3a"; text: string };
 
 /**
- * Classify one line without executing (pure). Order mirrors Python3:
- * pipeline → `$` system → `/` engine → tool (direct) → L3A intent.
+ * Classify one line without executing (pure). Order is normative (R6):
+ * `$` system → `/` engine → pipeline → tool (direct) → L3A intent.
  */
 export function parseRoute(line: string): DialectRoute {
   const text = line.trim();
   if (!text) return { kind: "empty" };
-
-  if (text.includes("|")) {
-    const stages = text.split("|").map((s) => s.trim()).filter(Boolean);
-    if (stages.length >= 2) return { kind: "pipeline", stages };
-  }
 
   if (text.startsWith("$")) {
     return { kind: "system", command: text.slice(1).trim() };
@@ -40,13 +120,20 @@ export function parseRoute(line: string): DialectRoute {
 
   if (text.startsWith("/")) {
     const rest = text.slice(1).trim();
-    const [name, ...args] = rest.split(/\s+/);
+    const [name, ...args] = splitArgs(rest);
     return { kind: "engine", name: name || "", args };
+  }
+
+  // Pipeline detection runs AFTER `$`/`/` so a separator inside a quoted
+  // argument or a command name payload can never hijack the line (R6).
+  if (splitUnquoted(text, "|").length >= 2) {
+    const stages = splitUnquoted(text, "|").map((s) => s.trim()).filter(Boolean);
+    if (stages.length >= 2) return { kind: "pipeline", stages };
   }
 
   // A bare token with arguments is a direct tool call (alias resolution is
   // left to the caller / completer); anything else is an L3A intent.
-  const parts = text.split(/\s+/);
+  const parts = splitArgs(text);
   if (parts.length >= 1 && parts[0].length > 0) {
     return { kind: "tool", name: parts[0], args: parts.slice(1) };
   }

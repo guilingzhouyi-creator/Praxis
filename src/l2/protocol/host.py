@@ -31,6 +31,10 @@ from l2.protocol.envelope import (
     make_message,
 )
 
+# Ruling R5: reject oversized frames before parsing (parity with the Rust
+# protocol host's DEFAULT_MAX_FRAME_BYTES).
+MAX_FRAME_BYTES: int = 1024 * 1024
+
 
 def _dispatch_text(text: str, session) -> dict:
     """Route one input line through the existing engine (unchanged)."""
@@ -43,7 +47,12 @@ def _dispatch_text(text: str, session) -> dict:
 
 
 class ProtocolHost:
-    """Process one input envelope into output envelopes (injectable, no globals)."""
+    """Process one input envelope into output envelopes (injectable, no globals).
+
+    Ruling R5: input frames larger than ``MAX_FRAME_BYTES`` are rejected
+    by the run loop before parsing. Undecodable frames are answered on the
+    synthetic ``"-"`` session without materializing an outbox for it.
+    """
 
     def __init__(self) -> None:
         self._sessions: dict[str, object] = {}
@@ -62,10 +71,11 @@ class ProtocolHost:
             self._outboxes[session_id] = Outbox()
         return self._outboxes[session_id]
 
-    def _emit(self, kind: str, payload: dict, session_id: str, trace_id: str = "") -> dict:
-        """Build one outbound envelope, record it in the outbox, return it."""
+    def _emit(self, kind: str, payload: dict, session_id: str, trace_id: str = "", record: bool = True) -> dict:
+        """Build one outbound envelope; record it in the outbox unless told not to."""
         msg = make_message(session_id, self._next_seq(session_id), kind, payload, trace_id=trace_id)
-        self._get_outbox(session_id).append(msg)
+        if record:
+            self._get_outbox(session_id).append(msg)
         return msg
 
     def _get_session(self, session_id: str) -> object:
@@ -78,9 +88,11 @@ class ProtocolHost:
 
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
+        if len(line) > MAX_FRAME_BYTES:
+            return [self._emit(KIND_RESULT, {"success": False, "error": "frame too large"}, "-", record=False)]
         msg, err = decode_message(line)
         if err is not None:
-            return [self._emit(KIND_RESULT, {"success": False, "error": err}, "-")]
+            return [self._emit(KIND_RESULT, {"success": False, "error": err}, "-", record=False)]
         session_id = msg["session_id"]
         trace_id = msg.get("trace_id", "")
         kind = msg["kind"]
@@ -159,6 +171,13 @@ class ProtocolHost:
         for raw in stdin:
             line = raw.strip()
             if not line:
+                continue
+            if len(line) > MAX_FRAME_BYTES:
+                # R5: oversize frames never reach the parser; handle()
+                # re-checks the length and answers a frame-too-large result.
+                for out in self.handle(line):
+                    stdout.write(encode_message(out) + "\n")
+                    stdout.flush()
                 continue
             for out in self.handle(line):
                 stdout.write(encode_message(out) + "\n")

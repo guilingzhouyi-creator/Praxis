@@ -180,6 +180,25 @@ read-only until the P0 recovery gates are complete.
 The host is the integration seam: `bridge.ts` spawns it as a child process
 (or connects over WebSocket later) and only ever speaks protocol v1.
 
+### Protocol v1 conformance rulings (2026-08, normative)
+
+Authority model: **`packages/protocol-ts` is the normative L2 protocol
+authority**; the Rust kernel (`crates/l1-kernel-rs`) must reproduce TS
+canonical output byte-for-byte; `src/l2/protocol` (Python) is a frozen
+legacy reference retained only until the G6 cut-over retires it. Golden
+vectors are frozen from the TS engine, not from the Python host.
+
+| # | Ruling | Rationale |
+|---|---|---|
+| R1 | `Outbox.ack` is non-destructive: it advances only the ack cursor; replay windows survive until eviction. Replay = messages with `seq > max(last_acked, after_seq)`. | multi-view recovery; one view's ack must never erase another view's window |
+| R2 | `seq` is monotonic **per session**. Response sequence counters are per-session state, never process-global. | envelope contract "Monotonic session sequence"; restart aliasing |
+| R3 | `ts` must be a finite number. Encoders reject non-finite values (`allow_nan=False` / serde finite check / `Number.isFinite`). | Python stdlib JSON otherwise accepts/emits `NaN`, producing frames Rust/TS cannot parse |
+| R4 | Host-derived authorization fields (`approved`, `pre_approved`, `full_power`, `harness_auto_approved`) are **forbidden in inbound payloads**; ring/danger MAY be declared inbound as gate inputs but confer no authority. Decoders reject banned fields. | GateRequest authorization inputs are adapter-derived; wire self-approval defeats G4 |
+| R5 | Frame limit is 1 MiB per JSONL line on every host (Rust and Python alike). Oversize frames are rejected before parse. | DoS bound; parity with `ProtocolHostConfig::max_frame_bytes` |
+| R6 | Dialect routing order: `$` system → `/` engine command → `\|` pipeline → direct tool → L3A intent. Argument splitting is quote-aware (shlex-compatible subset). | a `\|` inside a quoted argument or command payload must not misroute into the pipeline |
+| R7 | Gate denials, unregistered commands, and unwired executors produce `result{success:false}` envelopes on the wire — not transport-level errors. Only undecodable/oversized frames fail at the transport layer. | clients must receive structured rejections; fail-closed |
+| R8 | Wire-contract constants (`PROTOCOL_VERSION`, `OUTBOX_MAXLEN`, frame limits, kind sets) are exempt from the params rule and inlined identically in all three implementations. | contract constants mirror across languages by design |
+
 ## Execution bridge
 
 Every side-effecting request exits L2 through exactly one bridge:

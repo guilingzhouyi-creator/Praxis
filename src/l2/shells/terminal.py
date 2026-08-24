@@ -169,7 +169,12 @@ class TerminalShell(Shell):
                 for i, h in enumerate(self._history, 1):
                     print(f"  {i:3d}  {h}")
                 continue
-            self._render(self.run(line, sess))
+            try:
+                self._render(self.run(line, sess))
+            except Exception as e:
+                # A malformed line (e.g. unbalanced quotes hitting shlex) must
+                # not kill the REPL; report and continue.
+                print(t("shell.render.error", error=str(e)))
 
     # ── Dialect helpers (dict results; REPL rendering lives in _render) ──
 

@@ -1,0 +1,118 @@
+{
+  "_meta": {
+    "source": "packages/protocol-ts (normative authority)",
+    "rulings_doc": "docs/architecture/l2-shell-engine.md#protocol-v1-conformance-rulings",
+    "frozen_at_branch": "feature/protocol-v1-conformance",
+    "runners": {
+      "typescript": "packages/protocol-ts/tests/conformance.test.ts",
+      "rust": "crates/l1-kernel-rs/tests/conformance_vectors.rs",
+      "python_legacy": "tests/l2/test_conformance_vectors.py"
+    },
+    "legacy_exceptions": [
+      "R6 dialect routing is not pinned against src/l2 (frozen legacy keeps its historical order until G6)"
+    ]
+  },
+  "canonical_envelopes": [
+    {
+      "name": "result_denial_envelope",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 1,
+        "ts": 1.0,
+        "trace_id": "",
+        "kind": "result",
+        "payload": { "success": false, "error": "unregistered command: hello" }
+      },
+      "expected_line": "{\"kind\":\"result\",\"payload\":{\"error\":\"unregistered command: hello\",\"success\":false},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}"
+    },
+    {
+      "name": "result_success_echo",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 1,
+        "ts": 100.0,
+        "trace_id": "",
+        "kind": "result",
+        "payload": { "success": true, "output": "echo:hello" }
+      },
+      "expected_line": "{\"kind\":\"result\",\"payload\":{\"output\":\"echo:hello\",\"success\":true},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":100.0,\"v\":1}"
+    },
+    {
+      "name": "intent_with_trace",
+      "fields": {
+        "v": 1,
+        "session_id": "s-9",
+        "seq": 3,
+        "ts": 0.5,
+        "trace_id": "t1",
+        "kind": "intent",
+        "payload": { "text": "hi" }
+      },
+      "expected_line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"hi\"},\"seq\":3,\"session_id\":\"s-9\",\"trace_id\":\"t1\",\"ts\":0.5,\"v\":1}"
+    }
+  ],
+  "invalid_frames": [
+    {
+      "name": "r3_nan_ts_rejected_everywhere",
+      "line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"hi\"},\"seq\":1,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":NaN,\"v\":1}",
+      "error_contains_any": ["invalid json", "ts must be a number"]
+    },
+    {
+      "name": "r4_banned_field_command",
+      "line": "{\"kind\":\"command\",\"payload\":{\"name\":\"__system\",\"args\":[],\"approved\":true},\"seq\":2,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["host-derived authorization fields", "authorization field"]
+    },
+    {
+      "name": "r4_banned_field_control",
+      "line": "{\"kind\":\"control\",\"payload\":{\"op\":\"attach\",\"pre_approved\":true},\"seq\":2,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["host-derived authorization fields", "authorization field"]
+    },
+    {
+      "name": "unknown_kind",
+      "line": "{\"kind\":\"teleport\",\"payload\":{},\"seq\":2,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["unknown kind"]
+    },
+    {
+      "name": "negative_seq",
+      "line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"x\"},\"seq\":-1,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["seq must be a non-negative integer"]
+    },
+    {
+      "name": "unknown_control_op",
+      "line": "{\"kind\":\"control\",\"payload\":{\"op\":\"seize\"},\"seq\":2,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["unknown op"]
+    },
+    {
+      "name": "wrong_version",
+      "line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"x\"},\"seq\":2,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":2}",
+      "error_contains_any": ["unsupported version"]
+    }
+  ],
+  "outbox_recovery": [
+    {
+      "name": "r1_ack_never_erases_other_views_window",
+      "maxlen": 1024,
+      "append_seqs": [1, 2, 3],
+      "ack": 2,
+      "expect_default_unacked": [3],
+      "expect_recovery_from_minus_one": [1, 2, 3]
+    },
+    {
+      "name": "eviction_bounds_the_window",
+      "maxlen": 3,
+      "append_seqs": [0, 1, 2, 3, 4],
+      "ack": 3,
+      "expect_default_unacked": [4],
+      "expect_recovery_from_minus_one": [2, 3, 4]
+    }
+  ],
+  "route_classification_r6": [
+    { "line": "$echo a|b", "kind": "system", "command": "echo a|b" },
+    { "line": "/search a|b", "kind": "engine", "name": "search", "args": ["a|b"] },
+    { "line": "/search \"a|b\" c", "kind": "engine", "name": "search", "args": ["a|b", "c"] },
+    { "line": "status | format json", "kind": "pipeline" },
+    { "line": "read_file \"hello world.txt\"", "kind": "tool", "name": "read_file", "args": ["hello world.txt"] }
+  ]
+}

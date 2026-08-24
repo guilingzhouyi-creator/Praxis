@@ -17,11 +17,24 @@ import type { JsonValue } from "../records.ts";
 
 export type Transport = (line: string) => Promise<string[]>;
 
+/** One completed round trip, reported via `BridgeOptions.onTelemetry`. */
+export interface BridgeTelemetry {
+  /** Message kind plus command/control op label, e.g. "command:status". */
+  label: string;
+  elapsedMs: number;
+  responseCount: number;
+}
+
 export interface BridgeOptions {
   sessionId: string;
   transport: Transport;
   /** Optional seq wrap-around (e.g. 1<<30); unset = monotonic. */
   maxSeq?: number;
+  /**
+   * Optional round-trip telemetry sink. Invoked after every transport
+   * round trip with the elapsed time and response count.
+   */
+  onTelemetry?: (event: BridgeTelemetry) => void;
 }
 
 export interface RoundTripResult {
@@ -81,8 +94,7 @@ export class ProtocolBridge {
     const line = encodeMessage(message);
     const responses = await this.opts.transport(line);
     for (const raw of responses) {
-      const decoded = decodeMessage(raw);
-      if (decoded.message) yield decoded.message;
+      yield this.decodeResponse(raw);
     }
   }
 
@@ -138,16 +150,42 @@ export class ProtocolBridge {
     return this.roundTrip(message).then((r) => r.messages);
   }
 
+  private telemetryLabel(message: Message): string {
+    const op = typeof message.payload.op === "string" ? message.payload.op : "";
+    const name = typeof message.payload.name === "string" ? message.payload.name : "";
+    return [message.kind, name || op].filter(Boolean).join(":");
+  }
+
+  /**
+   * Decode one transport response line. Undecodable frames are a hard
+   * error (ruling R7's client twin): silently dropping them turns host
+   * bugs into mysterious empty results.
+   */
+  private decodeResponse(raw: string): Message {
+    const decoded = decodeMessage(raw);
+    if (!decoded.message) {
+      throw new Error(`bridge: undecodable response: ${decoded.error}: ${raw.slice(0, 200)}`);
+    }
+    if (decoded.message.session_id !== this.opts.sessionId) {
+      throw new Error(
+        `bridge: response session_id mismatch: expected ${this.opts.sessionId},`
+          + ` got ${decoded.message.session_id}`,
+      );
+    }
+    return decoded.message;
+  }
+
   private async roundTrip(message: Message): Promise<RoundTripResult> {
     const start = performance.now();
     const line = encodeMessage(message);
     const responses = await this.opts.transport(line);
     const elapsedMs = performance.now() - start;
-    const messages: Message[] = [];
-    for (const raw of responses) {
-      const decoded = decodeMessage(raw);
-      if (decoded.message) messages.push(decoded.message);
-    }
+    const messages = responses.map((raw) => this.decodeResponse(raw));
+    this.opts.onTelemetry?.({
+      label: this.telemetryLabel(message),
+      elapsedMs,
+      responseCount: messages.length,
+    });
     return { messages, elapsedMs };
   }
 }
@@ -160,6 +198,9 @@ export async function* streamResponses(
   const responses = await transport(line);
   for (const raw of responses) {
     const decoded = decodeMessage(raw);
-    if (decoded.message) yield decoded.message;
+    if (!decoded.message) {
+      throw new Error(`bridge: undecodable response: ${decoded.error}: ${raw.slice(0, 200)}`);
+    }
+    yield decoded.message;
   }
 }
