@@ -4,11 +4,15 @@
 //! terminality, and bounded byte mailboxes. PTY creation, subprocess control,
 //! AgentLoop execution, rendering, and policy remain adapter responsibilities.
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::sync::{
+    Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError,
+};
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
+use crate::snapshot::{BookSnapshotPage, BookSnapshotPageError, BookSnapshotPageRequest};
 use crate::substrate::ProcessHandle;
 
 /// Version of the terminal substrate contract.
@@ -320,6 +324,7 @@ impl TerminalRecord {
 #[derive(Debug, Default)]
 struct TerminalInner {
     terminals: HashMap<String, Arc<Mutex<TerminalRecord>>>,
+    ordered_ids: BTreeSet<String>,
     sessions: HashMap<String, String>,
     processes: HashMap<u64, String>,
 }
@@ -363,6 +368,7 @@ impl TerminalBook {
             output,
         };
         let snapshot = record.snapshot();
+        inner.ordered_ids.insert(spec.terminal_id.clone());
         inner
             .terminals
             .insert(spec.terminal_id, Arc::new(Mutex::new(record)));
@@ -439,6 +445,7 @@ impl TerminalBook {
                 });
             }
         }
+        inner.ordered_ids.insert(snapshot.terminal_id.clone());
         inner.terminals.insert(snapshot.terminal_id.clone(), record);
         if let Some(session_id) = snapshot.session_id.as_ref() {
             inner
@@ -747,6 +754,85 @@ impl TerminalBook {
             .collect::<Vec<_>>();
         snapshots.sort_unstable_by(|left, right| left.terminal_id.cmp(&right.terminal_id));
         snapshots
+    }
+
+    /// Return a bounded identity-ordered page without materializing every snapshot.
+    ///
+    /// The exclusive cursor is a terminal identity, not a durable scan token.
+    /// Concurrent registry writes can therefore alter later pages; checkpoint
+    /// callers must continue using [`Self::snapshots`].
+    pub fn snapshot_page(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<BookSnapshotPage<TerminalSnapshot>, BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let mut candidates = request.candidates();
+        let inner = self.read_inner();
+        let mut retained = 0;
+        for terminal_id in &inner.ordered_ids {
+            if !request.is_after_cursor(terminal_id) {
+                continue;
+            }
+            if retained == request.candidate_capacity() {
+                break;
+            }
+            let record = inner
+                .terminals
+                .get(terminal_id)
+                .expect("ordered terminal identity must have a hash entry");
+            request.retain_candidate(&mut candidates, terminal_id, || Arc::clone(record));
+            retained += 1;
+        }
+        drop(inner);
+        Ok(request
+            .finish(candidates)
+            .map_items(|record| lock_record(&record).snapshot()))
+    }
+
+    /// Return a bounded page and measure only blocked registry-read fallback time.
+    ///
+    /// This crate-private path exists for fixed-work evidence. The public page
+    /// API keeps its uncontended read path free of clock calls.
+    pub(crate) fn snapshot_page_with_lock_wait(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<(BookSnapshotPage<TerminalSnapshot>, u64), BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let (inner, lock_wait_ns) = match self.inner.try_read() {
+            Ok(inner) => (inner, 0),
+            Err(TryLockError::WouldBlock) => {
+                let started = Instant::now();
+                let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+                let wait_ns = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                (inner, wait_ns)
+            }
+            Err(TryLockError::Poisoned(error)) => (error.into_inner(), 0),
+        };
+        let mut candidates = request.candidates();
+        let mut retained = 0;
+        for terminal_id in &inner.ordered_ids {
+            if !request.is_after_cursor(terminal_id) {
+                continue;
+            }
+            if retained == request.candidate_capacity() {
+                break;
+            }
+            let record = inner
+                .terminals
+                .get(terminal_id)
+                .expect("ordered terminal identity must have a hash entry");
+            request.retain_candidate(&mut candidates, terminal_id, || Arc::clone(record));
+            retained += 1;
+        }
+        drop(inner);
+        Ok((
+            request
+                .finish(candidates)
+                .map_items(|record| lock_record(&record).snapshot()),
+            lock_wait_ns,
+        ))
     }
 
     fn record_handle(

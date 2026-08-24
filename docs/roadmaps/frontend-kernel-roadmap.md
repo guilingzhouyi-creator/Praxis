@@ -548,8 +548,13 @@ R4/R5 recovery seam，不授予 boot、Port 或生产 runtime authority。
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
 `benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定
 4096 项、1/2/4 worker、3 轮测量 create/activate/input 吞吐、p95/p99、CPU/RSS 和
-reject/error；该 workload 没有独立 queue，因此 queue/lock wait 明确为 0，不与 WorkerPool
-或 substrate queue contention 证据混合，也不改变 runtime authority。
+reject/error；该 workload 没有独立 queue，因此 queue wait 明确为 0；lock wait 仅累计
+registry `try_write` 在锁不可用后的等待，不在公共 admission 快路径取时。它不与 WorkerPool 或
+substrate queue contention 证据混合，也不改变 runtime authority。
+2026-08-23 Linux x86_64 isolated release 基线的中位吞吐为约
+1.62M/1.46M/1.37M ops/s，1/2/4 worker 的中位 write-lock wait 为
+0/0.85/3.32 ms；因此读分页的并发收益不能外推到写准入，后续应以已有
+batch/shard admission 候选单独优化与复测。
 
 随后增加会话 grouped admission 候选：`SessionBook::create_batch` 先完成逐项 schema 校验，再按
 shard 聚合并让每个 shard 只获取一次 registry lock；返回值保持输入顺序，重复/非法项独立失败，
@@ -664,6 +669,61 @@ shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观
 `rust-process-group-bench` binary 按 4096 items、1/2/4 workers、3 rounds 输出统一 v3
 吞吐、尾延迟和资源证据；它只测 caller-owned 机制回收，不改变 PTY、OS process-group signal、
 ProcessTable、AgentLoop 或 shutdown authority 的边界。
+
+The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
+indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
+`snapshot_page(after, limit)` keeps at most `limit + 1` record handles in a
+bounded max-heap during indexed selection, sorts only that retained set, and
+materializes only returned snapshots in stable identity order;
+`limit` is fail-closed in `1..=512`. Its exclusive identity cursor is a live
+read boundary rather than a consistent multi-page snapshot, so checkpoint and
+recovery paths deliberately retain the complete deterministic `snapshots()`
+contract. Independent `tests/snapshot_page.rs` covers cross-book ordering,
+cursor continuation, bounds, and compatibility with the complete session
+snapshot API. `SessionBook` registry reads now use shard-local `RwLock`s;
+exclusive writes preserve admission/removal semantics, while independent
+readers do not serialize behind a mutex. `rust-session-snapshot-page-bench`
+uses the standard v3 4,096-request, 1/2/4-worker, three-round matrix and
+measures tail latency, CPU/RSS, reject/error, plus only blocked read-lock
+fallback time. The 2026-08-23 Linux x86_64 release sample reported median
+17.8/18.0k versus 20.4/19.5k pages/s at one worker, 31.4/32.4k versus
+35.1/37.1k at two, and 62.4/58.6k versus 63.9/70.1k at four for the
+bounded-tree and max-heap selectors, respectively. Those are two alternating
+three-round suites pinned to CPUs 0-3, not independent unlocked-host samples;
+every paired run recorded zero rejects, errors, and read-lock wait. The
+four-worker p95 varied across the suites, so the evidence supports retained
+throughput improvement but not a stable tail-latency claim. There is no paired
+Python-host claim and no writer-contention or runtime cutover claim.
+This remains an R4 read-model/TS-bridge preparation seam only: it does not add
+boot, AgentLoop execution, provider, process, or cutover authority.
+
+为避免把读分页收益误判为写入扩展性，新增独立的
+`session.book.snapshot_page_write_contention` 固定工作束：单 shard 上每项工作先校验 64 条首页，
+再写入一个唯一 Session；报告沿用 v3 schema，`lock_wait_ns` 只累计被阻塞的读/写锁 fallback。
+两组固定 CPU 0-3 的 release suite 均完成 4096 bundles，reject/error 为 0；1/2/4 worker 的中位
+吞吐分别为 12.2/13.1k、14.1/15.4k、13.2/12.8k bundles/s，累计锁等待分别为 0ms、142-164ms、
+756-772ms，p95 bundle latency 分别为 0.10-0.12ms、0.28-0.33ms、0.89-0.93ms。4 worker 的吞吐平台
+与锁等待增长说明该片只建立读写竞争基线，不授予 write scaling、AgentLoop、provider、持久化或 runtime
+cutover 权威；测试仍全部位于独立 Rust integration-test domain。
+
+随后针对分页持锁时间加入 `SessionBook` shard 内部的 ordered identity index：HashMap 继续负责 duplicate
+admission 与 direct lookup，`BTreeSet` 负责 identity 顺序，page 每个 shard 最多读取 `limit+1` 个 cursor
+之后的 identity；create、batch、restore、closed removal 在同一 write lock 下同步维护双索引。固定 CPU 0-3
+的 hash-only reference 在 `session.book.admission` 约为 1.34/1.33/1.34M ops/s，ordered index 单组样本约为
+0.87/1.11/1.21M（1/2/4 worker），写入成本确实存在；但读写混合束达到约 61.7-66.4k/70.1-82.3k/
+55.9-57.5k bundles/s，累计锁等待降为 0/14-19/123-127ms。该片作为明确的 read/write trade-off 记录，
+仍不授予生产 scaling、AgentLoop、provider、持久化或 runtime cutover 权威。
+
+随后将同一有序身份索引边界递进到 `AgentLoopBook` 与 `TerminalBook`：HashMap 继续负责 duplicate/direct
+lookup，私有 `BTreeSet` 负责 page 的 identity 顺序；register 与 checkpoint restore 在同一 registry write
+lock 下更新双索引，完整 `snapshots()` 与生命周期语义不变。新增独立的
+`agent_loop.book.snapshot_page` 与 `terminal.book.snapshot_page` runner/binary，沿用 4096 records、4096
+requests、1/2/4 worker、3 rounds 的 v3 量化标准；benchmark-only
+`snapshot_page_with_lock_wait` 仅在 `try_read` 发现竞争后取时，公共 page API 不带计时。固定 CPU 0-3 的
+一组 Linux x86_64 release 样本中，AgentLoopBook 中位吞吐约 54.2k/107.7k/207.3k pages/s，TerminalBook
+约 114.6k/190.8k/297.9k pages/s；两者 reject/error/observed read-lock wait 均为 0。该样本仅是单主机机制
+基线，不构成旧实现 A/B、写入竞争结论或 runtime cutover 权威；恢复索引一致性回归仍位于独立 Rust
+integration-test domain。
 
 ---
 

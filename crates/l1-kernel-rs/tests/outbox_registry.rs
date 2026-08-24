@@ -34,8 +34,14 @@ fn sessions_are_lazily_created_and_isolated() {
         registry.append("s-2", msg("s-2", seq));
     }
     // The same sequences in different sessions never collide.
-    assert_eq!(seqs(registry.get_or_create("s-1").unacked_after(-1)), [1, 2, 3]);
-    assert_eq!(seqs(registry.get_or_create("s-2").unacked_after(-1)), [1, 2]);
+    assert_eq!(
+        seqs(registry.get_or_create("s-1").unacked_after(-1)),
+        [1, 2, 3]
+    );
+    assert_eq!(
+        seqs(registry.get_or_create("s-2").unacked_after(-1)),
+        [1, 2]
+    );
     // Enumerated in stable sorted order.
     assert_eq!(registry.session_ids(), ["s-1", "s-2"]);
 }
@@ -72,7 +78,10 @@ fn eviction_beyond_maxlen_drops_oldest_and_counts_exactly() {
     for seq in 1..=5 {
         registry.append("s-1", msg("s-1", seq));
     }
-    assert_eq!(seqs(registry.get_or_create("s-1").unacked_after(-1)), [4, 5]);
+    assert_eq!(
+        seqs(registry.get_or_create("s-1").unacked_after(-1)),
+        [4, 5]
+    );
     let metrics = registry.metrics();
     assert_eq!(metrics.appended_total, 5);
     assert_eq!(metrics.evicted_total, 3);
@@ -109,14 +118,18 @@ fn metrics_track_acks_and_live_counts_across_teardown() {
     // Detach retains the cursor but the view leaves the live count.
     registry.detach("s-1", "view-a");
     assert_eq!(
-        registry.cursor("s-1", "view-a").map(|cursor| cursor.last_acked),
+        registry
+            .cursor("s-1", "view-a")
+            .map(|cursor| cursor.last_acked),
         Some(2)
     );
     assert_eq!(registry.metrics().live_views, 2);
     // A detached-but-retained cursor still advances monotonically.
     registry.ack_view("s-1", "view-a", 3);
     assert_eq!(
-        registry.cursor("s-1", "view-a").map(|cursor| cursor.last_acked),
+        registry
+            .cursor("s-1", "view-a")
+            .map(|cursor| cursor.last_acked),
         Some(3)
     );
     assert_eq!(registry.metrics().acks_total, 4);
@@ -157,7 +170,9 @@ fn concurrent_attach_ack_replay_stress_preserves_invariants() {
                 _ => round.saturating_sub(4),
             };
             registry.ack_view(&sid, view, horizon);
-            let entry = max_acked.entry((sid.clone(), view.to_string())).or_insert(-1);
+            let entry = max_acked
+                .entry((sid.clone(), view.to_string()))
+                .or_insert(-1);
             *entry = (*entry).max(i64::try_from(horizon).unwrap_or(i64::MAX));
         }
         if round % 50 == 0 {
@@ -186,7 +201,8 @@ fn concurrent_attach_ack_replay_stress_preserves_invariants() {
                     assert!(
                         window
                             .iter()
-                            .all(|value| i64::try_from(*value).unwrap_or(i64::MAX) > cursor.last_acked),
+                            .all(|value| i64::try_from(*value).unwrap_or(i64::MAX)
+                                > cursor.last_acked),
                         "replay stays strictly past the view cursor for {sid}/{view}"
                     );
                 }

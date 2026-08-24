@@ -11,10 +11,10 @@
 //! is a plain data container; runtime session state and transport stay
 //! adapter-owned.
 
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
-use crate::protocol::{Message, Outbox, ProtocolError, SessionCursor, OUTBOX_MAXLEN};
+use crate::protocol::{Message, OUTBOX_MAXLEN, Outbox, ProtocolError, SessionCursor};
 
 /// Aggregate runtime counters and live counts over the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +129,10 @@ impl OutboxRegistry {
 
     /// Detach a view while retaining its cursor for a later re-attach.
     pub fn detach(&mut self, session_id: &str, view_id: &str) {
-        if let Some(cursor) = self.views.get_mut(&(session_id.to_owned(), view_id.to_owned())) {
+        if let Some(cursor) = self
+            .views
+            .get_mut(&(session_id.to_owned(), view_id.to_owned()))
+        {
             cursor.detach();
         }
     }
@@ -139,7 +142,10 @@ impl OutboxRegistry {
     /// invariant, mirroring `SessionMultiplexer.ack`); unknown views are a
     /// no-op.
     pub fn ack_view(&mut self, session_id: &str, view_id: &str, seq: u64) {
-        if let Some(cursor) = self.views.get_mut(&(session_id.to_owned(), view_id.to_owned())) {
+        if let Some(cursor) = self
+            .views
+            .get_mut(&(session_id.to_owned(), view_id.to_owned()))
+        {
             cursor.last_acked = cursor
                 .last_acked
                 .max(i64::try_from(seq).unwrap_or(i64::MAX));

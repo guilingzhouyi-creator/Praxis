@@ -225,7 +225,14 @@ impl HostRouter {
         {
             let registered = self.lock_registered();
             if !registered.contains(&name) {
-                self.audit_dispatch("command", &agent_id, &name, 0, false, "unregistered command");
+                self.audit_dispatch(
+                    "command",
+                    &agent_id,
+                    &name,
+                    0,
+                    false,
+                    "unregistered command",
+                );
                 let _ = self.audit.flush();
                 return Err(ProtocolError::InvalidContract(format!(
                     "unregistered command: {name}"
@@ -241,7 +248,14 @@ impl HostRouter {
             interactive: true,
         };
         let result = self.authority.invoke(request);
-        self.audit_dispatch("command", &agent_id, &name, 0, result.success, &result.error);
+        self.audit_dispatch(
+            "command",
+            &agent_id,
+            &name,
+            0,
+            result.success,
+            &result.error,
+        );
         let _ = self.audit.flush();
         let response = self.response_envelope(&message, &result);
         self.lock_outboxes()
@@ -274,7 +288,9 @@ impl HostRouter {
 
     /// Lifecycle state for one session, if registered.
     pub fn session_state(&self, session_id: &str) -> Option<SessionLifecycle> {
-        self.lock_sessions().get(session_id).map(|record| record.state())
+        self.lock_sessions()
+            .get(session_id)
+            .map(|record| record.state())
     }
 
     /// Retained view cursor for one session/view pair, if attached.
@@ -469,9 +485,7 @@ impl HostRouter {
     }
 
     fn lock_upstream(&self) -> MutexGuard<'_, Option<Arc<dyn L3Upstream>>> {
-        self.upstream
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.upstream.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn agent_id_for(&self, session_id: &str) -> String {
@@ -511,7 +525,9 @@ impl HostRouter {
     ) {
         match result {
             Ok(_) => self.audit_dispatch(kind, agent_id, command, ring, true, ""),
-            Err(error) => self.audit_dispatch(kind, agent_id, command, ring, false, &error.to_string()),
+            Err(error) => {
+                self.audit_dispatch(kind, agent_id, command, ring, false, &error.to_string())
+            }
         }
     }
 
@@ -539,7 +555,9 @@ impl HostRouter {
     }
 
     fn next_response_seq(&self) -> u64 {
-        self.response_seq.fetch_add(1, Ordering::SeqCst).saturating_add(1)
+        self.response_seq
+            .fetch_add(1, Ordering::SeqCst)
+            .saturating_add(1)
     }
 }
 

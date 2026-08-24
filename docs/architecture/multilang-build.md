@@ -105,11 +105,68 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report
   with throughput, p95/p99, CPU/RSS, and explicit zero rejection/error counts;
-  queue/lock waits are zero because no queue boundary is involved.
+  queue wait is zero because no queue boundary is involved, while lock wait
+  accumulates only registry-unavailable `try_write` fallbacks. The isolated
+  2026-08-23 1/2/4-worker release baseline was about 1.62M/1.46M/1.37M ops/s
+  with median blocked-write wait of 0/0.85/3.32 ms, so batch/shard admission
+  remains a separate write-scaling candidate.
 - `SessionBook::create_batch` groups validated specs by shard and acquires each
   registry lock once while preserving input order and independent failures.
   `session.book.batch_admission` is measured by `rust-session-batch-bench` as a
   separate batch-latency workload; it is not merged into per-session evidence.
+- `snapshot::BookSnapshotPage` gives `SessionBook`, `AgentLoopBook`, and
+  `TerminalBook` a bounded identity-ordered read page. It retains at most
+  `limit + 1` handles in a max-heap while selecting from registry indexes,
+  sorts only that retained set, validates limits in `1..=512`, and exposes only
+  a live exclusive-identity cursor; durable callers retain complete
+  deterministic snapshots. `SessionBook` uses
+  shard-local `RwLock` registries so concurrent read pages do not serialize
+  behind one mutex. `run_session_book_snapshot_page` and
+  `rust-session-snapshot-page-bench` produce independent fixed-work v3
+  evidence at 4,096 prebuilt records and 1/2/4 workers. Their lock-wait field
+  accumulates only unavailable-lock `try_read` fallbacks, keeping timing out of the
+  public API. Two alternating three-round Linux x86_64 release suites pinned
+  to CPUs 0-3 recorded former-tree versus max-heap run medians of
+  17.8/18.0k versus 20.4/19.5k pages/s at one worker, 31.4/32.4k versus
+  35.1/37.1k at two, and 62.4/58.6k versus 63.9/70.1k at four. Every paired
+  run had zero rejects, errors, and measured read-lock contention. The
+  four-worker p95 varied across suites, so this supports retained-throughput
+  improvement rather than a stable tail-latency claim. It is not host-language
+  comparison or cutover evidence.
+- `run_session_book_snapshot_page_write_contention` is a separate mixed
+  workload: each item verifies a 64-item leading page on a single-shard book
+  and then admits one unique session. Two alternating release suites pinned
+  to CPUs 0-3 completed all 4,096 bundles with zero rejects/errors. Worker
+  medians were 12.2/13.1k, 14.1/15.4k, and 13.2/12.8k bundles/s at 1/2/4
+  workers; aggregate blocked lock wait was 0 ms, 142-164 ms, and 756-772 ms,
+  with p95 bundle latency of 0.10-0.12 ms, 0.28-0.33 ms, and 0.89-0.93 ms.
+  The 4-worker plateau and rising wait are explicit evidence that read-page
+  throughput cannot be promoted to a write-scaling policy. The runner remains
+  measurement-only and has no runtime or cutover authority.
+- `SessionBook` shards now keep a private ordered identity index beside the
+  hash map. Page reads inspect at most `limit + 1` eligible identities, while
+  duplicate checks and direct lookup remain hash-backed; create, batch, restore,
+  and closed removal update both indexes under the shard write lock. A pinned
+  same-host hash-only reference measured about 1.34/1.33/1.34M
+  `session.book.admission` ops/s at 1/2/4 workers versus about 0.87/1.11/1.21M
+  for one ordered-index suite. The write-only cost is material, but the mixed
+  page/read bundle reached 61.7-66.4k/70.1-82.3k/55.9-57.5k bundles/s and
+  reduced aggregate lock wait to 0/14-19/123-127 ms at 1/2/4 workers. These
+  fixed-host samples document a read/write tradeoff and do not grant cutover
+  authority.
+- `AgentLoopBook` and `TerminalBook` keep the same private ordered identity
+  index beside their hash maps; registration and checkpoint restore update both
+  indexes under one registry write lock, while direct lookup and complete
+  snapshots remain unchanged. `run_agent_loop_book_snapshot_page` and
+  `run_terminal_book_snapshot_page` emit separate fixed-work v3 reports using
+  the standard 4,096-record, 4,096-request, 1/2/4-worker, three-round matrix.
+  Their benchmark-only `snapshot_page_with_lock_wait` path clocks only after
+  `try_read` reports contention, while the public page API stays uninstrumented.
+  One Linux x86_64 release suite pinned to CPUs 0-3 measured median throughput
+  of about 54.2k/107.7k/207.3k pages/s for AgentLoopBook and
+  114.6k/190.8k/297.9k pages/s for TerminalBook at 1/2/4 workers, with zero
+  rejects, errors, and observed read-lock wait. This is a single-host mechanism
+  baseline, not an old-code A/B, writer-contention result, or cutover signal.
 - The `registry_base` candidate uses a hash index plus an explicit registration
   order vector, so name admission and lookup do not scan all descriptors while
   overwrite and public ordering remain stable. `run_registry_base` and

@@ -298,11 +298,17 @@ fn registry_create_at_is_deterministic_and_mutable() {
     let mut registry = SessionRegistry::new();
     registry.create_at(identity("s-1"), 1_700_000_000).unwrap();
     assert_eq!(registry.get("s-1").unwrap().created_at, 1_700_000_000);
-    assert_eq!(registry.get("s-1").unwrap().state(), SessionLifecycle::Created);
+    assert_eq!(
+        registry.get("s-1").unwrap().state(),
+        SessionLifecycle::Created
+    );
     registry
         .get_mut("s-1")
         .expect("s-1 present")
         .transition(SessionLifecycle::Ready)
         .expect("created to ready");
-    assert_eq!(registry.get("s-1").unwrap().state(), SessionLifecycle::Ready);
+    assert_eq!(
+        registry.get("s-1").unwrap().state(),
+        SessionLifecycle::Ready
+    );
 }
