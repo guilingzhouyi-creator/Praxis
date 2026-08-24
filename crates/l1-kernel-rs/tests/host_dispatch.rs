@@ -83,7 +83,9 @@ impl L3Upstream for RecordingUpstream {
 fn command_approved_dispatches_through_capability_gate() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
-    let responses = router.route(command("hello", "s-1", 7)).expect("dispatches");
+    let responses = router
+        .route(command("hello", "s-1", 7))
+        .expect("dispatches");
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0].kind, MessageKind::Result);
     assert_eq!(responses[0].payload["success"], json!(true));
@@ -102,7 +104,9 @@ fn command_denied_by_executor_is_wrapped_as_failed_result() {
         capability: request.name,
         data: Default::default(),
     });
-    let responses = router.route(command("hello", "s-1", 7)).expect("dispatches");
+    let responses = router
+        .route(command("hello", "s-1", 7))
+        .expect("dispatches");
     assert_eq!(responses[0].payload["success"], json!(false));
     assert_eq!(responses[0].payload["output"], json!("denied:hello"));
     let denied = router
@@ -121,7 +125,11 @@ fn unknown_command_fails_closed_and_is_audited() {
         .route(command("nonsense", "s-1", 7))
         .expect_err("unregistered command fails closed");
     assert!(error.to_string().contains("unregistered command: nonsense"));
-    assert!(!router.registered_commands().contains(&"nonsense".to_owned()));
+    assert!(
+        !router
+            .registered_commands()
+            .contains(&"nonsense".to_owned())
+    );
     for name in SYSTEM_COMMANDS {
         assert!(
             router.registered_commands().contains(&name.to_owned()),
@@ -181,7 +189,9 @@ fn system_ring3_with_approval_passes_and_ring1_is_safe() {
 #[test]
 fn control_attach_creates_session_record_and_view_cursor() {
     let router = HostRouter::new(RouterConfig::default());
-    router.route(control("attach", "s-1", Some("view-a"), 1)).expect("attach");
+    router
+        .route(control("attach", "s-1", Some("view-a"), 1))
+        .expect("attach");
     assert!(router.sessions().contains(&"s-1".to_owned()));
     assert_eq!(router.session_state("s-1"), Some(SessionLifecycle::Created));
     let cursor = router.view_cursor("s-1", "view-a").expect("view attached");
@@ -194,7 +204,9 @@ fn control_attach_creates_session_record_and_view_cursor() {
 #[test]
 fn ack_advances_view_cursor_monotonically() {
     let router = HostRouter::new(RouterConfig::default());
-    router.route(control("attach", "s-1", Some("view-a"), 1)).expect("attach");
+    router
+        .route(control("attach", "s-1", Some("view-a"), 1))
+        .expect("attach");
     let ack = Message::new(
         "s-1",
         2,
@@ -221,7 +233,9 @@ fn ack_advances_view_cursor_monotonically() {
         "",
         100.0,
     );
-    router.route(control_ack).expect("regressive ack is a no-op");
+    router
+        .route(control_ack)
+        .expect("regressive ack is a no-op");
     assert_eq!(
         router.view_cursor("s-1", "view-a").unwrap().last_acked,
         5,
@@ -232,9 +246,15 @@ fn ack_advances_view_cursor_monotonically() {
 #[test]
 fn control_detach_retains_the_view_cursor() {
     let router = HostRouter::new(RouterConfig::default());
-    router.route(control("attach", "s-1", Some("view-a"), 1)).expect("attach");
-    router.route(control("detach", "s-1", Some("view-a"), 2)).expect("detach");
-    let cursor = router.view_cursor("s-1", "view-a").expect("cursor retained");
+    router
+        .route(control("attach", "s-1", Some("view-a"), 1))
+        .expect("attach");
+    router
+        .route(control("detach", "s-1", Some("view-a"), 2))
+        .expect("detach");
+    let cursor = router
+        .view_cursor("s-1", "view-a")
+        .expect("cursor retained");
     assert!(!cursor.attached);
     assert_eq!(cursor.last_acked, -1);
 }
@@ -293,7 +313,9 @@ fn event_result_stream_chunk_inbound_rejected() {
     ];
     for (kind, payload) in cases {
         let message = Message::new("s-1", 1, kind, payload, "", 100.0);
-        let error = router.route(message).expect_err("outbound-only kind is rejected");
+        let error = router
+            .route(message)
+            .expect_err("outbound-only kind is rejected");
         assert!(error.to_string().contains("outbound-only"), "{kind:?}");
     }
 }
@@ -329,7 +351,9 @@ fn intent_without_upstream_buffers_and_overflow_fails_closed() {
 fn command_agent_id_comes_from_session_or_system() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
-    router.route(control("attach", "s-1", Some("view-a"), 1)).expect("attach");
+    router
+        .route(control("attach", "s-1", Some("view-a"), 1))
+        .expect("attach");
     router.route(command("hello", "s-1", 2)).expect("dispatch");
     let row = router
         .audit()
@@ -355,7 +379,9 @@ fn command_agent_id_comes_from_session_or_system() {
 fn audit_allowed_and_denied_dispatches_appear_with_correct_fields() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
-    router.route(command("hello", "s-1", 1)).expect("allowed command");
+    router
+        .route(command("hello", "s-1", 1))
+        .expect("allowed command");
     router
         .route(system_command("status", 3, false, "s-1", 2))
         .expect_err("denied system command");

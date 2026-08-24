@@ -2,11 +2,12 @@
 
 use l1_kernel_rs::benchmark::FixedWorkSpec;
 use l1_kernel_rs::benchmark_runner::{
-    run_agent_loop, run_agent_loop_batch, run_agent_loop_registry_lookup, run_managed_process,
-    run_process_adapter, run_process_bridge, run_process_group, run_queue_contention,
-    run_queue_contention_blocking, run_registry_base, run_session_book, run_session_book_batch,
-    run_terminal_book, run_terminal_book_batch, run_worker_pool_batch,
-    run_worker_pool_batch_submit,
+    run_agent_loop, run_agent_loop_batch, run_agent_loop_book_snapshot_page,
+    run_agent_loop_registry_lookup, run_managed_process, run_process_adapter, run_process_bridge,
+    run_process_group, run_queue_contention, run_queue_contention_blocking, run_registry_base,
+    run_session_book, run_session_book_batch, run_session_book_snapshot_page,
+    run_session_book_snapshot_page_write_contention, run_terminal_book, run_terminal_book_batch,
+    run_terminal_book_snapshot_page, run_worker_pool_batch, run_worker_pool_batch_submit,
 };
 
 #[test]
@@ -135,6 +136,92 @@ fn session_book_runner_preserves_fixed_work_and_reports_tail_latency() {
 fn session_book_runner_rejects_zero_shards() {
     let spec = FixedWorkSpec::new("session.book.admission", 4, vec![1], 1).expect("valid spec");
     assert!(run_session_book(spec, 0).is_err());
+}
+
+#[test]
+fn session_snapshot_page_runner_preserves_fixed_page_requests() {
+    let spec =
+        FixedWorkSpec::new("session.book.snapshot_page", 32, vec![1, 2], 1).expect("valid spec");
+    let report =
+        run_session_book_snapshot_page(spec, 4, 64, 8).expect("snapshot page runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 32
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.queue_wait_ns == 0
+            && sample.lock_wait_ns == 0
+    }));
+}
+
+#[test]
+fn session_snapshot_page_runner_rejects_invalid_read_boundary() {
+    let spec = FixedWorkSpec::new("session.book.snapshot_page", 4, vec![1], 1).expect("valid spec");
+    assert!(run_session_book_snapshot_page(spec.clone(), 0, 8, 2).is_err());
+    assert!(run_session_book_snapshot_page(spec.clone(), 2, 2, 2).is_err());
+    assert!(run_session_book_snapshot_page(spec, 2, 8, 0).is_err());
+}
+
+#[test]
+fn agent_loop_snapshot_page_runner_preserves_fixed_page_requests() {
+    let spec =
+        FixedWorkSpec::new("agent_loop.book.snapshot_page", 16, vec![1, 2], 1).expect("valid spec");
+    let report = run_agent_loop_book_snapshot_page(spec, 64, 8)
+        .expect("agent loop snapshot page runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 16
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.queue_wait_ns == 0
+            && sample.lock_wait_ns == 0
+    }));
+}
+
+#[test]
+fn terminal_snapshot_page_runner_preserves_fixed_page_requests() {
+    let spec =
+        FixedWorkSpec::new("terminal.book.snapshot_page", 16, vec![1, 2], 1).expect("valid spec");
+    let report = run_terminal_book_snapshot_page(spec, 64, 8)
+        .expect("terminal snapshot page runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 16
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.queue_wait_ns == 0
+            && sample.lock_wait_ns == 0
+    }));
+}
+
+#[test]
+fn session_snapshot_page_write_contention_runner_preserves_fixed_bundles() {
+    let spec = FixedWorkSpec::new(
+        "session.book.snapshot_page_write_contention",
+        32,
+        vec![1, 2],
+        1,
+    )
+    .expect("valid spec");
+    let report = run_session_book_snapshot_page_write_contention(spec, 1, 64, 8)
+        .expect("snapshot page contention runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 32
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.queue_wait_ns == 0
+            && sample.p99_latency_ns >= sample.p95_latency_ns
+    }));
+}
+
+#[test]
+fn session_snapshot_page_write_contention_rejects_invalid_boundary() {
+    let spec = FixedWorkSpec::new("session.book.snapshot_page_write_contention", 4, vec![1], 1)
+        .expect("valid spec");
+    assert!(run_session_book_snapshot_page_write_contention(spec.clone(), 0, 8, 2).is_err());
+    assert!(run_session_book_snapshot_page_write_contention(spec.clone(), 1, 2, 2).is_err());
+    assert!(run_session_book_snapshot_page_write_contention(spec, 1, 8, 0).is_err());
 }
 
 #[test]

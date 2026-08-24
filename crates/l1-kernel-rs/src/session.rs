@@ -5,10 +5,13 @@
 //! It deliberately does not call an AgentLoop, provider, tool, PTY, or
 //! filesystem adapter; those remain above this mechanism boundary.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, TryLockError};
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
+
+use crate::snapshot::{BookSnapshotPage, BookSnapshotPageError, BookSnapshotPageRequest};
 
 /// Version of the session mechanism contract.
 pub const SESSION_CONTRACT_VERSION: u32 = 1;
@@ -525,9 +528,43 @@ impl Session {
     }
 }
 
-/// Sharded registry that prevents a single global session admission lock.
+/// Sharded registry with concurrent read snapshots and exclusive admission writes.
 pub struct SessionBook {
-    shards: Vec<Mutex<HashMap<String, Arc<Session>>>>,
+    shards: Vec<RwLock<SessionShard>>,
+}
+
+/// One registry shard with hash lookup and an ordered identity index.
+///
+/// The hash map keeps duplicate admission and direct lookup at expected O(1),
+/// while the ordered set lets bounded page reads avoid scanning unrelated
+/// identities. Both structures are mutated under the same shard write lock.
+#[derive(Default)]
+struct SessionShard {
+    sessions: HashMap<String, Arc<Session>>,
+    ordered_ids: BTreeSet<String>,
+}
+
+impl SessionShard {
+    fn contains_key(&self, session_id: &str) -> bool {
+        self.sessions.contains_key(session_id)
+    }
+
+    fn get(&self, session_id: &str) -> Option<&Arc<Session>> {
+        self.sessions.get(session_id)
+    }
+
+    fn insert(&mut self, session_id: String, session: Arc<Session>) {
+        self.ordered_ids.insert(session_id.clone());
+        self.sessions.insert(session_id, session);
+    }
+
+    fn remove(&mut self, session_id: &str) -> Option<Arc<Session>> {
+        let session = self.sessions.remove(session_id);
+        if session.is_some() {
+            self.ordered_ids.remove(session_id);
+        }
+        session
+    }
 }
 
 impl Default for SessionBook {
@@ -543,7 +580,7 @@ impl SessionBook {
             return Err(SessionError::InvalidShardCount);
         }
         let shards = (0..shard_count)
-            .map(|_| Mutex::new(HashMap::new()))
+            .map(|_| RwLock::new(SessionShard::default()))
             .collect();
         Ok(Self { shards })
     }
@@ -552,13 +589,40 @@ impl SessionBook {
     pub fn create(&self, spec: SessionSpec) -> Result<Arc<Session>, SessionError> {
         let session = Arc::new(Session::new(spec)?);
         let mut shard = self.shards[self.shard_index(session.id())]
-            .lock()
+            .write()
             .unwrap_or_else(PoisonError::into_inner);
         if shard.contains_key(session.id()) {
             return Err(SessionError::DuplicateSession(session.id().to_owned()));
         }
         shard.insert(session.id().to_owned(), Arc::clone(&session));
         Ok(session)
+    }
+
+    /// Create one session and report only waiting behind a write-locked shard.
+    ///
+    /// This crate-private path exists for fixed-work evidence. The public
+    /// admission path does not read the clock on an uncontended write lock.
+    pub(crate) fn create_with_lock_wait(
+        &self,
+        spec: SessionSpec,
+    ) -> Result<(Arc<Session>, u64), SessionError> {
+        let session = Arc::new(Session::new(spec)?);
+        let shard = &self.shards[self.shard_index(session.id())];
+        let (mut shard, lock_wait_ns) = match shard.try_write() {
+            Ok(shard) => (shard, 0),
+            Err(TryLockError::WouldBlock) => {
+                let started = Instant::now();
+                let shard = shard.write().unwrap_or_else(PoisonError::into_inner);
+                let wait_ns = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                (shard, wait_ns)
+            }
+            Err(TryLockError::Poisoned(error)) => (error.into_inner(), 0),
+        };
+        if shard.contains_key(session.id()) {
+            return Err(SessionError::DuplicateSession(session.id().to_owned()));
+        }
+        shard.insert(session.id().to_owned(), Arc::clone(&session));
+        Ok((session, lock_wait_ns))
     }
 
     /// Create several sessions while acquiring each shard lock once.
@@ -588,7 +652,7 @@ impl SessionBook {
                 continue;
             }
             let mut shard = self.shards[shard_index]
-                .lock()
+                .write()
                 .unwrap_or_else(PoisonError::into_inner);
             for (index, session) in group {
                 if shard.contains_key(session.id()) {
@@ -611,7 +675,7 @@ impl SessionBook {
     pub fn restore(&self, checkpoint: SessionCheckpoint) -> Result<Arc<Session>, SessionError> {
         let session = Arc::new(Session::from_checkpoint(checkpoint)?);
         let mut shard = self.shards[self.shard_index(session.id())]
-            .lock()
+            .write()
             .unwrap_or_else(PoisonError::into_inner);
         if shard.contains_key(session.id()) {
             return Err(SessionError::DuplicateSession(session.id().to_owned()));
@@ -623,7 +687,7 @@ impl SessionBook {
     /// Return a session handle without holding the shard lock afterward.
     pub fn get(&self, session_id: &str) -> Option<Arc<Session>> {
         self.shards[self.shard_index(session_id)]
-            .lock()
+            .read()
             .unwrap_or_else(PoisonError::into_inner)
             .get(session_id)
             .cloned()
@@ -632,7 +696,7 @@ impl SessionBook {
     /// Remove only a closed session and return its final checkpoint.
     pub fn remove_closed(&self, session_id: &str) -> Result<SessionCheckpoint, SessionError> {
         let mut shard = self.shards[self.shard_index(session_id)]
-            .lock()
+            .write()
             .unwrap_or_else(PoisonError::into_inner);
         let session = shard
             .get(session_id)
@@ -649,11 +713,98 @@ impl SessionBook {
     pub fn snapshots(&self) -> Vec<SessionSnapshot> {
         let mut snapshots = Vec::new();
         for shard in &self.shards {
-            let shard = shard.lock().unwrap_or_else(PoisonError::into_inner);
-            snapshots.extend(shard.values().map(|session| session.snapshot()));
+            let shard = shard.read().unwrap_or_else(PoisonError::into_inner);
+            snapshots.extend(shard.sessions.values().map(|session| session.snapshot()));
         }
         snapshots.sort_by(|left, right| left.spec.session_id.cmp(&right.spec.session_id));
         snapshots
+    }
+
+    /// Return a bounded identity-ordered page without materializing every snapshot.
+    ///
+    /// The exclusive cursor is a session identity, not a durable scan token.
+    /// Concurrent registry writes can therefore alter later pages; checkpoint
+    /// callers must continue using [`Self::snapshots`].
+    pub fn snapshot_page(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<BookSnapshotPage<SessionSnapshot>, BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let mut candidates = request.candidates();
+        for shard in &self.shards {
+            let shard = shard.read().unwrap_or_else(PoisonError::into_inner);
+            // Each shard is ordered; later identities cannot enter this page
+            // after the first limit+1 eligible identities from that shard.
+            let mut retained = 0;
+            for session_id in &shard.ordered_ids {
+                if !request.is_after_cursor(session_id) {
+                    continue;
+                }
+                if retained == request.candidate_capacity() {
+                    break;
+                }
+                let session = shard
+                    .sessions
+                    .get(session_id)
+                    .expect("ordered session identity must have a hash entry");
+                request.retain_candidate(&mut candidates, session_id, || Arc::clone(session));
+                retained += 1;
+            }
+        }
+        Ok(request
+            .finish(candidates)
+            .map_items(|session| session.snapshot()))
+    }
+
+    /// Return a bounded page with aggregate waiting behind write-locked shards.
+    ///
+    /// This is deliberately crate-private benchmark instrumentation. The
+    /// public read API avoids clock reads on its uncontended fast path.
+    pub(crate) fn snapshot_page_with_lock_wait(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<(BookSnapshotPage<SessionSnapshot>, u64), BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let mut candidates = request.candidates();
+        let mut lock_wait_ns = 0_u64;
+        for shard in &self.shards {
+            let shard = match shard.try_read() {
+                Ok(shard) => shard,
+                Err(TryLockError::WouldBlock) => {
+                    let started = Instant::now();
+                    let shard = shard.read().unwrap_or_else(PoisonError::into_inner);
+                    let wait_ns = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                    lock_wait_ns = lock_wait_ns.saturating_add(wait_ns);
+                    shard
+                }
+                Err(TryLockError::Poisoned(error)) => error.into_inner(),
+            };
+            // Each shard is ordered; later identities cannot enter this page
+            // after the first limit+1 eligible identities from that shard.
+            let mut retained = 0;
+            for session_id in &shard.ordered_ids {
+                if !request.is_after_cursor(session_id) {
+                    continue;
+                }
+                if retained == request.candidate_capacity() {
+                    break;
+                }
+                let session = shard
+                    .sessions
+                    .get(session_id)
+                    .expect("ordered session identity must have a hash entry");
+                request.retain_candidate(&mut candidates, session_id, || Arc::clone(session));
+                retained += 1;
+            }
+        }
+        Ok((
+            request
+                .finish(candidates)
+                .map_items(|session| session.snapshot()),
+            lock_wait_ns,
+        ))
     }
 
     fn shard_index(&self, session_id: &str) -> usize {

@@ -16,6 +16,7 @@ use crate::process_group::{
 };
 use crate::registry_base::{MapRegistry, RegisterableSpec};
 use crate::session::{SESSION_MAX_MESSAGES, SessionBook, SessionInput, SessionSpec};
+use crate::snapshot::BOOK_SNAPSHOT_MAX_PAGE_SIZE;
 use crate::state_queue::{BoundedWorkQueue, WorkItem};
 use crate::substrate::{ProcessHandle, QueueMetrics};
 use crate::terminal::{TerminalBook, TerminalSpec};
@@ -30,6 +31,8 @@ const WORKER_POOL_IDLE_TIMEOUT_MS: u64 = 100;
 const PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const MANAGED_PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const PROCESS_GROUP_SWEEP_MEMBER_BUDGET: usize = 64;
+
+type SnapshotPageReader<B> = dyn Fn(&B) -> Result<u64, &'static str> + Send + Sync;
 
 #[derive(Debug, Clone, Copy, Default)]
 struct ResourceSnapshot {
@@ -199,6 +202,135 @@ pub fn run_session_book_batch(
                 round,
                 shard_count,
                 submit_batch_size,
+            )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total bounded SessionBook snapshot-page sweep.
+///
+/// Each work item reads one identity-ordered page from an already populated
+/// sharded registry. Registry construction is deliberately outside the timed
+/// interval so page-request latency is not conflated with session admission or
+/// durable checkpoint export. The returned work unit is one page request.
+pub fn run_session_book_snapshot_page(
+    spec: FixedWorkSpec,
+    shard_count: usize,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "snapshot page work does not fit the target architecture")?;
+    validate_session_book_snapshot_page_config(shard_count, registry_entries, page_size)?;
+
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_session_book_snapshot_page_round(
+                total_work,
+                worker_count,
+                round,
+                shard_count,
+                registry_entries,
+                page_size,
+            )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run fixed page-read and session-write bundles against one shared book.
+///
+/// A work item first verifies the leading page and then admits one unique
+/// session. It measures cross-mode registry contention without turning either
+/// public operation into a timed production API. The reported latency covers
+/// the complete bundle, while `lock_wait_ns` sums only blocked read/write lock
+/// fallbacks. This is evidence for the session mechanism only, not a writer
+/// fairness or runtime-routing policy.
+pub fn run_session_book_snapshot_page_write_contention(
+    spec: FixedWorkSpec,
+    shard_count: usize,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "snapshot page write contention work does not fit the target architecture")?;
+    validate_session_book_snapshot_page_config(shard_count, registry_entries, page_size)?;
+
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_session_book_snapshot_page_write_contention_round(
+                total_work,
+                worker_count,
+                round,
+                shard_count,
+                registry_entries,
+                page_size,
+            )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total bounded AgentLoopBook snapshot-page sweep.
+///
+/// Loop identities are seeded outside the timed interval. This workload only
+/// measures the registry page read boundary; it does not attach sessions,
+/// terminals, or start logical execution.
+pub fn run_agent_loop_book_snapshot_page(
+    spec: FixedWorkSpec,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "agent loop snapshot page work does not fit the target architecture")?;
+    validate_registry_snapshot_page_config(registry_entries, page_size)?;
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_agent_loop_book_snapshot_page_round(
+                total_work,
+                worker_count,
+                round,
+                registry_entries,
+                page_size,
+            )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total bounded TerminalBook snapshot-page sweep.
+///
+/// Terminal records are seeded outside the timed interval. Mailbox and
+/// process-binding operations stay outside this registry read workload.
+pub fn run_terminal_book_snapshot_page(
+    spec: FixedWorkSpec,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "terminal snapshot page work does not fit the target architecture")?;
+    validate_registry_snapshot_page_config(registry_entries, page_size)?;
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        for round in 0..spec.rounds {
+            report.push(run_terminal_book_snapshot_page_round(
+                total_work,
+                worker_count,
+                round,
+                registry_entries,
+                page_size,
             )?)?;
         }
     }
@@ -1064,6 +1196,7 @@ fn run_session_book_round(
         let next_work = Arc::clone(&next_work);
         workers.push(thread::spawn(move || {
             let mut latencies = Vec::new();
+            let mut lock_wait_ns = 0_u64;
             loop {
                 let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
                 if work_index >= total_work {
@@ -1071,8 +1204,8 @@ fn run_session_book_round(
                 }
                 let operation_started = Instant::now();
                 let session_id = format!("bench-{round:02}-{worker:02}-{work_index:08}");
-                let session = book
-                    .create(SessionSpec::new(
+                let (session, admission_lock_wait_ns) = book
+                    .create_with_lock_wait(SessionSpec::new(
                         session_id.clone(),
                         "bench-agent",
                         "bench-cell",
@@ -1080,6 +1213,7 @@ fn run_session_book_round(
                         2,
                     ))
                     .map_err(|_| "session admission failed")?;
+                lock_wait_ns = lock_wait_ns.saturating_add(admission_lock_wait_ns);
                 session
                     .activate()
                     .map_err(|_| "session activation failed")?;
@@ -1088,17 +1222,18 @@ fn run_session_book_round(
                     .map_err(|_| "session input admission failed")?;
                 latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
             }
-            Ok::<_, &'static str>(latencies)
+            Ok::<_, &'static str>((latencies, lock_wait_ns))
         }));
     }
 
     let mut latencies = Vec::with_capacity(total_work);
+    let mut lock_wait_ns = 0_u64;
     for worker in workers {
-        latencies.extend(
-            worker
-                .join()
-                .map_err(|_| "session benchmark worker panicked")??,
-        );
+        let (worker_latencies, worker_lock_wait_ns) = worker
+            .join()
+            .map_err(|_| "session benchmark worker panicked")??;
+        latencies.extend(worker_latencies);
+        lock_wait_ns = lock_wait_ns.saturating_add(worker_lock_wait_ns);
     }
     if latencies.len() != total_work {
         return Err("session benchmark did not preserve fixed work");
@@ -1114,7 +1249,7 @@ fn run_session_book_round(
         p95_latency_ns: percentile(&latencies, P95_PERCENT),
         p99_latency_ns: percentile(&latencies, P99_PERCENT),
         queue_wait_ns: 0,
-        lock_wait_ns: 0,
+        lock_wait_ns,
         rejected: 0,
         errors: 0,
         resources: resource_delta(resources_before, resources_after),
@@ -1210,6 +1345,379 @@ fn run_session_book_batch_round(
         errors: 0,
         resources: resource_delta(resources_before, resources_after),
     })
+}
+
+fn run_session_book_snapshot_page_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    shard_count: usize,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkSample, &'static str> {
+    let book =
+        Arc::new(SessionBook::new(shard_count).map_err(|_| "snapshot page book creation failed")?);
+    let first_session_id = format!("snapshot-page-{round:02}-{:08}", 0);
+    let last_page_session_id = format!("snapshot-page-{round:02}-{:08}", page_size - 1);
+    for entry in 0..registry_entries {
+        book.create(SessionSpec::new(
+            format!("snapshot-page-{round:02}-{entry:08}"),
+            "bench-agent",
+            "bench-cell",
+            "worker",
+            1,
+        ))
+        .map_err(|_| "snapshot page seed session admission failed")?;
+    }
+
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for _ in 0..worker_count {
+        let book = Arc::clone(&book);
+        let next_work = Arc::clone(&next_work);
+        let first_session_id = first_session_id.clone();
+        let last_page_session_id = last_page_session_id.clone();
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            let mut lock_wait_ns = 0_u64;
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                let (page, page_lock_wait_ns) = book
+                    .snapshot_page_with_lock_wait(None, page_size)
+                    .map_err(|_| "snapshot page request failed")?;
+                lock_wait_ns = lock_wait_ns.saturating_add(page_lock_wait_ns);
+                if page.items.len() != page_size
+                    || page.next_cursor.is_none()
+                    || page
+                        .items
+                        .first()
+                        .is_none_or(|snapshot| snapshot.spec.session_id != first_session_id)
+                    || page
+                        .items
+                        .last()
+                        .is_none_or(|snapshot| snapshot.spec.session_id != last_page_session_id)
+                {
+                    return Err("snapshot page result did not preserve bounded identity order");
+                }
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>((latencies, lock_wait_ns))
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(total_work);
+    let mut lock_wait_ns = 0_u64;
+    for worker in workers {
+        let (worker_latencies, worker_lock_wait_ns) = worker
+            .join()
+            .map_err(|_| "snapshot page benchmark worker panicked")??;
+        latencies.extend(worker_latencies);
+        lock_wait_ns = lock_wait_ns.saturating_add(worker_lock_wait_ns);
+    }
+    if latencies.len() != total_work {
+        return Err("snapshot page benchmark did not preserve fixed work");
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_agent_loop_book_snapshot_page_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkSample, &'static str> {
+    let book = Arc::new(AgentLoopBook::new());
+    let first_loop_id = format!("snapshot-page-{round:02}-{:08}", 0);
+    let last_page_loop_id = format!("snapshot-page-{round:02}-{:08}", page_size - 1);
+    for entry in 0..registry_entries {
+        book.register(AgentLoopSpec::new(
+            format!("snapshot-page-{round:02}-{entry:08}"),
+            "bench-agent",
+            "bench-cell",
+            "bench-session",
+            "bench-terminal",
+        ))
+        .map_err(|_| "agent loop snapshot page seed admission failed")?;
+    }
+    let first_loop_id_for_reader = first_loop_id.clone();
+    let last_page_loop_id_for_reader = last_page_loop_id.clone();
+    let reader = Arc::new(move |book: &AgentLoopBook| {
+        let (page, lock_wait_ns) = book
+            .snapshot_page_with_lock_wait(None, page_size)
+            .map_err(|_| "agent loop snapshot page request failed")?;
+        if page.items.len() != page_size
+            || page.next_cursor.is_none()
+            || page
+                .items
+                .first()
+                .is_none_or(|snapshot| snapshot.spec.loop_id != first_loop_id_for_reader)
+            || page
+                .items
+                .last()
+                .is_none_or(|snapshot| snapshot.spec.loop_id != last_page_loop_id_for_reader)
+        {
+            return Err("agent loop snapshot page order changed");
+        }
+        Ok(lock_wait_ns)
+    });
+    run_snapshot_page_round(book, total_work, worker_count, round, reader)
+}
+
+fn run_terminal_book_snapshot_page_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkSample, &'static str> {
+    let book = Arc::new(TerminalBook::new());
+    let first_terminal_id = format!("snapshot-page-{round:02}-{:08}", 0);
+    let last_page_terminal_id = format!("snapshot-page-{round:02}-{:08}", page_size - 1);
+    for entry in 0..registry_entries {
+        book.register(TerminalSpec::new(
+            format!("snapshot-page-{round:02}-{entry:08}"),
+            1,
+            1,
+        ))
+        .map_err(|_| "terminal snapshot page seed admission failed")?;
+    }
+    let first_terminal_id_for_reader = first_terminal_id.clone();
+    let last_page_terminal_id_for_reader = last_page_terminal_id.clone();
+    let reader = Arc::new(move |book: &TerminalBook| {
+        let (page, lock_wait_ns) = book
+            .snapshot_page_with_lock_wait(None, page_size)
+            .map_err(|_| "terminal snapshot page request failed")?;
+        if page.items.len() != page_size
+            || page.next_cursor.is_none()
+            || page
+                .items
+                .first()
+                .is_none_or(|snapshot| snapshot.terminal_id != first_terminal_id_for_reader)
+            || page
+                .items
+                .last()
+                .is_none_or(|snapshot| snapshot.terminal_id != last_page_terminal_id_for_reader)
+        {
+            return Err("terminal snapshot page order changed");
+        }
+        Ok(lock_wait_ns)
+    });
+    run_snapshot_page_round(book, total_work, worker_count, round, reader)
+}
+
+fn run_snapshot_page_round<B>(
+    book: Arc<B>,
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    reader: Arc<SnapshotPageReader<B>>,
+) -> Result<BenchmarkSample, &'static str>
+where
+    B: Send + Sync + 'static,
+{
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+    for _ in 0..worker_count {
+        let book = Arc::clone(&book);
+        let next_work = Arc::clone(&next_work);
+        let reader = Arc::clone(&reader);
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            let mut lock_wait_ns = 0_u64;
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                lock_wait_ns = lock_wait_ns.saturating_add(reader(&book)?);
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>((latencies, lock_wait_ns))
+        }));
+    }
+    let mut latencies = Vec::with_capacity(total_work);
+    let mut lock_wait_ns = 0_u64;
+    for worker in workers {
+        let (worker_latencies, worker_lock_wait_ns) = worker
+            .join()
+            .map_err(|_| "snapshot page benchmark worker panicked")??;
+        latencies.extend(worker_latencies);
+        lock_wait_ns = lock_wait_ns.saturating_add(worker_lock_wait_ns);
+    }
+    if latencies.len() != total_work {
+        return Err("snapshot page benchmark did not preserve fixed work");
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_session_book_snapshot_page_write_contention_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    shard_count: usize,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<BenchmarkSample, &'static str> {
+    let book =
+        Arc::new(SessionBook::new(shard_count).map_err(|_| "snapshot page book creation failed")?);
+    let first_session_id = format!("snapshot-page-{round:02}-{:08}", 0);
+    let last_page_session_id = format!("snapshot-page-{round:02}-{:08}", page_size - 1);
+    for entry in 0..registry_entries {
+        book.create(SessionSpec::new(
+            format!("snapshot-page-{round:02}-{entry:08}"),
+            "bench-agent",
+            "bench-cell",
+            "worker",
+            1,
+        ))
+        .map_err(|_| "snapshot page contention seed session admission failed")?;
+    }
+
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for _ in 0..worker_count {
+        let book = Arc::clone(&book);
+        let next_work = Arc::clone(&next_work);
+        let first_session_id = first_session_id.clone();
+        let last_page_session_id = last_page_session_id.clone();
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            let mut lock_wait_ns = 0_u64;
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                let (page, page_lock_wait_ns) = book
+                    .snapshot_page_with_lock_wait(None, page_size)
+                    .map_err(|_| "snapshot page contention request failed")?;
+                lock_wait_ns = lock_wait_ns.saturating_add(page_lock_wait_ns);
+                if page.items.len() != page_size
+                    || page.next_cursor.is_none()
+                    || page
+                        .items
+                        .first()
+                        .is_none_or(|snapshot| snapshot.spec.session_id != first_session_id)
+                    || page
+                        .items
+                        .last()
+                        .is_none_or(|snapshot| snapshot.spec.session_id != last_page_session_id)
+                {
+                    return Err("snapshot page contention changed leading page order");
+                }
+                let (_, write_lock_wait_ns) = book
+                    .create_with_lock_wait(SessionSpec::new(
+                        format!("snapshot-page-zwrite-{round:02}-{work_index:08}"),
+                        "bench-agent",
+                        "bench-cell",
+                        "worker",
+                        1,
+                    ))
+                    .map_err(|_| "snapshot page contention write admission failed")?;
+                lock_wait_ns = lock_wait_ns.saturating_add(write_lock_wait_ns);
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>((latencies, lock_wait_ns))
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(total_work);
+    let mut lock_wait_ns = 0_u64;
+    for worker in workers {
+        let (worker_latencies, worker_lock_wait_ns) = worker
+            .join()
+            .map_err(|_| "snapshot page contention benchmark worker panicked")??;
+        latencies.extend(worker_latencies);
+        lock_wait_ns = lock_wait_ns.saturating_add(worker_lock_wait_ns);
+    }
+    if latencies.len() != total_work {
+        return Err("snapshot page contention benchmark did not preserve fixed work");
+    }
+    latencies.sort_unstable();
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns: 0,
+        lock_wait_ns,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn validate_session_book_snapshot_page_config(
+    shard_count: usize,
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<(), &'static str> {
+    if shard_count == 0 {
+        return Err("snapshot page shard count must be positive");
+    }
+    validate_registry_snapshot_page_config(registry_entries, page_size)
+}
+
+fn validate_registry_snapshot_page_config(
+    registry_entries: usize,
+    page_size: usize,
+) -> Result<(), &'static str> {
+    if page_size == 0 || page_size > BOOK_SNAPSHOT_MAX_PAGE_SIZE {
+        return Err("snapshot page size is outside the public bound");
+    }
+    if registry_entries <= page_size {
+        return Err("snapshot page registry must contain a following record");
+    }
+    Ok(())
 }
 
 fn run_registry_base_round(

@@ -5,7 +5,7 @@
 //! deliberately leaves provider calls, prompt/tool policy, PTY I/O, and worker
 //! execution to upper-layer adapters.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError};
 use std::time::Instant;
@@ -13,6 +13,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 
 use crate::session::{MessageRole, Session, SessionError, SessionInput};
+use crate::snapshot::{BookSnapshotPage, BookSnapshotPageError, BookSnapshotPageRequest};
 use crate::terminal::{TerminalBook, TerminalError, TerminalState};
 
 /// Version of the logical AgentLoop routing contract.
@@ -396,7 +397,38 @@ impl AgentLoopHandle {
 
 /// Thread-safe registry for logical AgentLoop routing identities.
 pub struct AgentLoopBook {
-    loops: RwLock<HashMap<String, Arc<AgentLoopRecord>>>,
+    loops: RwLock<AgentLoopRegistry>,
+}
+
+/// Hash-backed loop lookup paired with a deterministic identity index.
+///
+/// The hash map remains the authority for duplicate checks and direct handle
+/// resolution. The ordered set bounds page traversal to the identities that
+/// can actually enter the requested page; both indexes are updated under the
+/// enclosing registry write lock.
+#[derive(Default)]
+struct AgentLoopRegistry {
+    loops: HashMap<String, Arc<AgentLoopRecord>>,
+    ordered_ids: BTreeSet<String>,
+}
+
+impl AgentLoopRegistry {
+    fn contains_key(&self, loop_id: &str) -> bool {
+        self.loops.contains_key(loop_id)
+    }
+
+    fn get(&self, loop_id: &str) -> Option<&Arc<AgentLoopRecord>> {
+        self.loops.get(loop_id)
+    }
+
+    fn values(&self) -> impl Iterator<Item = &Arc<AgentLoopRecord>> {
+        self.loops.values()
+    }
+
+    fn insert(&mut self, loop_id: String, record: Arc<AgentLoopRecord>) {
+        self.ordered_ids.insert(loop_id.clone());
+        self.loops.insert(loop_id, record);
+    }
 }
 
 impl Default for AgentLoopBook {
@@ -409,7 +441,7 @@ impl AgentLoopBook {
     /// Create an empty AgentLoop registry.
     pub fn new() -> Self {
         Self {
-            loops: RwLock::new(HashMap::new()),
+            loops: RwLock::new(AgentLoopRegistry::default()),
         }
     }
 
@@ -607,6 +639,83 @@ impl AgentLoopBook {
         snapshots
     }
 
+    /// Return a bounded identity-ordered page without materializing every snapshot.
+    ///
+    /// The exclusive cursor is a loop identity, not a durable scan token.
+    /// Concurrent registry writes can therefore alter later pages; checkpoint
+    /// callers must continue using [`Self::snapshots`].
+    pub fn snapshot_page(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<BookSnapshotPage<AgentLoopSnapshot>, BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let mut candidates = request.candidates();
+        let loops = self.read_loops();
+        let mut retained = 0;
+        for loop_id in &loops.ordered_ids {
+            if !request.is_after_cursor(loop_id) {
+                continue;
+            }
+            if retained == request.candidate_capacity() {
+                break;
+            }
+            let record = loops
+                .get(loop_id)
+                .expect("ordered loop identity must have a hash entry");
+            request.retain_candidate(&mut candidates, loop_id, || Arc::clone(record));
+            retained += 1;
+        }
+        drop(loops);
+        Ok(request
+            .finish(candidates)
+            .map_items(|record| record.snapshot()))
+    }
+
+    /// Return a bounded page and measure only blocked registry-read fallback time.
+    ///
+    /// This crate-private path exists for fixed-work evidence. The public page
+    /// API keeps its uncontended read path free of clock calls.
+    pub(crate) fn snapshot_page_with_lock_wait(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<(BookSnapshotPage<AgentLoopSnapshot>, u64), BookSnapshotPageError> {
+        let request = BookSnapshotPageRequest::new(after, limit)?;
+        let (loops, lock_wait_ns) = match self.loops.try_read() {
+            Ok(loops) => (loops, 0),
+            Err(TryLockError::WouldBlock) => {
+                let started = Instant::now();
+                let loops = self.loops.read().unwrap_or_else(PoisonError::into_inner);
+                let wait_ns = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                (loops, wait_ns)
+            }
+            Err(TryLockError::Poisoned(error)) => (error.into_inner(), 0),
+        };
+        let mut candidates = request.candidates();
+        let mut retained = 0;
+        for loop_id in &loops.ordered_ids {
+            if !request.is_after_cursor(loop_id) {
+                continue;
+            }
+            if retained == request.candidate_capacity() {
+                break;
+            }
+            let record = loops
+                .get(loop_id)
+                .expect("ordered loop identity must have a hash entry");
+            request.retain_candidate(&mut candidates, loop_id, || Arc::clone(record));
+            retained += 1;
+        }
+        drop(loops);
+        Ok((
+            request
+                .finish(candidates)
+                .map_items(|record| record.snapshot()),
+            lock_wait_ns,
+        ))
+    }
+
     fn transition(
         &self,
         loop_id: &str,
@@ -625,11 +734,11 @@ impl AgentLoopBook {
             .ok_or_else(|| AgentLoopError::LoopNotFound(loop_id.to_owned()))
     }
 
-    fn read_loops(&self) -> RwLockReadGuard<'_, HashMap<String, Arc<AgentLoopRecord>>> {
+    fn read_loops(&self) -> RwLockReadGuard<'_, AgentLoopRegistry> {
         self.loops.read().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn write_loops(&self) -> RwLockWriteGuard<'_, HashMap<String, Arc<AgentLoopRecord>>> {
+    fn write_loops(&self) -> RwLockWriteGuard<'_, AgentLoopRegistry> {
         self.loops.write().unwrap_or_else(PoisonError::into_inner)
     }
 }

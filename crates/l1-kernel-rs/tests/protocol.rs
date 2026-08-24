@@ -39,64 +39,92 @@ fn canonical_json_golden_vectors_match_python_reference() {
     let cases: Vec<(Message, &str)> = vec![
         (
             Message::new(
-                "s-1", 7, MessageKind::Command,
+                "s-1",
+                7,
+                MessageKind::Command,
                 payload(&[("name", json!("status")), ("args", json!(["a", "b"]))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"command","payload":{"args":["a","b"],"name":"status"},"seq":7,"session_id":"s-1","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-2", 0, MessageKind::Intent,
+                "s-2",
+                0,
+                MessageKind::Intent,
                 payload(&[("text", json!("hello world"))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"intent","payload":{"text":"hello world"},"seq":0,"session_id":"s-2","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-3", 42, MessageKind::Event,
-                payload(&[("event_type", json!("tick")), ("data", json!({"z": 1, "a": [3, {"y": 2, "x": 1}]}))]),
-                "", 100.0,
+                "s-3",
+                42,
+                MessageKind::Event,
+                payload(&[
+                    ("event_type", json!("tick")),
+                    ("data", json!({"z": 1, "a": [3, {"y": 2, "x": 1}]})),
+                ]),
+                "",
+                100.0,
             ),
             r#"{"kind":"event","payload":{"data":{"a":[3,{"x":1,"y":2}],"z":1},"event_type":"tick"},"seq":42,"session_id":"s-3","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-4", 9, MessageKind::Ack,
+                "s-4",
+                9,
+                MessageKind::Ack,
                 payload(&[("ack_seq", json!(9)), ("view_id", json!("view-web"))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"ack","payload":{"ack_seq":9,"view_id":"view-web"},"seq":9,"session_id":"s-4","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-5", 1, MessageKind::Control,
+                "s-5",
+                1,
+                MessageKind::Control,
                 payload(&[("op", json!("attach")), ("session_id", json!("s-5"))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"control","payload":{"op":"attach","session_id":"s-5"},"seq":1,"session_id":"s-5","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-6", 5, MessageKind::Result,
+                "s-6",
+                5,
+                MessageKind::Result,
                 payload(&[("success", json!(true)), ("output", json!("ok"))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"result","payload":{"output":"ok","success":true},"seq":5,"session_id":"s-6","trace_id":"","ts":100.0,"v":1}"#,
         ),
         (
             Message::new(
-                "s-7", 8, MessageKind::StreamChunk,
+                "s-7",
+                8,
+                MessageKind::StreamChunk,
                 payload(&[("data", json!("partial"))]),
-                "", 100.0,
+                "",
+                100.0,
             ),
             r#"{"kind":"stream_chunk","payload":{"data":"partial"},"seq":8,"session_id":"s-7","trace_id":"","ts":100.0,"v":1}"#,
         ),
     ];
     for (message, expected) in cases {
         let line = encode_message(&message).expect("message encodes");
-        assert_eq!(&line, expected, "golden vector mismatch for {:?}", message.kind);
+        assert_eq!(
+            &line, expected,
+            "golden vector mismatch for {:?}",
+            message.kind
+        );
         assert_eq!(decode_message(&line).expect("decodes"), message);
     }
 }

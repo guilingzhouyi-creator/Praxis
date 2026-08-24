@@ -57,6 +57,7 @@ pub mod session;
 pub mod session_identity;
 pub mod session_lifecycle;
 pub mod session_store;
+pub mod snapshot;
 pub mod state_layout;
 pub mod state_queue;
 pub mod state_store;
