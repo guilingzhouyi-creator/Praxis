@@ -205,8 +205,21 @@ pub fn validate_message(message: &Message) -> Vec<String> {
     errors
 }
 
+/// Host-derived authorization fields banned from inbound command/control
+/// payloads (R4): approval authority is adapter-injected at the GateRequest
+/// boundary and must never be wire-declared.
+const HOST_DERIVED_PAYLOAD_FIELDS: [&str; 4] =
+    ["approved", "pre_approved", "full_power", "harness_auto_approved"];
+
 fn validate_payload(kind: MessageKind, payload: &BTreeMap<String, Value>) -> Vec<String> {
     let mut errors = Vec::new();
+    if matches!(kind, MessageKind::Command | MessageKind::Control)
+        && HOST_DERIVED_PAYLOAD_FIELDS
+            .iter()
+            .any(|field| payload.contains_key(*field))
+    {
+        errors.push("payload carries host-derived authorization fields".to_owned());
+    }
     match kind {
         MessageKind::Command => {
             if !non_empty_text(payload.get("name")) {
@@ -893,11 +906,6 @@ impl Outbox {
         self.last_acked = self.last_acked.max(i64::try_from(seq).unwrap_or(i64::MAX));
     }
 
-    /// Return messages retained for replay.
-    pub fn unacked(&self) -> Vec<Message> {
-        self.items.iter().cloned().collect()
-    }
-
     /// Return the number of messages currently retained for replay.
     pub fn len(&self) -> usize {
         self.items.len()
@@ -917,6 +925,13 @@ impl Outbox {
             .filter(|message| i64::try_from(message.seq).unwrap_or(i64::MAX) > after_seq)
             .cloned()
             .collect()
+    }
+
+    /// Default replay window (R1): retained messages strictly above the
+    /// acknowledged cursor. Retained messages at or below the cursor are
+    /// never destroyed — recover them via `unacked_after(-1)`.
+    pub fn unacked(&self) -> Vec<Message> {
+        self.unacked_after(self.last_acked)
     }
 
     /// Return the highest acknowledged sequence, or -1 before acknowledgement.

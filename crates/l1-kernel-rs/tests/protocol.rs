@@ -185,8 +185,10 @@ fn outbox_ack_clamps_huge_seqs_without_breaking_replay() {
     // A client seq above i64::MAX must not panic or corrupt the window.
     outbox.ack(u64::MAX);
     assert_eq!(outbox.last_acked(), i64::MAX);
-    // Replay window still intact (non-destructive).
-    assert_eq!(outbox.unacked().len(), 4);
+    // Retention is non-destructive: recovery from -1 still replays all 4
+    // (the default cursor-filtered window is empty at this watermark, R1).
+    assert_eq!(outbox.unacked().len(), 0);
+    assert_eq!(outbox.unacked_after(-1).len(), 4);
 }
 
 #[test]
@@ -222,9 +224,18 @@ fn outbox_evicts_and_acknowledges_in_order() {
         [2, 3]
     );
     outbox.ack(2);
+    // R1 default window filters by the ack cursor; retention stays intact.
     assert_eq!(
         outbox
             .unacked()
+            .iter()
+            .map(|message| message.seq)
+            .collect::<Vec<_>>(),
+        [3]
+    );
+    assert_eq!(
+        outbox
+            .unacked_after(-1)
             .iter()
             .map(|message| message.seq)
             .collect::<Vec<_>>(),
