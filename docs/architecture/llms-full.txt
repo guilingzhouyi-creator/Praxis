@@ -552,9 +552,85 @@ ordering remains deterministic. `benchmark_runner::run_session_book` and the
 `rust-session-bench` release binary exercise a fixed total of
 create/activate/input operations under the v3 evidence schema, including
 throughput, p95/p99, CPU/RSS, and explicit zero rejection/error counts. This
-workload has no queue boundary, so queue/lock wait fields remain zero rather
-than being presented as scheduler evidence; it does not authorize runtime
-cutover.
+workload has no queue boundary, so queue wait remains zero. Its lock-wait
+field accumulates only `try_write` fallbacks when a registry lock is unavailable,
+without adding clocks to the public admission fast path; it does not authorize
+runtime cutover.
+The isolated 2026-08-23 Linux x86_64 release run recorded median admission
+throughput of about 1.62M/1.46M/1.37M ops/s and median blocked-write wait of
+0/0.85/3.32 ms at 1/2/4 workers, respectively. The declining write scale is
+therefore an observed baseline for the separately measured batch/shard work,
+not a claim that reader concurrency improves write admission.
+
+The shared `snapshot::BookSnapshotPage` boundary now gives `SessionBook`,
+`AgentLoopBook`, and `TerminalBook` a bounded, identity-ordered read API. A
+bounded max-heap retains at most `limit + 1` handles while selecting from the
+registry's hash/ordered indexes and only sorts that retained set before
+constructing returned snapshots; limits are fail-closed in `1..=512`. The next
+cursor is an exclusive logical identity, not a repeatable-read token, so
+concurrent writes may alter later pages. Complete `snapshots()` calls remain
+deterministic and unchanged for durable checkpoint validation, recovery, and
+other complete-state consumers.
+
+`SessionBook` uses shard-local `RwLock` registries: admission and removal
+remain exclusive, while lookup and the complete/page read paths admit
+concurrent readers. `rust-session-snapshot-page-bench` exercises 4,096 fixed
+page requests against 4,096 prebuilt sessions at 1/2/4 workers for three
+rounds under the v3 evidence schema. The benchmark records per-page p95/p99,
+CPU/RSS, rejection/error counts, and aggregate read-lock wait only after an
+initial `try_read` reports the registry lock unavailable; normal public pages do not pay
+that timing cost. Two alternating Linux x86_64 release suites pinned to CPUs
+0-3 compared the former bounded-tree selector with the max-heap candidate on
+the same 4,096-record, 64-item-page, 4,096-request workload. The three-round
+run medians were 17.8/18.0k versus 20.4/19.5k pages/s at one worker,
+31.4/32.4k versus 35.1/37.1k at two, and 62.4/58.6k versus 63.9/70.1k at
+four, respectively. Every paired run completed with zero rejects, errors, and
+measured read-lock wait. The four-worker p95 varied between the paired suites,
+so the evidence supports retained-throughput improvement only, not a stable
+tail-latency claim. This is not a Python-host comparison, a writer-contention
+guarantee, or runtime-cutover authority.
+
+The companion `session.book.snapshot_page_write_contention` runner keeps one
+single-shard book and makes each fixed work item verify the leading 64-item
+page before admitting one unique session. Two alternating release suites
+pinned to CPUs 0-3 completed all 4,096 bundles with zero rejects/errors. Their
+worker medians were 12.2/13.1k, 14.1/15.4k, and 13.2/12.8k bundles/s at
+1/2/4 workers; aggregate blocked lock wait was 0 ms, 142-164 ms, and
+756-772 ms, while p95 bundle latency was 0.10-0.12 ms, 0.28-0.33 ms, and
+0.89-0.93 ms. The 4-worker plateau and rising wait make the read/write
+interaction explicit: the page read optimization does not establish a write
+scaling policy. This workload is a mechanism-only contention baseline and
+does not authorize AgentLoop, provider, persistence, or runtime cutover.
+
+To reduce that read-lock hold time, each `SessionBook` shard now maintains a
+private `BTreeSet` identity index beside its hash map. Duplicate admission and
+direct lookup stay hash-backed, while a page reads at most `limit + 1` eligible
+identities from the ordered set and then resolves those handles in the map;
+create, batch admission, restore, and closed removal update both structures
+under one write lock. A same-host hash-only reference release run measured
+about 1.34/1.33/1.34M `session.book.admission` ops/s at 1/2/4 workers, while
+the ordered-index candidate measured about 0.87/1.11/1.21M in one pinned
+suite. The write-only cost is therefore material and remains an explicit
+tradeoff. In the paired read/write workload, however, the candidate reached
+about 61.7-66.4k/70.1-82.3k/55.9-57.5k bundles/s and reduced aggregate lock
+wait to 0/14-19/123-127 ms at 1/2/4 workers. These are fixed-host mechanism
+samples, not a stable production scaling or cutover decision.
+
+`AgentLoopBook` and `TerminalBook` now apply the same bounded traversal rule
+with private `BTreeSet` identity indexes beside their hash maps. Registration
+and checkpoint restore update the hash and ordered structures under the same
+registry write lock; direct lookup and complete `snapshots()` behavior remain
+unchanged. The independent `agent_loop.book.snapshot_page` and
+`terminal.book.snapshot_page` runners use the standard 4,096-record,
+4,096-request, 1/2/4-worker, three-round v3 matrix. Their benchmark-only
+`snapshot_page_with_lock_wait` path measures a clock only after `try_read`
+reports contention; the public page API remains uninstrumented. One Linux
+x86_64 release suite pinned to CPUs 0-3 recorded median throughput of about
+54.2k/107.7k/207.3k pages/s for AgentLoopBook and
+114.6k/190.8k/297.9k pages/s for TerminalBook at 1/2/4 workers, with zero
+rejects, errors, and observed read-lock wait. These are single-host mechanism
+baselines with no old-implementation A/B, writer contention, or runtime
+cutover authority.
 
 `SessionBook::create_batch` provides a separate grouped-admission candidate:
 validated session specs are grouped by shard, each shard lock is acquired once,
