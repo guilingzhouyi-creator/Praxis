@@ -21,6 +21,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
+
 | 2026-08-22 | scripts/sh/verify-completion.sh | GPT (infra merge) | ⚠️ CLOBBERED AtomCode's WSL-slice + dedupe optimization (f5087549/bb18759c) | reconciled — restored by AtomCode in coverage-wsl bd800342 |
 | 2026-08-22 | scripts/sh/verify-completion.sh | AtomCode | coverage WSL serial (XDIST_ARGS) | in coverage-wsl bd800342 |
 | 2026-08-22 | .githooks/commit-msg + scripts/sh/push-both.sh | AtomCode | shared-file handoff gate (strict register-or-reject) | in agent-handoff (this commit) |
@@ -48,7 +49,12 @@
 | 2026-08-24 | crates/l1-kernel-rs/src/{session,snapshot}.rs + crates/l1-kernel-rs/tests/snapshot_page.rs + docs/architecture/{l1-kernel,multilang-build}.md + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-l1-snapshot-boundary) | SessionBook shard ordered identity index bounds page traversal to limit+1; independent remove/restore regression; fixed-host A/B records material write tradeoff and mixed-bundle lock-wait reduction | in feature/root-l1-snapshot-boundary |
 | 2026-08-24 | crates/l1-kernel-rs/src/{agent_loop,terminal,benchmark_runner}.rs + crates/l1-kernel-rs/src/bin/{rust-agent-loop-snapshot-page-bench,rust-terminal-snapshot-page-bench}.rs + crates/l1-kernel-rs/tests/{snapshot_page,benchmark_runner}.rs + Makefile + docs/architecture/{l1-kernel,multilang-build}.md + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-l1-snapshot-boundary) | AgentLoopBook and TerminalBook ordered identity indexes cover register/restore/page paths; benchmark-only try_read lock-wait probes now record real fallback time; fixed-host baselines remain read-only and tests stay in the independent Rust domain | in feature/root-l1-snapshot-boundary |
 | 2026-08-24 | main 588202f L1/L2 communication line + snapshot boundary bundle | GPT (root-l1-snapshot-boundary) | rebased the snapshot/page performance slice onto the latest local main; preserved host dispatch, outbox, session identity/lifecycle, protocol, and their independent tests; only mechanical rustfmt changes touched main-owned communication files | in feature/root-l1-snapshot-aligned |
-
+| 2026-08-25 | scripts/sh/verify-completion.sh + judge-stats.sh + docs/architecture/completion-judge.md | AtomCode | judge scorecard hardening: zero-value metric preservation, full-mode rate tracking, git exemption parsing (-z), flock concurrency, worktree log resolution | in feature/judge-stats-hardening (6c555c34) |
+| 2026-08-25 | config/discovery/commits.yaml + commits.json + .githooks/commit-msg + scripts/py/commit_scan.py + detect_agent.py | Antigravity | anti-impersonation governance: probe runtime first, block random grabbing, Antigravity/Gemini registration, user escalation guidance | in feature/judge-stats-hardening (dd90dd62) |
+| 2026-08-25 | scripts/py/commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_* | Antigravity | commit format hardening: imperative mood verb enforcement, strict EOF trailer sentinel, tests | in feature/judge-stats-hardening (1ae3a3b4) |
+| 2026-08-25 | scripts/sh/handoff-rotate.sh + docs/agent-handoff/* | Antigravity | fix table row output order before ## Clobber warnings in rotation awk script, rotate threshold archive | in feature/judge-stats-hardening (716fa62d) |
+| 2026-08-25 | scripts/sh/verify-completion.sh + tests/conftest.py + CHANGELOG.md | Antigravity | normalize conftest imports for ruff, bound WSL judge workers, refresh changelog | in feature/judge-stats-hardening (6f6d924f) |
+| 2026-08-25 | scripts/sh/verify-main-merge-gate.sh | Antigravity | support user-granted MERGE_GATE_SKIP waiver with mandatory MERGE_GATE_REASON | in feature/judge-stats-hardening (this commit) |
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an

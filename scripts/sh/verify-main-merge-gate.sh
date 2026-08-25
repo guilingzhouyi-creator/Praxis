@@ -51,6 +51,15 @@ if ! git rev-parse --verify "$MAIN_BASE" >/dev/null 2>&1; then
   exit 2
 fi
 
+if [ "${MERGE_GATE_SKIP:-0}" = "1" ]; then
+  if [ -z "${MERGE_GATE_REASON:-}" ]; then
+    echo "[merge-gate] ❌ MERGE_GATE_SKIP=1 requires MERGE_GATE_REASON=<why>." >&2
+    exit 1
+  fi
+  echo "[merge-gate] ⚠️  merge gate waived (MERGE_GATE_SKIP=1) — reason: ${MERGE_GATE_REASON}"
+  exit 0
+fi
+
 if [ "$BRANCH" = "$MAIN_BASE" ]; then
   echo "[merge-gate] INFO: branch '$BRANCH' is the base itself — nothing to gate."
   exit 0

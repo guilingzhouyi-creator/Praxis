@@ -102,6 +102,13 @@ agents:
   - name: GLM
     models: [glm-5.3, glm-5.2]
     email: noreply@z.ai
+  # ── Google / DeepMind ──
+  - name: Antigravity
+    models: [gemini-3.7-flash, gemini-3.7-pro, gemini-2.5-pro, gemini-2.5-flash, gemini-ultra]
+    email: noreply@google.com
+  - name: Gemini
+    models: [gemini-3.7-flash, gemini-3.7-pro, gemini-2.5-pro, gemini-2.5-flash, gemini-ultra]
+    email: noreply@google.com
 
 # Registered scopes. A `type(scope):` whose scope is NOT listed here is a
 # violation under `strict` mode (warned under `relaxed`). Keep this list in

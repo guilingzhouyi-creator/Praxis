@@ -86,14 +86,50 @@ def test_unregistered_agent_rejected() -> None:
     res = _scan(msg)
     assert res.returncode == 1
     assert "not registered" in res.stderr
+    assert "DO NOT GUESS OR IMPERSONATE" in res.stderr
 
 
 def test_wrong_model_for_registered_agent() -> None:
-    # AtomCode is only allowed deepseek-v4-flash — gpt-4o is not in its list.
+    # AtomCode is only allowed deepseek-v4-flash/pro — gpt-4o is not in its list.
     msg = "feat(l3): wrong model\n\nCo-Authored-By: AtomCode (gpt-4o) <noreply@atomgit.com>"
     res = _scan(msg)
     assert res.returncode == 1
     assert "model 'gpt-4o' not allowed" in res.stderr
+    assert "DO NOT GUESS OR IMPERSONATE" in res.stderr
+
+
+def test_antigravity_gemini_registered() -> None:
+    detected = json.dumps(
+        {
+            "framework": "antigravity",
+            "agent": "Antigravity",
+            "model": "gemini-3.7-flash",
+            "evidence": "A",
+            "confidence": "high",
+            "signals": ["env:ANTIGRAVITY_*"],
+        }
+    )
+    msg = "feat(l3): antigravity test\n\nCo-Authored-By: Antigravity (gemini-3.7-flash) <noreply@google.com>"
+    res = _scan(msg, detected=detected)
+    assert res.returncode == 0
+
+
+def test_trailing_commentary_after_trailer_rejected() -> None:
+    msg = (
+        "feat(l3): test trailer position\n\n"
+        "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>\n"
+        "Note: I have verified all 11 checks."
+    )
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "VERY LAST line" in res.stderr
+
+
+def test_missing_blank_line_before_trailer_rejected() -> None:
+    msg = "feat(l3): test trailer blank line\nCo-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "preceded by a blank line" in res.stderr
 
 
 def test_markdown_subject_rejected() -> None:

@@ -144,13 +144,14 @@ if [ -f scripts/py/commit_scan.py ]; then
     echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
     grep '  ✗' /tmp/commit_cab.log >&2
     echo "" >&2
-    echo "   HOW TO FIX (do not guess — read your actual runtime):" >&2
-    echo "     1. python scripts/py/detect_agent.py --json" >&2
-    echo "        → reports the framework/model that ACTUALLY runs this session" >&2
-    echo "     2. use THAT model name in the trailer; agent name must be" >&2
-    echo "        registered in config/discovery/commits.yaml (agents:)" >&2
-    echo "     3. correct form:" >&2
-    echo "        Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>" >&2
+    echo "   HOW TO FIX (DO NOT guess or pick arbitrary models from commits.yaml):" >&2
+    echo "     1. Run: python scripts/py/detect_agent.py --json" >&2
+    echo "        → inspect what framework and model actually run this session" >&2
+    echo "     2. If your runtime is unregistered in config/discovery/commits.yaml" >&2
+    echo "        or has confidence=low/none:" >&2
+    echo "        STOP and notify the human user to register your identity or export" >&2
+    echo "        PRAXIS_AUTHOR=<Agent> PRAXIS_MODEL=<model>." >&2
+    echo "     3. NEVER forge or pick another agent's identity to bypass this gate." >&2
     DETECTED="$(python scripts/py/detect_agent.py --json 2>/dev/null || echo '')"
     echo "     4. (this session detects:) ${DETECTED:-<detection unavailable>}" >&2
     echo "   Only if you are deliberately overriding attribution (manual/" >&2

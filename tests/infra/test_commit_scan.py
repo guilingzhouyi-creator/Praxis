@@ -70,6 +70,18 @@ def test_cjk_placeholder_rejected():
     assert any("CJK" in v for v in vs)
 
 
+def test_non_imperative_verb_rejected():
+    p = policy()
+    for bad_subject in (
+        "feat(kernel): added new allocator table",
+        "fix(kernel): fixing race condition in sync",
+        "refactor(l3): updated session lifecycle handler",
+        "chore(ci): changes in workflow timeout",
+    ):
+        vs = validate_subject(bad_subject, policy=p)
+        assert any("non-imperative verb" in v for v in vs), f"expected violation for {bad_subject}"
+
+
 def test_empty_summary_rejected():
     p = policy()
     vs = validate_subject("feat(kernel):", policy=p)
