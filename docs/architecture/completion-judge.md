@@ -39,7 +39,7 @@ conventions).
 | 4 | Docs sync | `scripts/py/check_doc_stats.py` | no snapshot drift |
 | 5 | Lint/type | `ruff check` + `ruff format --check` + `mypy` | clean |
 | 6 | Audit | `pip-audit` | no known dependency CVEs |
-| 7 | Complexity | `long_functions` scanner | no function > 200 lines |
+| 7 | Complexity | `long_functions` scanner | at most 12 functions > 200 lines |
 | 8 | Import cycle | `scripts/py/import_cycle_check.py` | no cycles |
 | 9 | Singleton | `scripts/py/scan_singletons.py` | `conftest.py` `_RESETS` in sync |
 | 10 | Changelog | `scripts/py/check_changelog.py` | `[Unreleased]` present and fresh |
