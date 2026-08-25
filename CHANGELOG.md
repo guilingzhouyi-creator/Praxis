@@ -7,6 +7,7 @@
 
 ### 修复
 
+- **Fix (judge)**: normalize conftest imports and bound judge workers
 - **Fix (scripts)**: fix table row position in handoff rotation script
 - **Fix (scripts)**: enforce imperative mood and strict EOF trailer sentinel
 - **Fix (scripts)**: require check-content flag before inspecting staged files
