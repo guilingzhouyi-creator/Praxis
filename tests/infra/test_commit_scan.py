@@ -82,6 +82,38 @@ def test_non_imperative_verb_rejected():
         assert any("non-imperative verb" in v for v in vs), f"expected violation for {bad_subject}"
 
 
+def test_non_imperative_list_is_policy_driven():
+    # The verb list is registry data (commits.yaml `non_imperative_verbs`):
+    # an explicit policy without the key falls back, and a custom list
+    # overrides the default — proving the gate reads the registry, not a
+    # hardcoded set.
+    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+
+    subject = "feat(kernel): added new allocator table"
+    fallback_policy = {"types": ["feat"], "scopes": ["kernel"]}
+    assert any("non-imperative verb" in v for v in validate_subject(subject, policy=fallback_policy))
+    custom_policy = {
+        "types": ["feat"],
+        "scopes": ["kernel"],
+        "non_imperative_verbs": ["refactored"],
+    }
+    assert validate_subject(subject, policy=custom_policy) == []
+    assert "added" in _FALLBACK_NON_IMPERATIVE_VERBS  # fallback stays populated
+
+
+def test_registry_verb_list_matches_fallback():
+    # Drift guard: the committed registry must carry the same verbs as the
+    # inline fallback so the Node mirror and the Python engine agree.
+    registered = set(policy().get("non_imperative_verbs") or [])
+    assert registered == set(_fallback_verbs())
+
+
+def _fallback_verbs():
+    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+
+    return _FALLBACK_NON_IMPERATIVE_VERBS
+
+
 def test_empty_summary_rejected():
     p = policy()
     vs = validate_subject("feat(kernel):", policy=p)

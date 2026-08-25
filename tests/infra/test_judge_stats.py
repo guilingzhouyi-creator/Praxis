@@ -357,3 +357,37 @@ def test_legacy_under_11_checks_mode_derivation(tmp_path):
     assert data["mode_runs"]["full"] == 0
     assert data["partial"] == 1
     assert data["complete"] == 0
+
+
+def test_delta_waived_counted(tmp_path):
+    """Runs whose net-delta passed via MERGE_GATE_SKIP are surfaced as waived."""
+    waived = {
+        "ts": "2026-08-25T09:00:00Z",
+        "verdict": "COMPLETE",
+        "branch": "feature/waived-branch",
+        "duration_s": 8,
+        "delta_waived": 1,
+        "checks": {
+            "tests": 1,
+            "coverage": 1,
+            "delta": 1,
+            "docs": 1,
+            "lint": 1,
+            "audit": 1,
+            "complex": 1,
+            "cycle": 1,
+            "singleton": 1,
+            "changelog": 1,
+            "index": 1,
+        },
+    }
+    clean = dict(waived, ts="2026-08-25T10:00:00Z", branch="main")
+    clean.pop("delta_waived")
+    log = tmp_path / "judge-waived.jsonl"
+    with open(log, "w", encoding="utf-8") as f:
+        for r in (waived, clean):
+            f.write(json.dumps(r) + "\n")
+    data = run_stats(log)
+    assert data["delta_waived_runs"] == 1
+    # Absent field defaults to not-waived — legacy records stay honest.
+    assert all("delta_waived" not in r or r.get("delta_waived") != 1 for r in RUNS)

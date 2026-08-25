@@ -140,9 +140,11 @@ uname -r 2>/dev/null | grep -qi microsoft && IS_WSL=1
 JUDGE_N="${JUDGE_PYTEST_N:-4}"
 THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
 THRESH="${THRESH:-60}"
-# WSL: bounded workers (no 32-worker xdist thrash); non-WSL keeps parallel workers.
+# Bounded workers on every host: `-n auto` spawns one worker per CPU core,
+# which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
+# thrashes memory and hangs the suite. Default 4 workers; operators may
+# override with JUDGE_PYTEST_N (0 = single process, safest).
 XDIST_ARGS="-n $JUDGE_N"
-[ "$IS_WSL" = "1" ] && XDIST_ARGS="-n $JUDGE_N"
 if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; then
   RUN_TOGETHER=1
   echo "[judge] ── 1+2. Full test suite + coverage (single run) ──"
@@ -225,9 +227,17 @@ if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
 fi
 
 # ── 3. Net delta gate ────────────────────────────────────────────────────
+# A user-granted waiver (MERGE_GATE_SKIP=1 + MERGE_GATE_REASON) is recorded
+# as `delta_waived: 1` in the JSONL so the dashboard can distinguish "the
+# branch genuinely qualifies" from "the gate was waived" — a waived pass
+# must never inflate the honest completion statistics.
+DELTA_WAIVED=0
 if [ "$RUN_DELTA" = "1" ]; then
   echo "[judge] ── 3. Net code delta (mainline gate) ──"
-  if [ -f scripts/sh/verify-main-merge-gate.sh ]; then
+  if [ "${MERGE_GATE_SKIP:-0}" = "1" ]; then
+    DELTA_WAIVED=1
+    S_DELTA=1; pass "net delta WAIVED (MERGE_GATE_SKIP=1, reason: ${MERGE_GATE_REASON:-<unset>})"
+  elif [ -f scripts/sh/verify-main-merge-gate.sh ]; then
     if MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main > /tmp/judge_delta.log 2>&1; then
       S_DELTA=1; pass "net delta qualifies"
     else
@@ -377,7 +387,7 @@ DURATION=$(( $(date +%s) - T0 ))
 # judge-stats.sh (completion rate, failure distribution, trend, metrics).
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"delta_waived\":${DELTA_WAIVED:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
 if command -v flock >/dev/null 2>&1; then
   (
     flock -x 200

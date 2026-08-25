@@ -104,8 +104,8 @@ _RESETS = {
 }
 
 
-# Detect agent cache: clear between test modules to prevent stale
-# attribution results from leaking across test boundaries.
+# Detect agent cache: clear around EACH test (autouse, function scope) so
+# stale attribution results never leak across test boundaries.
 _DAC = _pl.Path(".praxis") / "detect_agent_cache.json"
 
 

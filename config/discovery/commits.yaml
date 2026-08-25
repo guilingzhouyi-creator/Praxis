@@ -28,6 +28,24 @@ types:
   - revert
   - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
+# Imperative-mood guard — single source of truth for BOTH scripts/py/
+# commit_scan.py and scripts/js/validate-commit.mjs (via the commits.json
+# mirror). A summary whose FIRST word appears in this list (past tense or
+# gerund forms) is rejected: subjects must start with an imperative
+# present-tense verb (add, fix, update, refactor, ...). Edit here, then run
+# `python scripts/py/gen_commits_json.py` to resync the Node side.
+non_imperative_verbs:
+  [added, adding, fixes, fixed, fixing, updated, updating, updates,
+   changes, changed, changing, modified, modifying, modifies,
+   refactored, refactoring, refactors, improves, improved, improving,
+   removes, removed, removing, deletes, deleted, deleting,
+   makes, made, making, creates, created, creating,
+   implements, implemented, implementing, hardens, hardened, hardening,
+   enforces, enforced, enforcing, handles, handled, handling,
+   resolves, resolved, resolving, prevents, prevented, preventing,
+   allows, allowed, allowing, avoids, avoided, avoiding,
+   cleans, cleaned, cleaning]
+
 # Type-to-file content rules (must_include) — single source of truth for
 # BOTH scripts/py/commit_scan.py (Python) and scripts/js/validate-commit.mjs
 # (Node, via the commits.json mirror). Edit here, then run

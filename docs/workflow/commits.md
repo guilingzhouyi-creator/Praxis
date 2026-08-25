@@ -39,6 +39,7 @@ source of truth for the Conventional-Commits contract.
 - **Subject format is normalized**: lowercase start, imperative mood present-tense verb (no past tense / gerunds like `added`, `fixed`, `updating`), no markdown (`**`/`` ` ``/`_`),
   no trailing period, ≤ 72 chars — plain text, never rendered markup.
 - **Strict Trailer Sentinel**: `Co-Authored-By:` must be preceded by a blank line and MUST be the absolute last line of the commit message (no trailing commentary or notes).
+  - **Cherry-pick note (`git cherry-pick -x`)**: the `(cherry picked from commit ...)` line is appended AFTER the trailer and violates this sentinel — after cherry-picking, reword the message so the trailer is last (move the picked-from line into the body), or drop `-x`. The gate does not special-case it.
 
 | Part | Requirement |
 |---|---|

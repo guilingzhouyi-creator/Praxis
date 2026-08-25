@@ -44,7 +44,10 @@ _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
     "ci": {"must_include": [".github/"]},
 }
 
-_NON_IMPERATIVE_VERBS: frozenset[str] = frozenset(
+# Imperative-mood fallback — used ONLY when commits.yaml lacks the
+# `non_imperative_verbs` key. The registry (config/discovery/commits.yaml)
+# is the single source of truth; keep this list in sync with it.
+_FALLBACK_NON_IMPERATIVE_VERBS: frozenset[str] = frozenset(
     {
         "added",
         "adding",
@@ -166,10 +169,14 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     if summary and min_chars and len(summary) < min_chars:
         violations.append(f"summary too short ({len(summary)} < {min_chars} chars)")
 
-    # Imperative verb check: summary should start with an imperative verb, not past tense or gerund
+    # Imperative verb check: summary should start with an imperative verb,
+    # not past tense or gerund. The verb list lives in commits.yaml
+    # `non_imperative_verbs` (single source, mirrored to the Node validator);
+    # the inline fallback only covers a missing key.
     if summary:
+        verbs = policy.get("non_imperative_verbs") or _FALLBACK_NON_IMPERATIVE_VERBS
         first_word = summary.split()[0].lower().rstrip(":,.-")
-        if first_word in _NON_IMPERATIVE_VERBS:
+        if first_word in verbs:
             violations.append(
                 f"non-imperative verb '{first_word}' in summary — use imperative present tense "
                 "(e.g. 'add', 'fix', 'update', 'refactor', 'remove', 'harden', 'enforce')"
@@ -531,7 +538,7 @@ def main() -> int:
             if detected is None:
                 try:
                     out = subprocess.run(
-                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json"],
+                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json", "--no-cache"],
                         capture_output=True,
                         text=True,
                         timeout=10,

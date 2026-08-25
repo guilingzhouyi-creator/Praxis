@@ -3,7 +3,7 @@
 > Updated whenever an agent registers a shared-file change or a merge lands.
 > Read before committing; append before pushing (see `README.md` rules).
 
-## Active worktrees (2026-08-22)
+## Active worktrees (2026-08-25)
 
 | Worktree | Branch | Domain | Notes |
 |---|---|---|---|
@@ -16,12 +16,12 @@
 | praxis-test-perf | test-perf-slicing | infra | active |
 | praxis-coverage-wsl | coverage-wsl | infra | WSL judge coverage (AtomCode) |
 | praxis-hooks-strict | hooks-strict | infra | strict commit-msg worktree enforcement |
+| praxis-gate-hygiene | feature/opencode-gate-hygiene | infra | gate-review follow-ups (OpenCode/ox-alpha, user-pinned) |
 
 ## Shared-file change log
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
-
 | 2026-08-22 | scripts/sh/verify-completion.sh | GPT (infra merge) | ⚠️ CLOBBERED AtomCode's WSL-slice + dedupe optimization (f5087549/bb18759c) | reconciled — restored by AtomCode in coverage-wsl bd800342 |
 | 2026-08-22 | scripts/sh/verify-completion.sh | AtomCode | coverage WSL serial (XDIST_ARGS) | in coverage-wsl bd800342 |
 | 2026-08-22 | .githooks/commit-msg + scripts/sh/push-both.sh | AtomCode | shared-file handoff gate (strict register-or-reject) | in agent-handoff (this commit) |
@@ -55,6 +55,9 @@
 | 2026-08-25 | scripts/sh/handoff-rotate.sh + docs/agent-handoff/* | Antigravity | fix table row output order before ## Clobber warnings in rotation awk script, rotate threshold archive | in feature/judge-stats-hardening (716fa62d) |
 | 2026-08-25 | scripts/sh/verify-completion.sh + tests/conftest.py + CHANGELOG.md | Antigravity | normalize conftest imports for ruff, bound WSL judge workers, refresh changelog | in feature/judge-stats-hardening (6f6d924f) |
 | 2026-08-25 | scripts/sh/verify-main-merge-gate.sh | Antigravity | support user-granted MERGE_GATE_SKIP waiver with mandatory MERGE_GATE_REASON | in feature/judge-stats-hardening (this commit) |
+| 2026-08-25 | config/discovery/commits.yaml + commits.json + scripts/py/gen_commits_json.py + commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_scan.py | OpenCode (ox-alpha) | single-source imperative verb list: `non_imperative_verbs` key in registry, mirror regenerated, py/mjs consume it (inline fallback only) | in feature/opencode-gate-hygiene (this commit) |
+| 2026-08-25 | scripts/sh/verify-completion.sh + judge-stats.sh + tests/infra/test_judge_stats.py | OpenCode (ox-alpha) | waived net-delta honesty: MERGE_GATE_SKIP pass recorded as delta_waived=1, aggregated as delta_waived_runs (+ dashboard notice); drop dead XDIST_ARGS WSL branch | in feature/opencode-gate-hygiene (this commit) |
+
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an
@@ -82,4 +85,12 @@
    mirror regenerated via gen_commits_json.py after the legacy-scope
    addition above; Node-only mirror now matches canonical yaml.
    Registered per the shared-file gate.
-| 2026-08-23 | config/discovery/commits.yaml | OpenCode (ox-alpha) | register rust scope (crates/) for L1L2 docking execution | active |
+
+> Repair note (2026-08-25, OpenCode/ox-alpha): the stray table row below
+> warning 5 — `| 2026-08-23 | config/discovery/commits.yaml | OpenCode
+> (ox-alpha) | register rust scope (crates/) for L1L2 docking execution |
+> active |` — was a rotation-order artifact of the pre-fix handoff-rotate.sh
+> awk (rows flushed at END landed after the Clobber section). The rust-scope
+> registration itself is valid history; the row is preserved here verbatim
+> and removed from the tail so the change-log table stays well-formed and
+> grep-count/rotate accounting agrees.
