@@ -327,7 +327,17 @@ def _write_cache(result: dict) -> None:
     cp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
-def cached_detect() -> dict:
+def cached_detect(use_cache: bool = True) -> dict:
+    """Return the detected identity, optionally bypassing the disk cache.
+
+    The cache file (.praxis/detect_agent_cache.json) is written inside the
+    workspace and is therefore WRITABLE by the very process being detected —
+    a forged cache entry could spoof high-confidence attribution for one
+    TTL window. Gate-context callers (commit_scan.py) MUST pass
+    use_cache=False so attribution is always computed from live evidence.
+    """
+    if not use_cache:
+        return detect()
     cached = _read_cache()
     if cached is not None:
         return cached
@@ -339,9 +349,13 @@ def cached_detect() -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Detect the agent framework/model from execution evidence")
     parser.add_argument("--json", action="store_true", help="emit JSON (default behavior; kept for CLI compatibility)")
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="bypass the writable disk cache — REQUIRED for gate/attribution contexts",
+    )
     args = parser.parse_args()
-    del args
-    print(json.dumps(cached_detect(), ensure_ascii=False))
+    print(json.dumps(cached_detect(use_cache=not args.no_cache), ensure_ascii=False))
     return 0
 
 

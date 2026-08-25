@@ -538,7 +538,7 @@ def main() -> int:
             if detected is None:
                 try:
                     out = subprocess.run(
-                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json"],
+                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json", "--no-cache"],
                         capture_output=True,
                         text=True,
                         timeout=10,
