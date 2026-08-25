@@ -53,7 +53,8 @@
 | 2026-08-25 | config/discovery/commits.yaml + commits.json + .githooks/commit-msg + scripts/py/commit_scan.py + detect_agent.py | Antigravity | anti-impersonation governance: probe runtime first, block random grabbing, Antigravity/Gemini registration, user escalation guidance | in feature/judge-stats-hardening (dd90dd62) |
 | 2026-08-25 | scripts/py/commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_* | Antigravity | commit format hardening: imperative mood verb enforcement, strict EOF trailer sentinel, tests | in feature/judge-stats-hardening (1ae3a3b4) |
 | 2026-08-25 | scripts/sh/handoff-rotate.sh + docs/agent-handoff/* | Antigravity | fix table row output order before ## Clobber warnings in rotation awk script, rotate threshold archive | in feature/judge-stats-hardening (716fa62d) |
-| 2026-08-25 | scripts/sh/verify-completion.sh + tests/conftest.py + CHANGELOG.md | Antigravity | normalize conftest imports for ruff, bound WSL judge workers, refresh changelog | in feature/judge-stats-hardening (this commit) |
+| 2026-08-25 | scripts/sh/verify-completion.sh + tests/conftest.py + CHANGELOG.md | Antigravity | normalize conftest imports for ruff, bound WSL judge workers, refresh changelog | in feature/judge-stats-hardening (6f6d924f) |
+| 2026-08-25 | scripts/sh/verify-main-merge-gate.sh | Antigravity | support user-granted MERGE_GATE_SKIP waiver with mandatory MERGE_GATE_REASON | in feature/judge-stats-hardening (this commit) |
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an
