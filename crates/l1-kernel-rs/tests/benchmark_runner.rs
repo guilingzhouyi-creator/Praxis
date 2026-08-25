@@ -5,9 +5,10 @@ use l1_kernel_rs::benchmark_runner::{
     run_agent_loop, run_agent_loop_batch, run_agent_loop_book_snapshot_page,
     run_agent_loop_registry_lookup, run_managed_process, run_process_adapter, run_process_bridge,
     run_process_group, run_queue_contention, run_queue_contention_blocking, run_registry_base,
-    run_session_book, run_session_book_batch, run_session_book_snapshot_page,
-    run_session_book_snapshot_page_write_contention, run_terminal_book, run_terminal_book_batch,
-    run_terminal_book_snapshot_page, run_worker_pool_batch, run_worker_pool_batch_submit,
+    run_runtime, run_runtime_batch, run_session_book, run_session_book_batch,
+    run_session_book_snapshot_page, run_session_book_snapshot_page_write_contention,
+    run_terminal_book, run_terminal_book_batch, run_terminal_book_snapshot_page,
+    run_worker_pool_batch, run_worker_pool_batch_submit,
 };
 
 #[test]
@@ -117,6 +118,48 @@ fn worker_pool_batch_submit_runner_rejects_invalid_batch_size() {
     let spec = FixedWorkSpec::new("worker.pool.batch_submit", 4, vec![1], 1).expect("valid spec");
     assert!(run_worker_pool_batch_submit(spec.clone(), 4, 0).is_err());
     assert!(run_worker_pool_batch_submit(spec, 3, 2).is_err());
+}
+
+#[test]
+fn runtime_runner_preserves_fixed_submit_completion_and_reap_work() {
+    let spec = FixedWorkSpec::new("runtime.submit_reap", 64, vec![1, 2], 1).expect("valid spec");
+    let report = run_runtime(spec).expect("runtime runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 64
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.p99_latency_ns >= sample.p95_latency_ns
+    }));
+}
+
+#[test]
+fn runtime_runner_rejects_more_workers_than_fixed_work() {
+    let spec = FixedWorkSpec::new("runtime.submit_reap", 1, vec![2], 1).expect("valid spec");
+    assert!(run_runtime(spec).is_err());
+}
+
+#[test]
+fn runtime_batch_runner_preserves_fixed_submit_completion_and_reap_work() {
+    let spec =
+        FixedWorkSpec::new("runtime.batch_submit_reap", 64, vec![1, 2], 1).expect("valid spec");
+    let report = run_runtime_batch(spec, 8).expect("runtime batch runner succeeds");
+    assert!(report.validate_complete().is_ok());
+    assert!(report.samples.iter().all(|sample| {
+        sample.completed_work_items == 64
+            && sample.rejected == 0
+            && sample.errors == 0
+            && sample.p99_latency_ns >= sample.p95_latency_ns
+    }));
+}
+
+#[test]
+fn runtime_batch_runner_rejects_invalid_batch_size_and_worker_count() {
+    let spec = FixedWorkSpec::new("runtime.batch_submit_reap", 4, vec![1], 1).expect("valid spec");
+    assert!(run_runtime_batch(spec, 0).is_err());
+    let oversubscribed =
+        FixedWorkSpec::new("runtime.batch_submit_reap", 1, vec![2], 1).expect("valid spec");
+    assert!(run_runtime_batch(oversubscribed, 1).is_err());
 }
 
 #[test]

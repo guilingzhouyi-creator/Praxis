@@ -416,6 +416,27 @@ cutover/recovery 与 G6 仍是后续硬门；`open_persistent` 已将 `StateStor
 checkpoint、clean resume 与 unclean recovery，但不导入 Python 状态，也不改变默认生产路径。
 `submit_gated` 同步接入 Rust G1-G5 与单一 `CapabilityAuthority`，caller/tool 不匹配、空 whitelist 或未接线
 executor 均在进入 worker queue 前 fail-closed 并记审计；真实 tool pipeline/provider 仍留在适配器。
+随后完善 `KernelRuntime` 的并发 admission：以 lifecycle `RwLock` 的共享侧覆盖 active-state 校验、handle
+reservation、按 scheduler shard 划分的 task-book 登记和 WorkerPool handoff；boot 使用独占侧，shutdown 先发布
+`Draining` 再取得独占侧排空已准入任务。任务在
+`dispatch_direct` 之前登记，避免极快 closure 先写 terminal state 又被晚到的 `Ready` 覆盖。`submit_observed`
+仅在 `try_read` 或 task-book `try_lock` 真实阻塞时采样；普通 submit 不读取时钟也不更新计数。独立
+`runtime.submit_reap` runner 与 `rust-runtime-bench` 固定每个 caller 每次只 submit/wait/reap 一个已绑定 Rust closure，
+因此不把 eviction policy 混入量化。基于对齐主树 `06e8288c` 的 Linux x86_64 release、4,096 项、1/2/4 worker、各 3 rounds
+全部为 0 error/0 rejection；中位吞吐约 18.1k/27.3k/32.1k ops/s，p95/p99 约为 85/140、232/562、600/1,342 microseconds，
+WorkerPool aggregate claim/wake wait 为 155.2/262.8/469.7 ms，而 runtime admission 的中位 contended wait 为零。
+这只证明 admission 串行化不再是当前瓶颈，下一性能候选是 WorkerPool handoff 与 tail behavior；不构成 scaling policy、
+L2/TS wire、AgentLoop、Provider、PTY 或生产入口权威，也不改变 clean-break Rust 内核不兼容 Python 用户状态的路线。
+下一批量 admission 片新增 `submit_batch`/`submit_batch_observed`：在一次 WorkerPool grouped handoff 前预留并登记全部
+generation-safe handle，任一 reservation 失败即 rollback 先前全部 reservation，保证 closure 尚未执行。独立
+`runtime.batch_submit_reap` 与 `rust-runtime-batch-bench` 让每个 caller 每次只 submit/wait/reap 一批，并把 process/queue
+capacity 设置为最多同时在途批次数，避免将 eviction policy 混入量化；completed work/throughput 仍按 task，p95/p99 则严格按
+complete batch 报告，禁止与单任务延迟混比。一次 Linux x86_64 未固定主机、batch=32、4,096 项、1/2/4 caller、各 3 rounds 的
+release 样本全部 0 error/0 rejection：中位吞吐约 363k/540k/591k tasks/s，aggregate WorkerPool claim/wake wait
+约 5.4/8.7/18.7 ms，observed runtime lock wait 约 0/0.086/0.045 ms，batch p95/p99 约为
+151/218、217/290、442/586 microseconds。同一对齐树独立单任务复测约为 18.1k/27.3k/32.1k tasks/s、queue wait
+155.2/262.8/469.7 ms；该未固定本地对照只支持保留 grouped-admission candidate，不宣称线性扩缩容、tail win、L2/TS wire、
+AgentLoop、Provider、PTY 或 production/cutover authority。
 随后将 `state_queue` 的 9 项实现内测试迁移到独立 target；其分片覆盖 shard transition、FIFO/backpressure、
 取消等待、batch accounting、allocator reuse 和并发插入，源模块不再保留测试块。
 随后将 `substrate` 的 4 项和 `benchmark` 的 7 项机制测试迁移到独立 target，覆盖 generation handle、shard
@@ -612,9 +633,10 @@ release 重复采样，再决定是否保留该优化候选。
 GateChain/capability 和 runtime authority 仍未闭合。
 
 随后完成受限的 Rust `ProcessPort` 一次性适配器候选：
-`process_adapter::ProcessAdapter` 支持 direct args 与显式 shell 两条路径，
-以 `ProcessOptions` 传入 cwd/input/environment/executable，分别 drain stdout/stderr
-并按流限制保留字节，超时杀死子进程并返回结构化结果。独立
+`process_adapter::ProcessAdapter` 支持 direct argv 与由
+`TerminalObservation` 派生的终端 argv 两条路径，宿主探针提供 executable
+和 invocation prefix；`ProcessOptions` 传入 cwd/input/environment，分别 drain
+stdout/stderr 并按流限制保留字节，超时杀死子进程并返回结构化结果。独立
 `tests/process_adapter.rs`、`run_process_adapter` 与
 `rust-process-adapter-bench` 已加入 Rust 测试/证据域；当前 release smoke 在
 1/2/4 worker 下吞吐约 707/1404/2758 ops/s，p95 约 1.54/1.56/1.57 ms，
@@ -624,7 +646,7 @@ error/rejection 均为 0。该片只闭合值边界和受限短命命令执行�
 因此 R3/R4/R5 仍未完成。
 
 随后新增受限的 `managed_process::ManagedProcessBook` 生命周期候选：在 OS spawn 前预留
-generation-safe `ProcessHandle`，统一管理 direct args/shell child、bounded stdout/stderr drain、stdin、
+generation-safe `ProcessHandle`，统一管理 direct argv/terminal-derived argv child、bounded stdout/stderr drain、stdin、
 observer `Pending`、显式 terminate、snapshot 与 terminal reap；独立
 `tests/managed_process.rs`、`run_managed_process` 和 `rust-managed-process-bench` 已纳入 Rust 测试/证据域。
 当前 release smoke 在 1/2/4 worker 下吞吐约 707/1391/2761 ops/s，p95 约 1.52/1.55/1.58 ms，
@@ -805,6 +827,24 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 
 在这些前置门完成前，R0/R1/R2 的 Rust-first 工作只作**机制准备**，不得把未封口边界
 复制进独立 Rust kernel 或 TS L2。
+
+### 4.7 L1 终端能力探针与 Agent 准入门（进行中）
+
+| Slice | 交付物 | 状态 | 后续门 |
+|---|---|---|---|
+| T1 | `terminal_probe`：宿主注入终端观测、能力过滤、显式优先级、argv 构造 | ✅ 候选完成 | 宿主适配器逐平台提供真实 probe observations；不能在 L1 扫描 PATH |
+| T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
+| T3 | `ProcessGroupRuntime::spawn_constrained`：先审查、校验 adapter 选项一致性、再 spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
+| T4 | L2/TS 协议投影与硬件终端输入探针 | ⏳ 未开始 | 先冻结 Rust 值合同，再做跨平台 adapter 与最小批量测试 |
+| T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；不得将旧入口重新作为默认适配器 |
+| T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
+
+该切片只建立 L1 的终端基础和硬性准入机制，不把 CMD、PowerShell 7、Bash 或
+Git Bash 的路径/开关写死，也不把 AgentLoop、provider、提示词、DVG/R5 或
+生产 runtime 权威下沉。终端探测的实际系统调用属于宿主适配器；探测失败或
+没有满足策略的候选时，内核选择 fail-closed。T5 只清理 Rust 候选中的
+兼容入口，不等于现网 Python/L2 runtime 已完成 cutover；T6 仍以独立新入口、
+恢复协议和生产执行权威闭合为前提。
 
 ---
 

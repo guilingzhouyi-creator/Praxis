@@ -212,6 +212,51 @@ shutdown rejection) are reconciled by `RuntimeTask::result()` so the task can be
 reaped instead of remaining in `Running`. This is measured candidate behavior,
 not production runtime authority.
 
+Runtime admission now holds a shared lifecycle barrier across the active-state
+check, scheduler reservation, shard-local task registration, and WorkerPool
+handoff. Boot holds the exclusive side; shutdown first publishes `Draining`
+and then holds it while already-admitted submissions drain. Registration precedes
+`dispatch_direct`, so a fast closure cannot publish a terminal state and then
+be overwritten by a late `Ready` insertion. The runtime task book uses the
+same configured shard count as scheduler state, avoiding one global task-map
+lock for unrelated handles. `submit_observed` is benchmark-only: its
+contention-only `try_read` and task-book `try_lock` fallbacks expose aggregate
+admission wait without timestamps or atomic updates in the normal submit path.
+`run_runtime` and `rust-runtime-bench` measure a separate
+`runtime.submit_reap` workload: each caller submits one bound `Value::Null`
+closure, waits for completion, and reaps it before taking another task.
+The aligned Linux x86_64 release sample on `06e8288c` completed all 4,096
+items in each 1/2/4-worker, three-round case with zero errors and rejections.
+Median throughput was about 18.1k/27.3k/32.1k operations/s; p95/p99 were about
+85/140, 232/562, and 600/1,342 microseconds. Aggregate WorkerPool claim/wake
+wait was 155.2/262.8/469.7 milliseconds per round, while median contended
+runtime-admission wait was zero. This identifies WorkerPool handoff and tail
+behavior, rather than runtime admission serialization, as the next candidate
+bottleneck. The unpaired host sample is evidence only: it does not promote a
+scaling policy or grant L2/TS, AgentLoop, provider, PTY, or production-entry
+authority.
+
+`submit_batch` reserves and registers every process handle before one grouped
+WorkerPool handoff; an incomplete reservation rolls back every earlier handle
+before a closure can execute. `run_runtime_batch` and
+`rust-runtime-batch-bench` measure the separate
+`runtime.batch_submit_reap` workload. Each caller admits at most one bounded
+group, waits for all of its tasks, and reaps every handle before its next group;
+the configured process and queue capacities cover the maximum in-flight groups
+so eviction is not part of the experiment. The v3 completed-work and throughput
+units remain tasks, but p95/p99 are explicitly per complete batch and therefore
+are not compared directly with the single-task latency distribution. One local,
+unpinned Linux x86_64 release sweep on the aligned tree with batch size 32
+completed each 4,096-item 1/2/4-caller, three-round sample with zero
+errors/rejections. Median throughput was about 363k/540k/591k tasks/s; median
+per-batch p95/p99 were about 151/218, 217/290, and 442/586 microseconds;
+aggregate WorkerPool claim/wake wait was 5.4/8.7/18.7 milliseconds and
+observed runtime lock wait was 0/0.086/0.045 milliseconds. A separately
+collected single-task sweep from the same aligned tree measured about
+18.1k/27.3k/32.1k tasks/s and 155.2/262.8/469.7 milliseconds of queue wait.
+The comparison is host-local evidence for retained grouped admission, not a
+scaling, tail-latency, L2/TS, AgentLoop, provider, PTY, or cutover decision.
+
 The Rust `identity_binding` candidate closes the mechanism portion of the
 per-Cell role registry: an injected write principal is checked fail-closed,
 each Cell has a bounded role set, rebinds preserve the existing system-issued
@@ -558,7 +603,7 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
-class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
+class ProcessPort(ABC): run_args (direct argv, ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 class InputActivityPort(ABC): start / stop / aggregate snapshot
 class ObservabilityPort(ABC): emit_count / emit_duration
@@ -592,7 +637,7 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 | Surface | Seam | Notes |
 |---|---|---|
-| Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
+| Shell/command exec | `ProcessPort` (`get_process_port()`) | Rust uses direct argv; terminal-derived argv requires an injected `TerminalObservation`; `ProcessOptions` returns `ProcessResult` |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
 | R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
@@ -839,8 +884,9 @@ and stale-handle rejection, but ProcessTable storage is not switched over.
 
 The Rust `process_adapter` candidate is the bounded one-shot implementation of
 the retained `ProcessPort` value boundary. It offers direct-argument execution
-and an explicit shell path, optional cwd/input/environment/executable settings,
-per-stream output caps with continuous draining, deadline kill, and structured
+and a terminal-observation path whose executable and invocation prefix are
+supplied by the host probe, optional cwd/input/environment settings, per-stream
+output caps with continuous draining, deadline kill, and structured
 not-found/execution/timeout results. Its public tests live in the independent
 `crates/l1-kernel-rs/tests/process_adapter.rs` target, and
 `run_process_adapter`/`rust-process-adapter-bench` report the isolated
@@ -853,7 +899,7 @@ work. Those responsibilities require a separate ownership and cutover design.
 
 The Rust `managed_process` candidate is the bounded lifecycle owner above the
 one-shot value adapter. It reserves a generation-safe slot before spawning,
-owns direct-args/shell children and bounded output readers, exposes caller
+owns direct-argv and terminal-derived-argv children plus bounded output readers, exposes caller
 stdin, distinguishes observer `Pending` from terminal completion, and requires
 explicit terminate/reap. `tests/managed_process.rs` is the independent public
 target; `run_managed_process` and `rust-managed-process-bench` report the
@@ -893,8 +939,8 @@ authority, terminal adapters, AgentLoop execution, and shutdown ownership
 remain outside this mechanism candidate.
 
 The `process_group_runtime::ProcessGroupRuntime` candidate now composes that
-group book with `ManagedProcessBook`. Direct-argument and shell children are
-admitted only while a group is active; failed membership admission cleans up
+group book with `ManagedProcessBook`. Direct-argv and terminal-derived-argv
+children are admitted only while a group is active; failed membership admission cleans up
 the spawned child before returning the capacity error. A non-blocking sweep
 uses zero-deadline observation and an explicit timeout sweep may terminate a
 live child, but both paths require managed-child reap and group-member reap
@@ -936,6 +982,37 @@ used by that policy:
 Engineering transitions are recorded by L3 through the event bus and
 reference channel; this keeps audit and observability side effects out of the
 kernel's execution gates.
+
+### Terminal probe and Agent process admission
+
+The Rust `terminal_probe` candidate closes the host-terminal discovery value
+boundary without making the kernel a host scanner. A host adapter injects
+validated observations containing terminal family, resolved executable,
+invocation prefix, version, availability, interactive/PTY support, encoding,
+and probe source. `TerminalProbe` applies only caller-supplied requirements,
+allow-lists, and preference order; it has no PATH lookup, environment fallback,
+or built-in shell path. `TerminalObservation::command_argv` lets an adapter
+construct an exact shell argv for CMD, PowerShell 7, Bash, Git Bash, or a
+host-defined terminal while keeping the executable and switches outside L1.
+The independent `tests/terminal_probe.rs` target covers deterministic
+selection, custom invocation construction, duplicate identity rejection, and
+no-eligible fail-closed behavior.
+
+The Rust `process_constraints` candidate is the hard Agent-process admission
+seam above managed children. It validates Agent/Cell identity, security ring,
+direct versus shell mode, discovered terminal identity/family/invocation,
+working-directory prefixes, environment-key policy, timeout, output/CPU/memory
+ceilings, and process-group membership. `ProcessGroupRuntime::spawn_constrained`
+must evaluate this receipt before spawning, reject adapter executable/cwd/env
+overrides that diverge from the admitted request, and does not discover a
+terminal on behalf of the caller. Shell argv must contain a command after the
+injected invocation prefix. The independent `tests/process_constraints.rs`
+target covers successful shell/direct admissions, accumulated policy
+violations, and pre-spawn override rejection.
+The low-level `spawn_args` methods remain mechanism helpers, while the removed
+implicit-shell entry points are not part of the Rust contract. This slice does
+not yet grant ProcessTable, AgentLoop, PTY, shutdown, or production runtime
+authority.
 
 ### Identity-binding persistence
 

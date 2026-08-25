@@ -1,7 +1,7 @@
 //! Independent execution-host tests for the Rust kernel runtime candidate.
 
 use std::collections::BTreeMap;
-use std::sync::mpsc;
+use std::sync::{Arc, Barrier, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -35,6 +35,16 @@ fn config(max_processes: u32, queue_size: usize) -> RuntimeConfig {
 
 fn runtime(max_processes: u32, queue_size: usize) -> KernelRuntime {
     KernelRuntime::new(spec("state"), config(max_processes, queue_size)).expect("valid runtime")
+}
+
+fn concurrent_runtime() -> Arc<KernelRuntime> {
+    Arc::new(
+        KernelRuntime::new(
+            spec("state"),
+            RuntimeConfig::new(8, 4, WorkerConfig::new(4, 4, 4, Duration::from_millis(20))),
+        )
+        .expect("valid concurrent runtime"),
+    )
 }
 
 fn temp_root() -> std::path::PathBuf {
@@ -133,6 +143,106 @@ fn runtime_executes_tracks_and_reaps_generation_safe_tasks() {
     assert_ne!(reused.handle().generation(), old_handle.generation());
     assert_eq!(reused.result(None).expect("reused result"), json!("reused"));
     runtime.reap(reused.handle()).expect("reap reused");
+}
+
+#[test]
+fn runtime_batch_preserves_ordered_results_and_reaps_every_handle() {
+    let runtime = runtime(4, 4);
+    runtime.boot().expect("boot");
+    let tasks = runtime
+        .submit_batch(
+            (0_u64..4)
+                .map(|value| Box::new(move || Ok(json!(value))) as l1_kernel_rs::worker::TaskFn)
+                .collect(),
+        )
+        .expect("batch submit");
+    assert_eq!(tasks.len(), 4);
+    for (value, task) in (0_u64..4).zip(tasks) {
+        assert_eq!(task.result(None).expect("batch result"), json!(value));
+        assert_eq!(task.state(), Some(RuntimeTaskState::Succeeded));
+        runtime.reap(task.handle()).expect("batch reap");
+    }
+    let snapshot = runtime.snapshot();
+    assert_eq!(snapshot.task_count, 0);
+    assert_eq!(snapshot.terminal_tasks, 0);
+}
+
+#[test]
+fn runtime_batch_capacity_failure_rolls_back_all_reserved_tasks() {
+    let runtime = runtime(2, 2);
+    runtime.boot().expect("boot");
+    assert!(
+        runtime
+            .submit_batch(
+                (0..3)
+                    .map(|_| { Box::new(|| Ok(json!(null))) as l1_kernel_rs::worker::TaskFn })
+                    .collect(),
+            )
+            .is_err()
+    );
+    assert_eq!(runtime.snapshot().task_count, 0);
+    let task = runtime
+        .submit(Box::new(|| Ok(json!("reused after rollback"))))
+        .expect("submit after rollback");
+    assert_eq!(
+        task.result(None).expect("result after rollback"),
+        json!("reused after rollback")
+    );
+    runtime.reap(task.handle()).expect("reap after rollback");
+}
+
+#[test]
+fn immediate_tasks_retain_terminal_state_before_submit_returns() {
+    let runtime = runtime(1, 1);
+    runtime.boot().expect("boot");
+    for _ in 0..128 {
+        let task = runtime
+            .submit(Box::new(|| Ok(json!("immediate"))))
+            .expect("submit immediate task");
+        assert_eq!(
+            task.result(None).expect("immediate result"),
+            json!("immediate")
+        );
+        assert_eq!(task.state(), Some(RuntimeTaskState::Succeeded));
+        runtime.reap(task.handle()).expect("reap immediate task");
+    }
+    assert_eq!(runtime.snapshot().task_count, 0);
+}
+
+#[test]
+fn observed_admission_keeps_parallel_task_accounting_complete() {
+    let runtime = concurrent_runtime();
+    runtime.boot().expect("boot");
+    runtime.reset_observed_lock_wait();
+    let start = Arc::new(Barrier::new(5));
+    let mut workers = Vec::new();
+    for _ in 0..4 {
+        let runtime = Arc::clone(&runtime);
+        let start = Arc::clone(&start);
+        workers.push(thread::spawn(move || {
+            start.wait();
+            for _ in 0..32 {
+                let task = runtime
+                    .submit_observed(Box::new(|| Ok(json!(null))))
+                    .expect("parallel submit");
+                assert_eq!(task.result(None).expect("parallel result"), json!(null));
+                assert_eq!(task.state(), Some(RuntimeTaskState::Succeeded));
+                runtime.reap(task.handle()).expect("parallel reap");
+            }
+        }));
+    }
+    start.wait();
+    for worker in workers {
+        worker.join().expect("parallel worker");
+    }
+    let snapshot = runtime.snapshot();
+    assert_eq!(snapshot.task_count, 0);
+    assert_eq!(snapshot.terminal_tasks, 0);
+    let wait = runtime.observed_lock_wait();
+    assert_eq!(
+        wait.total_ns(),
+        wait.admission_wait_ns + wait.task_book_wait_ns
+    );
 }
 
 #[test]
@@ -267,6 +377,51 @@ fn shutdown_drains_workers_and_rejects_new_work() {
         runtime.submit(Box::new(|| Ok(json!(null)))),
         Err(RuntimeError::InvalidLifecycle(_))
     ));
+}
+
+#[test]
+fn shutdown_publishes_draining_before_waiting_for_admission_barrier() {
+    let runtime = Arc::new(runtime(2, 2));
+    runtime.boot().expect("boot");
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let task = runtime
+        .submit(Box::new(move || {
+            started_tx.send(()).expect("worker started");
+            release_rx.recv().expect("release worker");
+            Ok(json!("drained"))
+        }))
+        .expect("submit blocker");
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("blocker started");
+
+    let shutdown_runtime = Arc::clone(&runtime);
+    let shutdown = thread::spawn(move || shutdown_runtime.shutdown(Some(Duration::from_secs(1))));
+    for _ in 0..100 {
+        if runtime.snapshot().lifecycle.as_str() == "draining" {
+            break;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(runtime.snapshot().lifecycle.as_str(), "draining");
+    assert!(matches!(
+        runtime.submit(Box::new(|| Ok(json!(null)))),
+        Err(RuntimeError::InvalidLifecycle(_))
+    ));
+
+    release_tx.send(()).expect("release blocker");
+    assert_eq!(
+        shutdown
+            .join()
+            .expect("shutdown thread")
+            .expect("shutdown succeeds")
+            .lifecycle
+            .as_str(),
+        "halted"
+    );
+    assert_eq!(task.result(None).expect("drained task"), json!("drained"));
+    runtime.reap(task.handle()).expect("reap drained task");
 }
 
 #[test]

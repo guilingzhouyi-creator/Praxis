@@ -247,6 +247,36 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   configuration/filesystem/provider side effects. Config, protocol, terminal,
   and assembly metadata mismatches fail closed; `state_store` supplies fresh
   state initialization and durable recovery.
+- The Rust `runtime` candidate composes that locked assembly, lifecycle FSM,
+  sharded scheduler state, and bounded WorkerPool into an explicit
+  boot/submit/cancel/reap/shutdown host for already-bound Rust closures.
+  Submissions take a shared lifecycle barrier while reserving a handle,
+  registering it before direct dispatch, and handing it to the WorkerPool;
+  boot takes the exclusive side, while shutdown first publishes `Draining` and
+  then takes it to drain already-admitted submissions. The task book follows scheduler shard
+  selection, so unrelated task records do not share a global mutex.
+  `submit_observed` records only contended admission/task-book fallback wait;
+  ordinary submissions retain no timing instrumentation. The independent
+  `runtime.submit_reap` runner and `rust-runtime-bench` binary report fixed
+  work, tail latency, WorkerPool aggregate claim/wake wait, runtime lock wait,
+  errors, rejections, and parent-process CPU/RSS deltas. A Linux x86_64
+  aligned release sample based on `06e8288c` completed every 4,096-item
+  1/2/4-worker, three-round case with zero errors/rejections; median throughput
+  was about 18.1k/27.3k/32.1k ops/s, aggregate queue wait was
+  155.2/262.8/469.7 ms, and p99 was 140/562/1,342 microseconds. This is a bounded-concurrency
+  baseline, not a scaling, L2/TS wire, AgentLoop, provider, or cutover claim.
+- `KernelRuntime::submit_batch` reserves and records every handle before one
+  grouped WorkerPool handoff, rolling back all prior reservations when one
+  cannot be admitted. The separate `runtime.batch_submit_reap` runner and
+  `rust-runtime-batch-bench` keep the maximum in-flight batch count inside
+  explicit process/queue capacity, return task-count throughput, and report
+  p95/p99 per completed group rather than per task. A local unpinned 32-task
+  batch sweep completed all 4,096-item 1/2/4-caller, three-round samples with
+  zero errors/rejections: median throughput was about 363k/540k/591k tasks/s,
+  aggregate queue wait 5.4/8.7/18.7 ms, and observed runtime lock wait
+  0/0.086/0.045 ms. Its batch tail distribution is intentionally not compared
+  with `runtime.submit_reap` per-task p95/p99; the host-local throughput and
+  wait contrast is only evidence to retain the candidate for future review.
 - The Rust `protocol` module is the retained R4 wire-boundary candidate. It
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips
@@ -371,9 +401,10 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   methods; it does not start a reaper, fire Python interrupts, clean Python
   allocator state, or own long-lived interpreter/OS handles.
 - The Rust `process_adapter` module is a bounded one-shot `ProcessPort`
-  candidate at the Rust/TS adapter edge. It supports direct argument and
-  explicit shell execution, cwd/input/environment/executable options, bounded
-  stdout/stderr draining, timeout kill, and structured not-found/execution
+  candidate at the Rust/TS adapter edge. It supports direct argv and a
+  terminal-observation execution path; the host probe supplies the executable
+  and invocation prefix. Cwd/input/environment options, bounded stdout/stderr
+  draining, timeout kill, and structured not-found/execution
   results. Its independent public target is `tests/process_adapter.rs`, and
   `run_process_adapter`/`rust-process-adapter-bench` emit a separate
   `process.adapter.oneshot` fixed-work report. The current release smoke is
@@ -383,8 +414,8 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   runtime authority; long-lived process ownership remains an open adapter
   slice.
 - The Rust `managed_process` module is the bounded lifecycle candidate above
-  that value adapter. It owns generation-safe child slots, direct-args/shell
-  spawn, bounded output drain, caller-controlled stdin, observer `Pending`
+  that value adapter. It owns generation-safe child slots, direct-argv and
+  terminal-derived-argv spawn, bounded output drain, caller-controlled stdin, observer `Pending`
   waits, explicit terminate, terminal snapshots, and reap. Its independent
   target is `tests/managed_process.rs`; `run_managed_process` and
   `rust-managed-process-bench` emit `process.managed.lifecycle` evidence. A
@@ -483,3 +514,24 @@ make language-check
 The `language-check` target is a build-environment gate only. It does not
 replace the Python test suite, layer-import gate, parameter checks, or the
 fixed-work Amdahl benchmark required before Rust prioritization.
+
+The `terminal_probe` candidate keeps host terminal discovery outside the Rust
+kernel. A host adapter injects validated records for CMD, PowerShell 7, Bash,
+Git Bash, or any host-defined terminal, including the resolved executable,
+invocation prefix, version, encoding, availability, interactive support, PTY
+support, and source. `TerminalProbe` filters and orders those records only with
+explicit caller policy; it never scans `PATH` or chooses a machine default.
+`TerminalObservation::command_argv` is the sole shell argv construction seam
+for a future adapter.
+
+The `process_constraints` candidate is the hard Agent-process admission seam.
+It evaluates ring, terminal identity/family and invocation, direct/shell mode,
+argv/cwd/environment policy, timeout, output/CPU/memory ceilings, and
+process-group membership before spawn. It also rejects adapter executable,
+cwd, or environment overrides that diverge from the admitted request.
+`ProcessGroupRuntime::spawn_constrained` exposes this check-then-spawn path;
+the low-level `spawn_args` methods remain mechanism helpers, and implicit shell
+compatibility entry points have been removed.
+The independent Rust test targets are
+`tests/terminal_probe.rs` and `tests/process_constraints.rs`; no TS/L2/provider/
+runtime authority is added.

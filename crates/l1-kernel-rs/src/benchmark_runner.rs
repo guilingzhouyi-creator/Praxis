@@ -6,8 +6,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::agent_loop::{AgentLoopBook, AgentLoopSpec};
+use crate::assembly::AssemblySpec;
 use crate::benchmark::{BenchmarkReport, BenchmarkResources, BenchmarkSample, FixedWorkSpec};
+use crate::boot::BootStepSpec;
 use crate::managed_process::{ManagedProcessBook, ManagedWaitResult};
+use crate::ports::{PortDescriptor, PortKind};
 use crate::process::{ProcessTable, ProcessTableConfig};
 use crate::process_adapter::{ProcessAdapter, ProcessAdapterConfig};
 use crate::process_bridge::ProcessTableBridge;
@@ -15,6 +18,7 @@ use crate::process_group::{
     MemberTerminal, ProcessGroupBook, ProcessReaper, ReaperBudget, ReaperObservation,
 };
 use crate::registry_base::{MapRegistry, RegisterableSpec};
+use crate::runtime::{KernelRuntime, RuntimeConfig};
 use crate::session::{SESSION_MAX_MESSAGES, SessionBook, SessionInput, SessionSpec};
 use crate::snapshot::BOOK_SNAPSHOT_MAX_PAGE_SIZE;
 use crate::state_queue::{BoundedWorkQueue, WorkItem};
@@ -137,6 +141,74 @@ pub fn run_worker_pool_batch_submit(
                 round,
                 queue_capacity,
                 submit_batch_size,
+            )?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total Rust runtime submission, completion, and reap sweep.
+///
+/// Every outer benchmark worker owns at most one runtime task at a time. This
+/// keeps the bounded WorkerPool and process table within their declared
+/// capacities while measuring concurrent runtime admission rather than an
+/// eviction policy. The workload uses already-bound `Value::Null` closures;
+/// protocol decode, AgentLoop, provider, and tool execution remain outside the
+/// candidate.
+pub fn run_runtime(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "total work does not fit the target architecture")?;
+    if total_work > u32::MAX as usize {
+        return Err("runtime work exceeds process handle slot range");
+    }
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        if worker_count > total_work {
+            return Err("runtime worker count exceeds fixed work");
+        }
+        for round in 0..spec.rounds {
+            report.push(run_runtime_round(total_work, worker_count, round)?)?;
+        }
+    }
+    report.validate_complete()?;
+    Ok(report)
+}
+
+/// Run a fixed-total Rust runtime batch submission, completion, and reap sweep.
+///
+/// Each benchmark caller submits one bounded group through
+/// [`KernelRuntime::submit_batch_observed`], waits for every result, and reaps
+/// every handle before claiming another group. The latency distribution is one
+/// complete batch operation, while completed work and throughput remain task
+/// counts. This keeps batch tails separate from [`run_runtime`]'s per-task
+/// measurement and prevents queue eviction from becoming the experiment.
+pub fn run_runtime_batch(
+    spec: FixedWorkSpec,
+    submit_batch_size: usize,
+) -> Result<BenchmarkReport, &'static str> {
+    let total_work = usize::try_from(spec.total_work_items)
+        .map_err(|_| "total work does not fit the target architecture")?;
+    if total_work > u32::MAX as usize {
+        return Err("runtime work exceeds process handle slot range");
+    }
+    if submit_batch_size == 0 {
+        return Err("runtime submit batch size must be positive");
+    }
+    let effective_batch_size = submit_batch_size.min(total_work);
+    let mut report = BenchmarkReport::new(spec.clone());
+    for &workers in &spec.workers {
+        let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
+        if worker_count > total_work {
+            return Err("runtime worker count exceeds fixed work");
+        }
+        for round in 0..spec.rounds {
+            report.push(run_runtime_batch_round(
+                total_work,
+                worker_count,
+                round,
+                effective_batch_size,
             )?)?;
         }
     }
@@ -2052,6 +2124,251 @@ fn run_agent_loop_batch_round(
         lock_wait_ns: snapshot.lock_wait_ns.saturating_sub(baseline_lock_wait_ns),
         rejected: 0,
         errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_runtime_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+) -> Result<BenchmarkSample, &'static str> {
+    let worker_count_u32 = u32::try_from(worker_count)
+        .map_err(|_| "runtime worker count does not fit process capacity")?;
+    let runtime = Arc::new(
+        KernelRuntime::new(
+            AssemblySpec::new(
+                "runtime-benchmark-state",
+                vec![
+                    BootStepSpec::new("state", Vec::new()),
+                    BootStepSpec::new("runtime", vec!["state".to_owned()]),
+                ],
+                vec![PortDescriptor::new("worker", PortKind::Worker, 1)],
+            ),
+            RuntimeConfig::new(
+                worker_count_u32,
+                worker_count_u32,
+                WorkerConfig::new(
+                    worker_count,
+                    worker_count,
+                    worker_count,
+                    Duration::from_millis(WORKER_POOL_IDLE_TIMEOUT_MS),
+                ),
+            ),
+        )
+        .map_err(|_| "runtime benchmark creation failed")?,
+    );
+    runtime
+        .boot()
+        .map_err(|_| "runtime benchmark boot failed")?;
+    runtime.reset_observed_lock_wait();
+
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+    for _ in 0..worker_count {
+        let runtime = Arc::clone(&runtime);
+        let next_work = Arc::clone(&next_work);
+        workers.push(thread::spawn(move || {
+            let mut latencies = Vec::new();
+            loop {
+                let work_index = next_work.fetch_add(1, Ordering::Relaxed) as usize;
+                if work_index >= total_work {
+                    break;
+                }
+                let operation_started = Instant::now();
+                let task = runtime
+                    .submit_observed(Box::new(|| Ok(Value::Null)))
+                    .map_err(|_| "runtime benchmark submission failed")?;
+                if task.result(None).is_err() {
+                    return Err("runtime benchmark task failed");
+                }
+                runtime
+                    .reap(task.handle())
+                    .map_err(|_| "runtime benchmark task reap failed")?;
+                latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+            }
+            Ok::<_, &'static str>(latencies)
+        }));
+    }
+
+    let mut latencies = Vec::with_capacity(total_work);
+    for worker in workers {
+        latencies.extend(
+            worker
+                .join()
+                .map_err(|_| "runtime benchmark worker panicked")??,
+        );
+    }
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    let snapshot = runtime.snapshot();
+    if latencies.len() != total_work || snapshot.task_count != 0 || snapshot.terminal_tasks != 0 {
+        return Err("runtime benchmark did not preserve fixed work");
+    }
+    let queue_wait_ns = snapshot
+        .worker_stats
+        .get("queue_wait_ns")
+        .and_then(Value::as_u64)
+        .ok_or("runtime benchmark queue wait metric is missing")?;
+    let lock_wait_ns = runtime.observed_lock_wait().total_ns();
+    runtime
+        .shutdown(Some(Duration::from_secs(5)))
+        .map_err(|_| "runtime benchmark did not shut down cleanly")?;
+    latencies.sort_unstable();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: total_work as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&latencies, P99_PERCENT),
+        queue_wait_ns,
+        lock_wait_ns,
+        rejected: 0,
+        errors: 0,
+        resources: resource_delta(resources_before, resources_after),
+    })
+}
+
+fn run_runtime_batch_round(
+    total_work: usize,
+    worker_count: usize,
+    round: u32,
+    submit_batch_size: usize,
+) -> Result<BenchmarkSample, &'static str> {
+    let worker_count_u32 = u32::try_from(worker_count)
+        .map_err(|_| "runtime worker count does not fit process capacity")?;
+    let max_inflight = worker_count
+        .checked_mul(submit_batch_size)
+        .ok_or("runtime batch capacity overflows the target architecture")?
+        .min(total_work);
+    let max_processes = u32::try_from(max_inflight)
+        .map_err(|_| "runtime batch capacity exceeds process handle slot range")?;
+    let runtime = Arc::new(
+        KernelRuntime::new(
+            AssemblySpec::new(
+                "runtime-batch-benchmark-state",
+                vec![
+                    BootStepSpec::new("state", Vec::new()),
+                    BootStepSpec::new("runtime", vec!["state".to_owned()]),
+                ],
+                vec![PortDescriptor::new("worker", PortKind::Worker, 1)],
+            ),
+            RuntimeConfig::new(
+                max_processes,
+                worker_count_u32,
+                WorkerConfig::new(
+                    worker_count,
+                    worker_count,
+                    max_inflight,
+                    Duration::from_millis(WORKER_POOL_IDLE_TIMEOUT_MS),
+                ),
+            ),
+        )
+        .map_err(|_| "runtime batch benchmark creation failed")?,
+    );
+    runtime
+        .boot()
+        .map_err(|_| "runtime batch benchmark boot failed")?;
+    runtime.reset_observed_lock_wait();
+
+    let next_work = Arc::new(AtomicU64::new(0));
+    let resources_before = resource_snapshot();
+    let started = Instant::now();
+    let mut workers = Vec::with_capacity(worker_count);
+    for _ in 0..worker_count {
+        let runtime = Arc::clone(&runtime);
+        let next_work = Arc::clone(&next_work);
+        workers.push(thread::spawn(move || {
+            let mut batch_latencies = Vec::new();
+            let mut completed = 0_usize;
+            let mut errors = 0_u64;
+            loop {
+                let batch_start =
+                    next_work.fetch_add(submit_batch_size as u64, Ordering::Relaxed) as usize;
+                if batch_start >= total_work {
+                    break;
+                }
+                let count = (total_work - batch_start).min(submit_batch_size);
+                let actions = (0..count)
+                    .map(|_| Box::new(|| Ok(Value::Null)) as TaskFn)
+                    .collect::<Vec<_>>();
+                let operation_started = Instant::now();
+                let tasks = runtime
+                    .submit_batch_observed(actions)
+                    .map_err(|_| "runtime batch benchmark submission failed")?;
+                for task in tasks {
+                    if task.result(None).is_err() {
+                        errors = errors.saturating_add(1);
+                    }
+                    runtime
+                        .reap(task.handle())
+                        .map_err(|_| "runtime batch benchmark task reap failed")?;
+                }
+                batch_latencies.push(operation_started.elapsed().as_nanos().max(1) as u64);
+                completed += count;
+            }
+            Ok::<_, &'static str>((batch_latencies, completed, errors))
+        }));
+    }
+
+    let mut batch_latencies = Vec::with_capacity(total_work.div_ceil(submit_batch_size));
+    let mut completed = 0_usize;
+    let mut errors = 0_u64;
+    for worker in workers {
+        let (latencies, worker_completed, worker_errors) = worker
+            .join()
+            .map_err(|_| "runtime batch benchmark worker panicked")??;
+        batch_latencies.extend(latencies);
+        completed += worker_completed;
+        errors = errors.saturating_add(worker_errors);
+    }
+    let elapsed_ns = started.elapsed().as_nanos().max(1) as u64;
+    let resources_after = resource_snapshot();
+    let snapshot = runtime.snapshot();
+    if completed != total_work
+        || batch_latencies.len() != total_work.div_ceil(submit_batch_size)
+        || snapshot.task_count != 0
+        || snapshot.terminal_tasks != 0
+    {
+        return Err("runtime batch benchmark did not preserve fixed work");
+    }
+    let worker_completed = snapshot
+        .worker_stats
+        .get("completed")
+        .and_then(Value::as_u64)
+        .ok_or("runtime batch benchmark completed metric is missing")?;
+    let rejected = snapshot
+        .worker_stats
+        .get("rejected")
+        .and_then(Value::as_u64)
+        .ok_or("runtime batch benchmark rejected metric is missing")?;
+    let queue_wait_ns = snapshot
+        .worker_stats
+        .get("queue_wait_ns")
+        .and_then(Value::as_u64)
+        .ok_or("runtime batch benchmark queue wait metric is missing")?;
+    if worker_completed != total_work as u64 || rejected != 0 || errors != 0 {
+        return Err("runtime batch benchmark reported execution errors");
+    }
+    let lock_wait_ns = runtime.observed_lock_wait().total_ns();
+    runtime
+        .shutdown(Some(Duration::from_secs(5)))
+        .map_err(|_| "runtime batch benchmark did not shut down cleanly")?;
+    batch_latencies.sort_unstable();
+    Ok(BenchmarkSample {
+        workers: worker_count as u32,
+        round,
+        completed_work_items: completed as u64,
+        elapsed_ns,
+        p95_latency_ns: percentile(&batch_latencies, P95_PERCENT),
+        p99_latency_ns: percentile(&batch_latencies, P99_PERCENT),
+        queue_wait_ns,
+        lock_wait_ns,
+        rejected,
+        errors,
         resources: resource_delta(resources_before, resources_after),
     })
 }

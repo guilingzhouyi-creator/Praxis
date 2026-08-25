@@ -38,6 +38,7 @@ fn posix_snapshot_matches_shell_and_rg_contract() {
     ))
     .expect("posix snapshot");
     assert!(descriptor.is_posix);
+    assert_eq!(descriptor.selected_shell, "/bin/bash");
     assert_eq!(
         descriptor.shell_command("echo ready"),
         ["/bin/bash", "-c", "echo ready"]
@@ -85,6 +86,7 @@ fn windows_fallback_and_endpoint_are_provider_neutral() {
     ))
     .expect("windows snapshot");
     assert_eq!(descriptor.shell_name, "cmd.exe");
+    assert_eq!(descriptor.selected_shell, "C:\\Windows\\System32\\cmd.exe");
     assert_eq!(
         descriptor.shell_command("echo ready"),
         ["C:\\Windows\\System32\\cmd.exe", "/c", "echo ready"]

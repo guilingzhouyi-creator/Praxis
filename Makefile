@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate r2-baseline-bundle r2-baseline-analysis language-check
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-runtime-benchmark rust-runtime-batch-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate r2-baseline-bundle r2-baseline-analysis language-check
 
 install:
 	pip install -e ".[test]"
@@ -150,6 +150,14 @@ rust-worker-benchmark:
 rust-worker-batch-submit-benchmark:
 	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
 		cargo run --manifest-path crates/Cargo.toml --release --bin rust-worker-batch-submit-bench
+
+rust-runtime-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-runtime-bench
+
+rust-runtime-batch-benchmark:
+	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
+		cargo run --manifest-path crates/Cargo.toml --release --bin rust-runtime-batch-bench
 
 rust-session-benchmark:
 	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \

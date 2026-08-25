@@ -10,6 +10,7 @@ use l1_kernel_rs::contract::{
 use l1_kernel_rs::process_adapter::{
     ProcessAdapter, ProcessAdapterConfig, ProcessAdapterError, ProcessPort,
 };
+use l1_kernel_rs::terminal_probe::{TerminalKind, TerminalObservation};
 
 fn shell_args(command: &str) -> Vec<String> {
     #[cfg(unix)]
@@ -19,6 +20,39 @@ fn shell_args(command: &str) -> Vec<String> {
     #[cfg(windows)]
     {
         vec!["cmd.exe".to_owned(), "/C".to_owned(), command.to_owned()]
+    }
+}
+
+fn shell_terminal() -> TerminalObservation {
+    #[cfg(unix)]
+    {
+        TerminalObservation::new(
+            "test-shell",
+            TerminalKind::Other("posix_test_shell".to_owned()),
+            std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_owned()),
+            vec!["-c".to_owned()],
+            None,
+            true,
+            false,
+            false,
+            "utf-8",
+            "process-adapter-test",
+        )
+    }
+    #[cfg(windows)]
+    {
+        TerminalObservation::new(
+            "test-shell",
+            TerminalKind::Cmd,
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_owned()),
+            vec!["/C".to_owned()],
+            None,
+            true,
+            false,
+            false,
+            "utf-8",
+            "process-adapter-test",
+        )
     }
 }
 
@@ -42,7 +76,7 @@ fn adapter_configuration_is_bounded_and_fail_closed() {
 }
 
 #[test]
-fn run_args_and_shell_return_plain_success_values() {
+fn run_args_and_explicit_terminal_return_plain_success_values() {
     let adapter = ProcessAdapter::new(256).expect("adapter");
     let args = shell_args("printf process-ok");
     let via_args = adapter.run_args(&args, Duration::from_secs(2), None);
@@ -54,7 +88,7 @@ fn run_args_and_shell_return_plain_success_values() {
     let command = "printf shell-ok";
     #[cfg(windows)]
     let command = "echo shell-ok";
-    let via_shell = adapter.run(command, Duration::from_secs(2), None);
+    let via_shell = adapter.run_terminal(command, &shell_terminal(), Duration::from_secs(2), None);
     assert!(via_shell.ok());
     assert!(via_shell.stdout.contains("shell-ok"));
 }

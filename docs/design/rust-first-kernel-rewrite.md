@@ -226,9 +226,9 @@ does not execute providers/tools or promote Rust runtime authority.
 
 The next process-boundary slice is now present as the Rust
 `process_adapter::ProcessAdapter` candidate. It implements only bounded
-one-shot `ProcessPort` behavior: direct argument execution, an explicit shell
-path, optional cwd/input/environment/executable values, separately drained and
-retained stdout/stderr, deadline kill, and structured adapter errors. The
+one-shot `ProcessPort` behavior: direct argv execution, or terminal-derived argv
+from an injected `TerminalObservation`, optional cwd/input/environment values,
+separately drained and retained stdout/stderr, deadline kill, and structured adapter errors. The
 independent `tests/process_adapter.rs` target and the
 `process.adapter.oneshot` fixed-work runner cover the value boundary and
 release evidence. The latest release smoke measured about 707/1404/2758 ops/s
@@ -289,7 +289,7 @@ this candidate.
 
 The follow-on `process_group_runtime::ProcessGroupRuntime` candidate composes
 the typed group book with `ManagedProcessBook` at the Rust boundary. It admits
-direct or shell children only into active groups, rolls back a child when group
+direct-argv or terminal-derived-argv children only into active groups, rolls back a child when group
 capacity rejects membership, and exposes both zero-deadline and explicit
 timeout reaper sweeps. A terminal result is published only after the managed
 child slot and the group membership have both been reaped. The independent
@@ -421,6 +421,46 @@ importing Python state. Capability-shaped work uses `submit_gated`, which
 requires matching caller/tool identities, evaluates G1-G5, and remains
 fail-closed when the whitelist or executor is absent.
 
+The runtime performance slice removes the former globally serialized admission
+gate. A shared lifecycle barrier now protects active-state validation, process
+reservation, task-book registration, and WorkerPool handoff. Boot takes the
+exclusive side. Shutdown publishes `Draining` before waiting
+for that exclusive barrier, so new admissions fail closed while approved work
+drains. Registration is deliberately before direct
+dispatch, closing the fast-completion state-overwrite race. Task records follow
+the scheduler shard selection, and the benchmark-only observed entrypoint
+times only contended lifecycle/task-book acquisition fallbacks. The isolated
+`runtime.submit_reap` workload submits one bound Rust closure, waits, and
+reaps per caller before admitting the next. On one Linux x86_64 release run
+based at aligned tree `06e8288c`, each 4,096-item 1/2/4-worker, three-round
+sample had zero errors/rejections and median throughput of about
+18.1k/27.3k/32.1k ops/s. Aggregate WorkerPool claim/wake wait was
+155.2/262.8/469.7 ms and p99 was 140/562/1,342 microseconds, while median
+runtime-admission contention was zero. The result rules out promoting a
+runtime-admission lock optimization as a general scaling policy and keeps
+WorkerPool handoff as the next measured candidate. It does not create a Python
+compatibility requirement or promote the Rust host to an L2/TS, AgentLoop,
+provider, or production authority.
+
+The next bounded batch slice adds `submit_batch` and
+`submit_batch_observed`. It reserves every generation-safe process handle and
+records `Ready` state before handing the complete group to `WorkerPool`; a
+reservation failure rolls back all previous reservations and executes no
+closure. The fixed-work `runtime.batch_submit_reap` runner constrains each
+caller to one submit/wait/reap group at a time and sizes process and queue
+capacity to cover the maximum concurrent groups. It reports throughput in tasks
+but p95/p99 in complete batches, a deliberately separate latency unit from
+`runtime.submit_reap`. A local unpinned Linux x86_64 release sample on the
+aligned tree with batch size 32 completed every 4,096-item 1/2/4-caller,
+three-round case with zero errors/rejections: median throughput was about
+363k/540k/591k tasks/s, aggregate queue wait was 5.4/8.7/18.7 ms, and
+observed runtime-lock wait was 0/0.086/0.045 ms. A separately collected
+single-task run on the same aligned tree was about 18.1k/27.3k/32.1k tasks/s
+with 155.2/262.8/469.7 ms of aggregate queue wait. This is an unpinned
+host-local admission comparison, not a linear
+scaling or tail-latency claim, and does not add L2/TS, AgentLoop, provider,
+PTY, Python-compatibility, or production-entry authority.
+
 The queue optimization slice keeps `try` admission as the default and adds a
 bounded consumer drain to reduce lock acquisitions. Each drained batch now
 records completion with one atomic counter update plus a saturating depth CAS;
@@ -489,3 +529,21 @@ cloneable one-way token, first-reason retention, cooperative checks, and
 bounded waits; RWLock removes a cancelled writer ticket before waking
 successors. Task/queue cancellation, cross-process lock ownership, and runtime
 routing remain later mechanism work.
+
+### 4.7 终端探测与 Agent 进程硬约束
+
+L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、
+`PATH` 或默认终端写入内核。`terminal_probe` 因此采用两段式边界：宿主适配器
+负责实际探测（例如 CMD、PowerShell 7、Bash、Git Bash 或其他 shell），将
+可执行文件、调用参数前缀、版本、编码、交互/PTY 能力和可用状态注入
+`TerminalObservation`；Rust 只校验、过滤和按显式配置选择候选。没有隐式
+fallback，未选出可用候选时直接拒绝。
+
+上层 Agent 进程通过 `process_constraints` 的声明式准入门进入托管进程域。
+策略显式给出 ring、终端身份/类型、argv、cwd、环境键、超时、输出/CPU/内存
+和进程组上限。`ProcessGroupRuntime::spawn_constrained` 先完成全部约束评估，
+再校验适配器 executable/cwd/env 选项与声明一致，最后才把已批准 argv 交给
+进程适配器；约束失败不会产生子进程，缺少 shell 命令正文也会拒绝。该入口目前是
+Rust-native 机制候选，不接管现有 Python/L2 AgentLoop，也不声明 PTY、硬件
+输入、生产 reaper 或 runtime cutover 权威。后续若要接入 TS/L2，只保留这组
+版本化值合同，不复制 Python 的终端默认值或类布局。

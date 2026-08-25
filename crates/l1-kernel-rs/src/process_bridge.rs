@@ -128,15 +128,6 @@ impl ProcessTableBridge {
         self.spawn_registered(|managed| managed.spawn_args(args, options))
     }
 
-    /// Spawn an explicit shell command through the managed-child adapter.
-    pub fn spawn_shell(
-        &self,
-        command: &str,
-        options: Option<&ProcessOptions>,
-    ) -> Result<ProcessHandle, ProcessBridgeError> {
-        self.spawn_registered(|managed| managed.spawn_shell(command, options))
-    }
-
     /// Write to a child identified by its ProcessTable handle.
     pub fn write_stdin(
         &self,
