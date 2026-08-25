@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (docs)**: update changelog with recent doc fixes
 - **Docs (docs)**: sync model reasoning caps keys across ja and ko locales
 - **Docs (docs)**: update changelog with recent service fixes
 - **Docs (docs)**: refresh unreleased changelog and architecture doc stats
