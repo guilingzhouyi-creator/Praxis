@@ -44,6 +44,70 @@ _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
     "ci": {"must_include": [".github/"]},
 }
 
+_NON_IMPERATIVE_VERBS: frozenset[str] = frozenset(
+    {
+        "added",
+        "adding",
+        "fixes",
+        "fixed",
+        "fixing",
+        "updated",
+        "updating",
+        "updates",
+        "changes",
+        "changed",
+        "changing",
+        "modified",
+        "modifying",
+        "modifies",
+        "refactored",
+        "refactoring",
+        "refactors",
+        "improves",
+        "improved",
+        "improving",
+        "removes",
+        "removed",
+        "removing",
+        "deletes",
+        "deleted",
+        "deleting",
+        "makes",
+        "made",
+        "making",
+        "creates",
+        "created",
+        "creating",
+        "implements",
+        "implemented",
+        "implementing",
+        "hardens",
+        "hardened",
+        "hardening",
+        "enforces",
+        "enforced",
+        "enforcing",
+        "handles",
+        "handled",
+        "handling",
+        "resolves",
+        "resolved",
+        "resolving",
+        "prevents",
+        "prevented",
+        "preventing",
+        "allows",
+        "allowed",
+        "allowing",
+        "avoids",
+        "avoided",
+        "avoiding",
+        "cleans",
+        "cleaned",
+        "cleaning",
+    }
+)
+
 
 def load_policy() -> dict:
     """Load the commit policy from config/discovery/commits.yaml."""
@@ -101,6 +165,15 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     min_chars = placeholder.get("min_summary_chars", 10)
     if summary and min_chars and len(summary) < min_chars:
         violations.append(f"summary too short ({len(summary)} < {min_chars} chars)")
+
+    # Imperative verb check: summary should start with an imperative verb, not past tense or gerund
+    if summary:
+        first_word = summary.split()[0].lower().rstrip(":,.-")
+        if first_word in _NON_IMPERATIVE_VERBS:
+            violations.append(
+                f"non-imperative verb '{first_word}' in summary — use imperative present tense "
+                "(e.g. 'add', 'fix', 'update', 'refactor', 'remove', 'harden', 'enforce')"
+            )
 
     # subject length guard: Conventional-Commits subjects must stay <= 72
     # chars (AGENTS.md contract). Rejected in strict mode.
@@ -188,6 +261,17 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
         return ["missing Co-Authored-By trailer"]
     if len(trailers) > 1:
         return [f"exactly ONE Co-Authored-By trailer allowed (found {len(trailers)})"]
+
+    # Strict EOF sentinel: Co-Authored-By must be the VERY LAST non-empty line
+    lines = [ln.rstrip() for ln in msg.strip().splitlines()]
+    if not lines or not lines[-1].startswith("Co-Authored-By:"):
+        violations.append(
+            "Co-Authored-By trailer must be the VERY LAST line of the commit message "
+            "(no trailing text, notes, or commentary allowed after the trailer)"
+        )
+    if len(lines) > 1 and lines[-2] != "":
+        violations.append("Co-Authored-By trailer must be preceded by a blank line")
+
     trailer = trailers[0].strip()
 
     m = re.match(r"^Co-Authored-By: ([^:<>]+) \(([^()]+)\) <noreply@[a-z0-9.-]+>$", trailer)

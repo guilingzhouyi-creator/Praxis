@@ -92,9 +92,8 @@ Spec: `docs/architecture/security-evidence.md`. Modes: `productive` (default) | 
 
 Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 
-- **English + Conventional Commits** `type(scope): summary` ≤ 72 chars, lowercase start, no markdown,
-  no trailing period
-- **Exactly ONE `Co-Authored-By:` trailer** last, preceded by blank line:
+- **English + Conventional Commits** `type(scope): summary` ≤ 72 chars, lowercase start, imperative mood present-tense verb (no past tense / gerunds), no markdown, no trailing period
+- **Exactly ONE `Co-Authored-By:` trailer** strictly last line, preceded by a blank line (no trailing notes):
   `Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>`
 - **Attribution verified for TRUTH (Anti-Impersonation Rule)**: cross-checked against agents registry + live execution evidence
   (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected.

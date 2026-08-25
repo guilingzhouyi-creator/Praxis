@@ -36,14 +36,15 @@ source of truth for the Conventional-Commits contract.
     randomly grab registered names from `commits.yaml`. If the agent or model is unregistered in
     `commits.yaml` or unverifiable, the agent MUST stop and prompt the user for registry addition or
     explicit environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
-- **Subject format is normalized**: lowercase start, no markdown (`**`/`` ` ``/`_`),
+- **Subject format is normalized**: lowercase start, imperative mood present-tense verb (no past tense / gerunds like `added`, `fixed`, `updating`), no markdown (`**`/`` ` ``/`_`),
   no trailing period, ≤ 72 chars — plain text, never rendered markup.
+- **Strict Trailer Sentinel**: `Co-Authored-By:` must be preceded by a blank line and MUST be the absolute last line of the commit message (no trailing commentary or notes).
 
 | Part | Requirement |
 |---|---|
-| Subject | Conventional Commits: `type(scope): summary`; ≤ 72 chars; imperative mood |
+| Subject | Conventional Commits: `type(scope): summary`; ≤ 72 chars; imperative present tense (`add`, `fix`, `update`, `refactor`, `harden`) |
 | Body | Blank line after subject; explain **what** and **why** (structured Markdown: `## Sections`, `**keywords**`, `` `files` ``, `-` bullets) |
-| Trailer | `Co-Authored-By:` line last, preceded by a blank line |
+| Trailer | `Co-Authored-By:` strictly last line, preceded by a blank line (no trailing notes) |
 
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
   merge is gated on diff scope — see `AGENTS.md` `## Dependency management`.

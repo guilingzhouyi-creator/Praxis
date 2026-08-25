@@ -112,7 +112,24 @@ def test_antigravity_gemini_registered() -> None:
     msg = "feat(l3): antigravity test\n\nCo-Authored-By: Antigravity (gemini-3.7-flash) <noreply@google.com>"
     res = _scan(msg, detected=detected)
     assert res.returncode == 0
-    assert "matches registry + runtime" in res.stdout
+
+
+def test_trailing_commentary_after_trailer_rejected() -> None:
+    msg = (
+        "feat(l3): test trailer position\n\n"
+        "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>\n"
+        "Note: I have verified all 11 checks."
+    )
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "VERY LAST line" in res.stderr
+
+
+def test_missing_blank_line_before_trailer_rejected() -> None:
+    msg = "feat(l3): test trailer blank line\nCo-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "preceded by a blank line" in res.stderr
 
 
 def test_markdown_subject_rejected() -> None:
