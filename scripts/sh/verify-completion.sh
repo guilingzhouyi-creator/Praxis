@@ -153,6 +153,7 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
   if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
     S_COVERAGE=1; pass "coverage >= $THRESH%"
+    M_TESTS_FAILED=0
   else
     # The combined run failed — tests, coverage, or both. Surface the gap.
     S_TESTS=2; S_COVERAGE=2
@@ -163,9 +164,9 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
     else
       fail "test suite has failures (see /tmp/judge_cov.log)"
     fi
+    M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo 1)
   fi
   M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
-  M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
   M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
 fi
 
@@ -191,21 +192,23 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
     done
     if [ "$ALL_TESTS_OK" = "1" ]; then
       S_TESTS=1; pass "tests green across slices ($TOTAL_PASS passed)"
+      M_TESTS_FAILED=0
     else
       S_TESTS=2
+      M_TESTS_FAILED=1
     fi
     M_TESTS_PASSED="$TOTAL_PASS"
-    M_TESTS_FAILED=null
   else
     echo "[judge] ── 1. Full test suite (standalone) ──"
     if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" > /tmp/judge_tests.log 2>&1; then
       S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1))"
+      M_TESTS_FAILED=0
     else
       S_TESTS=2; tail -5 /tmp/judge_tests.log >&2
       fail "test suite has failures (see /tmp/judge_tests.log)"
+      M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo 1)
     fi
     M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
-    M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -271,10 +274,11 @@ if [ "$RUN_LINT" = "1" ]; then
     fi
     if [ "$LINT_OK" = "1" ]; then
       S_LINT=1; pass "ruff + mypy clean"
+      M_RUFF_ERRORS=0
     else
       S_LINT=2; tail -5 /tmp/judge_ruff.log >&2; fail "ruff/mypy issues"
+      M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo 1)
     fi
-    M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -374,7 +378,14 @@ DURATION=$(( $(date +%s) - T0 ))
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
 RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
-printf '%s\n' "$RECORD" >> "$LOG_FILE"
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -x 200
+    printf '%s\n' "$RECORD" >> "$LOG_FILE"
+  ) 200>"${LOG_FILE}.lock"
+else
+  printf '%s\n' "$RECORD" >> "$LOG_FILE"
+fi
 
 echo "[judge] verdict: ${VERDICT}"
 if [ "$VERDICT" = "COMPLETE" ]; then

@@ -308,3 +308,52 @@ def test_latest_metric_by_ts(tmp_path):
             f.write(json.dumps(r) + "\n")
     data = run_stats(log)
     assert data["metrics"]["coverage_pct"]["latest"] == 80.0
+
+
+def test_zero_value_metrics(tmp_path):
+    """Zero-value metrics (e.g. 0 ruff errors, 0 test failures) are preserved in stats."""
+    log = tmp_path / "judge-zero.jsonl"
+    with open(log, "w", encoding="utf-8") as f:
+        for r in RUNS:
+            f.write(json.dumps(r) + "\n")
+    data = run_stats(log)
+    assert data["metrics"]["tests_failed"]["min"] == 0.0
+    assert data["metrics"]["tests_failed"]["avg"] == 0.0
+    assert data["metrics"]["ruff_errors"]["min"] == 0.0
+    assert data["metrics"]["ruff_errors"]["latest"] == 0.0
+
+
+def test_full_completion_rate(tmp_path):
+    """Full completion rate is calculated over full-mode runs, avoiding fast-mode dilution."""
+    data = run_stats(write_partial_log(tmp_path))
+    # 3 full runs (1 complete), 1 fast run (partial)
+    assert data["total"] == 4
+    assert data["mode_runs"]["full"] == 3
+    assert data["mode_runs"]["fast"] == 1
+    assert data["full_completion_rate"] == round(1 / 3, 3)
+    assert data["completion_rate"] == round(1 / 4, 3)
+
+
+def test_legacy_under_11_checks_mode_derivation(tmp_path):
+    """Legacy records with fewer than 11 checks derive fast mode even if no flag is 0."""
+    log = tmp_path / "judge-under11.jsonl"
+    legacy_5_checks = {
+        "ts": "2026-08-14T08:00:00Z",
+        "verdict": "COMPLETE",
+        "branch": "main",
+        "duration_s": 5,
+        "checks": {
+            "tests": 1,
+            "coverage": 1,
+            "delta": 1,
+            "docs": 1,
+            "lint": 1,
+        },
+    }
+    with open(log, "w", encoding="utf-8") as f:
+        f.write(json.dumps(legacy_5_checks) + "\n")
+    data = run_stats(log)
+    assert data["mode_runs"]["fast"] == 1
+    assert data["mode_runs"]["full"] == 0
+    assert data["partial"] == 1
+    assert data["complete"] == 0

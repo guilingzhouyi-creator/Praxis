@@ -1,7 +1,9 @@
 ## CompletionJudge effectiveness (auto-updated)
 
 **Runs**: 221 | **COMPLETE**: 34 (15%) | **PARTIAL**: 22 (10%, fast mode — checks skipped) | **INCOMPLETE**: 165 (75%, machine 'not done')
-**Mode split**: full 91 / fast 130 (fast = at least one check skipped)
+**Mode split**: full 91 (37% complete) / fast 130 (fast = at least one check skipped)
+**Skipped tests notice**: tests skipped in 12 judge run(s) (full mode / WSL slice-serial required before merge)
+**Gate exemptions** (MERGE_GATE_SKIP commits in history): 7
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
