@@ -57,7 +57,10 @@ if (summary.endsWith(".")) {
   process.exit(1);
 }
 
-const NON_IMPERATIVE = new Set([
+// Imperative-mood guard — the verb list lives in commits.yaml
+// `non_imperative_verbs` (single source, mirrored into commits.json by
+// gen_commits_json.py); the inline fallback only covers a missing key.
+const FALLBACK_NON_IMPERATIVE = [
   "added", "adding", "fixes", "fixed", "fixing",
   "updated", "updating", "updates",
   "changes", "changed", "changing",
@@ -77,7 +80,8 @@ const NON_IMPERATIVE = new Set([
   "allows", "allowed", "allowing",
   "avoids", "avoided", "avoiding",
   "cleans", "cleaned", "cleaning",
-]);
+];
+const NON_IMPERATIVE = new Set(policy.non_imperative_verbs || FALLBACK_NON_IMPERATIVE);
 const firstWord = (summary.split(/\s+/)[0] || "").toLowerCase().replace(/[:,.-]+$/, "");
 if (NON_IMPERATIVE.has(firstWord)) {
   console.error(`❌ non-imperative verb "${firstWord}" in summary — use imperative present tense (e.g. "add", "fix", "update", "refactor", "remove", "harden", "enforce")`);

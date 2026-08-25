@@ -27,6 +27,7 @@ JSON_PATH = ROOT / "config" / "discovery" / "commits.json"
 # Keys consumed by scripts/js/validate-commit.mjs.
 _NODE_KEYS = (
     "types",
+    "non_imperative_verbs",
     "scope_dirs",
     "agents",
     "scopes",
