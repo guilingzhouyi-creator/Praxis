@@ -1181,6 +1181,8 @@ allow-lists, and preference order; it has no PATH lookup, environment fallback,
 or built-in shell path. `TerminalObservation::command_argv` lets an adapter
 construct an exact shell argv for CMD, PowerShell 7, Bash, Git Bash, or a
 host-defined terminal while keeping the executable and switches outside L1.
+`PlatformDescriptor` retains host metadata only and does not construct shell
+argv, so platform helpers cannot bypass the probe boundary.
 The independent `tests/terminal_probe.rs` target covers deterministic
 selection, custom invocation construction, duplicate identity rejection, and
 no-eligible fail-closed behavior.

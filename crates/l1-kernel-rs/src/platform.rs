@@ -145,15 +145,6 @@ impl PlatformDescriptor {
         })
     }
 
-    /// Build a shell invocation without executing it.
-    pub fn shell_command(&self, command: &str) -> Vec<String> {
-        vec![
-            self.shell_path.clone(),
-            if self.is_windows { "/c" } else { "-c" }.to_owned(),
-            command.to_owned(),
-        ]
-    }
-
     /// Build a grep-style command without probing or invoking the host.
     pub fn grep_command(&self, options: GrepOptions<'_>) -> Vec<String> {
         if options.rg_available {

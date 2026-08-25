@@ -836,7 +836,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
 | T3 | `ProcessGroupRuntime::spawn_constrained`：先审查、校验 adapter 选项一致性、再 spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
 | T4 | L2/TS 协议投影与硬件终端输入探针 | ⏳ 未开始 | 先冻结 Rust 值合同，再做跨平台 adapter 与最小批量测试 |
-| T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；不得将旧入口重新作为默认适配器 |
+| T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command`，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
 
 该切片只建立 L1 的终端基础和硬性准入机制，不把 CMD、PowerShell 7、Bash 或

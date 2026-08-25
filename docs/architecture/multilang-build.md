@@ -522,7 +522,8 @@ invocation prefix, version, encoding, availability, interactive support, PTY
 support, and source. `TerminalProbe` filters and orders those records only with
 explicit caller policy; it never scans `PATH` or chooses a machine default.
 `TerminalObservation::command_argv` is the sole shell argv construction seam
-for a future adapter.
+for a future adapter; `PlatformDescriptor` retains metadata but does not build
+shell argv or provide a platform fallback.
 
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,

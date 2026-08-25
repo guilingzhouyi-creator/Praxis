@@ -6,7 +6,6 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 struct PlatformVector {
     snapshot: PlatformSnapshot,
-    shell_command: Vec<String>,
     grep_options: GrepVector,
     grep_command: Vec<String>,
     url_parts: Vec<String>,
@@ -30,7 +29,7 @@ struct GrepVector {
 }
 
 #[test]
-fn posix_snapshot_matches_shell_and_rg_contract() {
+fn posix_snapshot_matches_platform_and_rg_contract() {
     let descriptor = PlatformDescriptor::from_snapshot(PlatformSnapshot::posix(
         "/bin/bash",
         "/usr/bin/python",
@@ -39,10 +38,6 @@ fn posix_snapshot_matches_shell_and_rg_contract() {
     .expect("posix snapshot");
     assert!(descriptor.is_posix);
     assert_eq!(descriptor.selected_shell, "/bin/bash");
-    assert_eq!(
-        descriptor.shell_command("echo ready"),
-        ["/bin/bash", "-c", "echo ready"]
-    );
     assert_eq!(descriptor.temp_dir("/tmp"), "/tmp/praxis");
     assert_eq!(
         descriptor.join_url(["/api/", "/v2/", "/health"]),
@@ -78,7 +73,7 @@ fn posix_snapshot_matches_shell_and_rg_contract() {
 }
 
 #[test]
-fn windows_fallback_and_endpoint_are_provider_neutral() {
+fn windows_platform_and_endpoint_are_provider_neutral() {
     let descriptor = PlatformDescriptor::from_snapshot(PlatformSnapshot::windows(
         "C:\\Windows\\System32\\cmd.exe",
         "C:\\Python\\python.exe",
@@ -87,10 +82,6 @@ fn windows_fallback_and_endpoint_are_provider_neutral() {
     .expect("windows snapshot");
     assert_eq!(descriptor.shell_name, "cmd.exe");
     assert_eq!(descriptor.selected_shell, "C:\\Windows\\System32\\cmd.exe");
-    assert_eq!(
-        descriptor.shell_command("echo ready"),
-        ["C:\\Windows\\System32\\cmd.exe", "/c", "echo ready"]
-    );
     assert_eq!(
         descriptor.grep_command(GrepOptions {
             pattern: "needle",
@@ -123,7 +114,6 @@ fn shared_platform_vectors_match_python_reference() {
     for vector in vectors {
         let rg_available = vector.snapshot.rg_available;
         let descriptor = PlatformDescriptor::from_snapshot(vector.snapshot).expect("descriptor");
-        assert_eq!(descriptor.shell_command("echo ready"), vector.shell_command);
         assert_eq!(
             descriptor.grep_command(GrepOptions {
                 pattern: &vector.grep_options.pattern,
