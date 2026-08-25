@@ -85,3 +85,4 @@
    addition above; Node-only mirror now matches canonical yaml.
    Registered per the shared-file gate.
 | 2026-08-23 | config/discovery/commits.yaml | OpenCode (ox-alpha) | register rust scope (crates/) for L1L2 docking execution | active |
+| 2026-08-25 | crates/l1-kernel-rs/tests/** + crates/l1-kernel-rs/Cargo.toml + tests/infra/test_rust_test_domain.py + Makefile + docs/architecture/* + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md + tests/fixtures/protocol_v1_conformance.json | GPT (root-l1-runtime-perf) | normalize 88 Rust integration targets into 11 explicit test domains, preserve historical Cargo target names, add bounded domain runner and root-level test regression gate | in feature/root-l1-runtime-perf |

@@ -311,7 +311,7 @@ corresponding result handle is notified.
 Worker metrics are Rust atomics rather than a process-wide metrics mutex:
 submission rejection, active/completed/outcome counters, and pool-size changes
 avoid serializing every task on one accounting lock. The bounded task queue and
-worker join list remain mutex-owned. The independent `tests/worker.rs` target
+worker join list remain mutex-owned. The independent `tests/core/worker.rs` target
 exercises concurrent submission and verifies that completed plus evicted work
 matches the fixed submission count.
 The completion path also relies on the last active-counter transition to wake
@@ -350,7 +350,7 @@ same-loop admissions no longer serialize on one mutex. Session
 history and `input_seq` remain authoritative in `Session`; terminal mailboxes,
 PTYs, subprocesses, providers, prompts, tools, and worker execution remain
 adapter-owned. The candidate is covered by the independent
-`crates/l1-kernel-rs/tests/agent_loop.rs` target and does not grant runtime
+`crates/l1-kernel-rs/tests/session/agent_loop.rs` target and does not grant runtime
 authority. `run_agent_loop` and `rust-agent-loop-bench` add a separate v3
 fixed-work input-admission workload with lifecycle-lock wait accounting; a current
 4096-item release smoke measured median throughput of about 1.706M/0.898M/
@@ -533,7 +533,7 @@ failures. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint; it
 only emits accepted canonical frames and reports rejected lines to stderr. It
 does not dispatch commands, execute intents, own sessions, or route AgentLoop
 work, and its public behavior is tested in the independent
-`tests/protocol_host.rs` target.
+`tests/protocol/protocol_host.rs` target.
 
 The Rust `config_store` candidate closes the configuration half of the R4
 ownership boundary. It creates a fresh JSON-only Rust root with a versioned
@@ -568,8 +568,8 @@ user `input_seq`, monotonic message sequences, cursor paging, explicit
 created/active/closing/closed/crashed lifecycle, and versioned checkpoint
 values. Duplicate IDs, invalid cursors, over-capacity history, and inconsistent
 snapshots fail closed. It does not execute prompts/tools, own PTYs, or route
-AgentLoop work; its behavior is covered by independent `tests/session.rs` and
-`tests/session_vectors.rs` targets.
+AgentLoop work; its behavior is covered by independent `tests/session/session.rs` and
+`tests/session/session_vectors.rs` targets.
 
 The Rust `session_store` adapter closes the first durable P0 session boundary.
 It atomically persists the deterministically ordered `SessionBook` collection
@@ -579,7 +579,7 @@ closing. An unclean document is loaded as explicit `crashed` sessions so the
 caller must recover and reactivate them before accepting input. The adapter
 uses only the fresh Rust state root; it does not import Python state, replay
 AgentLoop work, or grant runtime authority. Its behavior is covered by the
-independent `tests/session_store.rs` target.
+independent `tests/session/session_store.rs` target.
 
 The `execution_store` adapter extends this durable boundary to the metadata
 books needed by the future terminal-backed AgentLoop bridge. It atomically
@@ -591,7 +591,7 @@ active terminals, pending mailbox frames, or process bindings. Unclean writes
 normalize sessions to `crashed`, active loops to `failed`, and active terminals
 to unbound `created` records so a later adapter must explicitly recover and
 rebind them. `TerminalBook::restore` and `AgentLoopBook::restore` accept only
-these safe metadata states. Coverage is isolated in `tests/execution_store.rs`;
+these safe metadata states. Coverage is isolated in `tests/session/execution_store.rs`;
 this is an R4/R5 recovery seam, not boot or runtime authority.
 
 The session hot path keeps hash indexes for message-id duplicate checks and
@@ -697,12 +697,12 @@ persist, protocol, protocol-host, constitution, gatechain, allocator, vfs, load-
 versioning mechanism
 tests are maintained as
 independent integration files under
-`crates/l1-kernel-rs/tests/`; the public contract-version check is also part of
+`crates/l1-kernel-rs/tests/<domain>/`; the public contract-version check is also part of
 `contract_vectors.rs`. Their public APIs are therefore the only test-visible
 boundary for these slices.
 
 The synchronization mechanism tests are also fully isolated under
-`crates/l1-kernel-rs/tests/sync.rs`; the shared RWLock vectors remain in
+`crates/l1-kernel-rs/tests/core/sync.rs`; the shared RWLock vectors remain in
 `sync_vectors.rs`. The source module now contains no private test block, so
 Mutex, Semaphore, Barrier, Condition, and RWLock are validated only through
 the public candidate API. This is a test-domain boundary, not runtime lock
@@ -946,7 +946,7 @@ call storage, trimming/re-rooting, and tool execution remain Python-owned; the
 candidate has no runtime singleton or capability authority.
 
 Rust parity and mechanism tests for this boundary run as independent
-integration targets under `crates/l1-kernel-rs/tests/`; implementation modules
+integration targets under `crates/l1-kernel-rs/tests/<domain>/`; implementation modules
 contain no inline test block. The Python infra gate
 `tests/infra/test_rust_test_domain.py` enforces this public-boundary rule.
 
@@ -1082,7 +1082,7 @@ and a terminal-observation path whose executable and invocation prefix are
 supplied by the host probe, optional cwd/input/environment settings, per-stream
 output caps with continuous draining, deadline kill, and structured
 not-found/execution/timeout results. Its public tests live in the independent
-`crates/l1-kernel-rs/tests/process_adapter.rs` target, and
+`crates/l1-kernel-rs/tests/process/process_adapter.rs` target, and
 `run_process_adapter`/`rust-process-adapter-bench` report the isolated
 `process.adapter.oneshot` workload. A current release smoke measured roughly
 707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms and no
@@ -1103,7 +1103,7 @@ The Rust `managed_process` candidate is the bounded lifecycle owner above the
 one-shot value adapter. It reserves a generation-safe slot before spawning,
 owns direct-argv and terminal-derived-argv children plus bounded output readers, exposes caller
 stdin, distinguishes observer `Pending` from terminal completion, and requires
-explicit terminate/reap. `tests/managed_process.rs` is the independent public
+explicit terminate/reap. `tests/process/managed_process.rs` is the independent public
 target; `run_managed_process` and `rust-managed-process-bench` report the
 separate `process.managed.lifecycle` workload. A current release smoke measured
 roughly 707/1391/2761 ops/s at 1/2/4 workers with p95 about 1.52/1.55/1.58 ms
@@ -1119,7 +1119,7 @@ wait/terminate record ZOMBIE, and joint reap removes both the child slot and
 the table row. Table-row loss is fail-closed: a managed child that has already
 been reaped always releases its bridge binding, even when an external table
 owner won the row-reap race. Bridge names are unique across bridge instances
-sharing one table. `tests/process_bridge.rs` and the separate
+sharing one table. `tests/process/process_bridge.rs` and the separate
 `process.bridge.lifecycle` fixed-work benchmark cover these ownership rules;
 the latest 256-item release sweep completed all work with zero errors or
 rejections, and measured about 708/1401/2752 ops/s at 1/2/4 workers (p95
@@ -1149,7 +1149,7 @@ the spawned child before returning the capacity error. A non-blocking sweep
 uses zero-deadline observation and an explicit timeout sweep may terminate a
 live child, but both paths require managed-child reap and group-member reap
 before reporting a terminal outcome. The independent
-`tests/process_group_runtime.rs` target covers bounded budgets, cancellation,
+`tests/process/process_group_runtime.rs` target covers bounded budgets, cancellation,
 admission rollback, and unknown executables. This is still a caller-owned
 coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
@@ -1200,7 +1200,7 @@ construct an exact shell argv for CMD, PowerShell 7, Bash, Git Bash, or a
 host-defined terminal while keeping the executable and switches outside L1.
 `PlatformDescriptor` retains host metadata only and does not construct shell
 argv, so platform helpers cannot bypass the probe boundary.
-The independent `tests/terminal_probe.rs` target covers deterministic
+The independent `tests/terminal/terminal_probe.rs` target covers deterministic
 selection, custom invocation construction, duplicate identity rejection, and
 no-eligible fail-closed behavior.
 
@@ -1212,7 +1212,7 @@ ceilings, and process-group membership. `ProcessGroupRuntime::spawn_constrained`
 must evaluate this receipt before spawning, reject adapter executable/cwd/env
 overrides that diverge from the admitted request, and does not discover a
 terminal on behalf of the caller. Shell argv must contain a command after the
-injected invocation prefix. The independent `tests/process_constraints.rs`
+injected invocation prefix. The independent `tests/process/process_constraints.rs`
 target covers successful shell/direct admissions, accumulated policy
 violations, and pre-spawn override rejection. The companion
 `spawn_gated_constrained` entry requires the explicit `process.spawn`

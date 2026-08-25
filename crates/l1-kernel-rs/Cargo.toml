@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Contract-only Rust boundary for the Praxis L1 kernel migration"
+autotests = false
 
 [dependencies]
 hmac = "0.12"
@@ -14,3 +15,358 @@ sha2 = "0.10"
 [lib]
 name = "l1_kernel_rs"
 path = "src/lib.rs"
+
+# Keep the historical target names stable while making the test domain explicit.
+# Tests are grouped by boundary under tests/<domain>/; the Python infra gate
+# verifies that every target is registered here and that the root stays empty.
+[[test]]
+name = "agent_loop"
+path = "tests/session/agent_loop.rs"
+
+[[test]]
+name = "allocator"
+path = "tests/core/allocator.rs"
+
+[[test]]
+name = "assembly"
+path = "tests/assembly/assembly.rs"
+
+[[test]]
+name = "assembly_vectors"
+path = "tests/assembly/assembly_vectors.rs"
+
+[[test]]
+name = "audit"
+path = "tests/policy/audit.rs"
+
+[[test]]
+name = "benchmark"
+path = "tests/runtime/benchmark.rs"
+
+[[test]]
+name = "benchmark_runner"
+path = "tests/runtime/benchmark_runner.rs"
+
+[[test]]
+name = "boot"
+path = "tests/assembly/boot.rs"
+
+[[test]]
+name = "boot_vectors"
+path = "tests/assembly/boot_vectors.rs"
+
+[[test]]
+name = "bus"
+path = "tests/network/bus.rs"
+
+[[test]]
+name = "cancellation"
+path = "tests/core/cancellation.rs"
+
+[[test]]
+name = "capability"
+path = "tests/policy/capability.rs"
+
+[[test]]
+name = "channel"
+path = "tests/core/channel.rs"
+
+[[test]]
+name = "channel_vectors"
+path = "tests/core/channel_vectors.rs"
+
+[[test]]
+name = "config_store"
+path = "tests/storage/config_store.rs"
+
+[[test]]
+name = "conformance_vectors"
+path = "tests/protocol/conformance_vectors.rs"
+
+[[test]]
+name = "constitution"
+path = "tests/policy/constitution.rs"
+
+[[test]]
+name = "constitution_vectors"
+path = "tests/policy/constitution_vectors.rs"
+
+[[test]]
+name = "contract"
+path = "tests/protocol/contract.rs"
+
+[[test]]
+name = "contract_vectors"
+path = "tests/protocol/contract_vectors.rs"
+
+[[test]]
+name = "device"
+path = "tests/registry/device.rs"
+
+[[test]]
+name = "discovery"
+path = "tests/registry/discovery.rs"
+
+[[test]]
+name = "errors"
+path = "tests/core/errors.rs"
+
+[[test]]
+name = "event"
+path = "tests/core/event.rs"
+
+[[test]]
+name = "event_vectors"
+path = "tests/core/event_vectors.rs"
+
+[[test]]
+name = "execution_store"
+path = "tests/session/execution_store.rs"
+
+[[test]]
+name = "gatechain"
+path = "tests/policy/gatechain.rs"
+
+[[test]]
+name = "health"
+path = "tests/network/health.rs"
+
+[[test]]
+name = "host_dispatch"
+path = "tests/runtime/host_dispatch.rs"
+
+[[test]]
+name = "identity_binding"
+path = "tests/policy/identity_binding.rs"
+
+[[test]]
+name = "identity_binding_vectors"
+path = "tests/policy/identity_binding_vectors.rs"
+
+[[test]]
+name = "identity_uid"
+path = "tests/policy/identity_uid.rs"
+
+[[test]]
+name = "interrupt"
+path = "tests/core/interrupt.rs"
+
+[[test]]
+name = "ipc"
+path = "tests/core/ipc.rs"
+
+[[test]]
+name = "lifecycle"
+path = "tests/core/lifecycle.rs"
+
+[[test]]
+name = "load_adaptive"
+path = "tests/core/load_adaptive.rs"
+
+[[test]]
+name = "managed_process"
+path = "tests/process/managed_process.rs"
+
+[[test]]
+name = "migration"
+path = "tests/storage/migration.rs"
+
+[[test]]
+name = "network"
+path = "tests/network/network.rs"
+
+[[test]]
+name = "notify"
+path = "tests/network/notify.rs"
+
+[[test]]
+name = "notify_vectors"
+path = "tests/network/notify_vectors.rs"
+
+[[test]]
+name = "outbox_registry"
+path = "tests/storage/outbox_registry.rs"
+
+[[test]]
+name = "paths"
+path = "tests/storage/paths.rs"
+
+[[test]]
+name = "peer_vectors"
+path = "tests/network/peer_vectors.rs"
+
+[[test]]
+name = "persist"
+path = "tests/storage/persist.rs"
+
+[[test]]
+name = "platform"
+path = "tests/terminal/platform.rs"
+
+[[test]]
+name = "port_vectors"
+path = "tests/assembly/port_vectors.rs"
+
+[[test]]
+name = "ports"
+path = "tests/assembly/ports.rs"
+
+[[test]]
+name = "process"
+path = "tests/process/process.rs"
+
+[[test]]
+name = "process_adapter"
+path = "tests/process/process_adapter.rs"
+
+[[test]]
+name = "process_bridge"
+path = "tests/process/process_bridge.rs"
+
+[[test]]
+name = "process_constraints"
+path = "tests/process/process_constraints.rs"
+
+[[test]]
+name = "process_group"
+path = "tests/process/process_group.rs"
+
+[[test]]
+name = "process_group_runtime"
+path = "tests/process/process_group_runtime.rs"
+
+[[test]]
+name = "process_vectors"
+path = "tests/process/process_vectors.rs"
+
+[[test]]
+name = "protocol"
+path = "tests/protocol/protocol.rs"
+
+[[test]]
+name = "protocol_host"
+path = "tests/protocol/protocol_host.rs"
+
+[[test]]
+name = "protocol_vectors"
+path = "tests/protocol/protocol_vectors.rs"
+
+[[test]]
+name = "registry"
+path = "tests/registry/registry.rs"
+
+[[test]]
+name = "registry_base"
+path = "tests/registry/registry_base.rs"
+
+[[test]]
+name = "reputation"
+path = "tests/policy/reputation.rs"
+
+[[test]]
+name = "reputation_vectors"
+path = "tests/policy/reputation_vectors.rs"
+
+[[test]]
+name = "rule_descriptor"
+path = "tests/policy/rule_descriptor.rs"
+
+[[test]]
+name = "runtime"
+path = "tests/runtime/runtime.rs"
+
+[[test]]
+name = "scheduler"
+path = "tests/core/scheduler.rs"
+
+[[test]]
+name = "schema"
+path = "tests/protocol/schema.rs"
+
+[[test]]
+name = "session"
+path = "tests/session/session.rs"
+
+[[test]]
+name = "session_lifecycle"
+path = "tests/session/session_lifecycle.rs"
+
+[[test]]
+name = "session_store"
+path = "tests/session/session_store.rs"
+
+[[test]]
+name = "session_vectors"
+path = "tests/session/session_vectors.rs"
+
+[[test]]
+name = "snapshot_page"
+path = "tests/session/snapshot_page.rs"
+
+[[test]]
+name = "state_layout"
+path = "tests/storage/state_layout.rs"
+
+[[test]]
+name = "state_layout_vectors"
+path = "tests/storage/state_layout_vectors.rs"
+
+[[test]]
+name = "state_queue"
+path = "tests/core/state_queue.rs"
+
+[[test]]
+name = "state_store"
+path = "tests/storage/state_store.rs"
+
+[[test]]
+name = "substrate"
+path = "tests/core/substrate.rs"
+
+[[test]]
+name = "swapper"
+path = "tests/storage/swapper.rs"
+
+[[test]]
+name = "sync"
+path = "tests/core/sync.rs"
+
+[[test]]
+name = "sync_vectors"
+path = "tests/core/sync_vectors.rs"
+
+[[test]]
+name = "terminal"
+path = "tests/terminal/terminal.rs"
+
+[[test]]
+name = "terminal_probe"
+path = "tests/terminal/terminal_probe.rs"
+
+[[test]]
+name = "terminal_vectors"
+path = "tests/terminal/terminal_vectors.rs"
+
+[[test]]
+name = "territory"
+path = "tests/policy/territory.rs"
+
+[[test]]
+name = "tool_chain"
+path = "tests/policy/tool_chain.rs"
+
+[[test]]
+name = "tool_chain_vectors"
+path = "tests/policy/tool_chain_vectors.rs"
+
+[[test]]
+name = "versioning"
+path = "tests/protocol/versioning.rs"
+
+[[test]]
+name = "vfs"
+path = "tests/storage/vfs.rs"
+
+[[test]]
+name = "worker"
+path = "tests/core/worker.rs"

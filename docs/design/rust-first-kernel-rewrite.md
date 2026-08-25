@@ -194,7 +194,7 @@ agent/cell/session/terminal identity, models loop lifecycle, and holds loop
 state across each Session admission so stop and input/event writes are
 linearizable. It intentionally does not execute AgentLoop provider/model/tool
 work, prompt policy, PTY/subprocess I/O, terminal mailbox mutation, or WorkerPool
-tasks; those remain adapter-owned. The independent `tests/agent_loop.rs` target
+tasks; those remain adapter-owned. The independent `tests/session/agent_loop.rs` target
 covers correlation failures, lifecycle transitions, sequence receipts, and
 failed admission accounting. `run_agent_loop`/`rust-agent-loop-bench` measure
 the same fixed-work input path with loop mutex waits; with the contention-only
@@ -229,7 +229,7 @@ The next process-boundary slice is now present as the Rust
 one-shot `ProcessPort` behavior: direct argv execution, or terminal-derived argv
 from an injected `TerminalObservation`, optional cwd/input/environment values,
 separately drained and retained stdout/stderr, deadline kill, and structured adapter errors. The
-independent `tests/process_adapter.rs` target and the
+independent `tests/process/process_adapter.rs` target and the
 `process.adapter.oneshot` fixed-work runner cover the value boundary and
 release evidence. The latest release smoke measured about 707/1404/2758 ops/s
 at 1/2/4 workers, p95 about 1.54/1.56/1.57 ms, and zero errors/rejections.
@@ -243,7 +243,7 @@ The process lifecycle slice now adds `managed_process::ManagedProcessBook`.
 It reserves generation-safe child slots before spawn, owns bounded output
 drainers and explicit stdin, separates observer timeout (`Pending`) from
 termination, and releases a slot only after terminal `reap`. The independent
-`tests/managed_process.rs` target and `process.managed.lifecycle` fixed-work
+`tests/process/managed_process.rs` target and `process.managed.lifecycle` fixed-work
 runner provide the first ownership/reaping evidence; current release medians
 are about 707/1391/2761 ops/s at 1/2/4 workers with p95 about 1.52/1.55/1.58
 ms and zero errors/rejections. PTY, process-group, capability, ProcessTable,
@@ -260,7 +260,7 @@ records terminal exits as ZOMBIE, and jointly reaps the child and PCB. If an
 external owner removes the PCB first, the bridge returns a structured reap
 error but still drops the already-consumed binding; bridge registration names
 are unique when multiple bridge instances share one table. The independent
-`tests/process_bridge.rs` target and `process.bridge.lifecycle` fixed-work
+`tests/process/process_bridge.rs` target and `process.bridge.lifecycle` fixed-work
 runner now provide this ownership evidence. A 256-item Linux x86_64 release
 sweep completed with zero errors/rejections and about 708/1401/2752 ops/s at
 1/2/4 workers (p95 about 1.55/1.57/1.63 ms). This closes only the candidate
@@ -381,7 +381,7 @@ An unclean checkpoint discards non-persisted terminal queues and process ids,
 marks writable sessions crashed, marks active loops failed, and returns active
 terminals as unbound `Created` records. Restore is therefore explicit and
 fail-closed; no PID/PTY is fabricated and no Python state or runtime authority
-crosses this boundary. The independent `tests/execution_store.rs` target
+crosses this boundary. The independent `tests/session/execution_store.rs` target
 covers clean round-trip, unclean recovery, rejection, and version failure.
 
 The Rust `terminal` candidate is the first lower-layer substrate reserved for
@@ -496,15 +496,16 @@ The mechanism tests for `state_queue`, `process`, `terminal`, `session`, `agent_
 `state_store`, `config_store`, `platform`, `paths`, `discovery`, `lifecycle`,
 `assembly`, `contract`, `ipc`, `persist`, `protocol`, `constitution`,
 `gatechain`, `allocator`, `vfs`, `load_adaptive`, and `versioning` now live
-under `crates/l1-kernel-rs/tests/` as independent Rust test targets. The crate
+under `crates/l1-kernel-rs/tests/<domain>/` as independent Rust test targets.
+The crate
 contract-version check is part of `contract_vectors.rs`; no inline test module
 remains in `lib.rs`. The worker scaling test uses only public submission and
 shutdown behavior, so the clean-break public boundary remains explicit for
 later TS and Rust runtime rebuilds.
 
-The `sync` mechanism follows the same split: `tests/sync.rs` contains the
+The `sync` mechanism follows the same split: `tests/core/sync.rs` contains the
 eleven public Mutex/Semaphore/Barrier/Condition/RWLock behavior tests, while
-`tests/sync_vectors.rs` keeps the cross-language RWLock vectors. No private
+`tests/core/sync_vectors.rs` keeps the cross-language RWLock vectors. No private
 sync test module remains in the implementation, and this migration does not
 promote synchronization to runtime authority.
 

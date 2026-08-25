@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-runtime-benchmark rust-runtime-batch-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate r2-baseline-bundle r2-baseline-analysis language-check
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-test-domain rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-runtime-benchmark rust-runtime-batch-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate r2-baseline-bundle r2-baseline-analysis language-check
 
 install:
 	pip install -e ".[test]"
@@ -127,6 +127,10 @@ rust-test:
 
 rust-contract-test:
 	cargo test --tests --manifest-path crates/Cargo.toml
+
+rust-test-domain:
+	@test -n "$(RUST_TEST_DOMAIN)" || (echo "set RUST_TEST_DOMAIN to a Cargo test target, e.g. process_group_runtime" >&2; exit 2)
+	cargo test --manifest-path crates/Cargo.toml --test "$(RUST_TEST_DOMAIN)"
 
 rust-fmt-check:
 	cargo fmt --manifest-path crates/Cargo.toml --all -- --check

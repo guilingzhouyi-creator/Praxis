@@ -195,7 +195,7 @@ agent/cell/session/terminal correlation，显式管理 Created/Ready/Running/Pau
 Closing/Stopped/Failed 生命周期，并在同一 loop 锁下把 input/event admission 交给
 Rust `Session` 的 authoritative `input_seq`。它不执行 LLM/provider/tool，不改 terminal
 mailbox，不启动 PTY/subprocess，也不拥有 WorkerPool；后续 TS bridge 可直接消费其
-版本化 snapshot/receipt。该片通过独立 `tests/agent_loop.rs`，仍需与 runtime、protocol、
+版本化 snapshot/receipt。该片通过独立 `tests/session/agent_loop.rs`，仍需与 runtime、protocol、
 cutover/recovery 逐步闭合后才可进入新内核 authority。
 
 该片的统一 v3 routing 基准（4096 items，1/2/4 workers，3 rounds）在当前未固定主机上、
@@ -368,7 +368,8 @@ queue contention 证据；`make r2-baseline-bundle` 进一步以独立 Python re
 下出现 convoy 和 p95 恶化，因此不改变默认策略，也不授予 runtime authority。
 随后将 bounded drain 的 completion 记账收敛为单次原子计数更新与饱和 depth CAS，固定工作量完成数、重复完成
 下溢保护和 v3 证据字段保持不变；`process`、`terminal`、`benchmark_runner` 的机制测试同步迁移到
-`crates/l1-kernel-rs/tests/` 独立测试域，为后续 TS/Rust 重写保留清晰的公共 API 边界。
+`crates/l1-kernel-rs/tests/<domain>/` 分域独立测试域，Cargo 保持历史 target 名并显式登记路径，
+为后续 TS/Rust 重写保留清晰的公共 API 边界。
 对 producer claim-batch 的同规格实验因 4-worker 中位 tail latency 回退而不纳入默认实现；性能改动必须同时
 通过 1/2/4-worker 的 fixed-work 吞吐和 p95/p99 证据，不能以单 worker 加速替代整体基线。
 随后重复比较 consumer batch 32/64（每种三次、同一 4096×[1,2,4]×3 fixed-work 规格）：batch 64 的中位吞吐
@@ -377,7 +378,7 @@ queue contention 证据；`make r2-baseline-bundle` 进一步以独立 Python re
 shutdown 观察，避免为测试暴露私有 `add_worker`；该片共 10 项 worker 测试分片通过。
 随后将 `WorkerPool` 的 Metrics 从全局互斥锁改为原子计数：提交拒绝、active/completed/outcome 和 pool-size
 读写不再让每个任务争用同一 accounting lock，队列与 worker join list 仍保留必要的 mutex 所有权。独立
-`tests/worker.rs` 增加并发提交不变量，验证 completed + evicted 等于固定提交总量；该优化仅改变计账机制，
+`tests/core/worker.rs` 增加并发提交不变量，验证 completed + evicted 等于固定提交总量；该优化仅改变计账机制，
 需继续用 fixed-work tail-latency 证据决定是否进入最终 runtime policy。
 为避免把 lower-level queue contention 与执行主机成本混在一起，新增 `worker.pool.batch` 专项 runner 与
 `rust-worker-bench` release binary：固定 4096 items、1/2/4 workers、3 rounds，queue capacity 必须覆盖总量，
@@ -397,7 +398,7 @@ drainer，shutdown 仍同时检查 queue depth 与 active count 后再 join。wo
 随后新增 `WorkerPool::submit_result_batch` 批量 admission 候选：一次持有队列锁，仍按 FIFO
 执行 oldest-pending eviction，并为关闭池、取消和结果句柄保留逐项完成语义；现有单任务 deadline
 边界不被绕过。新增独立 `worker.pool.batch_submit` runner、`rust-worker-batch-submit-bench`
-入口及 `tests/worker.rs`、`tests/benchmark_runner.rs` 覆盖，Rust 实现文件不含测试块。
+入口及 `tests/core/worker.rs`、`tests/runtime/benchmark_runner.rs` 覆盖，Rust 实现文件不含测试块。
 同规格 release 重复采样（4096×[1,2,4]×3，batch size=32）中位吞吐约为 1.66M/3.85M/4.19M
 ops/s，逐任务 baseline 约为 1.20M/0.28M/0.07M ops/s；batch-submit queue wait 约为
 0.09/0.18/1.21 ms，baseline 约为 0.96/24.40/210.48 ms，双方均为 0 error/0 rejection。
@@ -544,11 +545,11 @@ Python 数据兼容层，也不授予新内核运行时 authority。下一阶段
 随后新增 `protocol_host::ProtocolHost` 与 `rust-protocol-gate`：在进入未来
 TS/AgentLoop bridge 前，以显式帧上限完成 JSONL v1 校验和 canonicalization；超大或非法帧
 fail-closed，仅输出 stderr 诊断，不执行 command/intent、不持有 session、不授予 runtime authority。
-机制覆盖位于独立 `tests/protocol_host.rs`，该片是 R4 protocol adapter 前置，不是 clean cutover 完成证明。
+机制覆盖位于独立 `tests/protocol/protocol_host.rs`，该片是 R4 protocol adapter 前置，不是 clean cutover 完成证明。
 随后推进 P0 会话真值前置：新增 Rust `session::SessionBook`，采用分片 registry lock 与 per-session
 message-id index，固定 bounded history、authoritative `input_seq`、monotonic message sequence、cursor
 paging、created/active/closing/closed/crashed 生命周期和 versioned checkpoint/recovery。独立
-`tests/session.rs` 与 `tests/session_vectors.rs` 覆盖并发 admission、分页、重复 ID、容量、崩溃恢复和
+`tests/session/session.rs` 与 `tests/session/session_vectors.rs` 覆盖并发 admission、分页、重复 ID、容量、崩溃恢复和
 wire round-trip；实现文件不包含测试块。该片只提供未来 AgentLoop/TS bridge 的 session truth seam，
 不接管 prompt/tool/provider/PTY，也不授予 Rust runtime authority。
 
@@ -557,7 +558,7 @@ wire round-trip；实现文件不包含测试块。该片只提供未来 AgentLo
 `snapshots/sessions/checkpoint.json`。clean shutdown 对 active/closing 会话 fail-closed；unclean
 文档在载入时将非终态会话归约为 `crashed`，要求调用方显式 `recover`/`activate` 后才能继续写入。
 该切片只读取新 Rust 状态根，不导入 Python 数据，不重放 AgentLoop/provider/tool/PTY 副作用；
-`tests/session_store.rs` 独立覆盖 fresh、clean、unclean recovery、版本拒绝和原子文件边界。
+`tests/session/session_store.rs` 独立覆盖 fresh、clean、unclean recovery、版本拒绝和原子文件边界。
 
 随后补齐执行态的 R4/R5 恢复边界：新增 Rust `execution_store::ExecutionStore`，将
 `SessionBook`、`TerminalBook` 与 `AgentLoopBook` 的 metadata 以一个 versioned、原子替换的
@@ -565,7 +566,7 @@ JSON 文档写入 `snapshots/execution/checkpoint.json`。它校验三本之间�
 clean checkpoint 拒绝 writable session、active loop/terminal、live process binding 与待处理 mailbox；
 unclean checkpoint 将 session 归约为 `crashed`、loop 归约为 `failed`、terminal 解除进程绑定并归约为
 `created`。不会持久化 PID/PTY 或 mailbox bytes，恢复必须由上层显式 rebind/recover；独立
-`tests/execution_store.rs` 已覆盖 clean round-trip、unclean recovery、拒绝和版本错误。该片仍是
+`tests/session/execution_store.rs` 已覆盖 clean round-trip、unclean recovery、拒绝和版本错误。该片仍是
 R4/R5 recovery seam，不授予 boot、Port 或生产 runtime authority。
 
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
@@ -609,7 +610,7 @@ execution bridge 设计。当前 Linux x86_64 release smoke 的中位吞吐约�
 partial-success 语义的前提下，分别将 session 与 loop 的锁获取压缩为每组一次；
 失败项只增加 `failed_commands`，不消耗 `command_seq`。新增
 `agent.loop.batch_admission` v3 runner、`rust-agent-loop-batch-bench` 入口和独立
-`tests/session.rs`、`tests/agent_loop.rs`、`tests/benchmark_runner.rs` 覆盖。批量
+`tests/session/session.rs`、`tests/session/agent_loop.rs`、`tests/runtime/benchmark_runner.rs` 覆盖。批量
 p95/p99 以 batch 为单位，禁止与逐输入基线直接比较；该片仍不执行 provider/tool/PTY，
 也不授予 Rust runtime authority。下一步必须在同一固定总量、同一 worker sweep 下做
 release 重复采样，再决定是否保留该优化候选。
@@ -629,7 +630,7 @@ release 重复采样，再决定是否保留该优化候选。
 改为生命周期 `RwLock`，并把 command/成功/失败计数改为原子累加。admission
 持共享读锁，因此同一 loop 的输入可以并发进入 Session；pause/stop 仍持独占
 写锁并等待在途 admission 完成，保持状态切换与 admission 的线性化边界，
-`input_seq` 仍只由 Session 分配。独立 `tests/agent_loop.rs` 增加并发唯一性
+`input_seq` 仍只由 Session 分配。独立 `tests/session/agent_loop.rs` 增加并发唯一性
 向量；一次同一 v3 固定 4096 项、1/2/4 worker、3 轮的 release smoke 约为
 2.49M/2.18M/0.90M ops/s，p95 约 0.23/0.59/10.65 us，0 error/0 rejection。
 该结果只证明热路径候选，Session 写入竞争、PTY/进程组、ProcessTable、
@@ -640,7 +641,7 @@ GateChain/capability 和 runtime authority 仍未闭合。
 `TerminalObservation` 派生的终端 argv 两条路径，宿主探针提供 executable
 和 invocation prefix；`ProcessOptions` 传入 cwd/input/environment，分别 drain
 stdout/stderr 并按流限制保留字节，超时杀死子进程并返回结构化结果。独立
-`tests/process_adapter.rs`、`run_process_adapter` 与
+`tests/process/process_adapter.rs`、`run_process_adapter` 与
 `rust-process-adapter-bench` 已加入 Rust 测试/证据域；当前 release smoke 在
 1/2/4 worker 下吞吐约 707/1404/2758 ops/s，p95 约 1.54/1.56/1.57 ms，
 error/rejection 均为 0。该片只闭合值边界和受限短命命令执行，不拥有 PTY、进程组、
@@ -651,7 +652,7 @@ error/rejection 均为 0。该片只闭合值边界和受限短命命令执行�
 随后新增受限的 `managed_process::ManagedProcessBook` 生命周期候选：在 OS spawn 前预留
 generation-safe `ProcessHandle`，统一管理 direct argv/terminal-derived argv child、bounded stdout/stderr drain、stdin、
 observer `Pending`、显式 terminate、snapshot 与 terminal reap；独立
-`tests/managed_process.rs`、`run_managed_process` 和 `rust-managed-process-bench` 已纳入 Rust 测试/证据域。
+`tests/process/managed_process.rs`、`run_managed_process` 和 `rust-managed-process-bench` 已纳入 Rust 测试/证据域。
 当前 release smoke 在 1/2/4 worker 下吞吐约 707/1391/2761 ops/s，p95 约 1.52/1.55/1.58 ms，
 error/rejection 均为 0。容量耗尽在 spawn 前 fail-closed。PTY、进程组终止、ProcessTable 注册、
 GateChain/capability、AgentLoop 与 runtime authority 仍未接入；one-shot stdin pipe 优化未显示稳定跨 worker
@@ -661,7 +662,7 @@ GateChain/capability、AgentLoop 与 runtime authority 仍未接入；one-shot s
 managed child handle 仅在桥内保存。spawn 先登记 READY PCB，host spawn 成功后才转 RUNNING；spawn 失败
 同时回滚 PCB，wait/terminate 将终态写为 ZOMBIE，joint reap 同时释放 managed slot 与表项。表项被外部
 owner 先行回收时，桥返回结构化 `TableReap`，但无论如何释放已消费的 binding，避免不可重试的句柄泄漏；
-多个 bridge 共享同一表时使用唯一 registration name。独立 `tests/process_bridge.rs` 共覆盖 10 项生命周期、
+多个 bridge 共享同一表时使用唯一 registration name。独立 `tests/process/process_bridge.rs` 共覆盖 10 项生命周期、
 回滚、并发和共享表测试，`process.bridge.lifecycle` 使用 256 items、1/2/4 workers、3 rounds 的固定总量
 基准，全部样本 0 error/0 rejection；当前未锁定 Linux x86_64 release 中位吞吐约 708/1401/2752 ops/s，
 p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得视为 runtime authority；PTY、进程组终止、
@@ -675,14 +676,14 @@ caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产
 `ProcessHandle` 建立唯一分组归属，冻结 Active/Draining/Stopped/Failed 状态、确定性停止计划、成员终态
 和有界 `max_groups/max_members` sweep。观察结果必须由 caller-owned adapter 显式提供，`Pending` 与
 `Unavailable` 不改变所有权，只有匹配 stop generation 的 terminal 结果才允许回收成员。独立
-`tests/process_group.rs` 覆盖容量、重复归属、leader、stale generation、终态、序列化和固定工作回收。
+`tests/process/process_group.rs` 覆盖容量、重复归属、leader、stale generation、终态、序列化和固定工作回收。
 该片仍不发送 OS signal、不创建 PTY、不启动后台 reaper、不接管 ProcessTable/AgentLoop/Provider 或
 shutdown authority；它只闭合后续 PTY/process-group adapter 所需的 Rust 机制前置边界。
 
 随后在独立 Rust 测试域新增 `process_group_runtime::ProcessGroupRuntime` 协调候选：将
 `ManagedProcessBook` 的 OS child 生命周期与 `ProcessGroupBook` 的唯一归属绑定，active 组之外拒绝
 spawn，容量拒绝时先 terminate/reap 已创建 child，再返回失败；非阻塞 sweep 与显式 timeout sweep
-均要求 managed slot 和 group member 双重回收后才发布 terminal outcome。`tests/process_group_runtime.rs`
+均要求 managed slot 和 group member 双重回收后才发布 terminal outcome。`tests/process/process_group_runtime.rs`
 覆盖固定成员预算、自然退出、取消、admission rollback 与 not-found。随后补齐
 `spawn_gated_constrained`：显式 `process.spawn` capability、匹配 gate agent 与 process spec 后，
 GateChain 先于 process constraint 与 spawn；GateChain 拒绝记录 gate ledger，关联不匹配在 ledger 前
@@ -707,7 +708,7 @@ materializes only returned snapshots in stable identity order;
 `limit` is fail-closed in `1..=512`. Its exclusive identity cursor is a live
 read boundary rather than a consistent multi-page snapshot, so checkpoint and
 recovery paths deliberately retain the complete deterministic `snapshots()`
-contract. Independent `tests/snapshot_page.rs` covers cross-book ordering,
+contract. Independent `tests/session/snapshot_page.rs` covers cross-book ordering,
 cursor continuation, bounds, and compatibility with the complete session
 snapshot API. `SessionBook` registry reads now use shard-local `RwLock`s;
 exclusive writes preserve admission/removal semantics, while independent

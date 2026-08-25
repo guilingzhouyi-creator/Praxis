@@ -54,10 +54,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   and idle dispatch counters. Callback scheduling, overload drops, shutdown
   fairness, and SSE/WS fan-out remain outside the deterministic vector.
 - Rust test ownership is fully isolated by boundary: mechanism invariants,
-  concurrency behavior, public behavior, and cross-language parity tests all
-  live under `crates/l1-kernel-rs/tests/` and consume `tests/fixtures/` when
-  vectors are required. Implementation modules contain no inline test blocks;
-  `make rust-contract-test` runs the independent contract-test domain.
+  concurrency behavior, public behavior, and cross-language parity tests live
+  under `crates/l1-kernel-rs/tests/<domain>/` and consume `tests/fixtures/` when
+  vectors are required. `Cargo.toml` explicitly registers each historical
+  target name with `autotests = false`; implementation modules contain no
+  inline test blocks. `make rust-contract-test` runs the independent domain,
+  while `cargo test --test <name>` runs one bounded target.
 - The Rust `substrate` module begins the Rust-first R1 base with
   generation-tagged process handles, deterministic shard planning, and
   allocation-free atomic queue metrics. It does not own process storage,
@@ -94,13 +96,13 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   values. It is a mechanism-only session truth seam for a future AgentLoop and
   TS bridge; it does not execute prompts/tools, own PTY processes, or replace
   Python session/runtime authority. Its public tests live in
-  `crates/l1-kernel-rs/tests/session.rs` and `session_vectors.rs`.
+  `crates/l1-kernel-rs/tests/session/session.rs` and `session_vectors.rs`.
 - The Rust `session_store` adapter persists the complete `SessionBook` as an
   atomically replaced, versioned document under the fresh Rust state root.
   Clean writes reject active/closing sessions; unclean documents normalize
   non-terminal sessions to explicit `crashed` state and require caller-driven
   recovery. It does not import Python state or execute AgentLoop/provider work.
-  Its public behavior is isolated in `crates/l1-kernel-rs/tests/session_store.rs`.
+  Its public behavior is isolated in `crates/l1-kernel-rs/tests/session/session_store.rs`.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report
@@ -180,7 +182,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   linearized under one loop lock. Provider/model/tool execution, prompt policy,
   PTY/subprocess ownership, terminal mailbox mutation, and runtime scheduling
   remain outside this candidate; its independent tests live in
-  `crates/l1-kernel-rs/tests/agent_loop.rs`. `run_agent_loop` and the
+  `crates/l1-kernel-rs/tests/session/agent_loop.rs`. `run_agent_loop` and the
   `rust-agent-loop-bench` binary emit separate v3 fixed-work evidence with
   loop-mutex wait accounting; the current 4096-item smoke shows decreasing
   throughput and rising wait at 2/4 workers, so no scaling policy is promoted.
@@ -286,7 +288,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips
   unknown record fields, and provides bounded replay/cursor values. Its public
-  parity tests live in `crates/l1-kernel-rs/tests/protocol_vectors.rs` and
+  parity tests live in `crates/l1-kernel-rs/tests/protocol/protocol_vectors.rs` and
   consume `tests/fixtures/protocol_v1_records.json`; HTTP/WS framing, L2
   dispatch, clocks, and runtime session ownership remain adapters.
 - The Rust `protocol_host` module is the bounded R4 JSONL adapter seam. It
@@ -294,14 +296,14 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   envelopes, and returns structured failures without dispatching or executing
   them. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint;
   rejected lines are diagnostics only. Its mechanism tests live in the
-  independent `crates/l1-kernel-rs/tests/protocol_host.rs` target, and it does
+  independent `crates/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
   not own AgentLoop, provider, session, or runtime authority.
 - The Rust `config_store` module is the clean-break R4 configuration owner. It
   creates a versioned JSON manifest plus separate `config.json` and
   `settings.json` documents, persists revisions through atomic rename and
   `sync_all`, and resumes only a matching Rust root. It never parses Python
   YAML, imports Python settings, executes migrations, or decides engineering
-  debug policy; independent tests live in `tests/config_store.rs`.
+  debug policy; independent tests live in `tests/storage/config_store.rs`.
 - The Rust `terminal` module is the lower-layer AgentLoop terminal substrate.
   `TerminalBook` owns unique terminal/session/process bindings, terminal
   lifecycle terminality, and bounded opaque input/output mailboxes with
@@ -313,8 +315,8 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   report per-frame versus per-batch latency separately through
   `rust-terminal-bench` and `rust-terminal-batch-bench`. It does not create
   PTYs, spawn subprocesses, execute AgentLoops, render output, or own L2/L3
-  policy. Its contract tests are `tests/terminal.rs` and
-  `tests/terminal_vectors.rs`, backed by `tests/fixtures/kernel_terminal_vectors.json`.
+  policy. Its contract tests are `tests/terminal/terminal.rs` and
+  `tests/terminal/terminal_vectors.rs`, backed by `tests/fixtures/kernel_terminal_vectors.json`.
 - The Rust `state_queue` module is the first Rust-owned state/queue prototype:
   each shard owns its slot map and lifecycle transitions, while
   `BoundedWorkQueue` uses typed work items and fail-fast capacity rejection.
@@ -410,7 +412,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   terminal-observation execution path; the host probe supplies the executable
   and invocation prefix. Cwd/input/environment options, bounded stdout/stderr
   draining, timeout kill, and structured not-found/execution
-  results. Its independent public target is `tests/process_adapter.rs`, and
+  results. Its independent public target is `tests/process/process_adapter.rs`, and
   `run_process_adapter`/`rust-process-adapter-bench` emit a separate
   `process.adapter.oneshot` fixed-work report. The current release smoke is
   about 707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms
@@ -428,7 +430,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   that value adapter. It owns generation-safe child slots, direct-argv and
   terminal-derived-argv spawn, bounded output drain, caller-controlled stdin, observer `Pending`
   waits, explicit terminate, terminal snapshots, and reap. Its independent
-  target is `tests/managed_process.rs`; `run_managed_process` and
+  target is `tests/process/managed_process.rs`; `run_managed_process` and
   `rust-managed-process-bench` emit `process.managed.lifecycle` evidence. A
   current release smoke measured about 707/1391/2761 ops/s at 1/2/4 workers,
   p95 about 1.52/1.55/1.58 ms, and zero errors/rejections. Capacity is
@@ -547,5 +549,5 @@ adds the GateChain-before-constraints boundary, and rejects a gate/process
 identity mismatch before the adapter; the low-level `spawn_args` methods remain mechanism helpers, and implicit shell
 compatibility entry points have been removed.
 The independent Rust test targets are
-`tests/terminal_probe.rs` and `tests/process_constraints.rs`; no TS/L2/provider/
+`tests/terminal/terminal_probe.rs` and `tests/process/process_constraints.rs`; no TS/L2/provider/
 runtime authority is added.
