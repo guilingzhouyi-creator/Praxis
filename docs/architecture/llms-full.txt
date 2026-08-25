@@ -1214,7 +1214,12 @@ overrides that diverge from the admitted request, and does not discover a
 terminal on behalf of the caller. Shell argv must contain a command after the
 injected invocation prefix. The independent `tests/process_constraints.rs`
 target covers successful shell/direct admissions, accumulated policy
-violations, and pre-spawn override rejection.
+violations, and pre-spawn override rejection. The companion
+`spawn_gated_constrained` entry requires the explicit `process.spawn`
+capability and matching gate/process identity before evaluating the GateChain
+receipt and delegating to the same constraint path; GateChain denials are
+audited by its ledger, while correlation mismatches fail closed before the
+ledger and never create a child.
 The low-level `spawn_args` methods remain mechanism helpers, while the removed
 implicit-shell entry points are not part of the Rust contract. This slice does
 not yet grant ProcessTable, AgentLoop, PTY, shutdown, or production runtime

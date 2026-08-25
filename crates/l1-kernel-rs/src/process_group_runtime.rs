@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::contract::ProcessOptions;
+use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::managed_process::{
     ManagedProcessBook, ManagedProcessError, ManagedProcessState, ManagedWaitResult,
 };
@@ -27,6 +28,8 @@ use crate::substrate::ProcessHandle;
 
 /// Version of the managed process-group coordination boundary.
 pub const PROCESS_GROUP_RUNTIME_CONTRACT_VERSION: u32 = 1;
+/// Capability name required for a gated process spawn.
+pub const PROCESS_SPAWN_CAPABILITY: &str = "process.spawn";
 
 /// Fail-closed errors from the process-group coordination boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +42,24 @@ pub enum ProcessGroupRuntimeError {
     Cleanup(ManagedProcessError),
     /// The Agent process failed the explicit L1 constraint gate.
     Constraints(ProcessConstraintError),
+    /// The capability gate denied the process admission before spawn.
+    GateBlocked(GateDecision),
+}
+
+/// Caller-owned inputs for GateChain plus hard process admission.
+pub struct GatedProcessAdmission<'a> {
+    /// Explicit capability gate and audit ledger.
+    pub gatechain: &'a GateChain,
+    /// Gate request correlated with the process identity.
+    pub gate: &'a GateRequest,
+    /// Declarative process intent.
+    pub spec: &'a AgentProcessSpec,
+    /// Hard process policy snapshot.
+    pub policy: AgentProcessPolicy,
+    /// Host-injected terminal observation, when shell mode is requested.
+    pub terminal: Option<&'a crate::terminal_probe::TerminalObservation>,
+    /// Adapter options that must match the admitted request.
+    pub options: Option<&'a ProcessOptions>,
 }
 
 impl From<ProcessGroupError> for ProcessGroupRuntimeError {
@@ -194,6 +215,34 @@ impl ProcessGroupRuntime {
             ));
         }
         self.spawn_args(group, &admission.argv, options)
+    }
+
+    /// Evaluate G1-G5 and hard process constraints before spawning a child.
+    ///
+    /// The gate and constraint inputs are caller-owned snapshots. A denied
+    /// request never reaches the process adapter, and no terminal or shell
+    /// defaults are inferred by this coordination layer.
+    pub fn spawn_gated_constrained(
+        &self,
+        group: ProcessGroupId,
+        request: GatedProcessAdmission<'_>,
+    ) -> Result<ProcessHandle, ProcessGroupRuntimeError> {
+        if request.gate.tool != PROCESS_SPAWN_CAPABILITY
+            || request.gate.agent_id != request.spec.agent_id
+        {
+            return Err(ProcessGroupRuntimeError::GateBlocked(GateDecision::Block));
+        }
+        let decision = request.gatechain.check(request.gate);
+        if !decision.allowed {
+            return Err(ProcessGroupRuntimeError::GateBlocked(decision.decision));
+        }
+        self.spawn_constrained(
+            group,
+            request.spec,
+            request.policy,
+            request.terminal,
+            request.options,
+        )
     }
 
     /// Request a deterministic group stop without touching host processes.

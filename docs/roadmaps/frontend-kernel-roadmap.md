@@ -683,7 +683,10 @@ shutdown authority；它只闭合后续 PTY/process-group adapter 所需的 Rust
 `ManagedProcessBook` 的 OS child 生命周期与 `ProcessGroupBook` 的唯一归属绑定，active 组之外拒绝
 spawn，容量拒绝时先 terminate/reap 已创建 child，再返回失败；非阻塞 sweep 与显式 timeout sweep
 均要求 managed slot 和 group member 双重回收后才发布 terminal outcome。`tests/process_group_runtime.rs`
-覆盖固定成员预算、自然退出、取消、admission rollback 与 not-found。该候选仍不创建 PTY、不发送
+覆盖固定成员预算、自然退出、取消、admission rollback 与 not-found。随后补齐
+`spawn_gated_constrained`：显式 `process.spawn` capability、匹配 gate agent 与 process spec 后，
+GateChain 先于 process constraint 与 spawn；GateChain 拒绝记录 gate ledger，关联不匹配在 ledger 前
+fail-closed，均不创建 child。该候选仍不创建 PTY、不发送
 OS process-group signal、不注册 ProcessTable、不启动后台 reaper，也不授予 AgentLoop、Provider、
 shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观测证据。
 
@@ -838,7 +841,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 |---|---|---|---|
 | T1 | `terminal_probe`：宿主注入终端观测、能力过滤、显式优先级、argv 构造 | ✅ 候选完成 | 宿主适配器逐平台提供真实 probe observations；不能在 L1 扫描 PATH |
 | T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
-| T3 | `ProcessGroupRuntime::spawn_constrained`：先审查、校验 adapter 选项一致性、再 spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
+| T3 | `ProcessGroupRuntime::spawn_gated_constrained`：GateChain → 约束 → adapter spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
 | T4 | L2/TS 协议投影与硬件终端输入探针 | ⏳ 未开始 | 先冻结 Rust 值合同，再做跨平台 adapter 与最小批量测试 |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |

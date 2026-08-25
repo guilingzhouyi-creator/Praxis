@@ -550,7 +550,10 @@ fallback，未选出可用候选时直接拒绝。
 策略显式给出 ring、终端身份/类型、argv、cwd、环境键、超时、输出/CPU/内存
 和进程组上限。`ProcessGroupRuntime::spawn_constrained` 先完成全部约束评估，
 再校验适配器 executable/cwd/env 选项与声明一致，最后才把已批准 argv 交给
-进程适配器；约束失败不会产生子进程，缺少 shell 命令正文也会拒绝。该入口目前是
+进程适配器；约束失败不会产生子进程，缺少 shell 命令正文也会拒绝。新增的
+`spawn_gated_constrained` 在该路径前要求显式 `process.spawn` capability、匹配
+gate/process 身份并执行 GateChain；GateChain 拒绝进入 gate ledger，关联不匹配则
+在 ledger 前 fail-closed，均不会产生子进程。该入口目前是
 Rust-native 机制候选，不接管现有 Python/L2 AgentLoop，也不声明 PTY、硬件
 输入、生产 reaper 或 runtime cutover 权威。后续若要接入 TS/L2，只保留这组
 版本化值合同，不复制 Python 的终端默认值或类布局。

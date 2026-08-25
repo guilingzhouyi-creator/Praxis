@@ -542,7 +542,9 @@ argv/cwd/environment policy, timeout, output/CPU/memory ceilings, and
 process-group membership before spawn. It also rejects adapter executable,
 cwd, or environment overrides that diverge from the admitted request.
 `ProcessGroupRuntime::spawn_constrained` exposes this check-then-spawn path;
-the low-level `spawn_args` methods remain mechanism helpers, and implicit shell
+`spawn_gated_constrained` requires the explicit `process.spawn` capability,
+adds the GateChain-before-constraints boundary, and rejects a gate/process
+identity mismatch before the adapter; the low-level `spawn_args` methods remain mechanism helpers, and implicit shell
 compatibility entry points have been removed.
 The independent Rust test targets are
 `tests/terminal_probe.rs` and `tests/process_constraints.rs`; no TS/L2/provider/
