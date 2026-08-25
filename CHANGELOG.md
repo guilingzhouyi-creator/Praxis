@@ -5,108 +5,145 @@
 
 ## [Unreleased]
 
-### 新增
+### 修复
 
-- **Feat (memory)**: promotion transaction and canary automation
-- **Feat (tools)**: host input adapter states, transactional enablement
-- **Feat (memory)**: persistent tiered cache, versioned prompt telemetry
-- **Feat (l3a)**: join persistence to recovery, idempotent rebuild
-- **Feat (l3a)**: durable json store and restart-safe input-seq cursor
-- **Feat (kernel)**: expose process group read model
-- **Feat (kernel)**: coordinate managed process groups
-- **Feat (kernel)**: add typed process group reaper
-- **Feat (kernel)**: add cooperative cancellation token
-- **Feat (kernel)**: add rust execution protocol runtime
-- **Feat (kernel)**: converge rust core mechanisms
-- **Feat (ws)**: serve protocol v1 envelopes over the ws bridge
-- **Feat (l2)**: add ws/ssh transports on a shared line engine
-- **Feat (l2)**: async transports and real python host e2e
-- **Feat (l2)**: add session view and builtins to the ts engine
-- **Feat (l2)**: land the protocol bridge client and engine skeleton
-- **Feat (l2)**: implement real session command history
-- **Feat (l2)**: complete multiplexing replay and event projection
-- **Feat (l2)**: unify multi-frontend session views in protocol host
-- **Feat (l2)**: normalize session identity in protocol v1 host
-- **Feat (l2)**: route web shell requests through protocol v1 host
-- **Feat (kernel)**: land rust-first rewrite preflight
-- **Feat (skill)**: smooth DPO preference and weight retrieval by priority
-- **Feat (llm)**: close compression and debug-mode gaps
-- **Feat (git)**: type-content consistency + push/merge audit + scope-dir map
-- **Feat (git)**: require execution evidence for attribution, not config claims
-- **Feat (git)**: generalize detected model + actionable rejection guidance
-- **Feat (git)**: verify Co-Authored-By truth + normalize subject format
-- **Feat (judge)**: local-merge gate + gate completeness/efficiency fixes
-- **Feat (skill)**: precision contribution scoring (Wilson + decay + dims)
-- **Feat (l3a)**: switch defaults to new architecture (digest on, stateful)
-- **Feat (llm)**: add provider assembly factory and protocol selection
-- **Feat (l3a)**: add sensitive-action policy report/redact/block
-- **Feat (l3a)**: emit compression events to reference channel
-- **Feat (l3a)**: add compression error-storm circuit breaker
-- **Feat (l3a)**: persist compression switches via settings
-- **Feat (skill)**: expose register/enable/update-speed via L2 and API
-- **Feat (skill)**: add declarative scope/priority and three-tier storage
-- **Feat (scripts)**: add declarative automation runner
-- **Feat (l2)**: add session protocol reference bridge
-- **Feat (stats)**: baseline security toolchain performance
-- **Feat (security)**: complete attack toolchain integration
-- **Feat (infra)**: quantify Amdahl serial fraction in perf baseline
-- **Feat (infra)**: quantify dept/violation/identity query perf in baseline
-- **Feat (kernel)**: identity UID, definition, dept scope, violation monitor
-- **Feat (cell)**: async parallel test-matrix prebuild
-- **Feat (kernel)**: process FSM, audit persist, event schema, sched port
-- **Feat (atomcode)**: mirror remaining skills, fix descriptions, fix mcp docs
-- **Feat (atomcode)**: mirror opencode skill refresh
-- **Feat (opencode)**: add five architecture skills and refresh three
-- **Feat (kernel)**: add capability syscall seam and harden G2/harness
-- **Feat (kernel)**: close execution and auth bypasses for rust rewrite
-- **Feat (memory)**: operator plane for compaction/premise-guard/dedup
-- **Feat (memory)**: hybrid compaction extractor, premise guard, inject dedup
-- **Feat (llm)**: enable tool-result read-back and provider failover
-- **Feat (judge)**: separate full/fast verdict modes in CompletionJudge
-- **Feat (tool)**: add marker-gated engineering debug mode
-- **Feat (infra)**: per-layer performance baseline scanner
-- **Feat (infra)**: per-layer quality baseline scanner
-- **Feat (kernel)**: adopt ProcessPort execution boundary
-- **Feat (skill)**: gate evolution through candidates
-- **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
-- **Feat (ci)**: enforce subject length and body structure in commit-scan
-- **Feat (ci)**: enforce commit-scan policy across all gates
-- **Feat (audit)**: non-English residue scanner — full-CJK plane, strict non-ASCII, docstring + md coverage, CI gate
-- **Feat (judge)**: extend judge dashboard with metrics, branch, duration and pair analytics
-- **Feat (opencode)**: add completion-judge and net-delta-gate skills, dedupe
-- **Feat (atomcode)**: sync skills with the updated OpenCode skill set
-- **Feat (generalize)**: bidirectional generalization pipeline (session-JSON supply, layered skill libs, memory feedback, verify gate, ring promotion)
-- **Feat (session)**: session-management system (dual identity, monitor, auto-reload, decision-layer JSON trio, history, loader)
-- **Feat (prompts)**: unified layered system-prompt architecture (Cell/global libraries, versioning, bypass monitor)
-- **Feat (memory)**: expose execution-layer context audit via API + L2
-- **Feat (agent)**: per-Cell context audit across the execution layer
-- **Feat (agent)**: per-entity context snapshot for precise context management
-- **Feat (memory)**: correlate reference-channel memory events with refined records
-- **Feat (memory)**: structured tool-result register (fast path) + teardown-scoped reclaim
-- **Feat (memory)**: reclaim conversation-side caches at Cell teardown
-- **Feat (opencode)**: align agent skills with AGENTS.md gates and CI policies
-- **Feat (memory)**: domain-filtered R4 archive, RC linkage, corpus surface, conversation caches, five-level compression, guardrails
-- **Feat (skills)**: align atomcode skills with AGENTS.md + CI gates (lean)
-- **Feat (gate)**: three locks on the net-delta gate (comments/deletion/hygiene)
-- **Feat (judge)**: extend CompletionJudge to 11 checks (6 new dimensions)
-- **Feat (attack)**: attack-posture tool suite + tooling linkage gaps
-- **Feat (judge)**: committed dashboard — auto-updated on every mainline merge
-- **Feat (tool-presentation)**: assemble stable-prefix prompt for vendor KV caches
-- **Feat (tool-presentation)**: write back successful run_code results to cache
-- **Feat (tool-presentation)**: wire run_code SDK bindings to the tool pipeline
-- **Feat (harness)**: expose code level via L2 harness command + i18n
-- **Feat (harness)**: unify tool-usage control bar (two classes + control line)
-- **Feat (judge)**: quantify CompletionJudge effectiveness (auto-log + stats)
-- **Feat (judge)**: CompletionJudge — machine decides "done", not the agent
-- **Feat (tool-presentation)**: enforce tools:code-only in the tool pipeline
-- **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
-- **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
-- **Feat**: baseline — fresh single-commit repository
+- **Fix (scripts)**: fix table row position in handoff rotation script
+- **Fix (scripts)**: enforce imperative mood and strict EOF trailer sentinel
+- **Fix (scripts)**: require check-content flag before inspecting staged files
+- **Fix (hooks)**: enforce runtime introspection and anti-impersonation
+- **Fix (judge)**: harden scorecard metrics and mode rate tracking
+- **Fix (judge)**: exclude checks-all-zero no-op runs from dashboard
+- **Fix (rust)**: close outbox cursor filter and r4 decode gaps
+- **Fix (rust)**: restore session tests and relocate fsm vectors
+- **Fix (rust)**: make Outbox ack non-destructive cursor advance
+- **Fix (infra)**: clear detect_agent cache between test modules
+- **Fix (infra)**: restore conftest _RESETS, guard content checks on empty index
+- **Fix**: validate retry config and guard connect exhaustion
+- **Fix (infra)**: ttl cache + deterministic test ordering
+- **Fix (infra)**: enforce subject length on custom merge messages
+- **Fix (hooks)**: python fallback restores gates when node absent
+- **Fix (kernel)**: zero-deadline sweep must not terminate live children
+- **Fix (infra)**: guard hunk audit and count dash-prefixed lines
+- **Fix (infra)**: restore generated commit policy mirror
+- **Fix (infra)**: harden sensitive merge audit
+- **Fix (scripts)**: allow empty staged diff in node validator
+- **Fix (tests)**: make shared-file registration a strict gate
+- **Fix (scripts)**: run judge coverage serially on WSL
+- **Fix (l3a)**: enforce session identity lifecycle and loud reload
+- **Fix (infra)**: audit sensitive merge hunks
+- **Fix (kernel)**: clarify group admission rollback
+- **Fix (infra)**: synchronize singleton scanner path
+- **Fix (infra)**: retain snake case singleton scanner
+- **Fix (scripts)**: run judge tests per-slice on WSL
+- **Fix (tests)**: push-time format fallback for no-verify commits
+- **Fix (tests)**: harden commit gates — template, bypass, env self-check
+- **Fix (tests)**: fire the type-to-file gate at commit time
+- **Fix (memory)**: let the injection gate own offensive-skill posture
+- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
+- **Fix (l2)**: pin six dispatch-path defects behind regression tests
+- **Fix (ws)**: isolate envelope errors and advertise envelope support
+- **Fix (infra)**: guard empty python and warn on merge-gate skip
+- **Fix (l2)**: restore coauth gate and batch the stdio host flush
+- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
+- **Fix (l2)**: repair memory filter bridge symbol and params baseline
+- **Fix (l2)**: capture handler stdout in protocol host
+- **Fix (l2)**: advance shared outbox watermark on ack
+- **Fix (l2)**: localize all bare f-string shell errors
+- **Fix (l2)**: localize skills update-speed usage string
+- **Fix (llm)**: make cache refresh cheap and effective
+- **Fix (git)**: relax refactor type-content rules to allow scripts/
+- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
+- **Fix (l3)**: clear mypy debt and layer-baseline drift
+- **Fix (skill)**: address code review findings on tier/scope/cadence
+- **Fix (skill)**: persist register to custom tier, protect it, add update API
+- **Fix (kernel)**: isolate audit persist tests from shared event store
+- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
+- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
+- **Fix (kernel)**: add busy_timeout to persist write connection
+- **Fix (api)**: coerce identity definition input to str
+- **Fix (cell)**: exclude disabled departments from lookup indexes
+- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
+- **Fix (l3)**: violation-monitor switch lands on the settings key
+- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
+- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
+- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
+- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
+- **Fix (memory)**: comply with truncation constants and layer-import allowlist
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: align docs with code and normalize library
+- **Docs (l2)**: add protocol v1 conformance rulings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: sync agent pointers and rust evidence text
+- **Docs**: add l1l2 docking execution plan
+- **Docs (roadmaps)**: add l1-l2 wire docking plan and milestone table
+- **Docs (roadmaps)**: define ts-l2 authority cutover acceptance criteria
+- **Docs**: sync architecture docs with polished protocol-ts
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (l2-ts)**: complete jsdoc coverage on all exported types and payloads
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (arch)**: update l3-module-map and runtime-subsystems for ts mirror
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: register commit_scan attribution clobber
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (docs)**: align latest ts mapping baseline
+- **Docs**: sync l2 roadmap and handoff with ts rewrite status
+- **Docs (infra)**: reconcile generated commit mirror contract
+- **Docs**: mark shell family and multiplexing done in mapping
+- **Docs**: mark all three l2 rewrite batches done
+- **Docs**: add l2 ts rewrite mapping checklist
+- **Docs**: mark l2 ts engine restore and p4 starting point
+- **Docs**: document kernel settings facade
+- **Docs**: align l5-user reference with cli code
+- **Docs**: register services scope addition per strict gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: register module map, refresh subsystem counts
+- **Docs (roadmaps)**: record l3 normalization slice outcomes
+- **Docs**: add l3 module map, domains ownership and families
 - **Docs (roadmaps)**: mark closure slice D complete
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (roadmaps)**: mark closure slices B and C complete
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: reflect the handoff gate and rotation in agent instructions
+- **Docs**: harden the handoff area with a template and gate feedback
+- **Docs**: add shared agent-handoff exchange area
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (roadmaps)**: reconcile rust-preflight merge clobber
 - **Docs (kernel)**: refresh process group changelog
@@ -283,6 +320,44 @@
 
 ### 变更
 
+- **Test (l2)**: freeze cross-language golden vectors with three runners
+- **Refactor (l2)**: align legacy python protocol with conformance rulings
+- **Test (rust)**: pin dispatch matrix and rejection audit vectors
+- **Test (rust)**: add concurrent attach ack replay stress
+- **Test (rust)**: pin session lifecycle golden vectors
+- **Refactor (rust)**: use entry api for multiplexer attach
+- **Chore (rust)**: unify seq bounds and wraparound edges
+- **Test (rust)**: pin canonical json golden vectors vs python host
+- **Test (rust)**: add multi-view replay regression vectors
+- **Chore (config)**: register rust scope for crates tree
+- **Chore (config)**: refresh commits.json mirror after legacy scope addition
+- **Chore (config)**: register l2-ts legacy scopes for merged history
+- **Test (shell)**: pin l3 interface routing and cot privacy guards
+- **Test (shell)**: cover connection lifecycle and family binding edges
+- **Test (l2)**: close authority-surface coverage gaps
+- **Refactor**: polish envelope outbox documentation
+- **Test (infra)**: fix pre-existing hook test drift after type-content gate
+- **Test (l2-ts)**: align tests with simplified modules
+- **Refactor (l2-ts)**: simplify cot-guard and health checks
+- **Refactor (l2-ts)**: simplify envelope outbox to array
+- **Refactor (l2-ts)**: simplify dispatcher, broadcast and cache
+- **Refactor (l2-ts)**: simplify bridge and engine modules to reduce complexity
+- **Test (infra)**: cover custom merge subject length gate
+- **Test (tests)**: fix merge-skip breakdown test for empty ranges
+- **Test (hooks)**: stage qualifying probe for type-to-content gate
+- **Test (hooks)**: add strict enforcer and worktree coverage
+- **Chore (config)**: register services scope for l3 services dir
+- **Chore (hooks)**: enforce strict commit-msg and worktree sync
+- **Refactor (services)**: subpackage the file editor family
+- **Test (l3)**: add extra edge cases for unicode and journal
+- **Style (tests)**: format hardening tests
+- **Test (l3a)**: cover recovery truncation and daemon wiring
+- **Test (l3)**: harden durability with atomic and concurrent coverage
+- **Refactor (bus)**: rename l3b composite module for disambiguation
+- **Refactor (l3)**: complete durability and recovery hardening
+- **Refactor (l3)**: harden durable store and session lifecycle
+- **Refactor (scripts)**: single-source content rules and clean set flags
+- **Test (tests)**: harden test suite and gate scripts
 - **Test (tests)**: cover journal recovery when main file is lost
 - **Chore (infra)**: lint types and fold changelog for slices B-D
 - **Chore (config)**: restore agent registry clobbered by preflight merge
@@ -354,80 +429,143 @@
 - **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
 - **Chore (reset)**: update repo references after remote reset to Praxis
 
-### 修复
+### 新增
 
-- **Fix (infra)**: audit sensitive merge hunks
-- **Fix (kernel)**: clarify group admission rollback
-- **Fix (l3a)**: enforce session identity lifecycle and loud reload
-- **Fix (infra)**: synchronize singleton scanner path
-- **Fix (infra)**: retain snake case singleton scanner
-- **Fix (scripts)**: run judge tests per-slice on WSL
-- **Fix (tests)**: push-time format fallback for no-verify commits
-- **Fix (tests)**: harden commit gates — template, bypass, env self-check
-- **Fix (tests)**: fire the type-to-file gate at commit time
-- **Fix (memory)**: let the injection gate own offensive-skill posture
-- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
-- **Fix (l2)**: pin six dispatch-path defects behind regression tests
-- **Fix (ws)**: isolate envelope errors and advertise envelope support
-- **Fix (infra)**: guard empty python and warn on merge-gate skip
-- **Fix (l2)**: restore coauth gate and batch the stdio host flush
-- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
-- **Fix (l2)**: repair memory filter bridge symbol and params baseline
-- **Fix (l2)**: capture handler stdout in protocol host
-- **Fix (l2)**: advance shared outbox watermark on ack
-- **Fix (l2)**: localize all bare f-string shell errors
-- **Fix (l2)**: localize skills update-speed usage string
-- **Fix (llm)**: make cache refresh cheap and effective
-- **Fix (git)**: relax refactor type-content rules to allow scripts/
-- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
-- **Fix (l3)**: clear mypy debt and layer-baseline drift
-- **Fix (skill)**: address code review findings on tier/scope/cadence
-- **Fix (skill)**: persist register to custom tier, protect it, add update API
-- **Fix (kernel)**: isolate audit persist tests from shared event store
-- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
-- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
-- **Fix (kernel)**: add busy_timeout to persist write connection
-- **Fix (api)**: coerce identity definition input to str
-- **Fix (cell)**: exclude disabled departments from lookup indexes
-- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
-- **Fix (l3)**: violation-monitor switch lands on the settings key
-- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
-- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
-- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
-- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
-- **Fix (memory)**: comply with truncation constants and layer-import allowlist
-- **Fix (judge)**: count only full-mode records as COMPLETE in stats
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
+- **Feat (rust)**: add bounded stdio protocol host binary
+- **Feat (rust)**: enforce conformance rulings in host dispatch
+- **Feat (l2-ts)**: harden bridge, route and envelope conformance
+- **Feat (rust)**: forward intent traffic to l3 upstream pipe
+- **Feat (rust)**: persist audit records for every dispatch
+- **Feat (rust)**: gate system commands by ring metadata
+- **Feat (rust)**: wire command dispatch through capability gate
+- **Feat (rust)**: add envelope routing skeleton
+- **Feat (rust)**: add bounded eviction metrics
+- **Feat (rust)**: add per-view ack cursors
+- **Feat (rust)**: add per-session outbox registry
+- **Feat (rust)**: add view registry with attach/detach
+- **Feat (rust)**: add session lifecycle fsm
+- **Feat (rust)**: add session identity triple separation
+- **Feat (rust)**: mirror session multiplexer shared watermark
+- **Feat (l2-ts)**: command history with search and typed pipeline builder
+- **Feat (l2-ts)**: optimize protocol-ts bridge, cache, guard and docs
+- **Feat (l2-ts)**: middleware chain, message pool, session persistence, config reader
+- **Feat (l2-ts)**: dispatcher wildcard, connection manager, event emitter, extended bridge
+- **Feat (l2-ts)**: cot guard, l3 bridge interface, error codes, health probe, bench
+- **Feat (l2-ts)**: structured errors, health probe, bench harness, tab coordination
+- **Feat (l2-ts)**: async dispatcher, wildcard handler, projection cache
+- **Feat (l2-ts)**: async streaming bridge, ring-buffer outbox, typed payloads
+- **Feat (l2-ts)**: branded types, discriminated payloads, ring-buffer outbox
+- **Feat (l2)**: add shell family registry and session multiplexer
+- **Feat (l2)**: add dialect routing, output guard and ssh handshake
+- **Feat (l2)**: add i18n, bridge domains and command groups
+- **Feat (l2)**: add vscode diff-stream session projection
+- **Feat (l2)**: restore ts engine removed by boundary refactor
+- **Feat (memory)**: promotion transaction and canary automation
+- **Feat (tools)**: host input adapter states, transactional enablement
+- **Feat (memory)**: persistent tiered cache, versioned prompt telemetry
+- **Feat (scripts)**: make judge test-skip visible and warn at merge
+- **Feat (l3a)**: join persistence to recovery, idempotent rebuild
+- **Feat (l3a)**: durable json store and restart-safe input-seq cursor
+- **Feat (scripts)**: rotate handoff-area growth at threshold
+- **Feat (kernel)**: coordinate managed process groups
+- **Feat (kernel)**: expose process group read model
+- **Feat (kernel)**: add typed process group reaper
+- **Feat (kernel)**: add cooperative cancellation token
+- **Feat (kernel)**: add rust execution protocol runtime
+- **Feat (kernel)**: converge rust core mechanisms
+- **Feat (ws)**: serve protocol v1 envelopes over the ws bridge
+- **Feat (l2)**: add ws/ssh transports on a shared line engine
+- **Feat (l2)**: async transports and real python host e2e
+- **Feat (l2)**: add session view and builtins to the ts engine
+- **Feat (l2)**: land the protocol bridge client and engine skeleton
+- **Feat (l2)**: implement real session command history
+- **Feat (l2)**: complete multiplexing replay and event projection
+- **Feat (l2)**: unify multi-frontend session views in protocol host
+- **Feat (l2)**: normalize session identity in protocol v1 host
+- **Feat (l2)**: route web shell requests through protocol v1 host
+- **Feat (kernel)**: land rust-first rewrite preflight
+- **Feat (skill)**: smooth DPO preference and weight retrieval by priority
+- **Feat (llm)**: close compression and debug-mode gaps
+- **Feat (git)**: type-content consistency + push/merge audit + scope-dir map
+- **Feat (git)**: require execution evidence for attribution, not config claims
+- **Feat (git)**: generalize detected model + actionable rejection guidance
+- **Feat (git)**: verify Co-Authored-By truth + normalize subject format
+- **Feat (judge)**: local-merge gate + gate completeness/efficiency fixes
+- **Feat (skill)**: precision contribution scoring (Wilson + decay + dims)
+- **Feat (l3a)**: switch defaults to new architecture (digest on, stateful)
+- **Feat (llm)**: add provider assembly factory and protocol selection
+- **Feat (l3a)**: add sensitive-action policy report/redact/block
+- **Feat (l3a)**: emit compression events to reference channel
+- **Feat (l3a)**: add compression error-storm circuit breaker
+- **Feat (l3a)**: persist compression switches via settings
+- **Feat (skill)**: expose register/enable/update-speed via L2 and API
+- **Feat (skill)**: add declarative scope/priority and three-tier storage
+- **Feat (scripts)**: add declarative automation runner
+- **Feat (l2)**: add session protocol reference bridge
+- **Feat (stats)**: baseline security toolchain performance
+- **Feat (security)**: complete attack toolchain integration
+- **Feat (infra)**: quantify Amdahl serial fraction in perf baseline
+- **Feat (infra)**: quantify dept/violation/identity query perf in baseline
+- **Feat (kernel)**: identity UID, definition, dept scope, violation monitor
+- **Feat (cell)**: async parallel test-matrix prebuild
+- **Feat (kernel)**: process FSM, audit persist, event schema, sched port
+- **Feat (atomcode)**: mirror remaining skills, fix descriptions, fix mcp docs
+- **Feat (atomcode)**: mirror opencode skill refresh
+- **Feat (opencode)**: add five architecture skills and refresh three
+- **Feat (kernel)**: add capability syscall seam and harden G2/harness
+- **Feat (kernel)**: close execution and auth bypasses for rust rewrite
+- **Feat (memory)**: operator plane for compaction/premise-guard/dedup
+- **Feat (memory)**: hybrid compaction extractor, premise guard, inject dedup
+- **Feat (llm)**: enable tool-result read-back and provider failover
+- **Feat (judge)**: separate full/fast verdict modes in CompletionJudge
+- **Feat (tool)**: add marker-gated engineering debug mode
+- **Feat (infra)**: per-layer performance baseline scanner
+- **Feat (infra)**: per-layer quality baseline scanner
+- **Feat (kernel)**: adopt ProcessPort execution boundary
+- **Feat (skill)**: gate evolution through candidates
+- **Feat (ports)**: complete L1 port seams for Rust-rewrite readiness
+- **Feat (ci)**: enforce subject length and body structure in commit-scan
+- **Feat (ci)**: enforce commit-scan policy across all gates
+- **Feat (audit)**: non-English residue scanner — full-CJK plane, strict non-ASCII, docstring + md coverage, CI gate
+- **Feat (judge)**: extend judge dashboard with metrics, branch, duration and pair analytics
+- **Feat (opencode)**: add completion-judge and net-delta-gate skills, dedupe
+- **Feat (atomcode)**: sync skills with the updated OpenCode skill set
+- **Feat (generalize)**: bidirectional generalization pipeline (session-JSON supply, layered skill libs, memory feedback, verify gate, ring promotion)
+- **Feat (session)**: session-management system (dual identity, monitor, auto-reload, decision-layer JSON trio, history, loader)
+- **Feat (prompts)**: unified layered system-prompt architecture (Cell/global libraries, versioning, bypass monitor)
+- **Feat (memory)**: expose execution-layer context audit via API + L2
+- **Feat (agent)**: per-Cell context audit across the execution layer
+- **Feat (agent)**: per-entity context snapshot for precise context management
+- **Feat (memory)**: correlate reference-channel memory events with refined records
+- **Feat (memory)**: structured tool-result register (fast path) + teardown-scoped reclaim
+- **Feat (memory)**: reclaim conversation-side caches at Cell teardown
+- **Feat (opencode)**: align agent skills with AGENTS.md gates and CI policies
+- **Feat (memory)**: domain-filtered R4 archive, RC linkage, corpus surface, conversation caches, five-level compression, guardrails
+- **Feat (skills)**: align atomcode skills with AGENTS.md + CI gates (lean)
+- **Feat (gate)**: three locks on the net-delta gate (comments/deletion/hygiene)
+- **Feat (judge)**: extend CompletionJudge to 11 checks (6 new dimensions)
+- **Feat (attack)**: attack-posture tool suite + tooling linkage gaps
+- **Feat (judge)**: committed dashboard — auto-updated on every mainline merge
+- **Feat (tool-presentation)**: assemble stable-prefix prompt for vendor KV caches
+- **Feat (tool-presentation)**: write back successful run_code results to cache
+- **Feat (tool-presentation)**: wire run_code SDK bindings to the tool pipeline
+- **Feat (harness)**: expose code level via L2 harness command + i18n
+- **Feat (harness)**: unify tool-usage control bar (two classes + control line)
+- **Feat (judge)**: quantify CompletionJudge effectiveness (auto-log + stats)
+- **Feat (judge)**: CompletionJudge — machine decides "done", not the agent
+- **Feat (tool-presentation)**: enforce tools:code-only in the tool pipeline
+- **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
+- **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
+- **Feat**: baseline — fresh single-commit repository
 
 ### 性能
 
+- **Perf (infra)**: ttl cache for detect_agent eliminates subprocess overhead
+- **Perf (kernel)**: hash registry lookup and add fixed-work evidence
+- **Perf (l2)**: hoist token pattern and extend engine bench
+- **Perf (bench)**: exercise bounded reaper sweeps
+- **Perf (kernel)**: bound process group reaper selection
+- **Perf (l2)**: speed up ack detection and command listing
 - **Perf (tests)**: parameterize layer_imports gate with JSON snapshot
 - **Perf (tests)**: parameterize gate scan tests with JSON snapshots
 - **Perf (hooks)**: decouple git hooks from Python runtime

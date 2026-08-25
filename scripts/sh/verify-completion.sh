@@ -140,9 +140,9 @@ uname -r 2>/dev/null | grep -qi microsoft && IS_WSL=1
 JUDGE_N="${JUDGE_PYTEST_N:-4}"
 THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
 THRESH="${THRESH:-60}"
-# WSL: serial coverage (no xdist thrash); non-WSL keeps parallel workers.
+# WSL: bounded workers (no 32-worker xdist thrash); non-WSL keeps parallel workers.
 XDIST_ARGS="-n $JUDGE_N"
-[ "$IS_WSL" = "1" ] && XDIST_ARGS="--no-xdist"
+[ "$IS_WSL" = "1" ] && XDIST_ARGS="-n $JUDGE_N"
 if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; then
   RUN_TOGETHER=1
   echo "[judge] ── 1+2. Full test suite + coverage (single run) ──"

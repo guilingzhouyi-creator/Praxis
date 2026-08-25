@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pathlib as _pl
 import sys
 import tempfile
 
@@ -103,17 +104,17 @@ _RESETS = {
 }
 
 
-
 # Detect agent cache: clear between test modules to prevent stale
 # attribution results from leaking across test boundaries.
-import pathlib as _pl
-_DAC = _pl.Path('.praxis') / 'detect_agent_cache.json'
+_DAC = _pl.Path(".praxis") / "detect_agent_cache.json"
+
 
 @pytest.fixture(autouse=True)
 def _clear_detect_cache():
     _DAC.unlink(missing_ok=True)
     yield
     _DAC.unlink(missing_ok=True)
+
 
 @pytest.fixture(autouse=True)
 def _reset_singletons():
@@ -269,6 +270,7 @@ def terminal():
     from l3.agent_terminal import get_terminal
 
     return get_terminal("test-agent", role="reader", territory=["."])
+
 
 # ── Deterministic ordering (infra slice) ──────────────────────────────
 # pytest-random-order shuffles test order causing cross-test pollution.
