@@ -92,7 +92,7 @@ def test_failover_switches_after_threshold(monkeypatch):
     monkeypatch.setattr("l4.llm.http_pool.http_post", _fail_post)
     monkeypatch.setattr("l4.llm.llm_retry.http_post", _fail_post)
     monkeypatch.setattr(
-        "l1.kernel.model_registry.ModelRegistry.get_fallback",
+        "l4.llm.model_registry.ModelRegistry.get_fallback",
         _failover_fallback_factory(),
     )
 
@@ -115,7 +115,7 @@ def test_failover_cooldown_prevents_thrash(monkeypatch):
     monkeypatch.setattr("l4.llm.http_pool.http_post", _fail_post)
     monkeypatch.setattr("l4.llm.llm_retry.http_post", _fail_post)
     monkeypatch.setattr(
-        "l1.kernel.model_registry.ModelRegistry.get_fallback",
+        "l4.llm.model_registry.ModelRegistry.get_fallback",
         _failover_fallback_factory(),
     )
 
@@ -163,7 +163,7 @@ def test_failover_no_fallback_keeps_provider(monkeypatch):
     def _no_fallback(self, provider, model=""):
         return None
 
-    monkeypatch.setattr("l1.kernel.model_registry.ModelRegistry.get_fallback", _no_fallback)
+    monkeypatch.setattr("l4.llm.model_registry.ModelRegistry.get_fallback", _no_fallback)
 
     for _ in range(LLM_FAILOVER_THRESHOLD):
         out = engine._call_api(b"{}")

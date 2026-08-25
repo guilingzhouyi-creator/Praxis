@@ -56,7 +56,7 @@ class SessionSnapshot:
 
 # ── Truncation continuation ──
 
-from l1.kernel.prompts import get_prompt as _gp  # noqa: E402
+from l3.agent.prompts import get_prompt as _gp  # noqa: E402
 
 TRUNCATION_RESUME_NUDGE = _gp("session_snapshot.truncation_resume_nudge", "")
 

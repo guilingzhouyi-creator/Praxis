@@ -29,7 +29,7 @@ from l1.kernel.params.api import (
     LLM_PROVIDER_URLS,
 )
 from l1.kernel.params.system import LLM_DEFAULT_CONTEXT_WINDOW, LOG_TRUNC_60, LOG_TRUNC_200, MOCK_DELAY
-from l1.kernel.prompts import get_prompt as _gp
+from l3.agent.prompts import get_prompt as _gp
 
 from .http_pool import http_post
 from .llm_base import (

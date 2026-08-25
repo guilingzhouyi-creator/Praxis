@@ -89,7 +89,7 @@ class TestCommandsYamlContract:
         subagent_spec.py rather than the command registry) are skipped —
         they have no command metadata (help/examples/args/category).
         """
-        from l1.kernel.commands import get_command, load_command_defs
+        from l2.commands import get_command, load_command_defs
 
         data = _load_yaml("config/commands.yaml")
         load_command_defs()

@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 def handle_providers_list(body: dict | None = None) -> dict:
     """GET /api/v2/providers — list all registered LLM providers."""
-    from l1.kernel.model_registry import get_registry
+    from l4.llm.model_registry import get_registry
 
     reg = get_registry()
     try:

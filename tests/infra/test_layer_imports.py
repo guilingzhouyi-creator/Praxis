@@ -17,9 +17,7 @@ LAYER_ORDER = {"l1": 0, "l2": 1, "l3": 2, "l4": 3, "l5": 4}
 ALLOWLIST = {
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
     ("l2/i18n.py", "l4.ports"),  # WS5.1: I18nPort moved out of kernel
-    ("l1/kernel/commands.py", "l2.commands"),  # WS5.3: transition shim
-    ("l1/kernel/model_registry.py", "l4.llm.model_registry"),  # WS5.2: transition shim
-    ("l1/kernel/prompts.py", "l3.agent.prompts"),  # WS5.3: transition shim
+    ("l3/boot/boot_steps/runtime.py", "l4.llm.model_registry"),  # WS5.2: model_registry moved to L4
     ("l3/services/review_pipeline.py", "l4.sandbox.diff_frame"),  # WS5.3: moved module
     ("l3/services/model_service.py", "l4.ports"),  # WS5.1: LLMConfig moved out of kernel
     ("l2/shells/terminal.py", "l3.params"),  # WS5.4: scout business params live in L3
@@ -69,6 +67,7 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/memory.py", "l3.agent.global_prompt_library"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.prompt_library"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.prompt_monitor"),
+    ("l2/l2_shell/commands/memory.py", "l3.agent.prompts"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.sensitive_detect"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.tool_result_cache"),
     ("l2/l2_shell/commands/memory.py", "l3.card.card_registry"),
@@ -244,6 +243,7 @@ def _ensure_layer_allowlist() -> None:
         (2, 3, "l3.htn_planner"),
         (2, 3, "l3.cell.peers.l3"),
         (2, 3, "l3.scheduler"),
+        (2, 3, "l3.agent"),
         (2, 3, "l3.bus"),
         (2, 3, "l3.memory"),
         (2, 3, "l3.services"),
@@ -258,6 +258,7 @@ def _ensure_layer_allowlist() -> None:
         (3, 4, "l4.ports"),  # WS5.1: L3 services consume LLMConfig
         (3, 4, "l4.cron_scheduler"),
         (3, 4, "l4.ci_review"),
+        (3, 4, "l4.llm.model_registry"),
     ]:
         _LAYER_ALLOWLIST.add((src, dst, prefix))
 

@@ -277,7 +277,7 @@ class AnswerSession:
         target_content = [a.content for a in target_answers if a.agent_id == target]
         if not target_content:
             return None
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         prompt = get_prompt("discussion.answer_review").format(
             examiner=examiner, target=target, target_content=target_content

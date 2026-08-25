@@ -296,7 +296,7 @@ class PromptBuilder:
         vars.setdefault("max_steps", AGENT_LOOP_DEFAULT_STEPS)
 
         # Role prompt (from kernel.prompts registry)
-        from l1.kernel.prompts import get_prompt as _gp
+        from l3.agent.prompts import get_prompt as _gp
 
         role_key = role if (role in self._custom_templates or _gp(f"prompt_engine.system.{role}", "")) else "default"
         role_prompt = (

@@ -189,7 +189,7 @@ class SkillGeneralizeMixin:
 
     def _generate_skill_definition(self, intent: str) -> tuple[str, dict]:
         """Call the LLM skill architect and parse the JSON skill definition."""
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
         from l3.memory.r4_agent import _resolve_model_spec
         from l3.services.model_service import get_service as _get_model_service
         from l4.llm.llm import get_engine

@@ -121,7 +121,7 @@ def _shell_commands(body: dict | None = None) -> dict:
     body = body or {}
     category = str(body.get("category", ""))
     try:
-        from l1.kernel.commands import get_registry
+        from l2.commands import get_registry
 
         return {"success": True, "commands": get_registry().list(category)}
     except Exception as e:

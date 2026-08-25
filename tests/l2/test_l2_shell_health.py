@@ -61,8 +61,8 @@ class TestModuleImports:
         the runtime source of truth — namespace probing was invalidated when
         the monolithic commands.py was split into sub-modules.
         """
-        from l1.kernel.commands import get_handler as _get_handler
-        from l1.kernel.commands import list_commands as _list_defs
+        from l2.commands import get_handler as _get_handler
+        from l2.commands import list_commands as _list_defs
 
         cmds = _list_defs()
         assert len(cmds) >= 20, f"only {len(cmds)} commands registered"

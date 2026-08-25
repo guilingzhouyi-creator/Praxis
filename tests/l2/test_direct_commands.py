@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from l1.kernel.commands import get_command, get_handler
+from l2.commands import get_command, get_handler
 from l2.l2_shell import dispatch
 from l2.shells.session import ShellSession
 from l2.shells.terminal import intent_direct, scout_commission

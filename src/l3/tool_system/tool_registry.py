@@ -78,13 +78,14 @@ class ToolRegistry:
         result = False
         try:
             result = self._registry.register(spec, source=source)
-            return result
         finally:
             from l3.services.observability import emit_count, emit_duration
 
             tags = {"tool": getattr(spec, "name", ""), "source": source, "success": result}
             emit_duration("tool_registry.register.duration_ms", started, tags=tags)
             emit_count("tool_registry.register.count", tags=tags)
+
+        return result
 
     def register_tool_with_deps(self, spec: ToolSpec, deps: list[str], *, source: str = "code") -> bool:
         """Register a tool spec AND its DVG dependency edges in one call.

@@ -142,7 +142,7 @@ def test_restore_tolerates_corrupt_file(tmp_path):
 
 def test_identity_roles_config_override(tmp_path, monkeypatch):
     """praxis.yaml prompts: overrides win over the built-in match keywords."""
-    from l1.kernel.prompts import load_prompt_overrides
+    from l3.agent.prompts import load_prompt_overrides
     from l3.bus.htn_planner import match_identity
 
     # Simulate the praxis.yaml prompts: section loading (the sanctioned

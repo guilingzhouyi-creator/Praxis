@@ -276,7 +276,7 @@ class CardDispatchMixin:
             from l4.llm.llm import get_engine as _ge
 
             engine = _ge()
-            from l1.kernel.prompts import get_prompt as _gp
+            from l3.agent.prompts import get_prompt as _gp
 
             prompt = _gp("card_registry.generate_plan", "").format(intent=intent, domain=domain)
             r = engine.generate(

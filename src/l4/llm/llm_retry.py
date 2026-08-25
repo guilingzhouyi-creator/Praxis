@@ -115,7 +115,7 @@ class LLMRetryMixin:
         if now - _failover_state.get("last_switch", 0.0) < LLM_FAILOVER_COOLDOWN:
             return out
         try:
-            from l1.kernel.model_registry import get_registry
+            from l4.llm.model_registry import get_registry
 
             registry = get_registry()
             alt = registry.get_fallback(self.config.provider, self.config.model)

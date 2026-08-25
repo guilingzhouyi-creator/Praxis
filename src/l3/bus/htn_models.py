@@ -73,7 +73,7 @@ def match_identity(intent: str, domain: str = "") -> str:
         One of IDENTITY_FIELDS values, or "".
     """
     from l1.kernel.params.agent import IDENTITY_FIELDS
-    from l1.kernel.prompts import get_prompt
+    from l3.agent.prompts import get_prompt
 
     text = f"{intent} {domain}".lower()
     # Intent keywords per identity — declared as prompt-registry data so

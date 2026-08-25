@@ -37,7 +37,7 @@ def run_cache_keepalive(term: Any) -> None:
             if term.status.name != AGENT_STATUS_IDLE:
                 continue
         try:
-            from l1.kernel.prompts import get_prompt as _get_prompt
+            from l3.agent.prompts import get_prompt as _get_prompt
 
             engine = get_engine()
             result = engine.generate_with_cache(

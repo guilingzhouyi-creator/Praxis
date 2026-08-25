@@ -159,7 +159,7 @@ def resolve_global_prompt(load: float = 0.0, domain: str = "") -> str:
             text = _load_sub_library(name)
             if not text:
                 try:
-                    from l1.kernel.prompts import get_prompt
+                    from l3.agent.prompts import get_prompt
 
                     text = get_prompt(f"global.{name}", "")
                 except Exception:

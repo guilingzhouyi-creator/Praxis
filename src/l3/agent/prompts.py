@@ -4,7 +4,7 @@ Loads prompts from praxis.yaml → prompts: section.
 Falls back to built-in defaults if not configured.
 
 Usage:
-  from l1.kernel.prompts import get_prompt
+  from l3.agent.prompts import get_prompt
 
   # Get a prompt template with default fallback
   system = get_prompt("agent_loop.system", "You are an agent...")
@@ -636,3 +636,11 @@ def _flatten(cfg: dict, prefix: str = "") -> dict:
         elif isinstance(v, str):
             result[key] = v
     return result
+
+
+try:
+    from l1.kernel.identity_binding import register_prompt_resolver
+
+    register_prompt_resolver(get_prompt)
+except Exception:
+    pass

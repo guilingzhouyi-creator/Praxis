@@ -105,7 +105,7 @@ class TestApiGlue:
 class TestL2Glue:
     def test_command_registered(self):
         import l2.l2_shell.commands  # noqa: F401  (triggers auto-registration)
-        from l1.kernel.commands import get_command
+        from l2.commands import get_command
 
         c = get_command("harness")
         assert c is not None

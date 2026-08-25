@@ -97,7 +97,6 @@ def _measure_evidence(name: str):
             result: dict = {}
             try:
                 result = fn(self, *args, **kwargs)
-                return result
             finally:
                 from l3.services.observability import emit_count, emit_duration
 
@@ -106,6 +105,8 @@ def _measure_evidence(name: str):
                 emit_duration(name, started, tags=tags)
                 if not success:
                     emit_count(f"{name.rsplit('.', 1)[0]}.failures", tags=tags)
+
+            return result
 
         return measured
 

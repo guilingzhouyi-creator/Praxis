@@ -64,7 +64,7 @@ src/l1/kernel/ports/ — 18 *Port(ABC) abstractions
 - **Register tools** via `ToolSpec` in `config/tools.yaml`
 - **No bare `except:`** — use `except Exception:`
 - **Double quotes** for strings (ruff `quote-style = "double"`), line-length 120
-- **Prompt templates are data** in `src/l1/kernel/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
+- **Prompt templates are data** in `src/l3/agent/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
 
 ## Skill system
 

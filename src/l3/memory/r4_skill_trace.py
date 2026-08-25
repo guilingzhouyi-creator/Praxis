@@ -294,7 +294,7 @@ class SkillTraceMixin:
             logger.debug("R4Agent: failure reflection for %s skipped (cooldown)", tool)
             return None
         digest = "\n".join(f"- {c.get('prompt', '')[:LOG_TRUNC_200]}" for c in cases)
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         prompt = get_prompt("r4_agent.reflect_patterns").format(digest=digest)
         try:

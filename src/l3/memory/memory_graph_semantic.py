@@ -39,7 +39,6 @@ def _measure_semantic_extraction(fn):
         result: dict = {}
         try:
             result = fn(self, entries, *args, **kwargs)
-            return result
         finally:
             from l3.services.observability import emit_count, emit_duration
 
@@ -49,11 +48,13 @@ def _measure_semantic_extraction(fn):
                 "source": kwargs.get("created_by", "llm"),
                 "success": result.get("success", False),
             }
-            emit_duration("r5.semantic.duration_ms", started, tags=tags)
+            emit_count("memory.graph.semantic.runs", tags=tags)
+            emit_duration("memory.graph.semantic.duration", time.perf_counter() - started, tags=tags)
             emit_count("r5.semantic.pairs", int(result.get("pairs", 0) or 0), tags=tags)
             emit_count("r5.semantic.edges", int(result.get("added", 0) or 0), tags=tags)
             if not result.get("success", False):
                 emit_count("r5.semantic.failures", 1, tags=tags)
+        return result
 
     return measured
 
@@ -181,7 +182,7 @@ class SemanticExtractionMixin:
 
         Returns a relation keyword, "" (no relation), or None (engine fault).
         """
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         prompt = get_prompt("memory.graph.relation").format(
             a_type=a.get("entry_type", "?"),

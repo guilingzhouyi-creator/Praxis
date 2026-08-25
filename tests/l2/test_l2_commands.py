@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from l1.kernel.commands import get_registry, reset_registry
+from l2.commands import get_registry, reset_registry
 
 
 class TestParseAgentRef:

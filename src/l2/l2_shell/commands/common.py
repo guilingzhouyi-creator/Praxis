@@ -6,9 +6,9 @@ import logging
 import shlex
 from typing import Any
 
-from l1.kernel.commands import get_handler as _gh
-from l1.kernel.commands import get_registry
 from l1.kernel.params.agent import DEFAULT_CELL_ID
+from l2.commands import get_handler as _gh
+from l2.commands import get_registry
 from l2.i18n import t as _t
 
 logger = logging.getLogger(__name__)
