@@ -21,6 +21,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
+
 | 2026-08-22 | scripts/sh/verify-completion.sh | GPT (infra merge) | ⚠️ CLOBBERED AtomCode's WSL-slice + dedupe optimization (f5087549/bb18759c) | reconciled — restored by AtomCode in coverage-wsl bd800342 |
 | 2026-08-22 | scripts/sh/verify-completion.sh | AtomCode | coverage WSL serial (XDIST_ARGS) | in coverage-wsl bd800342 |
 | 2026-08-22 | .githooks/commit-msg + scripts/sh/push-both.sh | AtomCode | shared-file handoff gate (strict register-or-reject) | in agent-handoff (this commit) |
@@ -50,8 +51,8 @@
 | 2026-08-24 | main 588202f L1/L2 communication line + snapshot boundary bundle | GPT (root-l1-snapshot-boundary) | rebased the snapshot/page performance slice onto the latest local main; preserved host dispatch, outbox, session identity/lifecycle, protocol, and their independent tests; only mechanical rustfmt changes touched main-owned communication files | in feature/root-l1-snapshot-aligned |
 | 2026-08-25 | scripts/sh/verify-completion.sh + judge-stats.sh + docs/architecture/completion-judge.md | AtomCode | judge scorecard hardening: zero-value metric preservation, full-mode rate tracking, git exemption parsing (-z), flock concurrency, worktree log resolution | in feature/judge-stats-hardening (6c555c34) |
 | 2026-08-25 | config/discovery/commits.yaml + commits.json + .githooks/commit-msg + scripts/py/commit_scan.py + detect_agent.py | Antigravity | anti-impersonation governance: probe runtime first, block random grabbing, Antigravity/Gemini registration, user escalation guidance | in feature/judge-stats-hardening (dd90dd62) |
-| 2026-08-25 | scripts/py/commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_* | Antigravity | commit format hardening: imperative mood verb enforcement, strict EOF trailer sentinel, tests | in feature/judge-stats-hardening (this commit) |
-
+| 2026-08-25 | scripts/py/commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_* | Antigravity | commit format hardening: imperative mood verb enforcement, strict EOF trailer sentinel, tests | in feature/judge-stats-hardening (1ae3a3b4) |
+| 2026-08-25 | scripts/sh/handoff-rotate.sh + docs/agent-handoff/* | Antigravity | fix table row output order before ## Clobber warnings in rotation awk script, rotate threshold archive | in feature/judge-stats-hardening (this commit) |
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an
