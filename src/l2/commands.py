@@ -300,6 +300,7 @@ def get_registry() -> CommandRegistry:
         with _REGISTRY_LOCK:
             if _REGISTRY is None:
                 _REGISTRY = CommandRegistry()
+                _REGISTRY.load_defaults()
     return _REGISTRY
 
 
