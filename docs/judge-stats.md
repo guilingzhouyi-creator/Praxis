@@ -1,10 +1,10 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 226 | **COMPLETE**: 34 (15%) | **PARTIAL**: 23 (10%, fast mode — checks skipped) | **INCOMPLETE**: 169 (75%, machine 'not done')
-**Mode split**: full 91 (37% complete) / fast 135 (fast = at least one check skipped)
-**Skipped tests notice**: tests skipped in 17 judge run(s) (full mode / WSL slice-serial required before merge)
+**Runs**: 227 | **COMPLETE**: 34 (15%) | **PARTIAL**: 23 (10%, fast mode — checks skipped) | **INCOMPLETE**: 170 (75%, machine 'not done')
+**Mode split**: full 91 (37% complete) / fast 136 (fast = at least one check skipped)
+**Skipped tests notice**: tests skipped in 18 judge run(s) (full mode / WSL slice-serial required before merge)
 **Gate exemptions** (MERGE_GATE_SKIP commits in history): 11
-**Waived delta passes**: 1 judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)
+**Waived delta passes**: 2 judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)
 
 | Date | Runs | Complete | Rate |
 |---|---|---|---|
@@ -19,10 +19,10 @@
 | 2026-08-22 | 25 | 7 | 28% |
 | 2026-08-23 | 5 | 0 | 0% |
 | 2026-08-24 | 4 | 0 | 0% |
-| 2026-08-25 | 5 | 0 | 0% |
+| 2026-08-25 | 6 | 0 | 0% |
 
 **Failures by check** (most frequent evidence gaps):
-- `changelog`: 144 (85% of incomplete)
+- `changelog`: 145 (85% of incomplete)
 - `delta`: 75 (44% of incomplete)
 - `lint`: 59 (35% of incomplete)
 - `docs`: 52 (31% of incomplete)
@@ -35,23 +35,23 @@
 - `index`: 12 (7% of incomplete)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 200/222 (90%)
-- `changelog`: 80/224 (36%)
-- `complex`: 211/223 (95%)
+- `audit`: 201/223 (90%)
+- `changelog`: 80/225 (36%)
+- `complex`: 212/224 (95%)
 - `coverage`: 67/92 (73%)
-- `cycle`: 210/223 (94%)
-- `delta`: 148/223 (66%)
-- `docs`: 174/226 (77%)
-- `index`: 211/223 (95%)
-- `lint`: 167/226 (74%)
-- `singleton`: 207/223 (93%)
+- `cycle`: 211/224 (94%)
+- `delta`: 149/224 (67%)
+- `docs`: 175/227 (77%)
+- `index`: 212/224 (95%)
+- `lint`: 168/227 (74%)
+- `singleton`: 208/224 (93%)
 - `tests`: 64/93 (69%)
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
 - `coverage_pct`: 68.0 / 66.93 / 0.0 / 69.0
-- `mega_funcs`: 3.0 / 12.4 / 0.0 / 256.0
-- `net_delta`: 499.0 / 2180.78 / -4.0 / 27424.0
-- `ruff_errors`: 0.0 / 2.12 / 0.0 / 6.0
+- `mega_funcs`: 3.0 / 12.36 / 0.0 / 256.0
+- `net_delta`: 499.0 / 2165.49 / -4.0 / 27424.0
+- `ruff_errors`: 0.0 / 2.04 / 0.0 / 6.0
 - `tests_failed`: 1.0 / 1.67 / 1.0 / 7.0
 - `tests_passed`: 4964.0 / 4847.51 / 4583.0 / 5065.0
