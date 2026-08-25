@@ -23,8 +23,8 @@ flowchart TB
         TUI["TUI (contract-ready, not yet built)"]
     end
     subgraph L4["L4 Bridge"]
-        GW["API gateway 291 routes /api/v2/"]
-        SSE["SSE /api/events"]
+        GW["API gateway 368 routes /api/v2/"]
+        SSE["SSE /api/v2/events"]
         WS["WS bridge :8081 subscribe/rpc"]
         RPC["RPC server :42110"]
         LLM["LLM engine + providers"]
@@ -41,15 +41,15 @@ flowchart TB
         BUS["buses / scheduler / services"]
     end
     subgraph L2["L2 Shell"]
-        SH["51 YAML commands + 63 code / i18n / completer"]
+        SH["51 YAML commands + 17 code / i18n / completer"]
     end
     subgraph L1["L1 Kernel"]
         EVT["EventBus"]
         PROC["ProcessTable"]
         GATE["GateChain G1-G5"]
         CONST["Constitution"]
-        PORTS["Ports (15 ABC abstractions)"]
-        PARAMS["params: 1,057 constants"]
+        PORTS["Ports (18 ABC abstractions)"]
+        PARAMS["params: 1,213 constants"]
     end
 
     CLI --> GW
@@ -79,13 +79,13 @@ flowchart TB
 | Layer | Document | Responsibility |
 |-------|----------|----------------|
 | L5 | [l5-user.md](l5-user.md) | CLI entry, user-facing contract, TUI surface |
-| L4 | [l4-bridge.md](l4-bridge.md) | API gateway (291 routes), WS/SSE/RPC channels, sandbox, auth, fs |
+| L4 | [l4-bridge.md](l4-bridge.md) | API gateway (368 routes), WS/SSE/RPC channels, sandbox, auth, fs |
 | L4 | [l4-llm.md](l4-llm.md) | LLM providers, effort tiers, strategy packs, model_spec cascade |
 | L3 | [l3-module-map.md](l3-module-map.md) | **Reference contract**: directory x function x ownership-domain matrix, cross-directory family index, naming adjudications |
 | L3 | [l3-card-lifecycle.md](l3-card-lifecycle.md) | Card end-to-end: produce → execute → approve → archive |
 | L3 | [l3-memory.md](l3-memory.md) | 4-ring memory + side-channels (Mer / R5 / User Profile) + injection |
 | L3 | [l3a-central.md](l3a-central.md) | L3A decision layer: the central office (sessions, ask, cardwrite, profile) |
-| L3 | [l3-tools.md](l3-tools.md) | 20 tool implementations + tool system (spec/registry/policy/pipeline) |
+| L3 | [l3-tools.md](l3-tools.md) | 22 tool implementations + tool system (spec/registry/policy/pipeline) |
 | L3 | [l3-tool-presentation.md](l3-tool-presentation.md) | Code Mode / PTC: presentation modes (native/code/both), run_code transport, per-Cell program cache |
 | L3 | [l3-prompt-architecture.md](l3-prompt-architecture.md) | Unified layered system prompts: Cell/global libraries (sub-libs), versioning, bypass monitor |
 | L3 | [l3-bus.md](l3-bus.md) | IPC protocol (20+ message types) + buses + ReferenceChannel causal recorder |
@@ -112,10 +112,6 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 19,226 lines |
-| L2 Shell | 45 files / 6,630 lines |
-| L3 Cell | 337 files / 73,588 lines |
-| L4 Bridge | 113 files / 23,539 lines |
 | L1 Kernel | 69 files / 18,635 lines |
 | L2 Shell | 45 files / 6,630 lines |
 | L3 Cell | 350 files / 79,288 lines |
@@ -126,12 +122,6 @@ flowchart TB
 | L3 Card | 27 files / 6,451 lines |
 | L3 Services | 45 files / 11,590 lines |
 | L3 Bus | 17 files / 4,396 lines |
-| L3 Agent | 36 files / 7,483 lines |
-| L4 Handlers | 34 files / 6,411 lines |
-| API routes | 368 (`/api/v2/*` versioned) |
-| Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |
-| Params modules / constants | 8 / 1,263 |
-| Health | 0.757 (grade B) |
 | L3 Agent | 37 files / 8,800 lines |
 | L4 Handlers | 34 files / 6,411 lines |
 | API routes | 368 (`/api/v2/*` versioned) |
@@ -141,11 +131,15 @@ flowchart TB
 
 ## Reading path
 
-1. **New to Praxis**: [l1-kernel.md](l1-kernel.md) → [l3-card-lifecycle.md](l3-card-lifecycle.md) → [l3a-central.md](l3a-central.md)
-2. **Frontend / contract work**: [l4-bridge.md](l4-bridge.md) → [l5-user.md](l5-user.md) → [cross-cutting.md](cross-cutting.md)
-3. **Memory / agents**: [l3-memory.md](l3-memory.md) → [l3-scheduler.md](l3-scheduler.md) → [l3-tools.md](l3-tools.md)
+1. **New to Praxis**: [l1-kernel.md](l1-kernel.md) → [l3-card-lifecycle.md](l3-card-lifecycle.md)
+   → [l3a-central.md](l3a-central.md)
+2. **Frontend / contract work**: [l4-bridge.md](l4-bridge.md) → [l5-user.md](l5-user.md)
+   → [cross-cutting.md](cross-cutting.md)
+3. **Memory / agents**: [l3-memory.md](l3-memory.md) → [l3-scheduler.md](l3-scheduler.md)
+   → [l3-tools.md](l3-tools.md)
 4. **Data / training / buses**: [l3-bus.md](l3-bus.md) → [cross-cutting.md](cross-cutting.md)
-5. **Security / posture**: [security-evidence.md](security-evidence.md) → [l1-kernel.md](l1-kernel.md) (GateChain) → [l3-tools.md](l3-tools.md)
+5. **Security / posture**: [security-evidence.md](security-evidence.md) → [l1-kernel.md](l1-kernel.md)
+   (GateChain) → [l3-tools.md](l3-tools.md)
 6. **Governance / QA / skills**: [cross-cutting.md](cross-cutting.md)
 
 ## Main data flows
@@ -193,8 +187,8 @@ tree disk only, not in any worktree or clone.
 
 # L1 — Kernel Layer
 
-The bare-metal kernel: what every upper layer builds on. 68 files /
-17,919 lines; 1,175 constants across 8 `params/` modules (mechanism-only —
+The bare-metal kernel: what every upper layer builds on. 69 files /
+18,635 lines; 1,213 constants across 8 `params/` modules (mechanism-only —
 see *Kernel surface boundary* below).
 
 ## Responsibility boundary
@@ -224,7 +218,7 @@ see *Kernel surface boundary* below).
 | `model_registry.py` / `commands.py` | Transition shims (WS5.2/5.3): implementations moved to `l4/llm/model_registry.py` / `l2/commands.py` |
 | `identity_binding.py` | Per-Cell role bindings (write-gated, revisioned durable registry) |
 | `prompts.py` | Transition shim (WS5.3): implementation moved to `l3/agent/prompts.py`; kernel keeps the import path for compat |
-| `params/*` | 1,175 compile-time constants — mechanism-only after WS5.4 (kernel/allocator/sync/gatechain/tool/system); business constants live in `l3/params.py` (agent/card-gate/review/scout) and `l4/params.py` (API/eval/diff/security-gate) |
+| `params/*` | 1,213 compile-time constants — mechanism-only after WS5.4 (kernel/allocator/sync/gatechain/tool/system); business constants live in `l3/params.py` (agent/card-gate/review/scout) and `l4/params.py` (API/eval/diff/security-gate) |
 
 
 ## Kernel surface boundary (Rust readiness)
@@ -240,7 +234,9 @@ capability-authority, G1-G5 gatechain, Constitution rule/evaluation shapes,
 provider-neutral VFS mount/cache mechanics, platform value/command descriptions,
 deployment path derivation, lifecycle FSM, schema versioning, ordered migration
 runner, pure load-adaptive control law, metadata-only registry base and summary,
-deterministic device bookkeeping, explicit health-result aggregation, memory-ring swap planning, and tool-call fingerprint chaining, but it remains candidate-only until a
+deterministic device bookkeeping, explicit health-result aggregation,
+memory-ring swap planning, and tool-call fingerprint chaining, but it remains
+candidate-only until a
 fixed-work performance evidence, semantic invariant vectors, and a
 cutover/recovery decision; the preflight branch keeps the Python kernel as its
 runtime implementation until the independent Rust build reaches R4/R5.
@@ -1161,7 +1157,7 @@ writers never share a `.tmp` path and unrelated bindings remain intact.
 # L2 — Shell Family Layer
 
 Human interface: a family of shells (dialect adapters) over one shared
-command engine — 51 YAML commands + 63 `_cmd_*` handler functions (15 code-only),
+command engine — 51 YAML commands + 65 `_cmd_*` handler functions (17 code-only),
 i18n, completion, agent selection, per-session state.
 
 ## Shell family model
@@ -1248,7 +1244,8 @@ invisible to `dispatch` and every shell dialect.
 - Engine contract: `dispatch(text, session=None) -> dict` (`|` pipeline,
   `/` commands, Direct mode, L3A intent)
 - L3A direct session routing: `_handle_direct` → `intent_parse` → card
-- Tool execution via the single gated capability seam (`l1.kernel.capability.invoke_capability`, wired at boot to the L3 ToolPipeline adapter)
+- Tool execution via the single gated capability seam
+  (`l1.kernel.capability.invoke_capability`, wired at boot to the L3 ToolPipeline adapter)
 - Event emission: shell state changes / human corrections
   (`reference_channel.human_correction` — a profile collector source)
 - HTTP contract (language-agnostic, see `l5-user.md`):
@@ -1400,7 +1397,7 @@ See `l4-bridge.md` for the API surface.
 # L3 — Memory System (4 rings + side-channels)
 
 How agents remember: operational rings, lossless archive, and the bypass
-side-channels (Mer / R5 / User Profile). 41 files / 8,545 lines.
+side-channels (Mer / R5 / User Profile). 47 files / 11,039 lines.
 
 ## Four-ring architecture
 
@@ -1516,7 +1513,7 @@ cases. See `cross-cutting.md` for the full injection table.
 ## Contract surface
 
 - `/api/v2/memory*` (store/recall/stats), `/api/v2/memory/graph*` (R5),
-  `/api/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
+  `/api/v2/memory/mer/*` (Mer), `/api/v2/profile*` (user profile)
 - `/api/v2/memory/filter` (M1 domain-filter switches),
   `/api/v2/memory/corpus` (M4 correction-corpus export),
   `/api/v2/memory/digest` (conversation digest cache),
@@ -1786,7 +1783,7 @@ so `agent_loop_context` can inject it into the peer agents' system prompt
 # L3A — The Central Decision Layer
 
 L3A is not another agent loop — it is the **central office** between the
-will (user) and the departments (cells/agents). 24 files / 6,134 lines in
+will (user) and the departments (cells/agents). 26 files / 7,367 lines in
 `src/l3/cell/peers/l3a/`.
 
 ```
@@ -1994,10 +1991,10 @@ tester-role AgentLoop injects the prebuilt matrix into its system prompt
 
 # Source: l3-tools.md
 
-# L3 — Tool Layer (72 definitions, 20 handlers + tool system)
+# L3 — Tool Layer (78 definitions, 22 handlers + tool system)
 
-The tool layer is what agents can do. 72 tool definitions live in
-`config/tools.yaml` (ring/danger/parameters); 20 handler modules in
+The tool layer is what agents can do. 78 tool definitions live in
+`config/tools.yaml` (ring/danger/parameters); 22 handler modules in
 `l3/tools/` produce structured dicts for the 9-step pipeline;
 `l3/tool_system/` (13 files) defines how tools are declared, registered,
 gated, and executed (plus the security evidence chain,
@@ -2035,7 +2032,7 @@ gated, and executed (plus the security evidence chain,
 | `tool_spec.py` | ToolSpec — plugin registration, `tools_*.py` auto-discovery, execution middleware, categories, JSON export |
 | `tool_registry.py` | ToolRegistry — MapRegistry-based: mute system, plugins, middleware |
 | `tool_policy.py` | 3-layer visibility (handler / LLM context / pipeline) — SESSION > AGENT > ROLE > CELL > GLOBAL; `require_approval` |
-| `tool_pipeline.py` | **9-step pipeline**: ring check → rate limit → constitution → GateChain G1–G5 → approval → execute → audit → record |
+| `tool_pipeline.py` | **9-step pipeline**: DVG prerequisites → clearance → approval → rate limit → constitution → GateChain G1–G5 → sandbox → execute → record |
 | `tool_params.py` | ParamSpec / ReturnSpec declarations with type validation |
 | `tool_mode.py` | global read/write mode (write = all rings, read = Ring 1 only) |
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
@@ -2068,7 +2065,7 @@ the G4 bypass are recorded via the injected L1 metric sink
 
 ## Config surface
 
-- `config/tools.yaml` — 68 tool definitions by ring layer (danger, params)
+- `config/tools.yaml` — 78 tool definitions by ring layer (danger, params)
 - `config/discovery/tool_registry.yaml` — optional runtime definitions using
   the API's `ToolConfig.register_from_dict` path; `deps`/`depends_on` are
   supported, ring/cap checks apply, and handlers stay inside `l3.tools.*`.
@@ -2127,7 +2124,8 @@ pipeline reads in one place (`tool_pipeline.execute`).
 
 # L3 — Security Evidence Chain (attack-posture bypass audit)
 
-`l3/tool_system/security_evidence.py` records every attack-posture event as
+`l3/tool_system/security_evidence/` (package: core.py, facade.py, models.py)
+records every attack-posture event as
 deterministic, tamper-evident evidence chains and analyzes them into
 verdicts. It answers "was this offensive use *warranted*?" with a
 queryable, verifiable record — not a log line that can be argued away.
@@ -2489,8 +2487,8 @@ supplement, push-to-l3a.
 
 # L4 — Bridge Layer
 
-The boundary: HTTP API (291 routes), LLM engine, realtime channels,
-sandbox, auth, filesystem, RPC. 107 files / 21,436 lines; 32 handler
+The boundary: HTTP API (368 routes), LLM engine, realtime channels,
+sandbox, auth, filesystem, RPC. 113 files / 23,539 lines; 34 handler
 modules.
 
 ## Responsibility boundary
@@ -2504,10 +2502,10 @@ modules.
 
 | Subsystem | Files | Role |
 |-----------|-------|------|
-| `api/` | gateway (route index + signature cache), routes (291), middleware, endpoints manifest (validate) | HTTP surface |
-| `api_handlers/` | 32 modules | dict-in/dict-out handlers per domain |
+| `api/` | gateway (route index + signature cache), routes (368), middleware, endpoints manifest (validate) | HTTP surface |
+| `api_handlers/` | 34 modules | dict-in/dict-out handlers per domain |
 | `llm/` | engine + providers (OpenAI/Anthropic/DeepSeek/Ollama/mock), `http_pool` keep-alive | model calls, effort-tier normalization, capability probes |
-| `sse/` | `sse_bridge.py` | one-way event stream (`/api/events`, event-type filter) |
+| `sse/` | `sse_bridge.py` | one-way event stream (`/api/v2/events`, event-type filter) |
 | `ws/` | `ws_bridge.py` (websockets.sync, `API_WS_PORT=8081`) | bidirectional: subscribe/unsubscribe/rpc messages |
 | `rpc/` | protocol + transport + `server.py` (`RPC_SERVER_PORT=42110`) | distributed method invocation |
 | `sandbox/` | COW isolation + exec sandbox (per-thread event loop) | safe tool execution |
