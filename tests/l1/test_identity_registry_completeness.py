@@ -22,7 +22,7 @@ from l1.kernel.identity_binding import (
 
 @pytest.fixture(autouse=True)
 def _clean():
-    from l1.kernel import prompts as _prompts
+    from l3.agent import prompts as _prompts
 
     reset_identity_binding_manager()
     _saved = dict(_prompts._overrides)
