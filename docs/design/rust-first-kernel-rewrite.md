@@ -547,3 +547,8 @@ fallback，未选出可用候选时直接拒绝。
 Rust-native 机制候选，不接管现有 Python/L2 AgentLoop，也不声明 PTY、硬件
 输入、生产 reaper 或 runtime cutover 权威。后续若要接入 TS/L2，只保留这组
 版本化值合同，不复制 Python 的终端默认值或类布局。
+
+进程生命周期 benchmark 同样不再在 runner 内推导平台 shell。`ProcessBenchmarkCommand`
+只接受调用方注入的非空 direct argv；三个 benchmark binary 以自身 executable
+和私有 child marker 构造显式 direct 命令，测试覆盖空 executable/空参数的
+fail-closed 行为。这是测量脚手架约束，不是生产 runtime 的默认执行入口。

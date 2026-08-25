@@ -2,14 +2,58 @@
 
 use l1_kernel_rs::benchmark::FixedWorkSpec;
 use l1_kernel_rs::benchmark_runner::{
-    run_agent_loop, run_agent_loop_batch, run_agent_loop_book_snapshot_page,
-    run_agent_loop_registry_lookup, run_managed_process, run_process_adapter, run_process_bridge,
-    run_process_group, run_queue_contention, run_queue_contention_blocking, run_registry_base,
-    run_runtime, run_runtime_batch, run_session_book, run_session_book_batch,
-    run_session_book_snapshot_page, run_session_book_snapshot_page_write_contention,
-    run_terminal_book, run_terminal_book_batch, run_terminal_book_snapshot_page,
-    run_worker_pool_batch, run_worker_pool_batch_submit,
+    ProcessBenchmarkCommand, run_agent_loop, run_agent_loop_batch,
+    run_agent_loop_book_snapshot_page, run_agent_loop_registry_lookup, run_managed_process,
+    run_process_adapter, run_process_bridge, run_process_group, run_queue_contention,
+    run_queue_contention_blocking, run_registry_base, run_runtime, run_runtime_batch,
+    run_session_book, run_session_book_batch, run_session_book_snapshot_page,
+    run_session_book_snapshot_page_write_contention, run_terminal_book, run_terminal_book_batch,
+    run_terminal_book_snapshot_page, run_worker_pool_batch, run_worker_pool_batch_submit,
 };
+
+fn process_benchmark_command() -> ProcessBenchmarkCommand {
+    let executable = std::env::current_exe()
+        .expect("test executable is available")
+        .to_string_lossy()
+        .into_owned();
+    ProcessBenchmarkCommand::new(vec![executable, "--help".to_owned()])
+        .expect("direct test command is valid")
+}
+
+#[test]
+fn process_benchmark_command_rejects_empty_or_empty_executable() {
+    assert!(ProcessBenchmarkCommand::new(Vec::new()).is_err());
+    assert!(ProcessBenchmarkCommand::new(vec![String::new()]).is_err());
+    assert!(ProcessBenchmarkCommand::new(vec!["direct-test".to_owned(), String::new(),]).is_err());
+    assert!(
+        ProcessBenchmarkCommand::new(vec![
+            "explicit-executable".to_owned(),
+            "-c".to_owned(),
+            "not-a-direct-command".to_owned(),
+        ])
+        .is_err()
+    );
+    assert!(
+        ProcessBenchmarkCommand::new(vec![
+            "explicit-executable".to_owned(),
+            "/C".to_owned(),
+            "not-a-direct-command".to_owned(),
+        ])
+        .is_err()
+    );
+}
+
+#[test]
+fn process_benchmark_runner_reports_unavailable_command_as_errors() {
+    let spec = FixedWorkSpec::new("process.adapter.oneshot", 2, vec![1], 1).expect("valid spec");
+    let command =
+        ProcessBenchmarkCommand::new(vec!["praxis-command-that-is-not-installed".to_owned()])
+            .expect("unavailable executable is still a valid direct command");
+    let report = run_process_adapter(spec, command).expect("runner reports structured errors");
+    assert_eq!(report.samples.len(), 1);
+    assert_eq!(report.samples[0].completed_work_items, 2);
+    assert_eq!(report.samples[0].errors, 2);
+}
 
 #[test]
 fn queue_contention_runner_preserves_fixed_work_and_completeness() {
@@ -29,7 +73,7 @@ fn queue_contention_runner_preserves_fixed_work_and_completeness() {
 fn process_bridge_runner_preserves_fixed_work_and_joint_reap() {
     let spec =
         FixedWorkSpec::new("process.bridge.lifecycle", 8, vec![1, 2], 1).expect("valid spec");
-    let report = run_process_bridge(spec).expect("runner succeeds");
+    let report = run_process_bridge(spec, process_benchmark_command()).expect("runner succeeds");
     assert!(report.validate_complete().is_ok());
     assert_eq!(report.samples.len(), 2);
     assert!(report.samples.iter().all(|sample| {
@@ -362,7 +406,8 @@ fn agent_loop_batch_runner_rejects_invalid_batch_size() {
 #[test]
 fn process_adapter_runner_preserves_fixed_work_and_reports_execution_errors() {
     let spec = FixedWorkSpec::new("process.adapter.oneshot", 8, vec![1, 2], 1).expect("valid spec");
-    let report = run_process_adapter(spec).expect("process adapter runner succeeds");
+    let report = run_process_adapter(spec, process_benchmark_command())
+        .expect("process adapter runner succeeds");
     assert_eq!(report.samples.len(), 2);
     assert!(report.samples.iter().all(|sample| {
         sample.completed_work_items == 8
@@ -376,7 +421,8 @@ fn process_adapter_runner_preserves_fixed_work_and_reports_execution_errors() {
 fn managed_process_runner_preserves_fixed_work_and_reaps_handles() {
     let spec =
         FixedWorkSpec::new("process.managed.lifecycle", 16, vec![1, 2], 1).expect("valid spec");
-    let report = run_managed_process(spec).expect("managed runner succeeds");
+    let report =
+        run_managed_process(spec, process_benchmark_command()).expect("managed runner succeeds");
     assert!(report.validate_complete().is_ok());
     assert!(report.samples.iter().all(|sample| {
         sample.completed_work_items == 16

@@ -207,6 +207,7 @@ rust-agent-loop-batch-benchmark:
 	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
 		cargo run --manifest-path crates/Cargo.toml --release --bin rust-agent-loop-batch-bench
 
+# Process benchmarks construct an explicit direct self-child argv; no platform shell fallback is injected.
 rust-process-adapter-benchmark:
 	@PRAXIS_GIT_REVISION="$${PRAXIS_GIT_REVISION:-$$(git rev-parse --short HEAD 2>/dev/null || printf unknown)}" \
 		cargo run --manifest-path crates/Cargo.toml --release --bin rust-process-adapter-bench

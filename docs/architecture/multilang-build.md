@@ -413,6 +413,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   ProcessTable registration, capability authorization, AgentLoop execution, or
   runtime authority; long-lived process ownership remains an open adapter
   slice.
+- Process benchmark commands are injected as validated direct argv through
+  `ProcessBenchmarkCommand`; the runner does not choose a platform shell or
+  append shell switches. The benchmark binaries use a direct self-child argv
+  with a private marker so the Makefile targets remain runnable without a
+  host-specific command fallback. Empty argv and empty arguments are rejected
+  before any child can be spawned.
 - The Rust `managed_process` module is the bounded lifecycle candidate above
   that value adapter. It owns generation-safe child slots, direct-argv and
   terminal-derived-argv spawn, bounded output drain, caller-controlled stdin, observer `Pending`

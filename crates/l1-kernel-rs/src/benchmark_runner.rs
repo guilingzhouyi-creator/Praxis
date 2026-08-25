@@ -35,6 +35,8 @@ const WORKER_POOL_IDLE_TIMEOUT_MS: u64 = 100;
 const PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const MANAGED_PROCESS_BENCH_TIMEOUT_MS: u64 = 2_000;
 const PROCESS_GROUP_SWEEP_MEMBER_BUDGET: usize = 64;
+/// Argument marker used by process benchmark binaries for their direct child.
+pub const PROCESS_BENCHMARK_CHILD_ARG: &str = "--praxis-process-benchmark-child";
 
 type SnapshotPageReader<B> = dyn Fn(&B) -> Result<u64, &'static str> + Send + Sync;
 
@@ -48,6 +50,63 @@ struct ResourceSnapshot {
 enum QueueMode {
     Reject,
     Blocking,
+}
+
+/// Explicit direct argv configuration for process lifecycle benchmarks.
+///
+/// The runner never selects a platform shell, resolves a PATH default, or
+/// appends invocation switches. A caller must inject the exact executable and
+/// arguments that the host has already selected.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessBenchmarkCommand {
+    args: Vec<String>,
+}
+
+impl ProcessBenchmarkCommand {
+    /// Validate and retain a non-empty direct argument vector.
+    pub fn new(args: Vec<String>) -> Result<Self, &'static str> {
+        let Some(executable) = args.first() else {
+            return Err("process benchmark command requires an executable");
+        };
+        if executable.trim().is_empty() {
+            return Err("process benchmark executable cannot be empty");
+        }
+        if args.iter().skip(1).any(String::is_empty) {
+            return Err("process benchmark arguments cannot be empty");
+        }
+        if args
+            .iter()
+            .skip(1)
+            .any(|argument| is_shell_invocation_switch(argument))
+        {
+            return Err("process benchmark command must use direct argv");
+        }
+        Ok(Self { args })
+    }
+
+    /// Return the exact direct argv retained by this command.
+    pub fn args(&self) -> &[String] {
+        &self.args
+    }
+
+    /// Build a direct command that re-enters the current benchmark binary.
+    ///
+    /// The binary must handle [`PROCESS_BENCHMARK_CHILD_ARG`] before starting
+    /// its benchmark. This helper exists only for benchmark plumbing; it is
+    /// not a production process-dispatch default.
+    pub fn current_executable() -> Result<Self, &'static str> {
+        let executable = std::env::current_exe()
+            .map_err(|_| "current benchmark executable is unavailable")?
+            .to_string_lossy()
+            .into_owned();
+        Self::new(vec![executable, PROCESS_BENCHMARK_CHILD_ARG.to_owned()])
+    }
+}
+
+fn is_shell_invocation_switch(argument: &str) -> bool {
+    ["-c", "/c", "-command", "/command"]
+        .iter()
+        .any(|switch| argument.eq_ignore_ascii_case(switch))
 }
 
 /// Run a fixed-total multi-producer queue contention sweep.
@@ -511,17 +570,26 @@ fn run_agent_loop_mode(
 
 /// Run a fixed-total bounded one-shot ProcessPort sweep.
 ///
-/// Each item starts one short-lived direct-argument shell process. The runner
-/// measures the Rust adapter boundary only; it does not register a process in
-/// `ProcessTable`, attach a PTY, or grant execution authority to runtime code.
-pub fn run_process_adapter(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+/// Each item starts one short-lived direct-argument process from the injected
+/// command. The runner measures the Rust adapter boundary only; it does not
+/// select a shell, register a process in `ProcessTable`, attach a PTY, or
+/// grant execution authority to runtime code.
+pub fn run_process_adapter(
+    spec: FixedWorkSpec,
+    command: ProcessBenchmarkCommand,
+) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "total work does not fit the target architecture")?;
     let mut report = BenchmarkReport::new(spec.clone());
     for &workers in &spec.workers {
         let worker_count = usize::try_from(workers).map_err(|_| "worker count is not supported")?;
         for round in 0..spec.rounds {
-            report.push(run_process_adapter_round(total_work, worker_count, round)?)?;
+            report.push(run_process_adapter_round(
+                total_work,
+                worker_count,
+                round,
+                &command,
+            )?)?;
         }
     }
     report.validate_complete()?;
@@ -533,7 +601,10 @@ pub fn run_process_adapter(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'sta
 /// Each item owns one direct-argument child through spawn, wait, and reap. The
 /// report measures handle ownership and lifecycle overhead separately from the
 /// one-shot adapter workload; it does not attach a PTY or invoke policy.
-pub fn run_managed_process(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+pub fn run_managed_process(
+    spec: FixedWorkSpec,
+    command: ProcessBenchmarkCommand,
+) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "total work does not fit the target architecture")?;
     let max_processes =
@@ -547,6 +618,7 @@ pub fn run_managed_process(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'sta
                 worker_count,
                 round,
                 max_processes,
+                &command,
             )?)?;
         }
     }
@@ -559,7 +631,10 @@ pub fn run_managed_process(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'sta
 /// This keeps the ProcessTable bridge overhead separate from the managed-child
 /// baseline. The public handle is the table handle, and every item must pass
 /// through spawn, wait, and joint reap before it counts as completed.
-pub fn run_process_bridge(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
+pub fn run_process_bridge(
+    spec: FixedWorkSpec,
+    command: ProcessBenchmarkCommand,
+) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "total work does not fit the target architecture")?;
     let max_processes =
@@ -573,6 +648,7 @@ pub fn run_process_bridge(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'stat
                 worker_count,
                 round,
                 max_processes,
+                &command,
             )?)?;
         }
     }
@@ -707,12 +783,13 @@ fn run_managed_process_round(
     worker_count: usize,
     round: u32,
     max_processes: u32,
+    command: &ProcessBenchmarkCommand,
 ) -> Result<BenchmarkSample, &'static str> {
     let book = Arc::new(
         ManagedProcessBook::new(ProcessAdapterConfig::standard(), max_processes)
             .map_err(|_| "managed process book creation failed")?,
     );
-    let args = Arc::new(process_benchmark_args());
+    let args = Arc::new(command.args().to_vec());
     let next_work = Arc::new(AtomicU64::new(0));
     let resources_before = resource_snapshot();
     let started = Instant::now();
@@ -791,6 +868,7 @@ fn run_process_bridge_round(
     worker_count: usize,
     round: u32,
     max_processes: u32,
+    command: &ProcessBenchmarkCommand,
 ) -> Result<BenchmarkSample, &'static str> {
     let table = Arc::new(ProcessTable::new(ProcessTableConfig::new(
         total_work.saturating_mul(2).saturating_add(1),
@@ -807,7 +885,7 @@ fn run_process_bridge_round(
         )
         .map_err(|_| "process bridge creation failed")?,
     );
-    let args = Arc::new(process_benchmark_args());
+    let args = Arc::new(command.args().to_vec());
     let next_work = Arc::new(AtomicU64::new(0));
     let resources_before = resource_snapshot();
     let started = Instant::now();
@@ -888,9 +966,10 @@ fn run_process_adapter_round(
     total_work: usize,
     worker_count: usize,
     round: u32,
+    command: &ProcessBenchmarkCommand,
 ) -> Result<BenchmarkSample, &'static str> {
     let adapter = Arc::new(ProcessAdapter::default());
-    let args = Arc::new(process_benchmark_args());
+    let args = Arc::new(command.args().to_vec());
     let next_work = Arc::new(AtomicU64::new(0));
     let resources_before = resource_snapshot();
     let started = Instant::now();
@@ -950,25 +1029,6 @@ fn run_process_adapter_round(
         errors,
         resources: resource_delta(resources_before, resources_after),
     })
-}
-
-fn process_benchmark_args() -> Vec<String> {
-    #[cfg(unix)]
-    {
-        vec![
-            "/bin/sh".to_owned(),
-            "-c".to_owned(),
-            "printf process-benchmark".to_owned(),
-        ]
-    }
-    #[cfg(windows)]
-    {
-        vec![
-            "cmd.exe".to_owned(),
-            "/C".to_owned(),
-            "echo process-benchmark".to_owned(),
-        ]
-    }
 }
 
 /// Run a fixed-total per-frame terminal mailbox sweep.

@@ -1084,6 +1084,14 @@ children in `ProcessTable`, provide PTY or process-group semantics, reap
 long-lived handles, evaluate GateChain/capability policy, or execute AgentLoop
 work. Those responsibilities require a separate ownership and cutover design.
 
+The process benchmark runner itself has no platform command fallback. Its
+`ProcessBenchmarkCommand` requires a caller-injected, non-empty direct argv;
+the three process benchmark binaries use their own executable plus a private
+child marker as that explicit command. This keeps benchmark plumbing runnable
+without selecting `/bin/sh`, `cmd.exe`, or any invocation switches inside L1.
+Empty executable and empty-argument configurations fail closed in the
+independent benchmark-runner test target.
+
 The Rust `managed_process` candidate is the bounded lifecycle owner above the
 one-shot value adapter. It reserves a generation-safe slot before spawning,
 owns direct-argv and terminal-derived-argv children plus bounded output readers, exposes caller
