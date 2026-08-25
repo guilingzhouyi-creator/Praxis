@@ -57,15 +57,16 @@
 - L1 `kernel.settings` 只作默认值只读面；ACB 槽位写属绑定域保留。
 - 收敛点：`/config`、`/settings global`、`/ci set`、`/ci toggle`。
 
-### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接；**08-23 在 feature/l2-ts-rewrite 恢复并扩展，待合入 main**）
+### 1.5 TS 引擎（P3）— ✅ 完成（引擎 + 四 transport + WS 对接；08-23 恢复并扩展，**已合入 main**——2026-08-25 复核）
 
-> ⚠️ **恢复记录（2026-08-23）**：引擎 2026-08-21 合入 main 后，于 08-22
+> ⚠️ **恢复记录（2026-08-23；状态已于 2026-08-25 更新）**：引擎 2026-08-21 合入 main 后，于 08-22
 > 被 `edc5caa6`（GPT-5，`refactor(l2): align language protocol boundary`）
 > 整体移除，仅保留 envelope/records 协议镜像；同时把 TS `Outbox.ack`
 > 改为破坏性 shift（与 Python3 单真相源非破坏性 ack 漂移）。08-23 在
 > `feature/l2-ts-rewrite` `21a118cf` 恢复全部引擎文件 + 测试，并回退 ack
-> 漂移，随后按 `l2-ts-rewrite-mapping.md` 三批完成全层重写（11 提交，
-> Vitest 62，e2e 真实 host 绿），**待合入 main**。
+> 漂移，随后按 `l2-ts-rewrite-mapping.md` 三批完成全层重写。**该恢复及三批/分支扩展现已全部合入
+> main（engine/ 30+ 模块），旧"待合入 main"表述作废**。注意：P1 的 `bridge.py` 与 P2 的
+> `projection.py` 未随恢复回补，仍不在 main（见 §1.1 注记与路线图 §6.2/§6.3 复核）。
 
 | 模块（`packages/protocol-ts/src/engine/`） | 状态 |
 |---|---|
@@ -235,7 +236,7 @@ i18n：`src/i18n.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwar
 1. **P3 收尾**：真实 SSH 端点接入（远端 stdio host 已通，按需）+ 五前端矩阵真实接入。
 2. ✅ **协议 host 优化**（python-perf + l2-perf-hotpath 已合入 main）：per-session 水位索引、ws 桥 dict 直入、command args 直入、会话类缓存、常量化配置驱动——全景见 §1.9。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
-4. **合入/推送**：双绿后 `MERGE_GATE_SKIP` 决策由用户授权；`make push-both` 双推前确认网络。
+4. ✅ **合入**：恢复分支（21a118cf + 三批 + P4 扩展）已合入本地 main（2026-08-25 复核）；双推 `make push-both` 由操作员择机执行。
 5. ✅ **文档/架构预留合入**：§1.9/§1.10 与路线图 §8 预留已合入 main（2026-08-21），分支已清理。
 
 ---

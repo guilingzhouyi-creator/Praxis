@@ -1,6 +1,6 @@
 # Praxis Kernel Boundary Audit — Rust 重写前置基线
 
-> 状态：规划（审计基线，尚未实施）
+> 状态：进行中（审计基线已定稿；§11.2 Phase 0/1 封口与 Phase 2 候选切片已实施——剩余 B4/B6/B8/B9 与 G3/G6 待闭环，进度见 §11.2 与 `production-closure-roadmap.md` P0.5/P0.6）
 > 关联：`docs/roadmaps/frontend-kernel-roadmap.md`（Rust 下沉内核）、`docs/roadmaps/multilang-migration.md`（Rust kernel 槽位）、`docs/architecture/l1-kernel.md`（Rust-sink readiness）
 > 目的：在 Rust 重写 L1 之前固定 Kernel 边界判定，避免把当前 Python3 内核的错误边界、绕过路径与 fail-open 行为**原样复制进 `l1_kernel_rs`**。
 
