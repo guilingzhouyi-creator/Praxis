@@ -939,11 +939,13 @@ rejections, and measured about 708/1401/2752 ops/s at 1/2/4 workers (p95
 roughly 1.55/1.57/1.63 ms). This is still an R3 ownership candidate: PTY,
 process-group termination, production reaper authority, GateChain/capability
 admission, AgentLoop execution, Rust boot, and runtime cutover remain open.
-The bridge also exposes a bounded `reap_finished` sweep for a future caller-
-owned reaper: it never blocks on live children, reports pending/unavailable/
-error counts, and consumes terminal managed slots even when an external table
-transition must be reported. This is a mechanism seam only; it does not start
-a background thread or claim production shutdown/reaper authority.
+The bridge also exposes a bounded `reap_finished(max_bindings)` sweep for a
+future caller-owned reaper: stable raw-handle selection never exceeds the
+caller budget, it never blocks on live children, reports
+pending/unavailable/error counts, and consumes terminal managed slots even
+when an external table transition must be reported. Zero budgets fail closed.
+This is a mechanism seam only; it does not start a background thread or claim
+production shutdown/reaper authority.
 
 The `process_group::ProcessGroupBook` candidate adds the next typed ownership
 seam: generation-safe membership, deterministic stop plans, terminal member

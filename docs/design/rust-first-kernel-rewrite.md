@@ -268,11 +268,12 @@ ownership seam. PTY, process groups, a production reaper, GateChain/capability
 admission, AgentLoop execution, boot ownership, and R4/R5 cutover remain
 required before any process adapter pilot.
 
-The bridge now also provides a bounded `reap_finished` sweep for a future
-caller-owned reaper. It snapshots handles, observes with a zero deadline, and
-never blocks on live children. A table transition conflict still consumes the
-terminal managed slot before returning an error count, so the sweep cannot
-leave an unrepeatable binding behind. No background thread, shutdown hook, or
+The bridge now also provides a bounded `reap_finished(max_bindings)` sweep for
+a future caller-owned reaper. It selects stable raw handles up to the caller
+budget, observes with a zero deadline, and never blocks on live children. A
+table transition conflict still consumes the terminal managed slot before
+returning an error count, so the sweep cannot leave an unrepeatable binding
+behind; zero budgets fail closed. No background thread, shutdown hook, or
 production reaper authority is introduced by this candidate.
 
 The next process-group candidate is `process_group::ProcessGroupBook` with

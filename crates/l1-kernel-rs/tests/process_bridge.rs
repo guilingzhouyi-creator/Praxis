@@ -171,7 +171,7 @@ fn finished_reaper_sweep_does_not_block_on_live_children() {
         .wait(finished, Duration::from_secs(1))
         .expect("finished wait");
 
-    let report = bridge.reap_finished();
+    let report = bridge.reap_finished(2).expect("bounded reap");
     assert_eq!(
         report,
         l1_kernel_rs::process_bridge::ProcessReapReport {
@@ -187,7 +187,7 @@ fn finished_reaper_sweep_does_not_block_on_live_children() {
     bridge
         .terminate(live, Duration::from_secs(1))
         .expect("terminate");
-    let terminal = bridge.reap_finished();
+    let terminal = bridge.reap_finished(1).expect("terminal reap");
     assert_eq!(terminal.reaped, 1);
     assert_eq!(terminal.errors, 0);
     assert_eq!(bridge.active_count(), 0);
@@ -205,12 +205,30 @@ fn reaper_cleans_managed_child_after_external_table_transition() {
         Err(ProcessBridgeError::TableTransition)
     );
 
-    let report = bridge.reap_finished();
+    let report = bridge.reap_finished(1).expect("reap conflict");
     assert_eq!(report.inspected, 1);
     assert_eq!(report.reaped, 0);
     assert_eq!(report.errors, 1);
     assert_eq!(bridge.active_count(), 0);
     assert!(table.get_by_handle(handle).is_none());
+}
+
+#[test]
+fn finished_reaper_rejects_zero_budget_without_touching_children() {
+    let (bridge, table) = setup(1);
+    let handle = bridge
+        .spawn_args(&shell_args("sleep 0.05"), None)
+        .expect("spawn");
+    assert_eq!(
+        bridge.reap_finished(0),
+        Err(ProcessBridgeError::InvalidReapBudget)
+    );
+    assert_eq!(bridge.active_count(), 1);
+    assert!(table.get_by_handle(handle).is_some());
+    bridge
+        .terminate(handle, Duration::from_secs(1))
+        .expect("terminate");
+    bridge.reap_finished(1).expect("reap terminal");
 }
 
 #[test]

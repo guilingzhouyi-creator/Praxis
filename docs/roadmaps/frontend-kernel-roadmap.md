@@ -661,14 +661,15 @@ GateChain/capability、AgentLoop 与 runtime authority 仍未接入；one-shot s
 managed child handle 仅在桥内保存。spawn 先登记 READY PCB，host spawn 成功后才转 RUNNING；spawn 失败
 同时回滚 PCB，wait/terminate 将终态写为 ZOMBIE，joint reap 同时释放 managed slot 与表项。表项被外部
 owner 先行回收时，桥返回结构化 `TableReap`，但无论如何释放已消费的 binding，避免不可重试的句柄泄漏；
-多个 bridge 共享同一表时使用唯一 registration name。独立 `tests/process_bridge.rs` 共覆盖 9 项生命周期、
+多个 bridge 共享同一表时使用唯一 registration name。独立 `tests/process_bridge.rs` 共覆盖 10 项生命周期、
 回滚、并发和共享表测试，`process.bridge.lifecycle` 使用 256 items、1/2/4 workers、3 rounds 的固定总量
 基准，全部样本 0 error/0 rejection；当前未锁定 Linux x86_64 release 中位吞吐约 708/1401/2752 ops/s，
 p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得视为 runtime authority；PTY、进程组终止、
 生产 reaper、GateChain/capability、AgentLoop execution、Rust boot 与 R4/R5 clean cutover 继续列为硬门。
-同时新增 bounded `reap_finished` sweep：只观察已经结束的 child，不阻塞 live child，返回 inspected/reaped/
-pending/unavailable/errors 计数；遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的
-binding 泄漏。它是未来 caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
+同时新增 bounded `reap_finished(max_bindings)` sweep：按稳定 raw handle 选择且不超过调用方预算，只观察已经
+结束的 child，不阻塞 live child，返回 inspected/reaped/pending/unavailable/errors 计数；零预算 fail-closed。
+遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的 binding 泄漏。它是未来
+caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
 
 随后新增 `process_group::ProcessGroupBook` 与 `ProcessReaper` 候选：以 generation-safe
 `ProcessHandle` 建立唯一分组归属，冻结 Active/Draining/Stopped/Failed 状态、确定性停止计划、成员终态
