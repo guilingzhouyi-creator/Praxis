@@ -199,9 +199,17 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
     reg = agents.get(agent_name.lower())
     if not reg:
         known = ", ".join(sorted(agents)) or "<none registered>"
-        return [f"agent '{agent_name}' not registered — known agents: {known}"]
+        return [
+            f"agent '{agent_name}' not registered — known agents: {known}. "
+            "DO NOT GUESS OR IMPERSONATE: If you are running an unregistered agent, "
+            "STOP and notify the human user to register your identity in config/discovery/commits.yaml."
+        ]
     if model not in reg.get("models", []):
-        return [f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))})"]
+        return [
+            f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))}). "
+            "DO NOT GUESS OR IMPERSONATE: If this is a new model, "
+            "STOP and notify the human user to register it in config/discovery/commits.yaml."
+        ]
 
     # Live-runtime cross-check against EXECUTION EVIDENCE.
     #   - evidence A (session log, confidence high): the model is PROVEN — a
@@ -218,21 +226,23 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
             if det_model != model.lower():
                 violations.append(
                     f"model mismatch: trailer says '{model}' but the session log proves '{detected.get('model')}' "
-                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — attribute the ACTUAL runner",
+                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — "
+                    "DO NOT GUESS OR IMPERSONATE: Attribute the ACTUAL running model.",
                 )
         elif det_conf == "low" or det_conf == "none":
             # No execution evidence — a specific model claim cannot be proven.
             violations.append(
                 f"unverifiable model claim: '{model}' cannot be confirmed by execution evidence "
-                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — run the session "
-                "inside a framework whose log records the model, or use an operator pin (PRAXIS_AUTHOR/PRAXIS_MODEL)",
+                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — "
+                "DO NOT GUESS OR IMPERSONATE: Do NOT grab an arbitrary registered agent/model from commits.yaml. "
+                "If you are running in a new framework or model, STOP and prompt the user to register your identity in "
+                "config/discovery/commits.yaml or set PRAXIS_AUTHOR / PRAXIS_MODEL operator pins.",
             )
-        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode"):
-            # AtomCode/OpenCode are the project's established author aliases;
-            # the detector's framework name may differ (dsh vs the git alias).
+        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode", "gemini", "antigravity"):
+            # AtomCode/OpenCode/Antigravity/Gemini aliases check
             violations.append(
                 f"agent mismatch: trailer says '{agent_name}' but the live session reports '{detected.get('agent')}' "
-                f"(framework={detected.get('framework')})",
+                f"(framework={detected.get('framework')}) — attribute your ACTUAL running identity.",
             )
     return violations
 

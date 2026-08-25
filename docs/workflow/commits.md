@@ -26,14 +26,16 @@ source of truth for the Conventional-Commits contract.
   - **Config declaration** (`~/.dsh/settings.yaml`) is only a
     LOW-confidence fallback: what the deployment configures is NOT proof
     of what this commit ran.
-  - **Other frameworks** (OpenCode/Claude/AtomCode) are identified by
+  - **Other frameworks** (OpenCode/Claude/AtomCode/Antigravity/Gemini) are identified by
     env/process-chain, but without their own session evidence the model is
     unknown — a specific model claim is rejected as unverifiable.
   - An operator pin (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`) is a deliberate,
     trusted override, still not execution proof.
-  Before writing a trailer, the agent MUST run
-  `python scripts/py/detect_agent.py --json` and name the evidence-backed
-  framework/model — do not read settings.yaml and paste its model.
+  - **Anti-Impersonation & Self-Introspection Rule**: Before authoring a trailer, the agent MUST run
+    `python scripts/py/detect_agent.py --json` to probe its live runtime identity. Agents MUST NEVER
+    randomly grab registered names from `commits.yaml`. If the agent or model is unregistered in
+    `commits.yaml` or unverifiable, the agent MUST stop and prompt the user for registry addition or
+    explicit environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
 - **Subject format is normalized**: lowercase start, no markdown (`**`/`` ` ``/`_`),
   no trailing period, ≤ 72 chars — plain text, never rendered markup.
 
