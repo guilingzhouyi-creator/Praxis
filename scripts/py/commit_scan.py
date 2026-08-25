@@ -462,10 +462,9 @@ def main() -> int:
             subject = args.msg.splitlines()[0] if args.msg else ""
             violations += validate_subject(subject, branch=args.branch)
             parsed = parse_subject(subject)
-            staged = _staged_files()
+            staged = _staged_files() if args.check_content else []
             if parsed and staged:
-                # Content checks only fire when there ARE staged files —
-                # an empty index (test context / --msg-only) skips them.
+                # Content checks only fire when --check-content is requested and staged files exist
                 ctype, cscope, _summary = parsed
                 violations += validate_type_content(ctype, staged)
                 violations += validate_scope_content(cscope, staged)
