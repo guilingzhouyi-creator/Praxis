@@ -372,14 +372,14 @@ class ModelService:
                 from l1.kernel.params.api import EFFORT_RANK
 
                 if tier not in EFFORT_RANK:
-                    return {"success": False, "error": f"invalid tier: {tier} (none|low|medium|high|xhigh|max)"}
+                    return {"success": False, "error": f"{_t('shell.app_error.model_invalid_tier')}: {tier}"}
             except Exception:
                 pass
             sc.set("think.max_reasoning", tier)
             updated.append("max_reasoning")
         if max_budget is not None:
             if max_budget < 0:
-                return {"success": False, "error": "max_budget must be >= 0"}
+                return {"success": False, "error": _t("shell.app_error.model_budget_negative")}
             sc.set("think.max_budget", max_budget)
             updated.append("max_budget")
         return {
