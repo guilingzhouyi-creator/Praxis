@@ -56,6 +56,7 @@
 | 2026-08-25 | scripts/sh/verify-completion.sh + tests/conftest.py + CHANGELOG.md | Antigravity | normalize conftest imports for ruff, bound WSL judge workers, refresh changelog | in feature/judge-stats-hardening (6f6d924f) |
 | 2026-08-25 | scripts/sh/verify-main-merge-gate.sh | Antigravity | support user-granted MERGE_GATE_SKIP waiver with mandatory MERGE_GATE_REASON | in feature/judge-stats-hardening (this commit) |
 | 2026-08-25 | config/discovery/commits.yaml + commits.json + scripts/py/gen_commits_json.py + commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_scan.py | OpenCode (ox-alpha) | single-source imperative verb list: `non_imperative_verbs` key in registry, mirror regenerated, py/mjs consume it (inline fallback only) | in feature/opencode-gate-hygiene (this commit) |
+| 2026-08-25 | scripts/sh/verify-completion.sh + judge-stats.sh + tests/infra/test_judge_stats.py | OpenCode (ox-alpha) | waived net-delta honesty: MERGE_GATE_SKIP pass recorded as delta_waived=1, aggregated as delta_waived_runs (+ dashboard notice); drop dead XDIST_ARGS WSL branch | in feature/opencode-gate-hygiene (this commit) |
 
 ## Clobber warnings (do not repeat)
 

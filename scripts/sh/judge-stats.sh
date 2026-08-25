@@ -223,6 +223,12 @@ for k, vals in metric_series.items():
 # (anti "forgot the tests": the dashboard surfaces skipped tests).
 skipped_tests_count = sum(1 for r in rows if r.get("skipped_tests") == 1)
 
+# Delta-waiver count — judge runs whose net-delta check passed via the
+# MERGE_GATE_SKIP waiver (not because the branch qualified). A waived pass
+# is honest evidence of a user-granted exemption, never of a qualifying
+# delta; surfacing it keeps completion statistics from absorbing waivers.
+delta_waived_count = sum(1 for r in rows if r.get("delta_waived") == 1)
+
 # ── C: gate-exemption count from git history ──────────────────────────
 # MERGE_GATE_SKIP=1 waivers leave an audit trail in merge messages
 # (push-both requires MERGE_GATE_REASON). Count them per COMMIT (one record
@@ -258,6 +264,7 @@ if as_json:
         "mode_runs": {"full": len(full_runs), "fast": len(fast_runs)},
         "max_incomplete_streak": max_streak,
         "gate_exemptions": exemptions,
+        "delta_waived_runs": delta_waived_count,
         "failures_by_check": dict(fail_counter),
         "branch_stats": {b: {"runs": s["runs"], "complete": s["complete"], "rate": round(s["complete"] / s["runs"], 3)} for b, s in branch_stats.items()},
         "check_pass_rates": {chk: {"pass": p, "executed": n, "rate": round(p / n, 3)} for chk, (p, n) in check_pass.items()},
@@ -280,6 +287,8 @@ if as_md:
         lines.append(f"**Skipped tests notice**: tests skipped in {skipped_tests_count} judge run(s) (full mode / WSL slice-serial required before merge)")
     if exemptions:
         lines.append(f"**Gate exemptions** (MERGE_GATE_SKIP commits in history): {exemptions}")
+    if delta_waived_count:
+        lines.append(f"**Waived delta passes**: {delta_waived_count} judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)")
     lines.append("")
     lines.append("| Date | Runs | Complete | Rate |")
     lines.append("|---|---|---|---|")
