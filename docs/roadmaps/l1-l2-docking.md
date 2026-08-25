@@ -1,9 +1,11 @@
 # L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）
 
-> Status: approved plan (操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核)
+> Status: in progress（操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核。
+> 2026-08-25 复核：D0 语义修复与 D1a–D1d 机制候选已落 main——F1 已修复、`host_dispatch.rs`/`outbox_registry.rs`/
+> `session_lifecycle.rs`/`session_identity.rs` 与 `rust-protocol-host` bin 在库并有独立测试域；D2 缝合（TS↔Rust e2e）未启动）
 > 关联: `l2-ts-rewrite-mapping.md` §5 割接标准 · `frontend-kernel-roadmap.md` §4 Rust 路线 ·
-> `kernel-boundary-audit.md` 绕过路径清单 · `rust-first-kernel-rewrite.md` R0–R5 门槛
-> 审查基线: main @ e1f0dc10（2026-08-23 深度审查结论）
+> `kernel-boundary-audit.md` 绕过路径清单 · `rust-first-kernel-rewrite.md` R0–R5 门槛 · 施工载体 `../design/l1l2-docking-execution-plan.md`
+> 审查基线: main @ e1f0dc10（2026-08-23 深度审查结论）；复核基线 main @ 123b22d2
 
 ## 0. 目标与范围
 
@@ -23,9 +25,9 @@
 
 | # | 发现 | 严重度 | 位置 |
 |---|---|---|---|
-| F1 | Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量——与 08-22 edc5caa6 TS 漂移同类 | 🔴 阻断 | `crates/l1-kernel-rs/src/protocol.rs:889` |
-| F2 | Rust 侧只有协议验证门（`protocol_host.rs` 不分派/不执行/不持会话）；`rust-protocol-gate` bin 为回声器 | 🟠 缺口 | 同上 + `crates/l1-kernel-rs/src/bin/rust-protocol-gate.rs` |
-| F3 | 地基成熟度超预期：60 个 Rust 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS 传输缝环境变量选 host，零改动可换 | 🟢 利好 | `crates/l1-kernel-rs/src/` |
+| F1 | ~~Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量~~ **✅ 已修复（落 main）**：`Outbox::ack` 改为 `last_acked` 单调推进的游标式非破坏 ack，per-view cursor 与共享水位=最落后视图已实现；多视图重放回归由独立测试域覆盖（`tests/outbox_registry.rs`、`tests/session_lifecycle.rs`） | ✅ 关闭 | `crates/l1-kernel-rs/src/protocol.rs` |
+| F2 | ~~Rust 侧只有协议验证门；`rust-protocol-gate` bin 为回声器~~ **✅ 已补齐（机制级）**：`host_dispatch.rs` 提供 KIND 逐类路由 + gatechain/capability 裁决 + ring 门控 `__system` 命令（边界审计 B4 在新边界的关闭载体）+ 审计接线 + L3 上游透传管道；`bin/rust-protocol-host.rs` 镜像 Python host I/O 契约（行协议、1 MiB 帧上限、stderr 错误通道）。仍未接入生产 boot/Port | 🟢 机制闭合 | `crates/l1-kernel-rs/src/host_dispatch.rs`、`crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` |
+| F3 | 地基成熟度超预期：约 68 个 Rust src 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS 传输缝环境变量选 host，零改动可换。协议 v1 跨语言 conformance 向量已从 TS 引擎冻结（`tests/fixtures/protocol_v1_conformance.json`，逐字节比对） | 🟢 利好 | `crates/l1-kernel-rs/src/` |
 
 ## 3. 阶段计划 D0–D3
 
@@ -36,6 +38,10 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 
 ### D0 — 语义修复（前置阻断项）
 
+> 状态（2026-08-25 复核）：D0.1 ✅ 游标式非破坏 ack；D0.2 ✅ 共享水位=最落后视图；
+> D0.3 ✅ 协议 v1 conformance 向量已冻结并逐字节比对（参考源为 TS 引擎 normative fixture，
+> 强于原 Python host 参考方案）；D0.4 ⏳ seq u64/i64 边界与回绕向量待专项收口。
+
 | 任务 | 验收 |
 |---|---|
 | D0.1 Rust `Outbox::ack` 改游标式非破坏性（消息保留，仅 last_acked 单调推进） | 多视图重放测试：视图 A ack 不抹除视图 B 重放窗口 |
@@ -44,6 +50,12 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | D0.4 seq 类型统一审查（u64/i64 混用、maxSeq 回绕边界） | 回绕向量用例双端通过 |
 
 ### D1 — Rust 协议主机（工程主体）
+
+> 状态（2026-08-25 复核）：D1a–D1d 机制候选均已落 main——`session_identity.rs`（三分离身份）、
+> `session_lifecycle.rs`（会话 FSM+视图注册表）、`outbox_registry.rs`（per-session outbox+per-view 游标）、
+> `host_dispatch.rs`（KIND 路由+gatechain/capability 裁决+ring 门控 `__system`+审计+L3 透传管道）、
+> `bin/rust-protocol-host.rs`（stdio host）。独立测试域覆盖路由矩阵、ring 门控系统命令（B4 新边界关闭载体）、
+> R2/R4/R7 裁决、持久化审计行与 golden vector。仍未接入 boot/Port/生产入口，不解除 G3/G6。
 
 | 子阶段 | 内容 | 复用 | 新建 |
 |---|---|---|---|
@@ -55,6 +67,9 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 **架构红利**：`$` 系统命令走线缆时强制携带 ring/danger 元数据并由 Rust capability 门裁决——边界审计 B4 绕过在新边界上天然闭合。
 
 ### D2 — TS↔Rust 缝合（机械性）
+
+> 状态（2026-08-25 复核）：⏳ 未启动——`packages/protocol-ts/` 全库无 `PRAXIS_RUST_HOST`
+> 开关；D2.3 的帧上限契约钉已有 Rust 侧 1 MiB 常量（`protocol_host.rs`），Python 侧上限待验证对齐。
 
 | 任务 | 验收 |
 |---|---|

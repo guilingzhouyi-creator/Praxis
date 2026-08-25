@@ -1,8 +1,9 @@
 # Engineering Debug Mode Roadmap (3.5)
 
-> Status: implementation merged, P1 gaps open. This roadmap records the
-> completion boundary for 3.5 and the work required before it can be marked
-> complete. Review evidence: [engineering-debug-review](../design/reviews/2026-08-16-engineering-debug-review.md).
+> Status: implementation merged, P1 gaps open (P1-C closed — see §3). This
+> roadmap records the completion boundary for 3.5 and the work required before
+> it can be marked complete. Review evidence:
+> [engineering-debug-review](../design/reviews/2026-08-16-engineering-debug-review.md).
 
 ## 1. Scope and decision
 
@@ -37,7 +38,7 @@ while the P1 findings below must be closed before the status changes to
 |---|---|---|---|
 | P1-A | **Generic settings bypass identity checks.** `/api/v2/settings` and `/settings global set` can write `engineering_debug.*`, including `marker_file`, without the dedicated developer/ring gate. | Route every engineering-debug write through one authorization service. Ordinary settings writes must reject the namespace, and marker paths must be constrained to the deployment workspace and regular files. | Unauthorized API and L2 tests; authorized developer/ring-3 tests; traversal, outside-workspace, and symlink rejection tests. |
 | P1-B | **Hardware input monitoring is not implemented.** The runtime currently has only `NoopInputActivityPort` and `FakeInputActivityPort`. | Add platform adapters behind `InputActivityPort` for keyboard and pointer activity, with explicit permission/unavailable states and an aggregate-only contract. | Linux/WSL adapter smoke test (or deterministic unavailable result); no raw input in snapshots, logs, persistence, or events. |
-| P1-C | **Provider start failure leaves false enablement.** A `False` return from `provider.start()` can persist `enabled=True`. | Treat provider startup as transactional: on failure roll back `_enabled` and persisted configuration, return a failed result, and expose `enabled=False`. | Failure-injection test asserts persisted/effective state and restart behavior. |
+| P1-C | ~~**Provider start failure leaves false enablement.** A `False` return from `provider.start()` can persist `enabled=True`.~~ **✅ Closed** — enablement is now transactional: `_enabled` is claimed only when `provider.start()` succeeds, rolled back to the previous state on failure, and the persisted setting is synced (`rolled_back` reported). | Treat provider startup as transactional: on failure roll back `_enabled` and persisted configuration, return a failed result, and expose `enabled=False`. | `src/l3/tool_system/input_activity.py` `sync_from_mode`/`set_enabled` implement the P1.6 transactional enable (shipped with agent-os-3x-closure Slice E); input-activity slice tests cover it (`tests/l3/tool_system/test_input_activity.py`). |
 | P1-D | **Production mode can read engineering prompt details.** Prompt status/listing is not gated even though prompt writes are gated. | In production, return only redacted metadata (or an explicit unavailable result); expose layers/previews/versions only after the engineering-mode gate. | Production read test proves no prompt text, preview, or overlay version leaks; debug read test remains available to authorized callers. |
 | P1-E | **Input privacy configuration can drift from the invariant.** `capture_content` is configurable while status surfaces hard-code `False`. | Make the privacy invariant single-source: remove the writable setting or reject `True`, return an explicit `disabled_by_policy` state, and test all config layers. | Config mutation test; status/API/L2 output and persisted state agree; raw-content regression test. |
 
