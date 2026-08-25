@@ -59,29 +59,16 @@ if (summary.endsWith(".")) {
 
 // Imperative-mood guard — the verb list lives in commits.yaml
 // `non_imperative_verbs` (single source, mirrored into commits.json by
-// gen_commits_json.py); the inline fallback only covers a missing key.
-const FALLBACK_NON_IMPERATIVE = [
-  "added", "adding", "fixes", "fixed", "fixing",
-  "updated", "updating", "updates",
-  "changes", "changed", "changing",
-  "modified", "modifying", "modifies",
-  "refactored", "refactoring", "refactors",
-  "improves", "improved", "improving",
-  "removes", "removed", "removing",
-  "deletes", "deleted", "deleting",
-  "makes", "made", "making",
-  "creates", "created", "creating",
-  "implements", "implemented", "implementing",
-  "hardens", "hardened", "hardening",
-  "enforces", "enforced", "enforcing",
-  "handles", "handled", "handling",
-  "resolves", "resolved", "resolving",
-  "prevents", "prevented", "preventing",
-  "allows", "allowed", "allowing",
-  "avoids", "avoided", "avoiding",
-  "cleans", "cleaned", "cleaning",
-];
-const NON_IMPERATIVE = new Set(policy.non_imperative_verbs || FALLBACK_NON_IMPERATIVE);
+// gen_commits_json.py). A mirror missing the key is a drift failure, not a
+// fallback case: fail closed and ask for a resync so the Node validator can
+// never silently diverge from the Python engine (commit_scan.py).
+if (!Array.isArray(policy.non_imperative_verbs)) {
+  console.error(
+    '❌ commits.json is missing "non_imperative_verbs" — run `python scripts/py/gen_commits_json.py` to resync the mirror from commits.yaml'
+  );
+  process.exit(1);
+}
+const NON_IMPERATIVE = new Set(policy.non_imperative_verbs);
 const firstWord = (summary.split(/\s+/)[0] || "").toLowerCase().replace(/[:,.-]+$/, "");
 if (NON_IMPERATIVE.has(firstWord)) {
   console.error(`❌ non-imperative verb "${firstWord}" in summary — use imperative present tense (e.g. "add", "fix", "update", "refactor", "remove", "harden", "enforce")`);
@@ -90,16 +77,15 @@ if (NON_IMPERATIVE.has(firstWord)) {
 
 // ── 4. must_include — staged files must match the type's content rule ───
 // Rules come from commits.yaml via the commits.json mirror (single source of
-// truth shared with commit_scan.py); inline defaults are the fallback.
-const FALLBACK_TYPE_RULES = {
-  feat: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
-  fix: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
-  refactor: ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"],
-  perf: ["src/", "crates/", "packages/"],
-  test: ["tests/", "crates/", "packages/"],
-  ci: [".github/"],
-};
-const TYPE_RULES = policy.type_content_rules || FALLBACK_TYPE_RULES;
+// truth shared with commit_scan.py). A mirror missing the key is a drift
+// failure, not a fallback case: fail closed and ask for a resync.
+if (!policy.type_content_rules || typeof policy.type_content_rules !== "object") {
+  console.error(
+    '❌ commits.json is missing "type_content_rules" — run `python scripts/py/gen_commits_json.py` to resync the mirror from commits.yaml'
+  );
+  process.exit(1);
+}
+const TYPE_RULES = policy.type_content_rules;
 const rule = TYPE_RULES[type];
 const prefixes = Array.isArray(rule) ? rule : (rule && rule.must_include) || [];
 if (prefixes.length) {

@@ -15,7 +15,7 @@ set -euo pipefail
 #   4. Docs sync    — doc-stats drift gate clean (check_doc_stats.py)
 #   5. Lint/type    — ruff check + mypy clean
 #   6. Audit        — pip-audit dependency CVE scan clean
-#   7. Complexity   — no functions longer than 200 lines
+#   7. Complexity   — at most 12 functions longer than 200 lines
 #   8. Import cycle — import_cycle_check.py clean
 #   9. Singleton    — scan_singletons.py vs conftest _RESETS in sync
 #  10. Changelog    — CHANGELOG [Unreleased] present and fresh

@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))  # noqa: E402
 
 from commit_scan import (  # noqa: E402
+    _TYPE_CONTENT_RULES,
     body_advisories,
     load_policy,
     parse_subject,
@@ -106,6 +107,23 @@ def test_registry_verb_list_matches_fallback():
     # inline fallback so the Node mirror and the Python engine agree.
     registered = set(policy().get("non_imperative_verbs") or [])
     assert registered == set(_fallback_verbs())
+
+
+def test_registry_type_content_rules_match_fallback():
+    # Drift guard: the committed registry's type-to-file rules must match the
+    # inline fallback so the Node mirror and the Python engine agree. A rule
+    # added to commits.yaml without updating _TYPE_CONTENT_RULES would let the
+    # two engines diverge on what a type may touch.
+    registered = policy().get("type_content_rules") or {}
+    for ctype, rule in _TYPE_CONTENT_RULES.items():
+        reg_rule = registered.get(ctype)
+        assert reg_rule is not None, f"type_content_rules missing '{ctype}' in registry"
+        reg_prefixes = reg_rule if isinstance(reg_rule, list) else reg_rule.get("must_include", [])
+        assert reg_prefixes == rule["must_include"], (
+            f"type '{ctype}' prefix drift: registry={reg_prefixes} fallback={rule['must_include']}"
+        )
+    # Every registry rule must also exist in the fallback (no orphan registry rules).
+    assert set(registered.keys()) == set(_TYPE_CONTENT_RULES.keys())
 
 
 def _fallback_verbs():
