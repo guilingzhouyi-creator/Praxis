@@ -423,6 +423,13 @@ bottleneck. The unpaired host sample is evidence only: it does not promote a
 scaling policy or grant L2/TS, AgentLoop, provider, PTY, or production-entry
 authority.
 
+`KernelRuntime::reap_finished` adds a bounded caller-driven reaper seam. It
+selects at most the requested number of task handles, releases only tasks
+already in a terminal runtime state, and reports pending, unavailable, and
+scheduler-error outcomes without blocking on live work. A zero budget is
+rejected; the method does not start a background thread, change lifecycle
+state, or claim production shutdown authority.
+
 `submit_batch` reserves and registers every process handle before one grouped
 WorkerPool handoff; an incomplete reservation rolls back every earlier handle
 before a closure can execute. `run_runtime_batch` and

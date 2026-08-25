@@ -89,6 +89,21 @@ pub struct RuntimeSnapshot {
     pub worker_stats: BTreeMap<String, Value>,
 }
 
+/// Result of one bounded caller-driven runtime reaper sweep.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeReapReport {
+    /// Number of task handles selected within the requested budget.
+    pub inspected: u64,
+    /// Number of terminal tasks whose scheduler slots were released.
+    pub reaped: u64,
+    /// Number of selected tasks that were still ready or running.
+    pub pending: u64,
+    /// Number of handles removed concurrently before this sweep could reap them.
+    pub unavailable: u64,
+    /// Number of terminal tasks whose scheduler slot could not be released.
+    pub errors: u64,
+}
+
 /// Fail-closed errors at the runtime host boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeError {
@@ -112,6 +127,8 @@ pub enum RuntimeError {
     InvalidHandle,
     /// A task is still ready or running and cannot be reaped.
     TaskNotTerminal(RuntimeTaskState),
+    /// A bounded reaper sweep must inspect at least one task.
+    InvalidReapBudget,
     /// The runtime cannot accept new work after shutdown begins.
     ShuttingDown,
 }
@@ -182,6 +199,25 @@ impl RuntimeTaskBook {
 
     fn remove(&self, handle: ProcessHandle) {
         self.lock_shard(handle, false).remove(&handle.raw());
+    }
+
+    fn handles_up_to(&self, limit: usize) -> Vec<ProcessHandle> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        let mut handles = Vec::with_capacity(limit);
+        for shard in &self.shards {
+            let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
+            for raw in tasks.keys() {
+                if handles.len() == limit {
+                    return handles;
+                }
+                if let Some(handle) = ProcessHandle::from_raw(*raw) {
+                    handles.push(handle);
+                }
+            }
+        }
+        handles
     }
 
     fn snapshot_counts(&self) -> (usize, usize) {
@@ -582,6 +618,45 @@ impl KernelRuntime {
             .map_err(RuntimeError::Scheduler)?;
         self.tasks.remove(handle);
         Ok(())
+    }
+
+    /// Reap up to `max_tasks` terminal tasks without blocking on live work.
+    ///
+    /// This is a caller-owned mechanism seam for future shutdown/reaper
+    /// integration. It never starts a background thread and never changes the
+    /// lifecycle phase; live tasks remain owned and are reported as pending.
+    pub fn reap_finished(&self, max_tasks: usize) -> Result<RuntimeReapReport, RuntimeError> {
+        if max_tasks == 0 {
+            return Err(RuntimeError::InvalidReapBudget);
+        }
+        let handles = self.tasks.handles_up_to(max_tasks);
+        let mut report = RuntimeReapReport {
+            inspected: handles.len() as u64,
+            ..RuntimeReapReport::default()
+        };
+        for handle in handles {
+            let Some(state) = self.tasks.state(handle) else {
+                report.unavailable = report.unavailable.saturating_add(1);
+                continue;
+            };
+            if !state.is_terminal() {
+                report.pending = report.pending.saturating_add(1);
+                continue;
+            }
+            match self.scheduler.reap(handle) {
+                Ok(()) => {
+                    self.tasks.remove(handle);
+                    report.reaped = report.reaped.saturating_add(1);
+                }
+                Err(SchedulerError::InvalidHandle) => {
+                    report.unavailable = report.unavailable.saturating_add(1);
+                }
+                Err(_) => {
+                    report.errors = report.errors.saturating_add(1);
+                }
+            }
+        }
+        Ok(report)
     }
 
     fn reserve_task(&self, observed: bool) -> Result<ProcessHandle, RuntimeError> {

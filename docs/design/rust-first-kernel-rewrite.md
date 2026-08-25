@@ -442,6 +442,12 @@ WorkerPool handoff as the next measured candidate. It does not create a Python
 compatibility requirement or promote the Rust host to an L2/TS, AgentLoop,
 provider, or production authority.
 
+`KernelRuntime::reap_finished(max_tasks)` now supplies the matching bounded
+reaper mechanism: it selects at most the caller budget, releases only terminal
+task slots, and returns explicit pending/unavailable/error counts. A zero
+budget is rejected. This is a caller-owned preparation for later shutdown and
+recovery integration, not a background reaper or production authority.
+
 The next bounded batch slice adds `submit_batch` and
 `submit_batch_observed`. It reserves every generation-safe process handle and
 records `Ready` state before handing the complete group to `WorkerPool`; a

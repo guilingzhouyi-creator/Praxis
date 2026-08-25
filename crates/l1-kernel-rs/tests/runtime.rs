@@ -210,6 +210,56 @@ fn immediate_tasks_retain_terminal_state_before_submit_returns() {
 }
 
 #[test]
+fn runtime_reap_finished_is_bounded_and_leaves_live_tasks_owned() {
+    let runtime = concurrent_runtime();
+    runtime.boot().expect("boot");
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let live = runtime
+        .submit(Box::new(move || {
+            started_tx.send(()).expect("worker started");
+            release_rx.recv().expect("release worker");
+            Ok(json!("live"))
+        }))
+        .expect("submit live task");
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("started");
+    let finished = runtime
+        .submit_batch(
+            (0_u64..3)
+                .map(|value| Box::new(move || Ok(json!(value))) as l1_kernel_rs::worker::TaskFn)
+                .collect(),
+        )
+        .expect("submit finished tasks");
+    for task in &finished {
+        assert!(task.result(None).is_ok());
+    }
+
+    let pending = runtime.reap_finished(1).expect("bounded pending sweep");
+    assert_eq!(pending.inspected, 1);
+    assert_eq!(pending.pending, 1);
+    assert_eq!(pending.reaped, 0);
+
+    let first = runtime.reap_finished(2).expect("bounded terminal sweep");
+    assert_eq!(first.inspected, 2);
+    assert!(first.reaped >= 1);
+    assert_eq!(first.reaped + first.pending, 2);
+    assert_eq!(first.errors, 0);
+
+    release_tx.send(()).expect("release worker");
+    assert_eq!(live.result(None).expect("live result"), json!("live"));
+    runtime.reap(live.handle()).expect("reap live task");
+    let last = runtime.reap_finished(4).expect("remaining terminal sweep");
+    assert!(last.reaped >= 1);
+    assert_eq!(runtime.snapshot().task_count, 0);
+    assert!(matches!(
+        runtime.reap_finished(0),
+        Err(RuntimeError::InvalidReapBudget)
+    ));
+}
+
+#[test]
 fn observed_admission_keeps_parallel_task_accounting_complete() {
     let runtime = concurrent_runtime();
     runtime.boot().expect("boot");

@@ -416,6 +416,9 @@ cutover/recovery 与 G6 仍是后续硬门；`open_persistent` 已将 `StateStor
 checkpoint、clean resume 与 unclean recovery，但不导入 Python 状态，也不改变默认生产路径。
 `submit_gated` 同步接入 Rust G1-G5 与单一 `CapabilityAuthority`，caller/tool 不匹配、空 whitelist 或未接线
 executor 均在进入 worker queue 前 fail-closed 并记审计；真实 tool pipeline/provider 仍留在适配器。
+随后补齐 `KernelRuntime::reap_finished(max_tasks)`：按调用方预算选择 task handle，只回收已确认 terminal 的任务，
+并返回 `pending/unavailable/errors` 计数；零预算 fail-closed。该接口不启动后台 reaper、不改变 lifecycle，
+仅为后续 shutdown/recovery ownership 提供有界机制候选。
 随后完善 `KernelRuntime` 的并发 admission：以 lifecycle `RwLock` 的共享侧覆盖 active-state 校验、handle
 reservation、按 scheduler shard 划分的 task-book 登记和 WorkerPool handoff；boot 使用独占侧，shutdown 先发布
 `Draining` 再取得独占侧排空已准入任务。任务在

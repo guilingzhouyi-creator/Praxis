@@ -277,6 +277,11 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   0/0.086/0.045 ms. Its batch tail distribution is intentionally not compared
   with `runtime.submit_reap` per-task p95/p99; the host-local throughput and
   wait contrast is only evidence to retain the candidate for future review.
+- `KernelRuntime::reap_finished(max_tasks)` is a bounded caller-driven
+  lifecycle seam. It selects no more than the supplied budget, reaps only
+  already-terminal tasks, and reports pending/unavailable/error outcomes;
+  zero budgets fail closed. It does not start a background reaper or change
+  runtime lifecycle authority.
 - The Rust `protocol` module is the retained R4 wire-boundary candidate. It
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips
