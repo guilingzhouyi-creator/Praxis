@@ -93,6 +93,8 @@ shell:
     usage_cron: "使い方: /cron [list|add <id> <schedule> <task>]"
     usage_model: "使い方: /model [list|status|switch|health|set|spec]"
     model_budget_int: "max_budget は整数でなければなりません"
+    model_budget_negative: "max_budget は 0 以上である必要があります"
+    model_invalid_tier: "無効な推論レベル"
     usage_model_spec: "使い方: /model spec [strategy <name> <pack>|clear <name>|caps [max_reasoning [max_budget]]|peer <scope> <name> <pack>|peer clear <scope> <name>]"
     usage_model_spec_peer: "使い方: /model spec peer [global <pack>|cell <id> <pack>|agent <cell>.<agent> <pack>|clear <scope> <name>]"
     usage_skills_get: "使い方: /skills get <name>"
