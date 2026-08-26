@@ -30,7 +30,7 @@ from l1.kernel.params.system import CONTEXT_TRAIL_TRUNC, HASH_TRUNC_SHORT
 from l1.kernel.params.system import TOOL_SEARCH_MAX_RESULTS as _TOOL_SEARCH_MAX_RESULTS
 from l1.kernel.params.system import TOOL_SEARCH_MIN_COUNT as _TOOL_SEARCH_MIN_COUNT
 from l1.kernel.params.tool import TOOL_HANDLER_TIMEOUT as _TOOL_HANDLER_TIMEOUT
-from l1.kernel.prompts import get_prompt as _gp
+from l3.agent.prompts import get_prompt as _gp
 
 # Resolve tool config at module level (lazy-safe: discovery may not be ready at import)
 _LLM_TOOL_TIMEOUT = get_tool_config("handler_timeout", _TOOL_HANDLER_TIMEOUT) or _TOOL_HANDLER_TIMEOUT
@@ -153,7 +153,7 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
 
         Falls back to MockProvider if no matching provider is found.
         """
-        from l1.kernel.model_registry import get_registry
+        from l4.llm.model_registry import get_registry
 
         p = self.config.provider
         if self.config.use_websocket:
@@ -444,7 +444,7 @@ class LLMEngine(LLMToolsMixin, LLMRetryMixin):
         for turn in range(max_turns):
             # ── Inject turn budget warning ──
             remaining = max_turns - turn
-            from l1.kernel.prompts import get_prompt as _gp
+            from l3.agent.prompts import get_prompt as _gp
 
             if remaining <= LOOP_TURN_WARNING_THRESHOLD and messages:
                 warning = {"role": "user", "content": _gp("llm.turn_budget_warning", "").format(remaining=remaining)}

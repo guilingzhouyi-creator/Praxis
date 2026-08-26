@@ -173,7 +173,7 @@ def install_prompt_hook() -> bool:
         True when installed, False when the hook surface is unavailable.
     """
     try:
-        from l1.kernel.prompts import register_prompt_usage_hook
+        from l3.agent.prompts import register_prompt_usage_hook
 
         register_prompt_usage_hook(record_prompt_usage)
         return True

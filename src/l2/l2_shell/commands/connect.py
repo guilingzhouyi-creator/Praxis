@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _cmd_help(args: list[str]) -> dict:
-    from l1.kernel.commands import get_command
+    from l2.commands import get_command
 
     from .common import list_commands
 

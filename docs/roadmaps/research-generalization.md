@@ -42,7 +42,7 @@ memory/archive/convention/sandbox/演化机制，恰好是科研最稀缺的能�
 
 | 机制 | 科研形态 | 差距 |
 |------|----------|------|
-| 假设管理 | R5 图 hypothesis 节点 + evidence 边（supports/refutes） | 需扩展图语义（现仅 contradicts/depends_on）|
+| 假设管理 | R5 图 hypothesis 节点 + evidence 边（supports/refutes） | 需扩展图语义（现有 contradicts/depends_on/refines，缺 supports/refutes/evidence）|
 | 平行假说 | 多 agent 各自持假说 → Convention 对抗 + 少数派保护 | 需少数派奖励规则 |
 | 探索角色 | 专职"质疑者"：挑战主流假设、生成反直觉问题 | 需 explorer 角色 + 探索豁免 |
 | 阴性知识库 | 失败实验 → lean case → 下次避免 | ✅ 已具备（lean traces）|

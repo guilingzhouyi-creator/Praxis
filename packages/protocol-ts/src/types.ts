@@ -43,7 +43,7 @@ export type ControlOp = (typeof CONTROL_OPS)[number];
  * identically in all three implementations (ruling R8).
  */
 /** Maximum accepted JSONL frame size per host (1 MiB, ruling R5). */
-export const MAX_FRAME_BYTES = 1024 * 1024 as const;
+export const MAX_FRAME_BYTES = 1_048_576 as const;
 /** Truncation cap applied to `$` system command output (rendering layer). */
 export const SYSTEM_OUTPUT_MAX_CHARS = 64_000 as const;
 /**

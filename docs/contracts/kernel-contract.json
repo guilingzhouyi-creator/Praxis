@@ -238,6 +238,7 @@
       ],
       "functions": [
         "get_identity_binding_manager",
+        "register_prompt_resolver",
         "reset_identity_binding_manager"
       ],
       "module": "l1.kernel.identity_binding"

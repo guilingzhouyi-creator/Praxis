@@ -17,9 +17,7 @@ LAYER_ORDER = {"l1": 0, "l2": 1, "l3": 2, "l4": 3, "l5": 4}
 ALLOWLIST = {
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
     ("l2/i18n.py", "l4.ports"),  # WS5.1: I18nPort moved out of kernel
-    ("l1/kernel/commands.py", "l2.commands"),  # WS5.3: transition shim
-    ("l1/kernel/model_registry.py", "l4.llm.model_registry"),  # WS5.2: transition shim
-    ("l1/kernel/prompts.py", "l3.agent.prompts"),  # WS5.3: transition shim
+    ("l3/boot/boot_steps/runtime.py", "l4.llm.model_registry"),  # WS5.2: model_registry moved to L4
     ("l3/services/review_pipeline.py", "l4.sandbox.diff_frame"),  # WS5.3: moved module
     ("l3/services/model_service.py", "l4.ports"),  # WS5.1: LLMConfig moved out of kernel
     ("l2/shells/terminal.py", "l3.params"),  # WS5.4: scout business params live in L3
@@ -40,12 +38,11 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/departments.py", "l3.cell.department"),
     ("l2/l2_shell/commands/departments.py", "l3.cell.violation_monitor"),
     ("l2/l2_shell/commands/ci.py", "l3.config.settings_center"),
-    ("l2/l2_shell/commands/ci.py", "l4.ci_review"),
+    ("l2/l2_shell/commands/ci.py", "l3.services.adapter_bridge"),
     ("l2/l2_shell/commands/extra_cluster.py", "l3.bus.htn_a"),
     ("l2/l2_shell/commands/extra_cluster.py", "l3.cell.peers.l3"),
     ("l2/l2_shell/commands/extra_mcp.py", "l3.error_bus"),
-    ("l2/l2_shell/commands/extra_mcp.py", "l4.api_handlers.api_handlers_mcp"),
-    ("l2/l2_shell/commands/extra_mcp.py", "l4.mcp_bridge"),
+    ("l2/l2_shell/commands/extra_mcp.py", "l3.services.adapter_bridge"),
     ("l2/l2_shell/commands/extra_resources.py", "l3.resource_buffer.manager"),
     ("l2/l2_shell/commands/extra_resources.py", "l3.scheduler.think_registry"),
     ("l2/l2_shell/commands/extra_security.py", "l3.services.central_security"),
@@ -69,6 +66,7 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/memory.py", "l3.agent.global_prompt_library"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.prompt_library"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.prompt_monitor"),
+    ("l2/l2_shell/commands/memory.py", "l3.agent.prompts"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.sensitive_detect"),
     ("l2/l2_shell/commands/memory.py", "l3.agent.tool_result_cache"),
     ("l2/l2_shell/commands/memory.py", "l3.card.card_registry"),
@@ -84,10 +82,8 @@ ALLOWLIST = {
     ("l2/l2_shell/commands/model.py", "l3.config.settings_center"),
     ("l2/l2_shell/commands/model.py", "l3.error_bus"),
     ("l2/l2_shell/commands/model.py", "l3.scheduler.think_registry"),
+    ("l2/l2_shell/commands/model.py", "l3.services.adapter_bridge"),
     ("l2/l2_shell/commands/model.py", "l3.services.model_service"),
-    ("l2/l2_shell/commands/model.py", "l4.api_handlers.api_handlers_providers"),
-    ("l2/l2_shell/commands/model.py", "l4.cron_scheduler"),
-    ("l2/l2_shell/commands/model.py", "l4.llm.llm"),
     ("l3/memory/memory_graph.py", "l4.llm.llm"),
     ("l3/memory/memory_graph_semantic.py", "l4.llm.llm"),
     ("l3/memory/memory_extract.py", "l4.llm.llm"),
@@ -131,6 +127,8 @@ ALLOWLIST = {
     ("l3/memory/r4_skill_generalize.py", "l4.llm.llm"),
     ("l3/memory/r4_skill_trace.py", "l4.llm.llm"),
     ("l3/memory/skill_retriever.py", "l4.llm.llm"),
+    ("l3/services/adapter_bridge.py", "l4.api_handlers.api_handlers_mcp"),
+    ("l3/services/adapter_bridge.py", "l4.ci_review"),
     ("l3/services/adapter_bridge.py", "l4.cron_scheduler"),
     ("l3/services/adapter_bridge.py", "l4.llm.llm"),
     ("l3/services/adapter_bridge.py", "l4.mcp_bridge"),
@@ -228,22 +226,13 @@ def _ensure_layer_allowlist() -> None:
             _LAYER_ALLOWLIST.add((src, dst, module))
     # Also add some known-adapter patterns that aren't file-specific
     for src, dst, prefix in [
-        (1, 3, "l3.config.settings_adapter"),
-        (1, 3, "l3.error_bus"),
-        (1, 3, "l3.stagnation"),
-        (1, 3, "l3.agent.stagnation"),
-        (1, 3, "l3.agent.prompts"),  # WS5.3: kernel prompts shim
-        (1, 3, "l3.cell"),
-        (1, 2, "l2.commands"),  # WS5.3: kernel commands shim
-        (1, 4, "l4.adapters"),
-        (1, 4, "l4.llm.model_registry"),  # WS5.2: kernel model_registry shim
-        (1, 4, "l4.llm_base"),
         (2, 3, "l3.cache"),
         (2, 3, "l3.l3b"),
         (2, 3, "l3.htn_a"),
         (2, 3, "l3.htn_planner"),
         (2, 3, "l3.cell.peers.l3"),
         (2, 3, "l3.scheduler"),
+        (2, 3, "l3.agent"),
         (2, 3, "l3.bus"),
         (2, 3, "l3.memory"),
         (2, 3, "l3.services"),
@@ -258,6 +247,7 @@ def _ensure_layer_allowlist() -> None:
         (3, 4, "l4.ports"),  # WS5.1: L3 services consume LLMConfig
         (3, 4, "l4.cron_scheduler"),
         (3, 4, "l4.ci_review"),
+        (3, 4, "l4.llm.model_registry"),
     ]:
         _LAYER_ALLOWLIST.add((src, dst, prefix))
 
@@ -340,7 +330,7 @@ class TestLayerConstraints:
         assert not violations, "Layer import violations:\n" + "\n".join(violations[:30])
 
     def test_l1_imports_upper_allowlisted(self):
-        """L1 imports to L2+ must all be in the allowlist (adapter/callback pattern)"""
+        """L1 kernel must have zero upward imports to L2+ (clean Rust boundary)."""
         violations = []
         for fpath in Path("src/l1/kernel").rglob("*.py"):
             if "__pycache__" in fpath.parts:
@@ -348,9 +338,9 @@ class TestLayerConstraints:
             imports = _parse_imports(str(fpath))
             for _imp_type, module in imports:
                 dst = _import_layer(module)
-                if dst >= 2 and not _is_allowlisted(1, dst, module):
+                if dst >= 2:
                     violations.append(f"{fpath.name}: imports {module} (L1→L{dst})")
-        assert not violations, "L1 unauthorized imports upper layer:\n" + "\n".join(violations)
+        assert not violations, "L1 has upward imports violating Rust boundary isolation:\n" + "\n".join(violations)
 
     def test_l5_can_import_any(self):
         """L5 should be able to import any layer (no restrictions)"""

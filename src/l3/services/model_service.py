@@ -309,6 +309,88 @@ class ModelService:
         exact = {k: v for k, v in (exact or {}).items() if k != "strategy"}
         return {"spec": spec_name, "strategy": active or "defaults", "overrides": exact or {}}
 
+    def get_overview(self) -> dict:
+        """Full panel state for frontend rendering / shell display."""
+        sc = self._settings_center()
+        specs = {}
+        for name in ("scout", "l3a", "l3a_subagent", "subagent", "r4_agent"):
+            cur = self.current_strategy(name)
+            specs[name] = {
+                "current": self.resolve_dict(name),
+                "strategy": cur["strategy"],
+                "overrides": cur["overrides"],
+            }
+        strategies: dict[str, dict[str, Any]] = {}
+        for key, value in sc.all().items():
+            if key.startswith("model_spec.strategies."):
+                parts = key.split(".")
+                if len(parts) >= 4:
+                    strategies.setdefault(parts[2], {})[parts[3]] = value
+        try:
+            from l1.kernel.params.api import EFFORT_RANK
+
+            tiers = list(EFFORT_RANK.keys())
+        except Exception:
+            tiers = ["none", "low", "medium", "high", "xhigh", "max"]
+        peers = {}
+        try:
+            from l3.scheduler.think_registry import get_think_registry
+
+            peers = get_think_registry().stats()
+        except Exception:
+            pass
+        return {
+            "success": True,
+            "specs": specs,
+            "caps": {
+                "max_reasoning": sc.get("think.max_reasoning", "max"),
+                "max_budget": sc.get("think.max_budget", 32768),
+            },
+            "strategies": strategies,
+            "tiers": tiers,
+            "peers": peers,
+        }
+
+    def get_caps(self) -> dict:
+        """Get current reasoning caps."""
+        sc = self._settings_center()
+        return {
+            "success": True,
+            "caps": {
+                "max_reasoning": sc.get("think.max_reasoning", "max"),
+                "max_budget": sc.get("think.max_budget", 32768),
+            },
+        }
+
+    def set_caps(self, max_reasoning: str | None = None, max_budget: int | None = None) -> dict:
+        """Set reasoning caps."""
+        sc = self._settings_center()
+        updated = []
+        if max_reasoning is not None:
+            tier = str(max_reasoning)
+            try:
+                from l1.kernel.params.api import EFFORT_RANK
+
+                if tier not in EFFORT_RANK:
+                    return {"success": False, "error": f"{_t('shell.app_error.model_invalid_tier')}: {tier}"}
+            except Exception:
+                pass
+            sc.set("think.max_reasoning", tier)
+            updated.append("max_reasoning")
+        if max_budget is not None:
+            if max_budget < 0:
+                return {"success": False, "error": _t("shell.app_error.model_budget_negative")}
+            sc.set("think.max_budget", max_budget)
+            updated.append("max_budget")
+        return {
+            "success": True,
+            "updated": updated,
+            "caps": {
+                "max_reasoning": sc.get("think.max_reasoning", "max"),
+                "max_budget": sc.get("think.max_budget", 32768),
+            },
+        }
+
     def health_check(self, provider_name: str) -> dict:
         """Quick health check for a provider by name."""
         try:

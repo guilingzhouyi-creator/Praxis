@@ -107,7 +107,7 @@ def cfg_htn(cfg: dict, s: Any, results: dict) -> None:
 def cfg_prompts(cfg: dict, s: Any, results: dict) -> None:
     """Load prompt template overrides from praxis.yaml prompts: section."""
     try:
-        from l1.kernel.prompts import load_prompt_overrides
+        from l3.agent.prompts import load_prompt_overrides
 
         load_prompt_overrides(cfg if isinstance(cfg, dict) else {})
         results["prompts"] = len(cfg) if isinstance(cfg, dict) else 0

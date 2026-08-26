@@ -694,7 +694,7 @@ def _cmd_tools(args: list[str]) -> dict:
 
 def _cmd_help(args: list[str]) -> dict:
     """Show help for commands (/help <cmd>) or list all commands."""
-    from l1.kernel.commands import get_command
+    from l2.commands import get_command
     from l2.l2_shell.commands import list_commands
 
     if args:

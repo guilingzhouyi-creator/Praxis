@@ -89,6 +89,8 @@ shell:
     usage_cron: "用法: /cron [list|add <id> <schedule> <task>]"
     usage_model: "用法: /model [list|status|switch|health|set|spec]"
     model_budget_int: "max_budget 必须是整数"
+    model_budget_negative: "max_budget 必须大于等于 0"
+    model_invalid_tier: "无效的推理等级"
     usage_model_spec: "用法: /model spec [strategy <name> <pack>|clear <name>|caps [max_reasoning [max_budget]]|peer <scope> <name> <pack>|peer clear <scope> <name>]"
     usage_model_spec_peer: "用法: /model spec peer [global <pack>|cell <id> <pack>|agent <cell>.<agent> <pack>|clear <scope> <name>]"
     usage_skills_get: "用法: /skills get <name>"

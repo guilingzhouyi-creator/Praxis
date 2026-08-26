@@ -6,7 +6,7 @@ import importlib
 
 
 def _reload_prompts():
-    import l1.kernel.prompts as p
+    import l3.agent.prompts as p
 
     importlib.reload(p)
     return p

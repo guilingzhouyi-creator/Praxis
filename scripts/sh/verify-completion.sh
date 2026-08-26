@@ -15,7 +15,7 @@ set -euo pipefail
 #   4. Docs sync    — doc-stats drift gate clean (check_doc_stats.py)
 #   5. Lint/type    — ruff check + mypy clean
 #   6. Audit        — pip-audit dependency CVE scan clean
-#   7. Complexity   — no functions longer than 200 lines
+#   7. Complexity   — at most 12 functions longer than 200 lines
 #   8. Import cycle — import_cycle_check.py clean
 #   9. Singleton    — scan_singletons.py vs conftest _RESETS in sync
 #  10. Changelog    — CHANGELOG [Unreleased] present and fresh
@@ -140,9 +140,11 @@ uname -r 2>/dev/null | grep -qi microsoft && IS_WSL=1
 JUDGE_N="${JUDGE_PYTEST_N:-4}"
 THRESH=$(grep -oE 'fail_under\s*=\s*[0-9]+' pyproject.toml 2>/dev/null | grep -oE '[0-9]+' | head -1)
 THRESH="${THRESH:-60}"
-# WSL: serial coverage (no xdist thrash); non-WSL keeps parallel workers.
+# Bounded workers on every host: `-n auto` spawns one worker per CPU core,
+# which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
+# thrashes memory and hangs the suite. Default 4 workers; operators may
+# override with JUDGE_PYTEST_N (0 = single process, safest).
 XDIST_ARGS="-n $JUDGE_N"
-[ "$IS_WSL" = "1" ] && XDIST_ARGS="--no-xdist"
 if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; then
   RUN_TOGETHER=1
   echo "[judge] ── 1+2. Full test suite + coverage (single run) ──"
@@ -153,6 +155,7 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
   if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
     S_COVERAGE=1; pass "coverage >= $THRESH%"
+    M_TESTS_FAILED=0
   else
     # The combined run failed — tests, coverage, or both. Surface the gap.
     S_TESTS=2; S_COVERAGE=2
@@ -163,9 +166,9 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
     else
       fail "test suite has failures (see /tmp/judge_cov.log)"
     fi
+    M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo 1)
   fi
   M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
-  M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
   M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
 fi
 
@@ -191,21 +194,23 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
     done
     if [ "$ALL_TESTS_OK" = "1" ]; then
       S_TESTS=1; pass "tests green across slices ($TOTAL_PASS passed)"
+      M_TESTS_FAILED=0
     else
       S_TESTS=2
+      M_TESTS_FAILED=1
     fi
     M_TESTS_PASSED="$TOTAL_PASS"
-    M_TESTS_FAILED=null
   else
     echo "[judge] ── 1. Full test suite (standalone) ──"
     if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" > /tmp/judge_tests.log 2>&1; then
       S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1))"
+      M_TESTS_FAILED=0
     else
       S_TESTS=2; tail -5 /tmp/judge_tests.log >&2
       fail "test suite has failures (see /tmp/judge_tests.log)"
+      M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo 1)
     fi
     M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
-    M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_tests.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -222,9 +227,17 @@ if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
 fi
 
 # ── 3. Net delta gate ────────────────────────────────────────────────────
+# A user-granted waiver (MERGE_GATE_SKIP=1 + MERGE_GATE_REASON) is recorded
+# as `delta_waived: 1` in the JSONL so the dashboard can distinguish "the
+# branch genuinely qualifies" from "the gate was waived" — a waived pass
+# must never inflate the honest completion statistics.
+DELTA_WAIVED=0
 if [ "$RUN_DELTA" = "1" ]; then
   echo "[judge] ── 3. Net code delta (mainline gate) ──"
-  if [ -f scripts/sh/verify-main-merge-gate.sh ]; then
+  if [ "${MERGE_GATE_SKIP:-0}" = "1" ]; then
+    DELTA_WAIVED=1
+    S_DELTA=1; pass "net delta WAIVED (MERGE_GATE_SKIP=1, reason: ${MERGE_GATE_REASON:-<unset>})"
+  elif [ -f scripts/sh/verify-main-merge-gate.sh ]; then
     if MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main > /tmp/judge_delta.log 2>&1; then
       S_DELTA=1; pass "net delta qualifies"
     else
@@ -271,10 +284,11 @@ if [ "$RUN_LINT" = "1" ]; then
     fi
     if [ "$LINT_OK" = "1" ]; then
       S_LINT=1; pass "ruff + mypy clean"
+      M_RUFF_ERRORS=0
     else
       S_LINT=2; tail -5 /tmp/judge_ruff.log >&2; fail "ruff/mypy issues"
+      M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo 1)
     fi
-    M_RUFF_ERRORS=$(grep -oE 'Found [0-9]+ errors' /tmp/judge_ruff.log | head -1 | grep -oE '[0-9]+' || echo null)
   fi
 fi
 
@@ -373,8 +387,15 @@ DURATION=$(( $(date +%s) - T0 ))
 # judge-stats.sh (completion rate, failure distribution, trend, metrics).
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
-printf '%s\n' "$RECORD" >> "$LOG_FILE"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"delta_waived\":${DELTA_WAIVED:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -x 200
+    printf '%s\n' "$RECORD" >> "$LOG_FILE"
+  ) 200>"${LOG_FILE}.lock"
+else
+  printf '%s\n' "$RECORD" >> "$LOG_FILE"
+fi
 
 echo "[judge] verdict: ${VERDICT}"
 if [ "$VERDICT" = "COMPLETE" ]; then

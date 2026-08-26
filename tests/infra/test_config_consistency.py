@@ -85,18 +85,12 @@ def test_commit_policy_json_mirror_matches_yaml() -> None:
     mirror_path = os.path.join(CONFIG, "discovery", "commits.json")
     with open(mirror_path, encoding="utf-8") as mirror_file:
         mirror = json.load(mirror_file)
-    mirror_keys = (
-        "types",
-        "scope_dirs",
-        "agents",
-        "scopes",
-        "placeholder",
-        "max_subject_chars",
-        "body",
-        "strictness",
-        "type_content_rules",
-    )
-    assert mirror == {key: policy[key] for key in mirror_keys if key in policy}
+    # The consumed-key list is imported from the generator itself so this
+    # test can never drift from what gen_commits_json.py actually mirrors.
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "py"))
+    from gen_commits_json import _NODE_KEYS  # noqa: E402
+
+    assert mirror == {key: policy[key] for key in _NODE_KEYS if key in policy}
     assert os.path.isfile(os.path.join(ROOT, "scripts", "py", "gen_commits_json.py"))
 
 

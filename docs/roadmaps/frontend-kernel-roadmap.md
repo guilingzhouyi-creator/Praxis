@@ -64,8 +64,9 @@ GET  /api/v2/shell/autocomplete     → _shell_autocomplete → l2.l2_shell.comp
 GET  /api/v2/shell/commands         → _shell_commands    → l1.kernel.commands.get_registry().list(category)
 ```
 
-仍待完成：Phase 4（会话收尾，移除 `state.py` deprecated shim）、Phase 5（底层边界文档标注转化位）、
-Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，与 `invoke_capability` 实码不符）。
+仍待完成：Phase 4（会话收尾——`src/l2/l2_shell/state.py` shim 仍在）与 Phase 5（底层边界文档标注转化位）。
+Phase 6 已完成（2026-08-25 复核）：`l2-shell.md` 契约面已写 `invoke_capability`（boot 接线 ToolPipeline）
+与 51 YAML 命令，不再有 `execute_tool_spec` 过期表述。
 
 | Phase | 动作 | 落点 |
 |---|---|---|
@@ -74,7 +75,7 @@ Phase 6（`l2-shell.md` 契约面同步——当前仍写 `execute_tool_spec`，
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
 | **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
 | **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
-| **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md |
+| **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md — ✅ 完成（契约面已写 `invoke_capability`，2026-08-25 复核） |
 
 > 接通 stub 是纯 Python 改动，完全符合现有架构；前端矩阵也强化了接通 `/api/v2/shell`
 > 语言无关端点的价值——前端越多，语言无关契约的价值越大。
@@ -787,8 +788,8 @@ integration-test domain。
 
 ```
 M0  现网基线（已完成）         — 快速核心套件全绿；契约框架已注册
-M1  L2 抽象完整（部分完成）   — Phase 1–3 已接通 /api/v2/shell 三端点；剩余 Phase 4–6（会话收尾 + 文档同步）
-M2  会话收尾 + 文档            — Phase 4–6；l2-shell.md 契约面显式化；外围契约独立
+M1  L2 抽象完整（部分完成）   — Phase 1–3 已接通 /api/v2/shell 三端点；剩余 Phase 4–5（Phase 6 文档同步已完成）
+M2  会话收尾 + 文档            — Phase 4–5；外围契约独立（l2-shell.md 契约面已显式化）
 M3  Rust-first R0/R1           — 完成语义地图、typed substrate、边界与基准 schema（前置包：`docs/design/rust-first-kernel-rewrite.md`）
 M4  Rust-first R2/R3           — 固定总量性能证据与机制闭环，选择 Rust-native 调度/锁/队列/存储方案
 M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协议和 clean cutover/recovery
@@ -856,6 +857,6 @@ Git Bash 的路径/开关写死，也不把 AgentLoop、provider、提示词、D
 
 ---
 
-**规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–6（会话收尾 + `l2-shell.md`
-契约面同步），并建立 Rust-native substrate 与固定总量 benchmark schema。Rust 与 TS 在 R4/R5
+**规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；
+Phase 6 文档同步已完成），并建立 Rust-native substrate 与固定总量 benchmark schema。Rust 与 TS 在 R4/R5
 完成前都不得成为默认路径；新内核不读取旧 Python 用户数据，也不以 Python 兼容替换为目标。

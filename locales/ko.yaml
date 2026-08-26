@@ -93,6 +93,8 @@ shell:
     usage_cron: "사용법: /cron [list|add <id> <schedule> <task>]"
     usage_model: "사용법: /model [list|status|switch|health|set|spec]"
     model_budget_int: "max_budget 은 정수여야 합니다"
+    model_budget_negative: "max_budget 은 0 이상이어야 합니다"
+    model_invalid_tier: "유효하지 않은 추론 레벨"
     usage_model_spec: "사용법: /model spec [strategy <name> <pack>|clear <name>|caps [max_reasoning [max_budget]]|peer <scope> <name> <pack>|peer clear <scope> <name>]"
     usage_model_spec_peer: "사용법: /model spec peer [global <pack>|cell <id> <pack>|agent <cell>.<agent> <pack>|clear <scope> <name>]"
     usage_skills_get: "사용법: /skills get <name>"

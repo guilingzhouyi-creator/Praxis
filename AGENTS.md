@@ -64,7 +64,7 @@ src/l1/kernel/ports/ — 18 *Port(ABC) abstractions
 - **Register tools** via `ToolSpec` in `config/tools.yaml`
 - **No bare `except:`** — use `except Exception:`
 - **Double quotes** for strings (ruff `quote-style = "double"`), line-length 120
-- **Prompt templates are data** in `src/l1/kernel/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
+- **Prompt templates are data** in `src/l3/agent/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
 
 ## Skill system
 
@@ -92,12 +92,14 @@ Spec: `docs/architecture/security-evidence.md`. Modes: `productive` (default) | 
 
 Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 
-- **English + Conventional Commits** `type(scope): summary` ≤ 72 chars, lowercase start, no markdown,
-  no trailing period
-- **Exactly ONE `Co-Authored-By:` trailer** last, preceded by blank line:
-  `Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>`
-- **Attribution verified for TRUTH**: cross-checked against agents registry + live execution evidence
-  (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected
+- **English + Conventional Commits** `type(scope): summary` ≤ 72 chars, lowercase start, imperative mood present-tense verb (no past tense / gerunds), no markdown, no trailing period
+- **Exactly ONE `Co-Authored-By:` trailer** strictly last line, preceded by a blank line (no trailing notes):
+  `Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>`
+- **Attribution verified for TRUTH (Anti-Impersonation Rule)**: cross-checked against agents registry + live execution evidence
+  (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected.
+  Agents MUST probe runtime first (`python scripts/py/detect_agent.py --json`) and MUST NEVER arbitrarily grab
+  registered identities from `commits.yaml`. If unregistered or unverifiable, the agent MUST notify the user
+  for registry addition or environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
 - **Single source of truth**: `config/discovery/commits.yaml` is canonical;
   `scripts/py/gen_commits_json.py` refreshes the Node-only `config/discovery/commits.json` mirror used by
   the commit hook

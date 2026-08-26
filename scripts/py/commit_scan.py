@@ -44,6 +44,73 @@ _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
     "ci": {"must_include": [".github/"]},
 }
 
+# Imperative-mood fallback — used ONLY when commits.yaml lacks the
+# `non_imperative_verbs` key. The registry (config/discovery/commits.yaml)
+# is the single source of truth; keep this list in sync with it.
+_FALLBACK_NON_IMPERATIVE_VERBS: frozenset[str] = frozenset(
+    {
+        "added",
+        "adding",
+        "fixes",
+        "fixed",
+        "fixing",
+        "updated",
+        "updating",
+        "updates",
+        "changes",
+        "changed",
+        "changing",
+        "modified",
+        "modifying",
+        "modifies",
+        "refactored",
+        "refactoring",
+        "refactors",
+        "improves",
+        "improved",
+        "improving",
+        "removes",
+        "removed",
+        "removing",
+        "deletes",
+        "deleted",
+        "deleting",
+        "makes",
+        "made",
+        "making",
+        "creates",
+        "created",
+        "creating",
+        "implements",
+        "implemented",
+        "implementing",
+        "hardens",
+        "hardened",
+        "hardening",
+        "enforces",
+        "enforced",
+        "enforcing",
+        "handles",
+        "handled",
+        "handling",
+        "resolves",
+        "resolved",
+        "resolving",
+        "prevents",
+        "prevented",
+        "preventing",
+        "allows",
+        "allowed",
+        "allowing",
+        "avoids",
+        "avoided",
+        "avoiding",
+        "cleans",
+        "cleaned",
+        "cleaning",
+    }
+)
+
 
 def load_policy() -> dict:
     """Load the commit policy from config/discovery/commits.yaml."""
@@ -101,6 +168,19 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
     min_chars = placeholder.get("min_summary_chars", 10)
     if summary and min_chars and len(summary) < min_chars:
         violations.append(f"summary too short ({len(summary)} < {min_chars} chars)")
+
+    # Imperative verb check: summary should start with an imperative verb,
+    # not past tense or gerund. The verb list lives in commits.yaml
+    # `non_imperative_verbs` (single source, mirrored to the Node validator);
+    # the inline fallback only covers a missing key.
+    if summary:
+        verbs = policy.get("non_imperative_verbs") or _FALLBACK_NON_IMPERATIVE_VERBS
+        first_word = summary.split()[0].lower().rstrip(":,.-")
+        if first_word in verbs:
+            violations.append(
+                f"non-imperative verb '{first_word}' in summary — use imperative present tense "
+                "(e.g. 'add', 'fix', 'update', 'refactor', 'remove', 'harden', 'enforce')"
+            )
 
     # subject length guard: Conventional-Commits subjects must stay <= 72
     # chars (AGENTS.md contract). Rejected in strict mode.
@@ -188,6 +268,17 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
         return ["missing Co-Authored-By trailer"]
     if len(trailers) > 1:
         return [f"exactly ONE Co-Authored-By trailer allowed (found {len(trailers)})"]
+
+    # Strict EOF sentinel: Co-Authored-By must be the VERY LAST non-empty line
+    lines = [ln.rstrip() for ln in msg.strip().splitlines()]
+    if not lines or not lines[-1].startswith("Co-Authored-By:"):
+        violations.append(
+            "Co-Authored-By trailer must be the VERY LAST line of the commit message "
+            "(no trailing text, notes, or commentary allowed after the trailer)"
+        )
+    if len(lines) > 1 and lines[-2] != "":
+        violations.append("Co-Authored-By trailer must be preceded by a blank line")
+
     trailer = trailers[0].strip()
 
     m = re.match(r"^Co-Authored-By: ([^:<>]+) \(([^()]+)\) <noreply@[a-z0-9.-]+>$", trailer)
@@ -199,9 +290,17 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
     reg = agents.get(agent_name.lower())
     if not reg:
         known = ", ".join(sorted(agents)) or "<none registered>"
-        return [f"agent '{agent_name}' not registered — known agents: {known}"]
+        return [
+            f"agent '{agent_name}' not registered — known agents: {known}. "
+            "DO NOT GUESS OR IMPERSONATE: If you are running an unregistered agent, "
+            "STOP and notify the human user to register your identity in config/discovery/commits.yaml."
+        ]
     if model not in reg.get("models", []):
-        return [f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))})"]
+        return [
+            f"model '{model}' not allowed for agent '{reg['name']}' (allowed: {', '.join(reg.get('models', []))}). "
+            "DO NOT GUESS OR IMPERSONATE: If this is a new model, "
+            "STOP and notify the human user to register it in config/discovery/commits.yaml."
+        ]
 
     # Live-runtime cross-check against EXECUTION EVIDENCE.
     #   - evidence A (session log, confidence high): the model is PROVEN — a
@@ -218,21 +317,23 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
             if det_model != model.lower():
                 violations.append(
                     f"model mismatch: trailer says '{model}' but the session log proves '{detected.get('model')}' "
-                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — attribute the ACTUAL runner",
+                    f"(provider={detected.get('provider') or '?'}, evidence={detected.get('evidence')}) — "
+                    "DO NOT GUESS OR IMPERSONATE: Attribute the ACTUAL running model.",
                 )
         elif det_conf == "low" or det_conf == "none":
             # No execution evidence — a specific model claim cannot be proven.
             violations.append(
                 f"unverifiable model claim: '{model}' cannot be confirmed by execution evidence "
-                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — run the session "
-                "inside a framework whose log records the model, or use an operator pin (PRAXIS_AUTHOR/PRAXIS_MODEL)",
+                f"(confidence={det_conf}, evidence={detected.get('evidence') or 'none'}, framework={detected.get('framework') or 'unknown'}) — "
+                "DO NOT GUESS OR IMPERSONATE: Do NOT grab an arbitrary registered agent/model from commits.yaml. "
+                "If you are running in a new framework or model, STOP and prompt the user to register your identity in "
+                "config/discovery/commits.yaml or set PRAXIS_AUTHOR / PRAXIS_MODEL operator pins.",
             )
-        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode"):
-            # AtomCode/OpenCode are the project's established author aliases;
-            # the detector's framework name may differ (dsh vs the git alias).
+        if det_agent and agent_name.lower() not in (det_agent, "atomcode", "opencode", "gemini", "antigravity"):
+            # AtomCode/OpenCode/Antigravity/Gemini aliases check
             violations.append(
                 f"agent mismatch: trailer says '{agent_name}' but the live session reports '{detected.get('agent')}' "
-                f"(framework={detected.get('framework')})",
+                f"(framework={detected.get('framework')}) — attribute your ACTUAL running identity.",
             )
     return violations
 
@@ -437,7 +538,7 @@ def main() -> int:
             if detected is None:
                 try:
                     out = subprocess.run(
-                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json"],
+                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json", "--no-cache"],
                         capture_output=True,
                         text=True,
                         timeout=10,
@@ -452,10 +553,9 @@ def main() -> int:
             subject = args.msg.splitlines()[0] if args.msg else ""
             violations += validate_subject(subject, branch=args.branch)
             parsed = parse_subject(subject)
-            staged = _staged_files()
+            staged = _staged_files() if args.check_content else []
             if parsed and staged:
-                # Content checks only fire when there ARE staged files —
-                # an empty index (test context / --msg-only) skips them.
+                # Content checks only fire when --check-content is requested and staged files exist
                 ctype, cscope, _summary = parsed
                 violations += validate_type_content(ctype, staged)
                 violations += validate_scope_content(cscope, staged)

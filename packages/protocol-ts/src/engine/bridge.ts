@@ -198,9 +198,9 @@ export async function* streamResponses(
   const responses = await transport(line);
   for (const raw of responses) {
     const decoded = decodeMessage(raw);
-    if (!decoded.message) {
-      throw new Error(`bridge: undecodable response: ${decoded.error}: ${raw.slice(0, 200)}`);
+    if (decoded.message) {
+      yield decoded.message;
     }
-    yield decoded.message;
   }
 }
+

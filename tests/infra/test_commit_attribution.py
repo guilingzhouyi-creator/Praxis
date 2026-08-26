@@ -14,6 +14,7 @@ so the tests are hermetic and do not depend on the runner's environment.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -86,14 +87,50 @@ def test_unregistered_agent_rejected() -> None:
     res = _scan(msg)
     assert res.returncode == 1
     assert "not registered" in res.stderr
+    assert "DO NOT GUESS OR IMPERSONATE" in res.stderr
 
 
 def test_wrong_model_for_registered_agent() -> None:
-    # AtomCode is only allowed deepseek-v4-flash — gpt-4o is not in its list.
+    # AtomCode is only allowed deepseek-v4-flash/pro — gpt-4o is not in its list.
     msg = "feat(l3): wrong model\n\nCo-Authored-By: AtomCode (gpt-4o) <noreply@atomgit.com>"
     res = _scan(msg)
     assert res.returncode == 1
     assert "model 'gpt-4o' not allowed" in res.stderr
+    assert "DO NOT GUESS OR IMPERSONATE" in res.stderr
+
+
+def test_antigravity_gemini_registered() -> None:
+    detected = json.dumps(
+        {
+            "framework": "antigravity",
+            "agent": "Antigravity",
+            "model": "gemini-3.7-flash",
+            "evidence": "A",
+            "confidence": "high",
+            "signals": ["env:ANTIGRAVITY_*"],
+        }
+    )
+    msg = "feat(l3): antigravity test\n\nCo-Authored-By: Antigravity (gemini-3.7-flash) <noreply@google.com>"
+    res = _scan(msg, detected=detected)
+    assert res.returncode == 0
+
+
+def test_trailing_commentary_after_trailer_rejected() -> None:
+    msg = (
+        "feat(l3): test trailer position\n\n"
+        "Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>\n"
+        "Note: I have verified all 11 checks."
+    )
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "VERY LAST line" in res.stderr
+
+
+def test_missing_blank_line_before_trailer_rejected() -> None:
+    msg = "feat(l3): test trailer blank line\nCo-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>"
+    res = _scan(msg)
+    assert res.returncode == 1
+    assert "preceded by a blank line" in res.stderr
 
 
 def test_markdown_subject_rejected() -> None:
@@ -215,3 +252,42 @@ def test_config_only_evidence_rejected() -> None:
     res = _scan(msg, detected=config_only)
     assert res.returncode == 1
     assert "unverifiable model claim" in res.stderr
+
+
+def test_no_cache_flag_skips_writable_cache(tmp_path: Path) -> None:
+    """--no-cache computes attribution from live evidence only.
+
+    The cache file lives inside the workspace and is writable by the
+    detected process — a forged entry could spoof high-confidence
+    attribution for one TTL window. Gate-context callers must bypass it,
+    and --no-cache must neither read nor write the cache file.
+    """
+    forged = json.dumps(
+        {
+            "framework": "dsh",
+            "agent": "DeepSeek",
+            "model": "deepseek-v4-pro",
+            "provider": "jiyuan",
+            "evidence": "A",
+            "confidence": "high",
+            "signals": ["evidence:session-log"],
+        }
+    )
+    cache_dir = tmp_path / ".praxis"
+    cache_dir.mkdir()
+    (cache_dir / "detect_agent_cache.json").write_text(forged, encoding="utf-8")
+    res = subprocess.run(
+        [sys.executable, str(DETECT), "--json", "--no-cache"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PRAXIS_AUTHOR": "", "PRAXIS_MODEL": ""},
+    )
+    assert res.returncode == 0
+    detected = json.loads(res.stdout)
+    # A forged high-confidence payload must NOT be echoed back verbatim:
+    # live detection re-derives the identity (here: no evidence in tmp cwd).
+    assert detected.get("confidence") != "high" or detected.get("model") != "deepseek-v4-pro"
+    # Bypass means IGNORE, not delete: the pre-existing file must be left
+    # byte-identical (no cache write happened behind the caller's back).
+    assert (cache_dir / "detect_agent_cache.json").read_text(encoding="utf-8") == forged

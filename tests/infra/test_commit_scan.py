@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))  # noqa: E402
 
 from commit_scan import (  # noqa: E402
+    _TYPE_CONTENT_RULES,
     body_advisories,
     load_policy,
     parse_subject,
@@ -68,6 +69,67 @@ def test_cjk_placeholder_rejected():
     p = policy()
     vs = validate_subject("feat: 准备构建", policy=p)
     assert any("CJK" in v for v in vs)
+
+
+def test_non_imperative_verb_rejected():
+    p = policy()
+    for bad_subject in (
+        "feat(kernel): added new allocator table",
+        "fix(kernel): fixing race condition in sync",
+        "refactor(l3): updated session lifecycle handler",
+        "chore(ci): changes in workflow timeout",
+    ):
+        vs = validate_subject(bad_subject, policy=p)
+        assert any("non-imperative verb" in v for v in vs), f"expected violation for {bad_subject}"
+
+
+def test_non_imperative_list_is_policy_driven():
+    # The verb list is registry data (commits.yaml `non_imperative_verbs`):
+    # an explicit policy without the key falls back, and a custom list
+    # overrides the default — proving the gate reads the registry, not a
+    # hardcoded set.
+    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+
+    subject = "feat(kernel): added new allocator table"
+    fallback_policy = {"types": ["feat"], "scopes": ["kernel"]}
+    assert any("non-imperative verb" in v for v in validate_subject(subject, policy=fallback_policy))
+    custom_policy = {
+        "types": ["feat"],
+        "scopes": ["kernel"],
+        "non_imperative_verbs": ["refactored"],
+    }
+    assert validate_subject(subject, policy=custom_policy) == []
+    assert "added" in _FALLBACK_NON_IMPERATIVE_VERBS  # fallback stays populated
+
+
+def test_registry_verb_list_matches_fallback():
+    # Drift guard: the committed registry must carry the same verbs as the
+    # inline fallback so the Node mirror and the Python engine agree.
+    registered = set(policy().get("non_imperative_verbs") or [])
+    assert registered == set(_fallback_verbs())
+
+
+def test_registry_type_content_rules_match_fallback():
+    # Drift guard: the committed registry's type-to-file rules must match the
+    # inline fallback so the Node mirror and the Python engine agree. A rule
+    # added to commits.yaml without updating _TYPE_CONTENT_RULES would let the
+    # two engines diverge on what a type may touch.
+    registered = policy().get("type_content_rules") or {}
+    for ctype, rule in _TYPE_CONTENT_RULES.items():
+        reg_rule = registered.get(ctype)
+        assert reg_rule is not None, f"type_content_rules missing '{ctype}' in registry"
+        reg_prefixes = reg_rule if isinstance(reg_rule, list) else reg_rule.get("must_include", [])
+        assert reg_prefixes == rule["must_include"], (
+            f"type '{ctype}' prefix drift: registry={reg_prefixes} fallback={rule['must_include']}"
+        )
+    # Every registry rule must also exist in the fallback (no orphan registry rules).
+    assert set(registered.keys()) == set(_TYPE_CONTENT_RULES.keys())
+
+
+def _fallback_verbs():
+    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+
+    return _FALLBACK_NON_IMPERATIVE_VERBS
 
 
 def test_empty_summary_rejected():

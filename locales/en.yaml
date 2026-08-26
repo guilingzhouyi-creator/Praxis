@@ -93,6 +93,8 @@ shell:
     usage_cron: "usage: /cron [list|add <id> <schedule> <task>]"
     usage_model: "usage: /model [list|status|switch|health|set|spec]"
     model_budget_int: "max_budget must be an int"
+    model_budget_negative: "max_budget must be >= 0"
+    model_invalid_tier: "invalid reasoning tier"
     usage_model_spec: "usage: /model spec [strategy <name> <pack>|clear <name>|caps [max_reasoning [max_budget]]|peer <scope> <name> <pack>|peer clear <scope> <name>]"
     usage_model_spec_peer: "usage: /model spec peer [global <pack>|cell <id> <pack>|agent <cell>.<agent> <pack>|clear <scope> <name>]"
     usage_skills_get: "usage: /skills get <name>"

@@ -1,6 +1,8 @@
 # Praxis L2 Shell Engine 边界审计与多前端会话层路线图
 
-> 状态：进行中（P0–P3 已完成并合入 main，逐项验收见 §6；P4 重型/移动未启动）
+> 状态：进行中（2026-08-25 对齐 main @ 123b22d2 的第三态——P0 工具单门 ✅ 在 main；P1 边界迁移与
+> P2 的 projection/web/ws 接线被 `edc5caa6` 移除后**未回补，不在 main**；P3 TS 引擎及其三批/P4 分支扩展
+> **已合入 main**；真实 SSH 端点未接。逐项现状见 §6.0 与 §6.2/§6.3 内的复核注记）
 > 关联：`docs/roadmaps/kernel-boundary-audit.md`（L1 审计基线，Rust 前置）、`docs/roadmaps/frontend-kernel-roadmap.md`（前端矩阵 + Rust 下沉内核）、`docs/roadmaps/multilang-migration.md`（TS 槽位）、`docs/architecture/l2-shell-engine.md`（目标架构）、`docs/architecture/l2-shell.md`（现行实现描述）
 > 目的：在 Web / TUI / 轻量桌面（ChatBox 类）/ VSCode 级人机共生开发平台 / 移动端 SSH 多前端落地之前，先固定 L2 的 Shell Engine 边界与**统一会话数据层协议 v1**，避免把当前"CLI command collection + 直连 L3 控制面"的现状原样复制进 TS 重写。
 
@@ -96,18 +98,22 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 | 阶段 | 状态 |
 |---|---|
-| P0 止血 | ✅ |
-| P1 边界迁移 | ✅ |
-| P2 协议 v1 | ✅ |
-| P3 TS 引擎 | ✅ 引擎+四 transport+WS 对接（2026-08-21 合入 main；**08-22 被 edc5caa6 移除，08-23 在 feature/l2-ts-rewrite 21a118cf 恢复**） |
-| P4 重型/移动 | ⏳（起点见 §6.5；2026-08-23 已完成分支内扩展：VSCode diff 流投影、ShellFamily、多视图 multiplexing，见 §6.4） |
+| P0 止血 | ✅（在 main：工具走 `invoke_capability` 单门、G1 fail-closed、`_l3a_intent` 已修） |
+| P1 边界迁移 | ⚠️ 曾完成合入后被 `edc5caa6` 回退——`bridge.py`/`injection_guard.py` 不在 main，L2 直连 L3/L4 回归（§6.2 复核注记） |
+| P2 协议 v1 | 🟡 参考实现四件套（envelope/records/schema/host）+ 契约钉测试在 main；`projection.py`、web 双模式与 ws envelope 分支不在 main（§6.3 复核注记） |
+| P3 TS 引擎 | ✅ 引擎+四 transport+三批扩展已在 main（08-22 被 edc5caa6 移除，后经 feature/l2-ts-rewrite 恢复并合回，见 §6.4） |
+| P4 重型/移动 | 🟡 session-family/session-manager/VSCode 投影等分支扩展已随合入进 main；真实 SSH 端点与五前端矩阵真实接入未启动 |
 
 ### 6.1 P0 止血 — ✅（2026-08-20）
 
 - 工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）；G1 fail-closed；`_execute_tool_spec` 私有化；`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）；删除 `shell_session.py` 死代码（main 上仍存在，见 E5）。
 - 验收：门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen。
 
-### 6.2 P1 边界迁移 — ✅（2026-08-20/21）
+### 6.2 P1 边界迁移 — ⚠️ 曾合入后被 edc5caa6 回退（2026-08-25 复核）
+
+> ⚠️ **main 现状复核**：`src/l2/bridge.py`、`src/l3/services/injection_guard.py` 已被 `edc5caa6`
+> 移除且未回补——下述 ✅ 记录的是合入当时（08-20/21）的状态；main 上 L2→L3/L4 直连回归。
+> 重做边界迁移或改为协议客户端形态收敛之前，本阶段不得视为完成。
 
 - **L3 command bridge 清零**：`src/l2/bridge.py` 为 L2→L3 唯一受控边界（92 函数 / 49 allowlist）；26 个文件 allowlist 条目清零；非桥 L2→L3 直连 44 → 0（余 8 条 L2→L4 独立边界：ci_review/mcp_bridge/api_handlers/llm/cron/i18n）。
 - **selector**：dict 数据 API（`cell_ids`/`cell_liveness`/`cell_agent_reachable`/`cell_territory`，对象句柄零泄漏）；注入策略迁 L3（`l3/services/injection_guard.py`——模式表/阈值裁决/LLM reviewer 下沉）。
@@ -115,7 +121,13 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 - **i18n 收编**：47 处 f-string error 串 → `shell.app_error.*`（31 key × 4 locale）；`test_i18n_l2_regression` 正则已补 f-string 盲区。
 - 验收：业务文件零直连（仅 bridge.py 保留）；策略写操作全部经桥。
 
-### 6.3 P2 协议 v1 — ✅（2026-08-20/21）
+### 6.3 P2 协议 v1 — 🟡 参考实现与契约钉在 main，接线层不在（2026-08-25 复核）
+
+> ⚠️ **main 现状复核**：`src/l2/protocol/{envelope,records,schema,host}.py` 与
+> `tests/l2/test_protocol_v1.py`、`test_protocol_records.py` 在 main；`projection.py`、
+> `tests/l2/test_projection.py`、`tests/l4/test_shell_protocol.py` 不在 main；
+> `src/l4` 全目录无 ProtocolHost/envelope 接线（web 双模式与 ws envelope 分支随 edc5caa6 移除未回补）——
+> "多前端同会话可恢复"验收在当前 main 不成立，仅 stdio host（`python -m l2.protocol`）可用。
 
 - **参考实现**：`src/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`packages/protocol-ts/`（共享 fixture + Vitest）。
 - **接入**：web 端点双模式（`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层 `SessionIdentity`；多前端统一调用（`SessionCursor` 每视图游标 + 单一 ProtocolHost 入口，前端只做线格式适配）。
@@ -131,7 +143,9 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 > `Outbox.ack` 改成破坏性 shift（与 Python3 单真相源的非破坏性 ack 漂移）。
 > 2026-08-23 在 `feature/l2-ts-rewrite` `21a118cf` 恢复引擎 11 文件 + 5
 > 测试，并回退该 ack 漂移（`unacked(afterSeq)` 恢复、非破坏性语义还原）。
-> **当前 main 上无 TS 引擎**——P4 工作以该分支为基础，合入时随分支带回。
+> **当前 main 已含 TS 引擎（2026-08-25 复核）**——`21a118cf` 恢复及三批/分支扩展
+> （session-family/session-manager/vscode 投影等，engine/ 共 30+ 模块）均已合入 main；
+> 上文"main 上无 TS 引擎"为恢复期间的临时状态，保留作历史记录。P4 剩余：真实 SSH 端点与五前端矩阵真实接入。
 
 - **已落地（2026-08-21，恢复于 feature/l2-ts-rewrite）**：
   - 引擎 6 模块：`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 回退桥标记）、`bridge.ts`（**异步 Transport 契约**）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）、`line-transport.ts`（共享引擎：ack 边界 + 超时/上限 + 并发拒绝）。
@@ -155,13 +169,13 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 | 第三批 | `route.ts`（方言路由：pipeline/`$`/`/`/tool/L3A）、`output-guard.ts`（允许/阻止/截断镜像）、ssh.ts readiness handshake（写排队 + attach flush） | Vitest 49 |
 | P4 扩展 | `session-family.ts`（ShellFamily：bind/resolve/loadConfig/revision）、`session-manager.ts`（一会话 N 视图 + 共享水位=落后视图）、VSCode diff 流投影 `projectVscode` | **Vitest 62** + e2e stdio 真实 host 绿 |
 
-**合入状态**：分支 11 提交（恢复 1 + 文档 3 + feat 5 + perf 2）待 `merge --no-ff` 合入本地 main 后双推。
+**合入状态（2026-08-25 更新）**：分支提交（恢复 + 三批 + P4 扩展）已合入本地 main；feature/l2-ts-rewrite 分支已清理。
 
 ### 6.5 P4 重型/移动 — ⏳（起点：feature/l2-ts-rewrite，2026-08-23）
 
 - **VSCode 级共生平台**（事件投影 + diff 流 + 多路会话）与**移动 SSH 适配器**。
-- 起点：引擎已恢复于 `feature/l2-ts-rewrite`（§6.4 恢复记录），P4 在分支上
-  推进，合入时随分支带回 main（main 当前无 TS 引擎）。
+- 起点：引擎及 P4 分支扩展已在 main（§6.4 复核记录）；剩余工作直接在 feature worktree 推进，
+  无需再从旧分支带回。
 - 验收：五前端矩阵全部接入协议 v1。
 
 > 详细文件/符号级索引、运行环境与已知坑：→ [l2-agent-handoff.md](l2-agent-handoff.md)

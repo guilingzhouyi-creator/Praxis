@@ -28,9 +28,10 @@
 | D4 | `docs/design/test-runner-slicing-plan.md` 仍标"待批准" | `tests/runner.py` 已实现 `--slice/--parallel/--list-slices` 与全量 SLICES | 该设计标记为**已落地**，剩余 `tests/l4/llm` 失败项与切片 CI 收口为 P1 |
 | D5 | `docs/roadmaps/README.md` 未登记已落地的 `foundation-gaps-plan.md` 与 `test-runner-slicing-plan.md` | 两文件均存在且多数阶段已合入 | README 增"设计/施工计划"索引段，避免规划再次漂移 |
 
-> **修正进度（2026-08-22 复核）**：D1/D4/D5 已落地（frontend-kernel §3 已改写、README 设计索引段已建立）；
-> D2 仍有残留——`docs/architecture/l2-shell-engine.md`、`docs/architecture/l3-tools.md` 尚存
-> `execute_tool_spec` 字样待清；D3 属 L1 内核审计范围，随该路线图处置。
+> **修正进度（2026-08-22 复核；2026-08-25 更新）**：D1/D4/D5 已落地（frontend-kernel §3 已改写、README 设计索引段已建立）；
+> D2 视为已清——`docs/architecture/l2-shell.md` 契约面已写 `invoke_capability` 与 51 命令；
+> `l2-shell-engine.md`、`l3-tools.md` 残留的 `_execute_tool_spec` 为私有名正确引用，非过期表述；
+> D3 属 L1 内核审计范围，随该路线图处置。
 
 ---
 
@@ -60,14 +61,15 @@
 > **条目仲裁（2026-08-22）**：本节 P0.1–P0.4 与 `agent-os-3x-closure.md` 的 P0.1–P0.6 为同一工作面
 > （会话身份 / durable store / input_seq / 恢复闭环）。**施工权威归 `agent-os-3x-closure.md`**
 > （Slice A–F 切片制 + 依赖序），本表保留生产盲区全景视角，条目级进度以彼处为准、验收互查 exit criteria。
-> P0.5–P0.8（剩余旁路 / 调度强制 / 执行引擎）为本表独有，不重复立项。
+> **进度（2026-08-25 复核）**：P0.1–P0.4 已随彼处 Slice A–E 完成并合入 main。
+> P0.5–P0.8（剩余旁路 / 调度强制 / 执行引擎）为本表独有，不重复立项，均未实施。
 
 | ID | 盲区 | 证据 | 验收标准 |
 |---|---|---|---|
 | P0.1 | 会话身份与生命周期 | 两个会话可覆写同一 terminal 的 `session_id`；`auto_reload()` 可返回 `IDLE` 却无 worker | 显式区分 `terminal_id/session_id/process_id`；create/attach/detach/close 模型化；reload 恢复可触达 RUNNING/IDLE 且失败即大声报错 |
 | P0.2 | 输入序列权威 | `input_seq` 与临时 `sent_seqs` 并存；`session_json.py:32-33,79-84` 计数器仅模块级 dict，重启归零 | L3A 入口只分配一次 `input_seq`，贯穿 conversation/thought/tool/evidence；计数器持久化；重放幂等 |
 | P0.3 | Durable JSON Store | 无 atomic replace/journal/checksum 抽象 | schema 版本 + 原子替换 + journal/checksum + 文件锁 + 幂等写 + 损坏 fail-closed + 明确恢复语义 |
-| P0.4 | 会话恢复闭环 | loader 只重建部分图；`session_persist.py:301` 用单一 `AGENT_ID` 键，多会话互踩 | 从 store 重建完整会话图，保留 identity/scope；重启恢复全部活动会话；重放/恢复幂等 |
+| P0.4 | 会话恢复闭环 | loader 只重建部分图；~~`session_persist.py:301` 用单一 `AGENT_ID` 键，多会话互踩~~（已被 Slice C 的 per-session snapshot store 取代，见 `session_persist.py` `_snapshot_store`） | 从 store 重建完整会话图，保留 identity/scope；重启恢复全部活动会话；重放/恢复幂等——**✅ 随 agent-os-3x-closure Slice C 落地** |
 | P0.5 | B4 `$` 旁路 | `terminal.py:200-205` 直接 `ProcessPort.run`，无 ring/gatechain/constitution | `$` 与工具执行同走 capability 门；shell 命令按 ring 门禁并审计 |
 | P0.6 | B6/B8/B9 收口 | 长生命周期 Popen 游离；L3A session_loop 直调 handler；死 `syscall` 仍在 | ProcessPort 拥有全部句柄；handler 捷径仅系统内部且 agent 不可达；死 syscall 删除或重建为唯一 capability 门 |
 | P0.7 | 调度强制执行 | `CentralScheduler.execute` 同步执行，`preempt/timeout` 只记日志不终止运行中 AgentLoop（`scheduler.py:108-148,205-215`） | 超时/取消真实终止执行线程且状态一致；统一执行权威收敛到 ExecutionEngine 或 pipeline |

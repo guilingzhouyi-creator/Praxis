@@ -37,8 +37,8 @@ def _init_skills_and_network() -> dict:
         results["htn_planner"] = f"error: {e}"
     # Warm capability detector — async probe all registered providers
     try:
-        from l1.kernel.model_registry import get_registry
         from l3.services.model_strategy import get_detector
+        from l4.llm.model_registry import get_registry
 
         det = get_detector()
         n_probed = det.probe_all_registered(get_registry())

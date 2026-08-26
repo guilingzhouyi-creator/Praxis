@@ -119,7 +119,7 @@ def cfg_commands(cfg: dict, s: Any, results: dict) -> None:
             type: callback       # "callback" | "echo" | "l3_intent"
             response: "hello world"
     """
-    from l1.kernel.commands import get_registry
+    from l2.commands import get_registry
 
     reg = get_registry()
 

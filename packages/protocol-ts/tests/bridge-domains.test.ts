@@ -8,15 +8,16 @@ import {
 import { makeMessage } from "../src/envelope.ts";
 
 /** Recording transport: echoes one result envelope per request. */
-function makeRecordingTransport() {
+function makeRecordingTransport(sessionId?: string) {
   const requests: { name: string; args: string[] }[] = [];
   let counter = 100;
   const transport = async (line: string): Promise<string[]> => {
-    const parsed = JSON.parse(line) as { payload: { name?: string; args?: string[] } };
-    const p = parsed.payload ?? {};
+    const parsed = JSON.parse(line) as { session_id?: string; payload?: { name?: string; args?: string[] } };
+    const p = parsed?.payload ?? {};
+    const effectiveSessionId = sessionId ?? parsed?.session_id ?? "sess";
     if (typeof p.name === "string") {
       requests.push({ name: p.name, args: (p.args as string[]) ?? [] });
-      const reply = makeMessage("sess", counter++, "event", { ok: true, echo: p.name });
+      const reply = makeMessage(effectiveSessionId, counter++, "event", { ok: true, echo: p.name });
       return [JSON.stringify(reply)];
     }
     return [];

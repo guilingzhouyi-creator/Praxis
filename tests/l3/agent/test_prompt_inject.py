@@ -97,7 +97,7 @@ class TestAgentLoopGating:
         assert "CONSTITUTION_MARKER_RULES" not in joined
 
     def test_verification_inject_off(self):
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         vc = get_prompt("agent_loop.verification_culture", "")
         if not vc:

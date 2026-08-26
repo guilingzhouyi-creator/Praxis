@@ -452,20 +452,20 @@ class TestKernelHealth:
 
 class TestPrompts:
     def test_get_prompt(self):
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         p = get_prompt("agent_loop.system")
         assert p is not None
         assert "agent" in p.lower()
 
     def test_get_prompt_not_found(self):
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         p = get_prompt("nonexistent")
         assert p is None or p == ""
 
     def test_list_prompts(self):
-        from l1.kernel.prompts import list_prompts
+        from l3.agent.prompts import list_prompts
 
         prompts = list_prompts()
         assert len(prompts) >= 3

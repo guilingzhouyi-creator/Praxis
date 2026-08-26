@@ -324,7 +324,7 @@ def _think_memory_context(term, card, task, domain: str) -> str:
 
 def _think_system_prompt(term, task, memory_context: str) -> str:
     """Assemble the think system prompt (base + optional memory context)."""
-    from l1.kernel.prompts import get_prompt
+    from l3.agent.prompts import get_prompt
 
     system_prompt = get_prompt("agent_terminal.think").format(
         agent_id=term.agent_id,

@@ -38,7 +38,7 @@ import time
 from pathlib import Path
 
 CACHE_TTL_S = 30.0
-CACHE_PATH = Path('.praxis') / 'detect_agent_cache.json'
+CACHE_PATH = Path(".praxis") / "detect_agent_cache.json"
 
 
 def _dsh_home() -> Path:
@@ -188,18 +188,36 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
         }
 
     env = os.environ
-    # Tier D1 — Claude Code env (framework identity, model unknown unless set).
+    # Tier D1 — Known AI Assistant envs (framework identity).
+    if any(k.startswith("ANTIGRAVITY_") for k in env) or env.get("AI_AGENT") == "antigravity":
+        signals.append("env:ANTIGRAVITY_*")
+        model = env.get("ANTIGRAVITY_MODEL") or env.get("GEMINI_MODEL") or env.get("PRAXIS_MODEL") or ""
+        return {
+            "framework": "antigravity",
+            "agent": "Antigravity",
+            "model": model,
+            "provider": "google",
+            "evidence": "D",
+            "confidence": "medium" if model else "low",
+            "signals": signals,
+            "note": "framework from Antigravity environment; model from env/pin"
+            if model
+            else "framework from Antigravity environment; model not execution-verified (use PRAXIS_MODEL to pin)",
+        }
     if any(k.startswith("CLAUDE_CODE_") for k in env):
         signals.append("env:CLAUDE_CODE_*")
+        model = env.get("CLAUDE_MODEL") or env.get("PRAXIS_MODEL") or ""
         return {
             "framework": "claude-code",
             "agent": "Claude",
-            "model": env.get("CLAUDE_MODEL", ""),
+            "model": model,
             "provider": "",
             "evidence": "D",
-            "confidence": "medium" if env.get("CLAUDE_MODEL") else "low",
+            "confidence": "medium" if model else "low",
             "signals": signals,
-            "note": "framework from env; model unknown unless CLAUDE_MODEL set",
+            "note": "framework from env; model from env/pin"
+            if model
+            else "framework from env; model unknown unless CLAUDE_MODEL/PRAXIS_MODEL set",
         }
 
     # Tier D2 — provider keys (framework identity only; model NEVER invented).
@@ -213,6 +231,9 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
     elif env.get("OPENAI_API_KEY"):
         provider_agent = ("OpenAI", "noreply@openai.com")
         signals.append("env:OPENAI_API_KEY")
+    elif env.get("GEMINI_API_KEY") or env.get("GOOGLE_API_KEY"):
+        provider_agent = ("Gemini", "noreply@google.com")
+        signals.append("env:GOOGLE_API_KEY")
     if provider_agent:
         agent, email = provider_agent
         return {
@@ -233,6 +254,8 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
         ("opencode", "OpenCode", "noreply@opencode.dev"),
         ("claude", "Claude", "noreply@anthropic.com"),
         ("atomcode", "AtomCode", "noreply@atomgit.com"),
+        ("antigravity", "Antigravity", "noreply@google.com"),
+        ("agy", "Antigravity", "noreply@google.com"),
     ):
         if any(marker in c for c in chain):
             signals.append(f"proc:{marker}")
@@ -264,7 +287,7 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
             "evidence": "D",
             "confidence": "none",
             "signals": signals,
-            "note": "workspace dirs only — cannot identify agent or model",
+            "note": "workspace dirs only — cannot identify agent or model; do not guess",
         }
 
     return {
@@ -275,33 +298,46 @@ def detect() -> dict:  # noqa: PLR0911 — each evidence tier returns its own id
         "evidence": "",
         "confidence": "none",
         "signals": [],
-        "note": "no framework or model evidence found",
+        "note": "no framework or model evidence found; do not guess",
     }
 
 
 def _cache_path() -> Path:
     return CACHE_PATH
 
+
 def _read_cache() -> dict | None:
     cp = _cache_path()
     if not cp.exists():
         return None
     try:
-        data = json.loads(cp.read_text(encoding='utf-8'))
-        if time.time() - data.get('_cached_at', 0) < CACHE_TTL_S:
-            data.pop('_cached_at', None)
+        data = json.loads(cp.read_text(encoding="utf-8"))
+        if time.time() - data.get("_cached_at", 0) < CACHE_TTL_S:
+            data.pop("_cached_at", None)
             return data
     except (ValueError, KeyError, OSError):
         pass
     return None
 
+
 def _write_cache(result: dict) -> None:
     cp = _cache_path()
     cp.parent.mkdir(parents=True, exist_ok=True)
-    data = {**result, '_cached_at': time.time()}
-    cp.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    data = {**result, "_cached_at": time.time()}
+    cp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
-def cached_detect() -> dict:
+
+def cached_detect(use_cache: bool = True) -> dict:
+    """Return the detected identity, optionally bypassing the disk cache.
+
+    The cache file (.praxis/detect_agent_cache.json) is written inside the
+    workspace and is therefore WRITABLE by the very process being detected —
+    a forged cache entry could spoof high-confidence attribution for one
+    TTL window. Gate-context callers (commit_scan.py) MUST pass
+    use_cache=False so attribution is always computed from live evidence.
+    """
+    if not use_cache:
+        return detect()
     cached = _read_cache()
     if cached is not None:
         return cached
@@ -309,12 +345,17 @@ def cached_detect() -> dict:
     _write_cache(result)
     return result
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Detect the agent framework/model from execution evidence")
     parser.add_argument("--json", action="store_true", help="emit JSON (default behavior; kept for CLI compatibility)")
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="bypass the writable disk cache — REQUIRED for gate/attribution contexts",
+    )
     args = parser.parse_args()
-    del args
-    print(json.dumps(cached_detect(), ensure_ascii=False))
+    print(json.dumps(cached_detect(use_cache=not args.no_cache), ensure_ascii=False))
     return 0
 
 

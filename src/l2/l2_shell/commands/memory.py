@@ -114,7 +114,7 @@ def _memory_context_audit(rest: list[str]) -> dict:
 
 def _memory_prompt_version(rest: list[str]) -> dict:
     """/memory prompt-version [snapshot|rollback=key@version] — prompt versioning (global op)."""
-    from l1.kernel.prompts import prompt_versioning_status, prompt_versions, rollback_prompt
+    from l3.agent.prompts import prompt_versioning_status, prompt_versions, rollback_prompt
 
     sub = rest[1] if len(rest) >= 2 else ""
     if sub.startswith("rollback="):

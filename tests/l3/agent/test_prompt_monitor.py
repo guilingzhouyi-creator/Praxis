@@ -75,7 +75,7 @@ def test_monitored_get_prompt_counts_usage():
         from l3.agent.prompt_monitor import install_prompt_hook
 
         assert install_prompt_hook() is True
-        from l1.kernel.prompts import get_prompt_monitored
+        from l3.agent.prompts import get_prompt_monitored
 
         get_prompt_monitored("agent_loop.system.default", "fallback")
         assert prompt_monitor_stats()["per_prompt"]["agent_loop.system.default"]["used"] == 1

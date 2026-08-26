@@ -28,7 +28,6 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def handle_providers_list(body: dict | None = None) -> dict:
     """GET /api/v2/providers — list all registered LLM providers."""
-    from l1.kernel.model_registry import get_registry
+    from l4.llm.model_registry import get_registry
 
     reg = get_registry()
     try:
@@ -205,68 +204,17 @@ _SPEC_NAMES = ("scout", "l3a", "l3a_subagent", "subagent", "r4_agent")
 
 
 def handle_model_spec_overview(body: dict | None = None) -> dict:
-    """GET /api/v2/model-spec/overview — full panel state for frontend rendering.
-
-    Returns per-executor resolved values + active strategy, global caps,
-    available strategy packs and the reasoning tier set.
-    """
-    from l3.config.settings_center import get_center
+    """GET /api/v2/model-spec/overview — full panel state for frontend rendering."""
     from l3.services.model_service import get_service
 
-    sc = get_center()
-    ms = get_service()
-    specs = {}
-    for name in _SPEC_NAMES:
-        cur = ms.current_strategy(name)
-        specs[name] = {
-            "current": ms.resolve_dict(name),
-            "strategy": cur["strategy"],
-            "overrides": cur["overrides"],
-        }
-    strategies: dict[str, dict[str, Any]] = {}
-    for key, value in sc.all().items():
-        if key.startswith("model_spec.strategies."):
-            parts = key.split(".")
-            # model_spec.strategies.{name}.{attr}
-            if len(parts) >= 4:
-                strategies.setdefault(parts[2], {})[parts[3]] = value
-    try:
-        from l1.kernel.params.api import EFFORT_RANK
-
-        tiers = list(EFFORT_RANK.keys())
-    except Exception:
-        tiers = ["none", "low", "medium", "high", "xhigh", "max"]
-    try:
-        from l3.scheduler.think_registry import get_think_registry
-
-        peers = get_think_registry().stats()
-    except Exception:
-        peers = {}
-    return {
-        "success": True,
-        "specs": specs,
-        "caps": {
-            "max_reasoning": sc.get("think.max_reasoning", "max"),
-            "max_budget": sc.get("think.max_budget", 32768),
-        },
-        "strategies": strategies,
-        "tiers": tiers,
-        "peers": peers,
-    }
+    return get_service().get_overview()
 
 
 def handle_think_caps_get(body: dict | None = None) -> dict:
     """GET /api/v2/model-spec/caps — current reasoning caps."""
-    from l3.config.settings_center import get_center
+    from l3.services.model_service import get_service
 
-    sc = get_center()
-    return {
-        "success": True,
-        "caps": {
-            "max_reasoning": sc.get("think.max_reasoning", "max"),
-            "max_budget": sc.get("think.max_budget", 32768),
-        },
-    }
+    return get_service().get_caps()
 
 
 def handle_think_caps_set(body: dict | None = None) -> dict:
@@ -275,38 +223,16 @@ def handle_think_caps_set(body: dict | None = None) -> dict:
     Body: {"max_reasoning": "high"} and/or {"max_budget": 8192}.
     """
     b = body or {}
-    from l3.config.settings_center import get_center
+    from l3.services.model_service import get_service
 
-    sc = get_center()
-    updated = []
-    if "max_reasoning" in b:
-        tier = str(b["max_reasoning"])
-        try:
-            from l1.kernel.params.api import EFFORT_RANK
-
-            if tier not in EFFORT_RANK:
-                return {"success": False, "error": f"invalid tier: {tier} (none|low|medium|high|xhigh|max)"}
-        except Exception:
-            pass
-        sc.set("think.max_reasoning", tier)
-        updated.append("max_reasoning")
+    max_reasoning = b.get("max_reasoning")
+    max_budget = None
     if "max_budget" in b:
         try:
-            budget = int(b["max_budget"])
+            max_budget = int(b["max_budget"])
         except (TypeError, ValueError):
             return {"success": False, "error": "max_budget must be an int"}
-        if budget < 0:
-            return {"success": False, "error": "max_budget must be >= 0"}
-        sc.set("think.max_budget", budget)
-        updated.append("max_budget")
-    return {
-        "success": True,
-        "updated": updated,
-        "caps": {
-            "max_reasoning": sc.get("think.max_reasoning", "max"),
-            "max_budget": sc.get("think.max_budget", 32768),
-        },
-    }
+    return get_service().set_caps(max_reasoning=max_reasoning, max_budget=max_budget)
 
 
 def handle_peer_strategy_apply(body: dict | None = None) -> dict:

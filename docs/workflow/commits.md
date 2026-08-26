@@ -26,22 +26,26 @@ source of truth for the Conventional-Commits contract.
   - **Config declaration** (`~/.dsh/settings.yaml`) is only a
     LOW-confidence fallback: what the deployment configures is NOT proof
     of what this commit ran.
-  - **Other frameworks** (OpenCode/Claude/AtomCode) are identified by
+  - **Other frameworks** (OpenCode/Claude/AtomCode/Antigravity/Gemini) are identified by
     env/process-chain, but without their own session evidence the model is
     unknown — a specific model claim is rejected as unverifiable.
   - An operator pin (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`) is a deliberate,
     trusted override, still not execution proof.
-  Before writing a trailer, the agent MUST run
-  `python scripts/py/detect_agent.py --json` and name the evidence-backed
-  framework/model — do not read settings.yaml and paste its model.
-- **Subject format is normalized**: lowercase start, no markdown (`**`/`` ` ``/`_`),
+  - **Anti-Impersonation & Self-Introspection Rule**: Before authoring a trailer, the agent MUST run
+    `python scripts/py/detect_agent.py --json` to probe its live runtime identity. Agents MUST NEVER
+    randomly grab registered names from `commits.yaml`. If the agent or model is unregistered in
+    `commits.yaml` or unverifiable, the agent MUST stop and prompt the user for registry addition or
+    explicit environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
+- **Subject format is normalized**: lowercase start, imperative mood present-tense verb (no past tense / gerunds like `added`, `fixed`, `updating`), no markdown (`**`/`` ` ``/`_`),
   no trailing period, ≤ 72 chars — plain text, never rendered markup.
+- **Strict Trailer Sentinel**: `Co-Authored-By:` must be preceded by a blank line and MUST be the absolute last line of the commit message (no trailing commentary or notes).
+  - **Cherry-pick note (`git cherry-pick -x`)**: the `(cherry picked from commit ...)` line is appended AFTER the trailer and violates this sentinel — after cherry-picking, reword the message so the trailer is last (move the picked-from line into the body), or drop `-x`. The gate does not special-case it.
 
 | Part | Requirement |
 |---|---|
-| Subject | Conventional Commits: `type(scope): summary`; ≤ 72 chars; imperative mood |
+| Subject | Conventional Commits: `type(scope): summary`; ≤ 72 chars; imperative present tense (`add`, `fix`, `update`, `refactor`, `harden`) |
 | Body | Blank line after subject; explain **what** and **why** (structured Markdown: `## Sections`, `**keywords**`, `` `files` ``, `-` bullets) |
-| Trailer | `Co-Authored-By:` line last, preceded by a blank line |
+| Trailer | `Co-Authored-By:` strictly last line, preceded by a blank line (no trailing notes) |
 
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
   merge is gated on diff scope — see `AGENTS.md` `## Dependency management`.

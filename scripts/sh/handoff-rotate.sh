@@ -39,13 +39,21 @@ if [ "${ENTRIES:-0}" -gt "$LOG_MAX" ]; then
   # sections (Clobber warnings etc.) survive; rotated rows are removed.
   awk -v keep="$KEEP" '
     BEGIN { kept = 0; in_tail = 0 }
-    /^## Clobber warnings/ { in_tail = 1 }
+    /^## Clobber warnings/ {
+      start = kept - keep; if (start < 0) start = 0
+      for (i = start; i < kept; i++) print rows[i]
+      in_tail = 1
+      print
+      next
+    }
     in_tail { print; next }
     /^\| 202[0-9]-/ { rows[kept++] = $0; next }
     { print }
     END {
-      start = kept - keep; if (start < 0) start = 0
-      for (i = start; i < kept; i++) print rows[i]
+      if (!in_tail) {
+        start = kept - keep; if (start < 0) start = 0
+        for (i = start; i < kept; i++) print rows[i]
+      }
     }
   ' "$ALIGN" > "$ALIGN.tmp" && mv "$ALIGN.tmp" "$ALIGN"
   CHANGED=1

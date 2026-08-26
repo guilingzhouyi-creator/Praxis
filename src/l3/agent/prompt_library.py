@@ -157,7 +157,7 @@ def resolve_cell_prompt(cell_id: str, pressure: float = 0.0) -> str:
     # system default is injected even before a Cell-specific write.
     if not base:
         try:
-            from l1.kernel.prompts import get_prompt
+            from l3.agent.prompts import get_prompt
 
             base = get_prompt("cell.shared.base", "")
         except Exception:

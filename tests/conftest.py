@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pathlib as _pl
 import sys
 import tempfile
 
@@ -103,17 +104,17 @@ _RESETS = {
 }
 
 
+# Detect agent cache: clear around EACH test (autouse, function scope) so
+# stale attribution results never leak across test boundaries.
+_DAC = _pl.Path(".praxis") / "detect_agent_cache.json"
 
-# Detect agent cache: clear between test modules to prevent stale
-# attribution results from leaking across test boundaries.
-import pathlib as _pl
-_DAC = _pl.Path('.praxis') / 'detect_agent_cache.json'
 
 @pytest.fixture(autouse=True)
 def _clear_detect_cache():
     _DAC.unlink(missing_ok=True)
     yield
     _DAC.unlink(missing_ok=True)
+
 
 @pytest.fixture(autouse=True)
 def _reset_singletons():
@@ -149,9 +150,9 @@ def _reset_singletons():
     # Only reload when the commands package was actually imported — an
     # unconditional importlib.reload() re-imports the whole L2 command tree
     # (pulling L3 modules) on every test, adding ~5s of setup cost.
-    if "l2.l2_shell.commands" in sys.modules or "l1.kernel.commands" in sys.modules:
+    if "l2.l2_shell.commands" in sys.modules or "l2.commands" in sys.modules:
         try:
-            from l1.kernel.commands import get_registry, load_command_defs, reset_registry
+            from l2.commands import get_registry, load_command_defs, reset_registry
 
             reset_registry()
             get_registry()
@@ -269,6 +270,7 @@ def terminal():
     from l3.agent_terminal import get_terminal
 
     return get_terminal("test-agent", role="reader", territory=["."])
+
 
 # ── Deterministic ordering (infra slice) ──────────────────────────────
 # pytest-random-order shuffles test order causing cross-test pollution.

@@ -9,7 +9,7 @@ from l1.kernel.identity_binding import get_identity_binding_manager, reset_ident
 
 @pytest.fixture(autouse=True)
 def _clean(tmp_path, monkeypatch):
-    from l1.kernel import prompts as _prompts
+    from l3.agent import prompts as _prompts
 
     # Isolate the identity-binding persistence file per test so a prior
     # test's bindings never leak into this one via _restore().

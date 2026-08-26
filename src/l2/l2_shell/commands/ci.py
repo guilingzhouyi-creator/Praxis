@@ -56,9 +56,9 @@ def _parse_flags(args: list[str]) -> tuple[list[str], str, str, bool]:
 
 def _resolve_scope_key(key: str, cell_id: str, agent_id: str) -> str:
     """Resolve a key (with optional scope) into the concrete settings key."""
-    from l4.ci_review import _normalize_key
+    from l3.services.adapter_bridge import normalize_ci_key
 
-    full = _normalize_key(key)
+    full = normalize_ci_key(key)
     if full.startswith(("ci.review.cell.", "ci.review.agent.", "ci.control.")):
         return full
     suffix = full[len("ci.review.") :] if full.startswith("ci.review.") else full
@@ -93,11 +93,12 @@ def _ci_rerun(svc, rest: list[str], *_context: object) -> dict:
 
 def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str, _admin: bool = False) -> dict:
     """`ci config [--cell X] [--agent Y]` — show global/effective settings."""
-    from l4.ci_review import CI_SETTING_SUFFIXES
+    from l3.services.adapter_bridge import get_ci_setting_suffixes
 
     settings: dict = {}
     effective: dict = {}
-    for suffix in sorted(CI_SETTING_SUFFIXES):
+    suffixes = get_ci_setting_suffixes()
+    for suffix in sorted(suffixes):
         global_key = f"ci.review.{suffix}"
         settings[global_key] = center.get(global_key)
         effective[suffix] = svc._effective(suffix, agent_id, cell_id, center.get(global_key))
@@ -115,18 +116,18 @@ def _ci_config(svc, center, rest: list[str], cell_id: str, agent_id: str, _admin
 
 def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci set <key> <value> [--cell X] [--agent Y] [--admin]` — set a review setting."""
-    from l4.ci_review import CI_SETTING_SUFFIXES, _is_allowed_key, _is_control_key
+    from l3.services.adapter_bridge import get_ci_setting_suffixes, is_ci_allowed_key, is_ci_control_key
 
     if len(rest) < 3:
         return {"success": False, "error": _t("shell.app_error.usage_ci_set")}
     full_key = _resolve_scope_key(rest[1], cell_id, agent_id)
-    if not _is_allowed_key(full_key):
+    if not is_ci_allowed_key(full_key):
         return {
             "success": False,
             "error": f"key not writable: {full_key}",
-            "allowed": sorted(CI_SETTING_SUFFIXES),
+            "allowed": sorted(get_ci_setting_suffixes()),
         }
-    if _is_control_key(full_key):
+    if is_ci_control_key(full_key):
         if not admin:
             return {"success": False, "error": f"admin confirmation required for {full_key} (add --admin)"}
     elif not svc._surface_writable("shell"):
@@ -138,10 +139,10 @@ def _ci_set(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bo
 
 def _ci_toggle(svc, center, rest: list[str], cell_id: str, agent_id: str, admin: bool) -> dict:
     """`ci toggle [--cell X] [--agent Y] [--admin]` — flip the enabled switch."""
-    from l4.ci_review import _is_control_key
+    from l3.services.adapter_bridge import is_ci_control_key
 
     full_key = _resolve_scope_key("enabled", cell_id, agent_id)
-    if _is_control_key(full_key) and not admin:
+    if is_ci_control_key(full_key) and not admin:
         return {"success": False, "error": _t("shell.app_error.ci_admin_required")}
     if not svc._surface_writable("shell"):
         return {"success": False, "error": _t("shell.app_error.ci_writes_disabled")}
@@ -169,10 +170,10 @@ def _cmd_ci(args: list[str]) -> dict:
     """
     try:
         from l3.config.settings_center import get_center
-        from l4.ci_review import get_service
+        from l3.services.adapter_bridge import get_ci_review_service
 
         rest, cell_id, agent_id, admin = _parse_flags(args)
-        svc = get_service()
+        svc = get_ci_review_service()
         center = get_center()
         if not rest:
             return {"success": True, **svc.stats()}

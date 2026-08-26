@@ -37,7 +37,12 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[judge-stats] not in a git repo" >&2; exit 2; }
 cd "$ROOT"
 
-LOG="$ROOT/.praxis/judge-runs.jsonl"
+COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$COMMON_DIR" ] && [ -d "$COMMON_DIR" ]; then
+  LOG="$(cd "$COMMON_DIR" && pwd)/../.praxis/judge-runs.jsonl"
+else
+  LOG="$ROOT/.praxis/judge-runs.jsonl"
+fi
 DAYS=""
 JSON=0
 MD=0
@@ -99,27 +104,35 @@ rows = sorted(uniq, key=lambda r: r.get("ts", ""))
 rows = [r for r in rows if not ((r.get("checks") or {}) and all(v == 0 for v in r["checks"].values()))]
 
 # Mode: explicit `mode` field wins; legacy records derive it from the check
-# flags (any flag 0 = skipped = fast). Never mix full and fast runs in one
-# completion/duration statistic — they measure different things.
+# flags (any flag 0 = skipped = fast; <11 checks = legacy fast). Never mix full
+# and fast runs in one completion/duration statistic — they measure different things.
 def run_mode(r):
     m = r.get("mode")
-    if m:
+    if m in ("full", "fast"):
         return m
-    return "fast" if any(fl == 0 for fl in (r.get("checks") or {}).values()) else "full"
+    chks = r.get("checks") or {}
+    if len(chks) < 11 or any(fl == 0 for fl in chks.values()):
+        return "fast"
+    return "full"
 
-# window filter
+# window filter (UTC-aligned)
 if days:
-    cutoff = date.today() - timedelta(days=int(days))
+    from datetime import timezone
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=int(days))
     rows = [r for r in rows if datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).date() >= cutoff]
 
 total = len(rows)
+full_runs = [r for r in rows if run_mode(r) == "full"]
+fast_runs = [r for r in rows if run_mode(r) == "fast"]
+
 # COMPLETE strictly means "all 11 checks executed and passed" (full mode).
 # Legacy fast-mode records written as COMPLETE (checks skipped) are
 # downgraded to the PARTIAL bucket — the audit-corrected reading.
-complete = sum(1 for r in rows if r["verdict"] == "COMPLETE" and run_mode(r) == "full")
-partial = sum(1 for r in rows if r["verdict"] == "PARTIAL" or (r["verdict"] == "COMPLETE" and run_mode(r) == "fast"))
+complete = sum(1 for r in full_runs if r.get("verdict") == "COMPLETE")
+partial = sum(1 for r in rows if r.get("verdict") == "PARTIAL" or (r.get("verdict") == "COMPLETE" and run_mode(r) == "fast"))
 rate = complete / total if total else 0.0
-incomplete = [r for r in rows if r["verdict"] == "INCOMPLETE"]
+full_rate = complete / len(full_runs) if full_runs else 0.0
+incomplete = [r for r in rows if r.get("verdict") == "INCOMPLETE"]
 
 # failure distribution: which check failed (flag == 2) among INCOMPLETE runs
 fail_counter = Counter()
@@ -133,7 +146,7 @@ trend = defaultdict(lambda: [0, 0])
 for r in rows:
     d = datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).date().isoformat()
     trend[d][1] += 1
-    if r["verdict"] == "COMPLETE" and run_mode(r) == "full":
+    if r.get("verdict") == "COMPLETE" and run_mode(r) == "full":
         trend[d][0] += 1
 
 # ── A: per-branch completion rate ──────────────────────────────────────
@@ -210,18 +223,31 @@ for k, vals in metric_series.items():
 # (anti "forgot the tests": the dashboard surfaces skipped tests).
 skipped_tests_count = sum(1 for r in rows if r.get("skipped_tests") == 1)
 
+# Delta-waiver count — judge runs whose net-delta check passed via the
+# MERGE_GATE_SKIP waiver (not because the branch qualified). A waived pass
+# is honest evidence of a user-granted exemption, never of a qualifying
+# delta; surfacing it keeps completion statistics from absorbing waivers.
+delta_waived_count = sum(1 for r in rows if r.get("delta_waived") == 1)
+
 # ── C: gate-exemption count from git history ──────────────────────────
 # MERGE_GATE_SKIP=1 waivers leave an audit trail in merge messages
-# (push-both requires MERGE_GATE_REASON). Count them per COMMIT (one line
-# per commit, hash \x00 message) — a message spanning subject+body must
+# (push-both requires MERGE_GATE_REASON). Count them per COMMIT (one record
+# per commit via null-separated fields) — a message spanning subject+body must
 # not be double-counted.
 exemptions = 0
 try:
     out = subprocess.run(
-        ["git", "log", "--all", "--format=%H%x00%s%n%b", "--grep=MERGE_GATE_SKIP"],
+        ["git", "log", "--all", "-z", "--format=%H%x00%B", "--grep=MERGE_GATE_SKIP"],
         capture_output=True, text=True, timeout=15,
     ).stdout
-    exemptions = sum(1 for ln in out.splitlines() if "\x00" in ln and ("MERGE_GATE_SKIP" in ln or "gate exemption" in ln.lower()))
+    entries = [e for e in out.split("\x00") if e.strip()]
+    exemption_hashes = set()
+    for i in range(0, len(entries) - 1, 2):
+        chash = entries[i].strip()
+        cmsg = entries[i + 1]
+        if "MERGE_GATE_SKIP" in cmsg or "gate exemption" in cmsg.lower():
+            exemption_hashes.add(chash)
+    exemptions = len(exemption_hashes)
 except Exception:
     exemptions = 0
 
@@ -232,11 +258,13 @@ if as_json:
         "partial": partial,
         "incomplete": total - complete - partial,
         "completion_rate": round(rate, 3),
+        "full_completion_rate": round(full_rate, 3),
         "duration_s": dur_full,
         "duration_fast": dur_fast,
         "mode_runs": {"full": len(full_runs), "fast": len(fast_runs)},
         "max_incomplete_streak": max_streak,
         "gate_exemptions": exemptions,
+        "delta_waived_runs": delta_waived_count,
         "failures_by_check": dict(fail_counter),
         "branch_stats": {b: {"runs": s["runs"], "complete": s["complete"], "rate": round(s["complete"] / s["runs"], 3)} for b, s in branch_stats.items()},
         "check_pass_rates": {chk: {"pass": p, "executed": n, "rate": round(p / n, 3)} for chk, (p, n) in check_pass.items()},
@@ -254,9 +282,13 @@ if as_md:
     lines.append("## CompletionJudge effectiveness (auto-updated)")
     lines.append("")
     lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({pct(complete, total)}) | **PARTIAL**: {partial} ({pct(partial, total)}, fast mode — checks skipped) | **INCOMPLETE**: {total - complete - partial} ({pct(total - complete - partial, total)}, machine 'not done')")
-    lines.append(f"**Mode split**: full {len(full_runs)} / fast {len(fast_runs)} (fast = at least one check skipped)")
+    lines.append(f"**Mode split**: full {len(full_runs)} ({pct(complete, len(full_runs))} complete) / fast {len(fast_runs)} (fast = at least one check skipped)")
+    if skipped_tests_count:
+        lines.append(f"**Skipped tests notice**: tests skipped in {skipped_tests_count} judge run(s) (full mode / WSL slice-serial required before merge)")
     if exemptions:
         lines.append(f"**Gate exemptions** (MERGE_GATE_SKIP commits in history): {exemptions}")
+    if delta_waived_count:
+        lines.append(f"**Waived delta passes**: {delta_waived_count} judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)")
     lines.append("")
     lines.append("| Date | Runs | Complete | Rate |")
     lines.append("|---|---|---|---|")
