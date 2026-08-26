@@ -11,10 +11,13 @@ use crate::substrate::{ProcessHandle, QueueMetricSnapshot, QueueMetrics};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SchedulerConfig {
     /// Maximum number of reusable process slots.
+    /// Process-table capacity shared with the allocator view.
     pub max_processes: u32,
     /// Number of independent state ownership shards.
+    /// Shard count forwarded to the state store.
     pub shard_count: u32,
     /// Maximum number of queued work items.
+    /// Hard bound on scheduled-but-unclaimed work items.
     pub queue_capacity: usize,
 }
 
@@ -53,6 +56,10 @@ pub struct KernelScheduler {
 
 impl KernelScheduler {
     /// Create a scheduler candidate without starting worker threads.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when `queue_capacity` is zero or shard sizing is invalid.
     pub fn new(config: SchedulerConfig) -> Result<Self, &'static str> {
         let handles = ProcessHandleAllocator::new(config.max_processes)?;
         let state = ShardedStateStore::new(config.shard_count)?;
@@ -66,6 +73,10 @@ impl KernelScheduler {
     }
 
     /// Allocate a process slot in READY state.
+    ///
+    /// # Errors
+    ///
+    /// CapacityExhausted when the table is full — fail-closed, no eviction.
     pub fn spawn(&self) -> Result<ProcessHandle, SchedulerError> {
         let handle = self
             .handles
@@ -79,6 +90,10 @@ impl KernelScheduler {
     }
 
     /// Move a READY process to RUNNING and enqueue one typed work item.
+    ///
+    /// # Errors
+    ///
+    /// QueueFull under backpressure; InvalidHandle for unknown handles.
     pub fn schedule(&self, handle: ProcessHandle, sequence: u64) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Ready, TaskState::Running)
@@ -98,6 +113,10 @@ impl KernelScheduler {
     /// This avoids enqueue/dequeue churn when an execution host has its own
     /// bounded WorkerPool. Queue metrics remain untouched because no scheduler
     /// queue item was admitted.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when the handle is not in a dispatchable state.
     pub fn dispatch_direct(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Ready, TaskState::Running)
@@ -121,6 +140,10 @@ impl KernelScheduler {
     }
 
     /// Complete a claimed item and return its process to READY.
+    ///
+    /// # Errors
+    ///
+    /// InvalidHandle / InvalidState when completion ordering is violated.
     pub fn complete(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Running, TaskState::Ready)
@@ -130,6 +153,10 @@ impl KernelScheduler {
     }
 
     /// Complete a directly dispatched process without touching queue metrics.
+    ///
+    /// # Errors
+    ///
+    /// InvalidHandle / InvalidState as above, bypassing the work queue.
     pub fn complete_direct(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Running, TaskState::Ready)
@@ -138,6 +165,10 @@ impl KernelScheduler {
     }
 
     /// Stop a READY or RUNNING process; queued work is discarded on claim.
+    ///
+    /// # Errors
+    ///
+    /// InvalidHandle when unknown; InvalidState when already stopped.
     pub fn stop(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         if self
             .state
@@ -157,6 +188,10 @@ impl KernelScheduler {
     }
 
     /// Stop work that has already been claimed by a runtime worker.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when the item was not claimed by this caller.
     pub fn stop_claimed(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Running, TaskState::Stopped)
@@ -166,6 +201,10 @@ impl KernelScheduler {
     }
 
     /// Stop a directly dispatched process without decrementing queue metrics.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState mirroring `stop` for direct-dispatch items.
     pub fn stop_direct(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         self.state
             .transition(handle, TaskState::Running, TaskState::Stopped)
@@ -174,6 +213,10 @@ impl KernelScheduler {
     }
 
     /// Reap a non-running process and release its generation-tagged slot.
+    ///
+    /// # Errors
+    ///
+    /// NotReapable until the handle reached a terminal state.
     pub fn reap(&self, handle: ProcessHandle) -> Result<(), SchedulerError> {
         let record = self
             .state

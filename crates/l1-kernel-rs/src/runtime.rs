@@ -58,10 +58,13 @@ impl RuntimeTaskState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuntimeConfig {
     /// Maximum concurrently allocated process handles.
+    /// Maximum concurrently registered processes.
     pub max_processes: u32,
     /// Number of independent scheduler state shards.
+    /// State-map shard count (power-of-two recommended).
     pub shard_count: u32,
     /// Worker-pool sizing and bounded queue limits.
+    /// Worker-pool sizing configuration.
     pub workers: WorkerConfig,
 }
 
@@ -80,12 +83,16 @@ impl RuntimeConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeSnapshot {
     /// Current lifecycle phase.
+    /// Current kernel lifecycle state.
     pub lifecycle: LifecycleState,
     /// Number of allocated, unreaped task handles.
+    /// Live tasks tracked by this runtime.
     pub task_count: usize,
     /// Number of terminal tasks still awaiting reap.
+    /// Tasks in terminal (finished) state.
     pub terminal_tasks: usize,
     /// Worker-pool metrics at the same observation point.
+    /// Worker-pool statistics payload.
     pub worker_stats: BTreeMap<String, Value>,
 }
 
@@ -93,14 +100,19 @@ pub struct RuntimeSnapshot {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeReapReport {
     /// Number of task handles selected within the requested budget.
+    /// Children observed by the last reaper sweep.
     pub inspected: u64,
     /// Number of terminal tasks whose scheduler slots were released.
+    /// Children reaped by the last sweep.
     pub reaped: u64,
     /// Number of selected tasks that were still ready or running.
+    /// Children still running at sweep time.
     pub pending: u64,
     /// Number of handles removed concurrently before this sweep could reap them.
+    /// Sweep observations that could not be made.
     pub unavailable: u64,
     /// Number of terminal tasks whose scheduler slot could not be released.
+    /// Errors encountered during the sweep.
     pub errors: u64,
 }
 
@@ -141,8 +153,10 @@ pub enum RuntimeError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeLockWaitSnapshot {
     /// Time blocked by the lifecycle/shutdown admission barrier.
+    /// Nanoseconds spent waiting for queue admission.
     pub admission_wait_ns: u64,
     /// Time blocked while registering a task in its shard-local task book.
+    /// Nanoseconds spent waiting on task-book locks.
     pub task_book_wait_ns: u64,
 }
 
@@ -283,6 +297,12 @@ impl RuntimeTask {
     }
 
     /// Wait for the task result and synchronize terminal state accounting.
+    ///
+    /// # Errors
+    ///
+    /// TaskHandleError variants describe cancellation, deadline expiry,
+    /// structured executor failure, or wait timeouts; panics are already
+    /// folded into structured failures upstream.
     pub fn result(&self, timeout: Option<Duration>) -> Result<Value, TaskHandleError> {
         let result = self.result.result(timeout);
         if let Err(error) = &result {
@@ -341,6 +361,10 @@ pub struct KernelRuntime {
 
 impl KernelRuntime {
     /// Assemble a halted runtime without performing provider side effects.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError when assembly/config validation fails.
     pub fn new(spec: AssemblySpec, config: RuntimeConfig) -> Result<Self, RuntimeError> {
         let assembly = KernelAssembly::assemble(spec).map_err(RuntimeError::Assembly)?;
         let scheduler = KernelScheduler::new(SchedulerConfig::new(
@@ -364,6 +388,11 @@ impl KernelRuntime {
     }
 
     /// Open a fresh Rust-owned state root and attach durable lifecycle writes.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError::StateStore when the persistent root cannot be opened
+    /// or its checkpoint diverges from the requested layout.
     pub fn open_persistent(
         spec: AssemblySpec,
         config: RuntimeConfig,
@@ -421,6 +450,11 @@ impl KernelRuntime {
     }
 
     /// Submit a capability only after the Rust G1-G5 chain permits it.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError::GateBlocked carrying the failing GateDecision; the
+    /// denial is audited before the error is returned.
     pub fn submit_gated(
         &self,
         gate: GateRequest,
@@ -441,6 +475,11 @@ impl KernelRuntime {
     }
 
     /// Boot the runtime through booting to active without running callbacks.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError when the halted→booting→active transition or any boot
+    /// callback fails; state stays consistent for a retry.
     pub fn boot(&self) -> Result<RuntimeSnapshot, RuntimeError> {
         let _admission = self
             .admission
@@ -470,6 +509,10 @@ impl KernelRuntime {
     }
 
     /// Submit a closure to the bounded worker pool and assign a process handle.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError::GateBlocked before enqueueing; Capacity/State errors mirror the pool.
     pub fn submit(&self, action: TaskFn) -> Result<RuntimeTask, RuntimeError> {
         self.submit_inner(action, None, false)
     }
@@ -488,6 +531,10 @@ impl KernelRuntime {
     /// Each returned task retains the same cancellation, result, deadline-free,
     /// and reap behavior as [`Self::submit`]. If process reservation fails,
     /// the complete batch is rolled back before any closure reaches a worker.
+    ///
+    /// # Errors
+    ///
+    /// Per-item gate/pool errors as above, positionally preserved.
     pub fn submit_batch(&self, actions: Vec<TaskFn>) -> Result<Vec<RuntimeTask>, RuntimeError> {
         self.submit_batch_inner(actions, false)
     }
@@ -497,6 +544,10 @@ impl KernelRuntime {
     /// This API is for fixed-work evidence runners. Production callers should
     /// use [`Self::submit`] or [`Self::submit_with_timeout`], which avoid
     /// clock reads and counter updates on the uncontended path.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError variants mirroring `submit` plus observer wiring failures.
     pub fn submit_observed(&self, action: TaskFn) -> Result<RuntimeTask, RuntimeError> {
         self.submit_inner(action, None, true)
     }
@@ -605,6 +656,10 @@ impl KernelRuntime {
     }
 
     /// Reap a terminal task and release its generation-safe process slot.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError when the handle is not yet reaped-able.
     pub fn reap(&self, handle: ProcessHandle) -> Result<(), RuntimeError> {
         let state = self
             .tasks
@@ -625,6 +680,10 @@ impl KernelRuntime {
     /// This is a caller-owned mechanism seam for future shutdown/reaper
     /// integration. It never starts a background thread and never changes the
     /// lifecycle phase; live tasks remain owned and are reported as pending.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError when the sweep cannot observe children; per-child outcomes are counters, not errors.
     pub fn reap_finished(&self, max_tasks: usize) -> Result<RuntimeReapReport, RuntimeError> {
         if max_tasks == 0 {
             return Err(RuntimeError::InvalidReapBudget);
@@ -727,6 +786,10 @@ impl KernelRuntime {
     }
 
     /// Drain workers and transition the runtime to halted.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError when drain cannot complete within the timeout; tasks keep their terminal states.
     pub fn shutdown(&self, timeout: Option<Duration>) -> Result<RuntimeSnapshot, RuntimeError> {
         if self.lifecycle.state() != LifecycleState::Active {
             return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));

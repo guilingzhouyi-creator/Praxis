@@ -63,14 +63,19 @@ impl AgentLoopState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentLoopSpec {
     /// Stable loop identity.
+    /// Unique loop identity.
     pub loop_id: String,
     /// Owning agent identity.
+    /// Owning agent execution body.
     pub agent_id: String,
     /// Owning Cell identity.
+    /// Owning cell domain.
     pub cell_id: String,
     /// Session identity used as the message truth root.
+    /// Correlated session identity.
     pub session_id: String,
     /// Terminal identity used by the I/O adapter.
+    /// Correlated terminal identity.
     pub terminal_id: String,
 }
 
@@ -97,18 +102,25 @@ impl AgentLoopSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentLoopSnapshot {
     /// AgentLoop routing contract version.
+    /// Snapshot schema version.
     pub contract_version: u32,
     /// Logical loop identity.
+    /// Immutable creation specification.
     pub spec: AgentLoopSpec,
     /// Current execution state.
+    /// Lifecycle state at snapshot time.
     pub state: AgentLoopState,
     /// Next accepted command sequence.
+    /// Next command ordinal to allocate.
     pub next_command_seq: u64,
     /// Number of accepted input/event commands.
+    /// Commands admitted since creation.
     pub accepted_commands: u64,
     /// Number of failed admission attempts after registration.
+    /// Commands rejected since creation.
     pub failed_commands: u64,
     /// Aggregate contended wait to acquire the loop state mutex.
+    /// Contended-lock wait total (contention-only sampling).
     pub lock_wait_ns: u64,
 }
 
@@ -116,10 +128,14 @@ pub struct AgentLoopSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentLoopReceipt {
     /// Loop-local command sequence assigned after successful admission.
+    /// Scratch command ordinal used by callers.
     pub command_seq: u64,
     /// Session history sequence assigned by SessionBook.
+    /// Message sequence mirrored from the session.
     pub message_seq: u64,
     /// Authoritative user-input sequence, if this was user input.
+    /// Authoritative input ordinal (Session-allocated).
+    /// Input ordinal carried on the admitted item.
     pub input_seq: u64,
 }
 
@@ -127,14 +143,18 @@ pub struct AgentLoopReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentLoopEvent {
     /// Caller-supplied idempotency identity.
+    /// Caller-supplied dedup id.
     pub message_id: String,
     /// User-input sequence that this event answers.
     pub input_seq: u64,
     /// Retained non-user message role.
+    /// Message role classification.
     pub role: MessageRole,
     /// Opaque event content.
+    /// Admitted content (CoT excluded).
     pub content: String,
     /// Caller-supplied creation timestamp in nanoseconds.
+    /// Admission timestamp in nanoseconds.
     pub created_at_ns: u64,
 }
 
@@ -267,11 +287,21 @@ impl AgentLoopHandle {
     }
 
     /// Return the current loop snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Never fails; infallible by construction.
     pub fn snapshot(&self) -> AgentLoopSnapshot {
         self.record.snapshot()
     }
 
     /// Admit one user input through the authoritative Session truth root.
+    ///
+    /// # Errors
+    ///
+    /// SessionMismatch when `session_id` diverges from the correlated
+    /// session; NotRunning when the loop is paused/stopped; Session when
+    /// the underlying session rejects admission (dup id, capacity…).
     pub fn admit_input(
         &self,
         session: &Session,
@@ -306,6 +336,11 @@ impl AgentLoopHandle {
     /// Results retain input order and partial-admission semantics. A failed
     /// item increments the loop failure counter but does not consume a command
     /// sequence; earlier successful items remain admitted.
+    ///
+    /// # Errors
+    ///
+    /// Per-item failures mirror [`Self::admit_input`]; partial success is
+    /// preserved and failures are returned positionally.
     pub fn admit_input_batch(
         &self,
         session: &Session,
@@ -446,6 +481,10 @@ impl AgentLoopBook {
     }
 
     /// Register one loop identity before session/terminal attachment.
+    ///
+    /// # Errors
+    ///
+    /// AgentLoopError when the loop id collides or the spec violates identity invariants.
     pub fn register(&self, spec: AgentLoopSpec) -> Result<AgentLoopSnapshot, AgentLoopError> {
         validate_spec(&spec)?;
         let mut loops = self.write_loops();
@@ -551,21 +590,37 @@ impl AgentLoopBook {
     }
 
     /// Start execution after correlation has been attached.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless the loop is Created/Ready.
     pub fn start(&self, loop_id: &str) -> Result<AgentLoopSnapshot, AgentLoopError> {
         self.transition(loop_id, AgentLoopState::Running)
     }
 
     /// Pause admission without discarding session history.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless currently Running.
     pub fn pause(&self, loop_id: &str) -> Result<AgentLoopSnapshot, AgentLoopError> {
         self.transition(loop_id, AgentLoopState::Paused)
     }
 
     /// Resume a paused loop.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless currently Paused.
     pub fn resume(&self, loop_id: &str) -> Result<AgentLoopSnapshot, AgentLoopError> {
         self.transition(loop_id, AgentLoopState::Running)
     }
 
     /// Stop a loop cleanly after closing admission.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when already Stopped/Failed; in-flight admissions drain first.
     pub fn stop(&self, loop_id: &str, clean: bool) -> Result<AgentLoopSnapshot, AgentLoopError> {
         let record = self.record(loop_id)?;
         let mut inner = record.write();
@@ -617,6 +672,10 @@ impl AgentLoopBook {
     }
 
     /// Return a cached handle after resolving one registered loop identity.
+    ///
+    /// # Errors
+    ///
+    /// SessionMismatch / NotRunning / Session mirroring `admit_input`; failures also bump `failed_commands`.
     pub fn handle(&self, loop_id: &str) -> Result<AgentLoopHandle, AgentLoopError> {
         Ok(AgentLoopHandle {
             record: self.record(loop_id)?,
@@ -624,6 +683,11 @@ impl AgentLoopBook {
     }
 
     /// Return one deterministic loop snapshot.
+    ///
+    /// # Errors
+    ///
+    /// AgentLoopError when `loop_id` is unknown; the snapshot itself is
+    /// infallible once the record resolves.
     pub fn snapshot(&self, loop_id: &str) -> Result<AgentLoopSnapshot, AgentLoopError> {
         Ok(self.record(loop_id)?.snapshot())
     }

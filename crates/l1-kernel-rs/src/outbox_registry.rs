@@ -68,6 +68,10 @@ impl OutboxRegistry {
     }
 
     /// Create a registry with a custom positive per-session capacity.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolError when maxlen is zero — replay windows must hold at least one message.
     pub fn with_maxlen(maxlen: usize) -> Result<Self, ProtocolError> {
         if maxlen == 0 {
             return Err(ProtocolError::InvalidContract(

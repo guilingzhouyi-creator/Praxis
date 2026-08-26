@@ -28,12 +28,16 @@ pub const TERMINAL_MAX_FRAME_BYTES: usize = 1 << 20;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalContractDescriptor {
     /// Terminal substrate contract version.
+    /// Required protocol contract version.
     pub contract_version: u32,
     /// Lifecycle state model version.
+    /// Required terminal lifecycle version.
     pub lifecycle_version: u32,
     /// Input/output mailbox shape version.
+    /// Required mailbox framing version.
     pub mailbox_version: u32,
     /// Maximum frame size accepted by the candidate.
+    /// Hard per-frame byte cap shared with the wire layer.
     pub max_frame_bytes: usize,
 }
 
@@ -49,6 +53,12 @@ impl TerminalContractDescriptor {
     }
 
     /// Validate a host-supplied descriptor before assembly.
+    ///
+    /// # Errors
+    ///
+    /// ContractVersion / LifecycleVersion / MailboxVersion when a version
+    /// falls outside the supported range; FrameLimit when `max_frame_bytes`
+    /// is zero or exceeds the transport ceiling.
     pub fn validate(&self) -> Result<(), TerminalContractError> {
         let expected = Self::current();
         if self.contract_version != expected.contract_version {
@@ -138,10 +148,13 @@ pub enum TerminalStream {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalFrame {
     /// Monotonic sequence within the input or output mailbox.
+    /// Monotonic frame sequence within its stream.
     pub sequence: u64,
     /// Stream represented by this frame.
+    /// Direction this frame belongs to (input/output).
     pub stream: TerminalStream,
     /// Opaque bytes; encoding and rendering belong to the adapter.
+    /// Opaque frame bytes; interpretation is host-owned.
     pub data: Vec<u8>,
 }
 
@@ -149,10 +162,14 @@ pub struct TerminalFrame {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalSpec {
     /// Stable terminal identity.
+    /// Unique terminal identity.
+    /// Terminal this snapshot describes.
     pub terminal_id: String,
     /// Maximum queued input frames.
+    /// Bounded input mailbox capacity in frames.
     pub input_capacity: usize,
     /// Maximum queued output frames.
+    /// Bounded output mailbox capacity in frames.
     pub output_capacity: usize,
 }
 
@@ -177,22 +194,29 @@ pub struct TerminalSnapshot {
     /// Stable terminal identity.
     pub terminal_id: String,
     /// Current lifecycle state.
+    /// Current lifecycle state.
     pub state: TerminalState,
     /// Attached frontend/session identity, if any.
+    /// Attached session, if any (single-tenant binding).
     pub session_id: Option<String>,
     /// Bound generation-tagged process handle encoded as a raw value.
+    /// Bound process handle id, if any.
     pub process_id: Option<u64>,
     /// Configured input mailbox capacity.
     pub input_capacity: usize,
     /// Configured output mailbox capacity.
     pub output_capacity: usize,
     /// Number of queued input frames.
+    /// Frames currently queued for input.
     pub input_depth: usize,
     /// Number of queued output frames.
+    /// Frames currently queued for output.
     pub output_depth: usize,
     /// Cumulative input frames rejected by capacity or frame-size limits.
+    /// Cumulative input frames dropped under backpressure.
     pub input_dropped: u64,
     /// Cumulative output frames rejected by capacity or frame-size limits.
+    /// Cumulative output frames dropped under backpressure.
     pub output_dropped: u64,
 }
 
@@ -349,6 +373,11 @@ impl TerminalBook {
     }
 
     /// Register one terminal before any process or session is attached.
+    ///
+    /// # Errors
+    ///
+    /// DuplicateTerminal when the id already exists; InvalidCapacity when
+    /// either mailbox capacity is zero.
     pub fn register(&self, spec: TerminalSpec) -> Result<TerminalSnapshot, TerminalError> {
         validate_identity(&spec.terminal_id)?;
         let input = Mailbox::new(spec.input_capacity)?;
@@ -381,6 +410,12 @@ impl TerminalBook {
     /// A restored terminal therefore has to be `Created`, `Stopped`, or
     /// `Closed`; `Ready`/`Running` snapshots must be normalized by the durable
     /// store before this method is called.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot when state/version/capacity invariants break;
+    /// DuplicateTerminal on id collision; SessionAlreadyAttached when the
+    /// snapshot still carries an active session binding.
     pub fn restore(&self, snapshot: TerminalSnapshot) -> Result<TerminalSnapshot, TerminalError> {
         validate_identity(&snapshot.terminal_id)?;
         if snapshot.input_capacity == 0 || snapshot.output_capacity == 0 {
@@ -456,6 +491,11 @@ impl TerminalBook {
     }
 
     /// Attach one unique session to a terminal without changing its process state.
+    ///
+    /// # Errors
+    ///
+    /// SessionAlreadyAttached when another session holds the terminal;
+    /// InvalidState when the terminal is not in a bindable state.
     pub fn attach(
         &self,
         terminal_id: &str,
@@ -484,6 +524,10 @@ impl TerminalBook {
     }
 
     /// Detach a session while leaving a running AgentLoop process untouched.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when no session is attached to `terminal_id`.
     pub fn detach(&self, terminal_id: &str) -> Result<TerminalSnapshot, TerminalError> {
         let mut inner = self.write_inner();
         let record_handle = get_record(&inner, terminal_id)?;
@@ -540,6 +584,10 @@ impl TerminalBook {
     }
 
     /// Start a terminal once its process binding exists.
+    ///
+    /// # Errors
+    ///
+    /// TerminalError::InvalidState unless Created; InvalidCapacity surfaces spec violations.
     pub fn start(&self, terminal_id: &str) -> Result<TerminalSnapshot, TerminalError> {
         let record_handle = self.record_handle(terminal_id)?;
         let mut record = lock_record(&record_handle);
@@ -560,6 +608,10 @@ impl TerminalBook {
     }
 
     /// Stop a running terminal permanently; stopped terminals cannot restart.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless Running.
     pub fn stop(&self, terminal_id: &str) -> Result<TerminalSnapshot, TerminalError> {
         let record_handle = self.record_handle(terminal_id)?;
         let mut record = lock_record(&record_handle);
@@ -575,6 +627,10 @@ impl TerminalBook {
     }
 
     /// Close a non-running terminal and release its session/process bindings.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when already closed; pending frames are dropped by contract.
     pub fn close(&self, terminal_id: &str) -> Result<TerminalSnapshot, TerminalError> {
         let mut inner = self.write_inner();
         let record_handle = get_record(&inner, terminal_id)?;
@@ -613,6 +669,10 @@ impl TerminalBook {
     }
 
     /// Consume the oldest input frame for the AgentLoop adapter.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when closed; empty Ok signals no queued frame.
     pub fn take_input(&self, terminal_id: &str) -> Result<Option<TerminalFrame>, TerminalError> {
         let record_handle = self.record_handle(terminal_id)?;
         let mut record = lock_record(&record_handle);
@@ -705,6 +765,10 @@ impl TerminalBook {
     }
 
     /// Consume the oldest output frame, including during stopped-state drain.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when closed; empty Ok signals no queued frame.
     pub fn take_output(&self, terminal_id: &str) -> Result<Option<TerminalFrame>, TerminalError> {
         let record_handle = self.record_handle(terminal_id)?;
         let mut record = lock_record(&record_handle);
@@ -737,6 +801,10 @@ impl TerminalBook {
     }
 
     /// Return one deterministic terminal snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Infallible: returns the current bounded snapshot.
     pub fn snapshot(&self, terminal_id: &str) -> Result<TerminalSnapshot, TerminalError> {
         let record_handle = self.record_handle(terminal_id)?;
         Ok(lock_record(&record_handle).snapshot())

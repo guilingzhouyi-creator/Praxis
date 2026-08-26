@@ -177,6 +177,10 @@ impl VersionRegistry {
     }
 
     /// Check and apply all pending migrations in order.
+    ///
+    /// # Errors
+    ///
+    /// VersioningError on future versions, missing migration steps, first-error stop, or failed application.
     pub fn check_and_migrate(
         &self,
         value: Value,
@@ -283,6 +287,12 @@ pub fn stamp(value: Value, kind: &str) -> Value {
 }
 
 /// Check and migrate a JSON object through the global registry.
+///
+/// # Errors
+///
+/// [\VersionError\] when the kind is unregistered, the value carries a
+/// future version, a migration step fails, or the migration chain stops
+/// on its first error per ordered-runner semantics.
 pub fn check_and_migrate(value: Value, kind: &str) -> Result<MigrationResult, VersionError> {
     get_versioning().check_and_migrate(value, kind)
 }

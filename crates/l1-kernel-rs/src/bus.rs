@@ -122,6 +122,10 @@ impl ComponentRegistry {
     }
 
     /// Register or replace metadata while preserving the original position.
+    ///
+    /// # Errors
+    ///
+    /// BusError on duplicate component registration or invalid metadata.
     pub fn register(&self, spec: ComponentSpec) -> Result<(), BusPlanError> {
         if spec.name.is_empty() {
             return Err(BusPlanError::EmptyName);
@@ -159,6 +163,10 @@ impl ComponentRegistry {
     }
 
     /// Build the available-dependency graph and stable topological order.
+    ///
+    /// # Errors
+    ///
+    /// BusError when dependency filtering yields an unresolvable cycle.
     pub fn plan(&self, available: &[String]) -> Result<DependencyPlan, BusPlanError> {
         let state = self.lock_state();
         let names = state

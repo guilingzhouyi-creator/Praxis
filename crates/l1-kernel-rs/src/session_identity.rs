@@ -71,6 +71,10 @@ impl SessionIdentity {
     }
 
     /// Validate required fields are non-empty and every field fits the budget.
+    ///
+    /// # Errors
+    ///
+    /// `Err` with a stable message for empty ids or a zero shard count.
     pub fn validate(&self) -> Result<(), ProtocolError> {
         for (name, value) in [
             ("session_id", self.session_id.as_str()),

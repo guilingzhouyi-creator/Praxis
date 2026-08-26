@@ -29,10 +29,16 @@ pub enum AgentProcessMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentResourceRequest {
     /// Maximum retained bytes per output stream.
+    /// Hard cap on captured output bytes.
+    /// Ceiling on requested output capture.
     pub max_output_bytes: usize,
     /// Optional CPU-time ceiling in milliseconds.
+    /// Optional CPU-time budget in milliseconds.
+    /// Ceiling on requested CPU budget; None = unlimited.
     pub max_cpu_time_ms: Option<u64>,
     /// Optional memory ceiling in bytes.
+    /// Optional peak-memory budget in bytes.
+    /// Ceiling on requested memory; None = unlimited.
     pub max_memory_bytes: Option<u64>,
 }
 
@@ -40,28 +46,40 @@ pub struct AgentResourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentProcessSpec {
     /// Stable process identity supplied by the owning AgentLoop.
+    /// Caller-assigned process identity.
     pub process_id: String,
     /// Owning Agent identity.
+    /// Requesting agent execution body.
     pub agent_id: String,
     /// Owning Cell identity.
+    /// Owning cell domain.
     pub cell_id: String,
     /// Security ring supplied by the upper-layer identity binding.
+    /// Authority ring of the requester.
     pub ring: u8,
     /// Execution mode.
+    /// Direct-args vs shell classification.
     pub mode: AgentProcessMode,
     /// Full argv including executable at index zero.
+    /// Argument vector (argv[0] is the executable).
     pub argv: Vec<String>,
     /// Optional working directory selected by the adapter.
+    /// Working directory; None inherits the host default.
     pub cwd: Option<String>,
     /// Environment keys requested by the process.
+    /// Environment keys forwarded to the child.
     pub environment_keys: Vec<String>,
     /// Whether the request replaces the inherited environment.
+    /// Whether the child env is replaced rather than extended.
     pub replaces_environment: bool,
     /// Process-group identity, if the caller has one.
+    /// Explicit process-group binding, if required.
     pub process_group_id: Option<String>,
     /// Caller-requested deadline in milliseconds.
+    /// Wall-clock kill deadline in milliseconds.
     pub timeout_ms: u64,
     /// Caller-requested resource ceilings.
+    /// Resource budget request evaluated by the allocator side.
     pub resources: AgentResourceRequest,
 }
 
@@ -72,6 +90,21 @@ impl AgentProcessSpec {
     }
 
     /// Validate fields that are independent of policy.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSpec enumerating each violated launch-spec constraint
+    /// (argv/executable shape, non-positive budgets, timeout ceilings).
+    ///
+    /// # Errors
+    ///
+    /// InvalidPolicy enumerating each self-contradiction (e.g. shell
+    /// launches disabled while shell mode required, interactive/PTY/group
+    /// requirements conflicting with allowlists).
+    ///
+    /// # Errors
+    ///
+    /// InvalidSpec enumerating violated launch-spec constraints.
     pub fn validate(&self) -> Result<(), ProcessConstraintError> {
         if self.process_id.trim().is_empty()
             || self.agent_id.trim().is_empty()
@@ -132,24 +165,34 @@ impl AgentProcessSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentProcessPolicy {
     /// Rings allowed to request a child process.
+    /// Rings permitted to launch under this policy.
     pub allowed_rings: BTreeSet<u8>,
     /// Optional terminal identity allow-list.
+    /// Terminal allowlist; None means unrestricted.
     pub allowed_terminal_ids: Option<BTreeSet<String>>,
     /// Optional terminal-family allow-list.
+    /// Terminal-kind allowlist; None means unrestricted.
     pub allowed_terminal_kinds: Option<BTreeSet<TerminalKind>>,
     /// Optional executable allow-list.
+    /// Executable basename allowlist; None means unrestricted.
     pub allowed_executables: Option<BTreeSet<String>>,
     /// Optional lexical working-directory prefixes.
+    /// Working-directory prefix allowlist (territory scoping).
     pub allowed_cwd_prefixes: Option<Vec<String>>,
     /// Environment keys permitted in a request.
+    /// Environment keys that may be forwarded.
     pub allowed_environment_keys: BTreeSet<String>,
     /// Environment keys always rejected, even if allowed above.
+    /// Environment keys always stripped (deny overrides allow).
     pub denied_environment_keys: BTreeSet<String>,
     /// Whether environment replacement is permitted.
+    /// Whether full environment replacement is permitted.
     pub allow_environment_replacement: bool,
     /// Maximum argv entries including executable.
+    /// Maximum number of argv items accepted.
     pub max_argv_items: usize,
     /// Maximum requested timeout.
+    /// Ceiling any requested timeout may not exceed.
     pub max_timeout_ms: u64,
     /// Maximum output retained per stream.
     pub max_output_bytes: usize,
@@ -158,17 +201,26 @@ pub struct AgentProcessPolicy {
     /// Optional memory ceiling.
     pub max_memory_bytes: Option<u64>,
     /// Whether shell-mediated execution is permitted.
+    /// Whether shell-mode launches are allowed at all.
     pub allow_shell: bool,
     /// Whether shell requests must have an interactive terminal.
+    /// Whether an attached interactive terminal is mandatory.
     pub require_interactive_terminal: bool,
     /// Whether shell requests must have PTY support.
+    /// Whether a PTY-backed terminal is mandatory.
     pub require_pty: bool,
     /// Whether every admitted process must belong to a group.
+    /// Whether explicit process-group binding is mandatory.
     pub require_process_group: bool,
 }
 
 impl AgentProcessPolicy {
     /// Validate policy bounds before it is installed by a host adapter.
+    ///
+    /// # Errors
+    ///
+    /// InvalidPolicy when allowed_rings is empty, argv/timeout/output
+    /// caps are zero, or requirement flags contradict allowlists.
     pub fn validate(&self) -> Result<(), ProcessConstraintError> {
         if self.allowed_rings.is_empty()
             || self.max_argv_items == 0
@@ -299,6 +351,10 @@ pub struct ProcessConstraintEvaluator {
 
 impl ProcessConstraintEvaluator {
     /// Construct an evaluator from a validated explicit policy.
+    ///
+    /// # Errors
+    ///
+    /// InvalidPolicy when policy floors/caps are inconsistent.
     pub fn new(policy: AgentProcessPolicy) -> Result<Self, ProcessConstraintError> {
         policy.validate()?;
         Ok(Self { policy })

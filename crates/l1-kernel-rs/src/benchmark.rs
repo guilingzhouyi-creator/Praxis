@@ -40,6 +40,18 @@ impl BenchmarkResources {
     }
 
     /// Validate source attribution and optional-value semantics.
+    ///
+    /// # Errors
+    ///
+    /// `Err` naming the first violated field bound of this spec type.
+    ///
+    /// # Errors
+    ///
+    /// `Err` naming the first violated sample-matrix invariant.
+    ///
+    /// # Errors
+    ///
+    /// `Err` listing incomplete rounds/workers or missing resource units.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.cpu_source.is_empty() || self.memory_source.is_empty() {
             return Err("resource sample sources must not be empty");
@@ -76,6 +88,10 @@ impl BenchmarkResourceMetadata {
     }
 
     /// Validate units and scope against the unified contract.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the CPU unit is not the unified contract unit.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.cpu_unit != CPU_TIME_UNIT {
             return Err("unsupported CPU resource unit");
@@ -107,6 +123,10 @@ pub struct FixedWorkSpec {
 
 impl FixedWorkSpec {
     /// Build a validated fixed-work specification.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when required numeric bounds are non-positive.
     pub fn new(
         workload: impl Into<String>,
         total_work_items: u64,
@@ -230,6 +250,10 @@ impl BenchmarkMetadata {
     }
 
     /// Validate that evidence can be attributed to a concrete runner.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when platform/runner attribution fields are empty.
     pub fn validate(&self) -> Result<(), &'static str> {
         if [
             self.platform.as_str(),
@@ -261,6 +285,11 @@ pub struct BenchmarkEvidence {
 
 impl BenchmarkEvidence {
     /// Build an evidence envelope only from a complete report.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the report is incomplete — evidence requires full
+    /// fixed-work coverage.
     pub fn new(metadata: BenchmarkMetadata, report: BenchmarkReport) -> Result<Self, &'static str> {
         let evidence = Self {
             schema_version: BENCHMARK_SCHEMA_VERSION,
@@ -272,6 +301,10 @@ impl BenchmarkEvidence {
     }
 
     /// Validate schema, metadata, and complete fixed-work coverage.
+    ///
+    /// # Errors
+    ///
+    /// `Err` on schema-version mismatch or incomplete coverage.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema_version != BENCHMARK_SCHEMA_VERSION {
             return Err("unsupported benchmark evidence schema version");
@@ -281,12 +314,20 @@ impl BenchmarkEvidence {
     }
 
     /// Serialize validated evidence as stable pretty JSON.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when serialization cannot produce canonical JSON.
     pub fn to_json(&self) -> Result<String, &'static str> {
         self.validate()?;
         serde_json::to_string_pretty(self).map_err(|_| "benchmark evidence serialization failed")
     }
 
     /// Parse and validate evidence produced by an external runner.
+    ///
+    /// # Errors
+    ///
+    /// `Err` on malformed JSON or schema/version mismatch.
     pub fn from_json(document: &str) -> Result<Self, String> {
         let evidence: Self = serde_json::from_str(document).map_err(|error| error.to_string())?;
         evidence.validate().map_err(str::to_owned)?;
@@ -305,6 +346,10 @@ impl BenchmarkReport {
     }
 
     /// Append one sample after validating its fixed-work invariants.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the bounded series is at capacity or the sample violates schema.
     pub fn push(&mut self, sample: BenchmarkSample) -> Result<(), &'static str> {
         if !self.spec.accepts_workers(sample.workers) {
             return Err("sample worker count is outside the sweep");
@@ -337,6 +382,10 @@ impl BenchmarkReport {
     }
 
     /// Validate all rows after deserialization or aggregation.
+    ///
+    /// # Errors
+    ///
+    /// `Err` enumerating rows that fail schema/aggregation validation.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema_version != BENCHMARK_SCHEMA_VERSION
             || self.spec.schema_version != BENCHMARK_SCHEMA_VERSION
@@ -372,6 +421,10 @@ impl BenchmarkReport {
     }
 
     /// Require every configured worker/round pair to be present exactly once.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when completeness invariants fail (fixed totals, zero rejects/errors).
     pub fn validate_complete(&self) -> Result<(), &'static str> {
         self.validate()?;
         let expected = self

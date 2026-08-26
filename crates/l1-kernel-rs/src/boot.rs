@@ -97,6 +97,10 @@ impl BootPlan {
     }
 
     /// Resolve a deterministic dependency-first execution order.
+    ///
+    /// # Errors
+    ///
+    /// BootPlanError when dependencies are missing, names invalid, or a cycle is detected — fail-closed topological sort.
     pub fn resolve_order(&self) -> Result<Vec<String>, BootPlanError> {
         let mut ordered = Vec::with_capacity(self.order.len());
         let mut visited = BTreeSet::new();

@@ -160,6 +160,10 @@ pub struct KernelAssembly {
 
 impl KernelAssembly {
     /// Validate and assemble a clean-break Rust kernel boundary.
+    ///
+    /// # Errors
+    ///
+    /// AssemblyError when spec/config/protocol/terminal descriptors diverge or metadata mismatches — fail-closed by design.
     pub fn assemble(spec: AssemblySpec) -> Result<Self, AssemblyError> {
         if spec.contract_version != KERNEL_CONTRACT_VERSION {
             return Err(AssemblyError::InvalidContractVersion {
@@ -236,6 +240,10 @@ impl KernelAssembly {
     }
 
     /// Select a state action from a host probe without applying side effects.
+    ///
+    /// # Errors
+    ///
+    /// AssemblyError when the layout probe cannot classify the root.
     pub fn state_decision(&self, probe: &StateProbe) -> Result<StateDecision, StateLayoutError> {
         decide_state_action(probe, STATE_LAYOUT_VERSION)
     }
@@ -251,6 +259,10 @@ impl KernelAssembly {
     }
 
     /// Return the assembly's state action type for callers that only need the enum.
+    ///
+    /// # Errors
+    ///
+    /// AssemblyError when the decision maps to no executable action.
     pub fn state_action(&self, probe: &StateProbe) -> Result<StateAction, StateLayoutError> {
         self.state_decision(probe).map(|decision| decision.action)
     }

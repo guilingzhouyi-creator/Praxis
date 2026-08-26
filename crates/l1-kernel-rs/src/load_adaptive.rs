@@ -178,6 +178,10 @@ pub struct LoadAdaptiveController {
 
 impl LoadAdaptiveController {
     /// Create a controller after validating its target band and smoothing factor.
+    ///
+    /// # Errors
+    ///
+    /// Err when target bounds are inverted or non-positive sampling inputs are supplied.
     pub fn new(config: ControllerConfig) -> Result<Self, ControllerError> {
         if config.low_ratio < 0.0
             || config.low_ratio >= config.high_ratio

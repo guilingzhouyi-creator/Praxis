@@ -33,26 +33,35 @@ pub const EXECUTION_STORE_RELATIVE_PATH: &str = "snapshots/execution/checkpoint.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionStoreDocument {
     /// Store document schema version.
+    /// Execution-checkpoint schema version.
     pub store_version: u32,
     /// Monotonic generation assigned after each successful write.
+    /// Monotonic persistence generation.
     pub generation: u64,
     /// Whether the source books were captured after a clean shutdown.
+    /// False classifies sessions/loops/terminals as crashed.
     pub clean_shutdown: bool,
     /// Session truth checkpoints sorted by session id.
+    /// Per-session checkpoints in stable order.
     pub sessions: Vec<SessionCheckpoint>,
     /// Terminal metadata snapshots sorted by terminal id.
+    /// Terminal snapshots in stable order.
     pub terminals: Vec<TerminalSnapshot>,
     /// Logical loop snapshots sorted by loop id.
+    /// Agent-loop snapshots in stable order.
     pub loops: Vec<AgentLoopSnapshot>,
 }
 
 /// Reconstructed books returned by an execution-store load.
 pub struct ExecutionState {
     /// Restored session truth.
+    /// Restored session truth.
     pub sessions: SessionBook,
     /// Restored terminal metadata.
+    /// Restored terminal registry.
     pub terminals: TerminalBook,
     /// Restored AgentLoop identities.
+    /// Restored agent-loop registry.
     pub loops: AgentLoopBook,
 }
 
@@ -158,6 +167,10 @@ pub struct ExecutionStore {
 
 impl ExecutionStore {
     /// Open a new Rust state root or validate an existing checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// RootNotDirectory for a non-directory root.
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ExecutionStoreError> {
         let root = root.as_ref();
         if root.exists() && !root.is_dir() {
@@ -195,6 +208,11 @@ impl ExecutionStore {
     }
 
     /// Read the current document, returning an empty fresh collection if absent.
+    ///
+    /// # Errors
+    ///
+    /// Io on read failure; InvalidDocument on parse/version/invariant
+    /// violations.
     pub fn document(&self) -> Result<ExecutionStoreDocument, ExecutionStoreError> {
         if !self.path.exists() || fs::metadata(&self.path)?.len() == 0 {
             return Ok(empty_document());
@@ -205,6 +223,13 @@ impl ExecutionStore {
     }
 
     /// Persist all three execution books as one atomically replaced document.
+    ///
+    /// # Errors
+    ///
+    /// WritableSession / WritableLoop when non-terminal sessions or loops
+    /// would be persisted on a clean shutdown; MissingReference when a
+    /// snapshot references an unknown counterpart; LiveProcessBinding and
+    /// PendingTerminalFrames for terminals that are not fully quiesced.
     pub fn save(
         &mut self,
         sessions: &SessionBook,
@@ -343,6 +368,11 @@ impl ExecutionStore {
     }
 
     /// Load all books, normalizing unclean active state before restore.
+    ///
+    /// # Errors
+    ///
+    /// InvalidDocument enumerating cross-book identity/order violations;
+    /// MissingReference for dangling session/loop/terminal references.
     pub fn load_state(&self, shard_count: usize) -> Result<ExecutionState, ExecutionStoreError> {
         let document = self.document()?;
         let sessions = SessionBook::new(shard_count)?;

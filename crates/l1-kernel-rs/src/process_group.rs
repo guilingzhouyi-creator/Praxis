@@ -115,8 +115,10 @@ impl GroupMemberState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessGroupMember {
     /// Generation-safe process identity represented at the wire edge.
+    /// Member process handle.
     pub handle: u64,
     /// Current group-local lifecycle state.
+    /// Per-member lifecycle state.
     pub state: GroupMemberState,
 }
 
@@ -124,22 +126,35 @@ pub struct ProcessGroupMember {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessGroupSnapshot {
     /// Value contract version.
+    /// Snapshot schema version.
+    /// Plan schema version.
     pub contract_version: u32,
     /// Stable group identity.
+    /// Group identity.
+    /// Group being terminated.
     pub group_id: u64,
     /// Human-readable group label.
+    /// Human-facing group name.
     pub name: String,
     /// Maximum members accepted by this group.
+    /// Hard member capacity.
     pub member_limit: usize,
     /// Group lifecycle.
+    /// Group lifecycle state.
     pub state: ProcessGroupState,
     /// Optional leader handle.
+    /// Leader handle, if one is designated.
     pub leader: Option<u64>,
     /// Monotonic stop-plan generation.
+    /// Ownership generation guarding stop plans.
+    /// Stop generation this plan belongs to.
     pub generation: u64,
     /// Last stop or failure reason.
+    /// Last transition reason.
+    /// Termination reason.
     pub reason: String,
     /// Members sorted by raw handle.
+    /// Members in join order.
     pub members: Vec<ProcessGroupMember>,
 }
 
@@ -155,6 +170,7 @@ pub struct ProcessGroupTerminationPlan {
     /// Caller-owned reason for the stop request.
     pub reason: String,
     /// Members in stable raw-handle order.
+    /// Ordered member handles to stop.
     pub handles: Vec<u64>,
 }
 
@@ -219,6 +235,10 @@ struct ReaperPlan {
 
 impl ProcessGroupBook {
     /// Create an empty group book with explicit capacities.
+    ///
+    /// # Errors
+    ///
+    /// InvalidInput when either bound is zero.
     pub fn new(max_groups: usize, max_members: usize) -> Result<Self, ProcessGroupError> {
         if max_groups == 0 {
             return Err(ProcessGroupError::InvalidInput("max_groups"));
@@ -248,6 +268,11 @@ impl ProcessGroupBook {
     }
 
     /// Create an active group and optionally attach its leader.
+    ///
+    /// # Errors
+    ///
+    /// InvalidInput for zero `member_limit`; Capacity at group bound;
+    /// HandleAlreadyGrouped when a member pre-exists elsewhere.
     pub fn create(
         &self,
         name: impl Into<String>,
@@ -299,6 +324,11 @@ impl ProcessGroupBook {
     }
 
     /// Attach a process handle to an active group.
+    ///
+    /// # Errors
+    ///
+    /// HandleAlreadyGrouped; InvalidState unless Active; Capacity at the
+    /// member limit.
     pub fn join(&self, id: ProcessGroupId, handle: ProcessHandle) -> Result<(), ProcessGroupError> {
         let mut state = self.lock_state();
         if state.handle_groups.contains_key(&handle) {
@@ -326,6 +356,11 @@ impl ProcessGroupBook {
     }
 
     /// Remove a member while the group is still active.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless Active/Draining; UnknownMember when `handle` is
+    /// not part of the group.
     pub fn leave(
         &self,
         id: ProcessGroupId,
@@ -352,6 +387,10 @@ impl ProcessGroupBook {
     }
 
     /// Request a deterministic, non-blocking stop plan for a group.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when the group is not in a terminable state.
     pub fn begin_termination(
         &self,
         id: ProcessGroupId,
@@ -383,6 +422,10 @@ impl ProcessGroupBook {
     }
 
     /// Return the current plan when a group is already draining.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState when no termination is in flight for `id`.
     pub fn termination_plan(
         &self,
         id: ProcessGroupId,
@@ -502,6 +545,10 @@ impl ProcessGroupBook {
     }
 
     /// Return one deterministic group snapshot.
+    ///
+    /// # Errors
+    ///
+    /// ProcessGroupError when `id` is unknown.
     pub fn snapshot(&self, id: ProcessGroupId) -> Result<ProcessGroupSnapshot, ProcessGroupError> {
         let state = self.lock_state();
         state
@@ -512,6 +559,10 @@ impl ProcessGroupBook {
     }
 
     /// Return a group lifecycle state without allocating a snapshot.
+    ///
+    /// # Errors
+    ///
+    /// ProcessGroupError when `id` is unknown.
     pub fn state(&self, id: ProcessGroupId) -> Result<ProcessGroupState, ProcessGroupError> {
         self.lock_state()
             .groups
@@ -521,6 +572,10 @@ impl ProcessGroupBook {
     }
 
     /// Return the number of members currently owned by a group.
+    ///
+    /// # Errors
+    ///
+    /// ProcessGroupError when `id` is unknown.
     pub fn member_count(&self, id: ProcessGroupId) -> Result<usize, ProcessGroupError> {
         self.lock_state()
             .groups
@@ -530,6 +585,10 @@ impl ProcessGroupBook {
     }
 
     /// Return whether a group owns no process handles.
+    ///
+    /// # Errors
+    ///
+    /// ProcessGroupError when `id` is unknown.
     pub fn is_empty(&self, id: ProcessGroupId) -> Result<bool, ProcessGroupError> {
         Ok(self.member_count(id)? == 0)
     }

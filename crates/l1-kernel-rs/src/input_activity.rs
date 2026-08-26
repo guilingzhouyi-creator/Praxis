@@ -45,14 +45,19 @@ impl InputActivityPermission {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InputActivityObservation {
     /// Stable adapter/source label, never a device path.
+    /// Provenance label of the aggregate snapshot.
     pub source: String,
     /// Permission state for this source.
+    /// Granted permission state (aggregate-only contract).
     pub permission: InputActivityPermission,
     /// Whether keyboard activity is currently asserted by the adapter.
+    /// Keyboard activity within the idle window.
     pub keyboard_active: bool,
     /// Whether pointer activity is currently asserted by the adapter.
+    /// Pointer activity within the idle window.
     pub pointer_active: bool,
     /// Caller-supplied timestamp of the latest aggregate activity.
+    /// Last activity timestamp (Unix seconds).
     pub last_activity_at: f64,
 }
 
@@ -79,8 +84,10 @@ impl InputActivityObservation {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct InputActivityProbeConfig {
     /// Idle threshold applied to the caller-supplied timestamps.
+    /// Idle threshold applied to activity flags.
     pub idle_after_seconds: f64,
     /// Maximum number of source observations accepted per aggregation.
+    /// Maximum distinct sources per aggregation batch.
     pub max_sources: usize,
 }
 
@@ -95,6 +102,10 @@ impl Default for InputActivityProbeConfig {
 
 impl InputActivityProbeConfig {
     /// Validate explicit aggregation bounds.
+    ///
+    /// # Errors
+    ///
+    /// InvalidConfig for non-positive idle window or source cap.
     pub fn validate(self) -> Result<Self, InputActivityProbeError> {
         if !self.idle_after_seconds.is_finite() || self.idle_after_seconds <= 0.0 {
             return Err(InputActivityProbeError::InvalidConfig(
@@ -158,6 +169,10 @@ pub struct InputActivityProbe {
 
 impl InputActivityProbe {
     /// Construct a probe with validated explicit bounds.
+    ///
+    /// # Errors
+    ///
+    /// InvalidConfig forwarding [`InputActivityProbeConfig::validate`].
     pub fn new(config: InputActivityProbeConfig) -> Result<Self, InputActivityProbeError> {
         Ok(Self {
             config: config.validate()?,
@@ -170,6 +185,12 @@ impl InputActivityProbe {
     }
 
     /// Aggregate bounded host observations at an injected current time.
+    ///
+    /// # Errors
+    ///
+    /// InvalidNow when the supplied clock regresses; TooManySources beyond
+    /// `max_sources`; InvalidObservation for stale timestamps, unknown
+    /// permissions, or privacy-contract violations (no raw input ever).
     pub fn aggregate<I>(
         &self,
         now: f64,

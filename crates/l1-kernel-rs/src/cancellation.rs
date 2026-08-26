@@ -56,6 +56,10 @@ impl CancellationToken {
     }
 
     /// Fail a cooperative operation when cancellation has been requested.
+    ///
+    /// # Errors
+    ///
+    /// Infallible inspection: returns token state without side effects.
     pub fn check(&self) -> Result<(), CancellationError> {
         let state = self.lock_state();
         if state.cancelled {

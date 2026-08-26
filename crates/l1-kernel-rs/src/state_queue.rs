@@ -91,6 +91,18 @@ pub struct ProcessHandleAllocator {
 
 impl ProcessHandleAllocator {
     /// Create an allocator with an explicit maximum slot count.
+    ///
+    /// # Errors
+    ///
+    /// Err when bounds are non-positive or shards exceed handle range.
+    ///
+    /// # Errors
+    ///
+    /// Err when queue capacity is zero.
+    ///
+    /// # Errors
+    ///
+    /// Err when the handle slot range is zero.
     pub fn new(max_slots: u32) -> Result<Self, &'static str> {
         if max_slots == 0 {
             return Err("process handle capacity must be positive");
@@ -102,6 +114,10 @@ impl ProcessHandleAllocator {
     }
 
     /// Allocate a fresh handle or a released slot with its next generation.
+    ///
+    /// # Errors
+    ///
+    /// StateQueueError::Capacity at slot bound; duplicate generation refused.
     pub fn allocate(&self) -> Result<ProcessHandle, &'static str> {
         let mut state = self.lock_state();
         if let Some(slot) = state.free_slots.pop_front() {
@@ -131,6 +147,10 @@ impl ProcessHandleAllocator {
     }
 
     /// Release a current handle and advance its generation before reuse.
+    ///
+    /// # Errors
+    ///
+    /// StateQueueError on stale-generation release (double-free guard).
     pub fn release(&self, handle: ProcessHandle) -> Result<(), &'static str> {
         let mut state = self.lock_state();
         let record = state
@@ -172,6 +192,10 @@ impl ProcessHandleAllocator {
 
 impl ShardedStateStore {
     /// Create a store with one independent mutex per ownership shard.
+    ///
+    /// # Errors
+    ///
+    /// `Err` forwarding ShardPlan validation failures.
     pub fn new(shard_count: u32) -> Result<Self, &'static str> {
         let plan = ShardPlan::new(shard_count)?;
         let shards = (0..shard_count)
@@ -190,6 +214,10 @@ impl ShardedStateStore {
     }
 
     /// Insert a new generation in an unused slot.
+    ///
+    /// # Errors
+    ///
+    /// QueueFull under backpressure; Cancelled if the caller token fired first.
     pub fn insert(&self, handle: ProcessHandle, state: TaskState) -> Result<(), &'static str> {
         let mut shard = self.lock_shard(handle);
         if let Some(existing) = shard.slots.get(&handle.slot()) {
@@ -247,6 +275,10 @@ impl ShardedStateStore {
     }
 
     /// Remove a process only when its generation exactly matches.
+    ///
+    /// # Errors
+    ///
+    /// StateQueueError when the work item is not claimable by this caller.
     pub fn remove(&self, handle: ProcessHandle) -> Result<StateRecord, &'static str> {
         let mut shard = self.lock_shard(handle);
         let record = shard
@@ -320,6 +352,10 @@ pub struct BoundedWorkQueue {
 
 impl BoundedWorkQueue {
     /// Create a queue with caller-owned metrics; zero capacity is rejected.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when `capacity` is zero.
     pub fn new(capacity: usize, metrics: Arc<QueueMetrics>) -> Result<Self, &'static str> {
         if capacity == 0 {
             return Err("queue capacity must be positive");
