@@ -222,7 +222,11 @@ the validated execution document and lifecycle state: `fresh`, `resume_clean`,
 `recover_unclean`, or `reject`. `KernelRuntime::recovery_decision` exposes this
 decision without mutating books or booting workers. An unclean decision remains
 a caller-owned gate for session recovery and terminal/process rebind; it is not
-an implicit cutover or Python fallback selector.
+an implicit cutover or Python fallback selector. Persistent runtimes retain this
+decision as a boot gate: `boot` rejects `recover_unclean` and inconsistent
+(`reject`) roots until the caller acknowledges the exact decision generation.
+Acknowledgement is in-memory and side-effect-free; it does not fabricate a
+process/PTY binding or make TS/L2 the recovery authority.
 
 Runtime submission uses a direct scheduler path when the WorkerPool already owns
 the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve

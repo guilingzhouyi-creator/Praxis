@@ -453,7 +453,11 @@ fresh roots are `fresh`, clean halted roots are `resume_clean`, crashed roots
 with unclean execution state are `recover_unclean`, and mismatches are
 `reject`. `KernelRuntime::recovery_decision` exposes this read-only gate; it
 does not recover sessions, rebind terminals, start workers, or select Python as
-a fallback. Those actions remain explicit cutover/recovery adapter work.
+a fallback. Persistent runtime boot now retains `recover_unclean` and
+`reject` as an explicit in-memory gate; `acknowledge_recovery` requires the
+exact current decision before allowing boot. The acknowledgement performs no
+rebind, checkpoint mutation, process/PTY fabrication, or fallback selection;
+caller-owned recovery adapters still own those actions.
 
 The runtime performance slice removes the former globally serialized admission
 gate. A shared lifecycle barrier now protects active-state validation, process

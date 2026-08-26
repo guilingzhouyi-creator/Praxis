@@ -24,7 +24,7 @@ use crate::contract::{CapabilityRequest, CapabilityResult};
 use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::lifecycle::{LifecycleRegistry, LifecycleState};
-use crate::recovery::{RecoveryDecision, RecoveryTrigger};
+use crate::recovery::{RecoveryAction, RecoveryDecision, RecoveryTrigger};
 use crate::scheduler::{KernelScheduler, SchedulerConfig, SchedulerError};
 use crate::session::SessionBook;
 use crate::state_store::{StateStore, StateStoreError};
@@ -140,6 +140,12 @@ pub enum RuntimeError {
     InvalidReapBudget,
     /// The runtime cannot accept new work after shutdown begins.
     ShuttingDown,
+    /// A persistent root requires an explicit recovery acknowledgement before boot.
+    RecoveryRequired(crate::recovery::RecoveryAction),
+    /// The supplied recovery decision does not match the current root.
+    RecoveryDecisionStale,
+    /// Recovery acknowledgement was supplied for a root that does not need it.
+    RecoveryNotRequired(crate::recovery::RecoveryAction),
 }
 
 /// Benchmark-only lock-wait evidence for runtime admission.
@@ -350,6 +356,7 @@ pub struct KernelRuntime {
     capability: Arc<CapabilityAuthority>,
     workers: WorkerPool,
     tasks: Arc<RuntimeTaskBook>,
+    recovery_action: StdMutex<Option<RecoveryAction>>,
 }
 
 impl KernelRuntime {
@@ -380,6 +387,7 @@ impl KernelRuntime {
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
             tasks: runtime_task_book(config.shard_count),
+            recovery_action: StdMutex::new(None),
         })
     }
 
@@ -406,9 +414,17 @@ impl KernelRuntime {
         }
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
+        let execution_document = execution_store
+            .document()
+            .map_err(map_execution_store_error)?;
         let execution_state = execution_store
             .load_state(config.shard_count as usize)
             .map_err(map_execution_store_error)?;
+        let recovery_action =
+            match RecoveryTrigger::decide(lifecycle.state(), Some(&execution_document)).action {
+                RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,
+                action => Some(action),
+            };
         let scheduler = KernelScheduler::new(SchedulerConfig::new(
             config.max_processes,
             config.shard_count,
@@ -430,6 +446,7 @@ impl KernelRuntime {
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
             tasks: runtime_task_book(config.shard_count),
+            recovery_action: StdMutex::new(recovery_action),
         })
     }
 
@@ -477,14 +494,24 @@ impl KernelRuntime {
             .as_ref()
             .ok_or_else(|| RuntimeError::ExecutionStore("runtime is not persistent".to_owned()))?;
         let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
-        store
+        let document = store
             .save(
                 &self.sessions,
                 &self.terminals,
                 &self.agent_loops,
                 clean_shutdown,
             )
-            .map_err(map_execution_store_error)
+            .map_err(map_execution_store_error)?;
+        let action = RecoveryTrigger::decide(self.lifecycle.state(), Some(&document)).action;
+        let mut recovery_action = self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        *recovery_action = match action {
+            RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,
+            action => Some(action),
+        };
+        Ok(document)
     }
 
     /// Return a side-effect-free recovery decision for this persistent root.
@@ -504,6 +531,34 @@ impl KernelRuntime {
             self.lifecycle.state(),
             Some(&document),
         ))
+    }
+
+    /// Acknowledge an unclean recovery decision after caller-owned rebind work.
+    ///
+    /// This only clears the in-memory boot gate for this runtime instance. It
+    /// does not mutate the books, checkpoint, lifecycle, process handles, or
+    /// terminal bindings; those remain explicit adapter responsibilities.
+    pub fn acknowledge_recovery(&self, decision: &RecoveryDecision) -> Result<(), RuntimeError> {
+        let _admission = self
+            .admission
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        let current = self.recovery_decision()?;
+        if current != *decision {
+            return Err(RuntimeError::RecoveryDecisionStale);
+        }
+        if current.action != RecoveryAction::RecoverUnclean {
+            return Err(RuntimeError::RecoveryNotRequired(current.action));
+        }
+        let mut recovery_action = self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if *recovery_action != Some(RecoveryAction::RecoverUnclean) {
+            return Err(RuntimeError::RecoveryDecisionStale);
+        }
+        *recovery_action = None;
+        Ok(())
     }
 
     /// Submit a capability only after the Rust G1-G5 chain permits it.
@@ -532,6 +587,13 @@ impl KernelRuntime {
             .admission
             .write()
             .unwrap_or_else(PoisonError::into_inner);
+        if let Some(action) = *self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+        {
+            return Err(RuntimeError::RecoveryRequired(action));
+        }
         let bootable = self.lifecycle.state() == LifecycleState::Halted
             || (self.state_store.is_some() && self.lifecycle.state() == LifecycleState::Crashed);
         if !bootable {
@@ -858,6 +920,10 @@ impl KernelRuntime {
             }
             self.lifecycle.record_shutdown_at(true, "runtime");
         }
+        *self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(self.snapshot())
     }
 

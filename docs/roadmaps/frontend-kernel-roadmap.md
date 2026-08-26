@@ -583,7 +583,10 @@ execution checkpoint 只做 `fresh/resume_clean/recover_unclean/reject` 决策�
 `KernelRuntime::recovery_decision` 不产生恢复副作用；TS `execution-checkpoint.ts`
 只读消费同一三本元数据文档，校验跨表引用、排序、safe integer 与 clean/unclean
 约束，并支持重新读取文件。恢复、终端/process rebind、生产 boot 和 Python/L2
-fallback 仍未授权，下一步是把该决策接入独立 cutover/recovery adapter 评审。
+fallback 仍未授权。当前 runtime 已把 `recover_unclean` 与状态/检查点
+不一致的 `reject` 保留为 boot gate；调用方必须提交同代的
+`acknowledge_recovery` 后才能进入 active，确认本身不执行 rebind 或
+checkpoint 写入。下一步仍是独立 cutover/recovery adapter 评审。
 
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增

@@ -493,6 +493,13 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
         runtime
             .shutdown(Some(Duration::from_secs(1)))
             .expect("clean shutdown");
+        assert_eq!(
+            runtime
+                .recovery_decision()
+                .expect("post-shutdown decision")
+                .action,
+            RecoveryAction::ResumeClean
+        );
     }
     {
         let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
@@ -505,6 +512,18 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
     {
         let recovered = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
             .expect("recover unclean root");
+        assert!(matches!(
+            recovered.boot(),
+            Err(RuntimeError::RecoveryRequired(RecoveryAction::Reject))
+        ));
+        recovered
+            .checkpoint_execution(false)
+            .expect("write explicit recovery checkpoint");
+        let decision = recovered.recovery_decision().expect("recovery decision");
+        assert_eq!(decision.action, RecoveryAction::RecoverUnclean);
+        recovered
+            .acknowledge_recovery(&decision)
+            .expect("acknowledge recovery");
         assert_eq!(
             recovered.boot().expect("recovery boot").lifecycle.as_str(),
             "active"
@@ -611,6 +630,17 @@ fn explicit_unclean_execution_checkpoint_restores_recovery_states() {
     }
     let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
         .expect("recover persistent runtime");
+    let decision = runtime.recovery_decision().expect("recovery decision");
+    assert_eq!(decision.action, RecoveryAction::RecoverUnclean);
+    assert!(matches!(
+        runtime.boot(),
+        Err(RuntimeError::RecoveryRequired(
+            RecoveryAction::RecoverUnclean
+        ))
+    ));
+    runtime
+        .acknowledge_recovery(&decision)
+        .expect("acknowledge recovery");
     assert_eq!(
         runtime
             .sessions()
@@ -667,6 +697,37 @@ fn rejected_clean_shutdown_preserves_unclean_execution_checkpoint() {
         );
     }
     std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn recovery_acknowledgement_rejects_stale_decisions() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .checkpoint_execution(false)
+            .expect("unclean checkpoint");
+    }
+    let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("recover persistent runtime");
+    let mut stale = runtime.recovery_decision().expect("decision");
+    stale.generation = stale.generation.saturating_sub(1);
+    assert_eq!(
+        runtime.acknowledge_recovery(&stale),
+        Err(RuntimeError::RecoveryDecisionStale)
+    );
+    let decision = runtime.recovery_decision().expect("current decision");
+    runtime
+        .acknowledge_recovery(&decision)
+        .expect("acknowledge current decision");
+    assert!(matches!(
+        runtime.acknowledge_recovery(&decision),
+        Err(RuntimeError::RecoveryDecisionStale)
+    ));
+    std::fs::remove_dir_all(root).expect("remove root");
 }
 
 #[test]
