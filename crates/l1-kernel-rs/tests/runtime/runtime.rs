@@ -11,6 +11,7 @@ use l1_kernel_rs::boot::BootStepSpec;
 use l1_kernel_rs::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use l1_kernel_rs::gatechain::{GateDecision, GateRequest};
 use l1_kernel_rs::ports::{PortDescriptor, PortKind};
+use l1_kernel_rs::recovery::RecoveryAction;
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig, RuntimeError, RuntimeTaskState};
 use l1_kernel_rs::session::{SessionSpec, SessionState};
 use l1_kernel_rs::terminal::{TerminalSpec, TerminalState};
@@ -484,6 +485,10 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
     {
         let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
             .expect("fresh persistent runtime");
+        assert_eq!(
+            runtime.recovery_decision().expect("fresh decision").action,
+            RecoveryAction::Fresh
+        );
         assert_eq!(runtime.boot().expect("boot").lifecycle.as_str(), "active");
         runtime
             .shutdown(Some(Duration::from_secs(1)))
@@ -492,6 +497,9 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
     {
         let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
             .expect("resume persistent runtime");
+        let decision = runtime.recovery_decision().expect("clean decision");
+        assert_eq!(decision.action, RecoveryAction::ResumeClean);
+        assert_eq!(decision.generation, 1);
         runtime.boot().expect("resume boot");
     }
     {
@@ -642,6 +650,13 @@ fn rejected_clean_shutdown_preserves_unclean_execution_checkpoint() {
     {
         let recovered = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
             .expect("recover after rejected clean shutdown");
+        assert_eq!(
+            recovered
+                .recovery_decision()
+                .expect("unclean decision")
+                .action,
+            RecoveryAction::RecoverUnclean
+        );
         assert_eq!(
             recovered
                 .sessions()

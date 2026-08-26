@@ -109,6 +109,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   existing one. The TS `session-store.e2e.test.ts` suite invokes it only when
   the candidate binary is built, so cross-process coverage never becomes a
   hidden in-process substitute or a production entry point.
+- The Rust `execution_store` adapter persists SessionBook, TerminalBook, and
+  AgentLoopBook metadata as one versioned atomic document. Its TS counterpart
+  `execution-checkpoint.ts` is read-only: it validates the same cross-book
+  references, lifecycle restrictions, ordering, and JavaScript safe-integer
+  boundary, then exposes a defensive snapshot/refresh view. TS cannot recover
+  sessions, rebind processes, or write the Rust checkpoint through this seam.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report

@@ -447,6 +447,14 @@ state. The books remain metadata/state seams only: AgentLoop execution,
 provider/tool policy, PTY ownership, and TS/L2 routing are not granted by these
 accessors.
 
+The independent `recovery::RecoveryTrigger` now turns a validated execution
+checkpoint plus lifecycle state into a side-effect-free `RecoveryDecision`:
+fresh roots are `fresh`, clean halted roots are `resume_clean`, crashed roots
+with unclean execution state are `recover_unclean`, and mismatches are
+`reject`. `KernelRuntime::recovery_decision` exposes this read-only gate; it
+does not recover sessions, rebind terminals, start workers, or select Python as
+a fallback. Those actions remain explicit cutover/recovery adapter work.
+
 The runtime performance slice removes the former globally serialized admission
 gate. A shared lifecycle barrier now protects active-state validation, process
 reservation, task-book registration, and WorkerPool handoff. Boot takes the

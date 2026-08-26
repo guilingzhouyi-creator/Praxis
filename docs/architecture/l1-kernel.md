@@ -217,6 +217,13 @@ These accessors expose lower-layer state to a future TS bridge without moving
 AgentLoop execution, provider/tool policy, PTY ownership, or production entry
 authority into the candidate.
 
+The separate `recovery` module provides a pure `RecoveryTrigger` decision over
+the validated execution document and lifecycle state: `fresh`, `resume_clean`,
+`recover_unclean`, or `reject`. `KernelRuntime::recovery_decision` exposes this
+decision without mutating books or booting workers. An unclean decision remains
+a caller-owned gate for session recovery and terminal/process rebind; it is not
+an implicit cutover or Python fallback selector.
+
 Runtime submission uses a direct scheduler path when the WorkerPool already owns
 the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve
 generation-safe scheduler state without double-counting queue admission. Terminal

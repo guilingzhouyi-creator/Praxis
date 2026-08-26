@@ -24,6 +24,7 @@ use crate::contract::{CapabilityRequest, CapabilityResult};
 use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::lifecycle::{LifecycleRegistry, LifecycleState};
+use crate::recovery::{RecoveryDecision, RecoveryTrigger};
 use crate::scheduler::{KernelScheduler, SchedulerConfig, SchedulerError};
 use crate::session::SessionBook;
 use crate::state_store::{StateStore, StateStoreError};
@@ -484,6 +485,25 @@ impl KernelRuntime {
                 clean_shutdown,
             )
             .map_err(map_execution_store_error)
+    }
+
+    /// Return a side-effect-free recovery decision for this persistent root.
+    ///
+    /// The trigger is intentionally separate from `boot`: callers must review
+    /// `RecoverUnclean` and perform session/terminal/loop rebind steps before
+    /// requesting any execution. Non-persistent runtimes cannot claim a
+    /// checkpoint decision.
+    pub fn recovery_decision(&self) -> Result<RecoveryDecision, RuntimeError> {
+        let store = self
+            .execution_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ExecutionStore("runtime is not persistent".to_owned()))?;
+        let store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        let document = store.document().map_err(map_execution_store_error)?;
+        Ok(RecoveryTrigger::decide(
+            self.lifecycle.state(),
+            Some(&document),
+        ))
     }
 
     /// Submit a capability only after the Rust G1-G5 chain permits it.

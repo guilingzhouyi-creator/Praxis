@@ -16,7 +16,11 @@ The Rust docking candidate exposes a separate TS `session-checkpoint` codec for
 the Rust-owned session-store document. It is a typed, fail-closed persistence
 adapter only; live session authority, recovery transitions, and production host
 selection remain on the Rust/Python host boundary described in the docking
-roadmap.
+roadmap. `execution-checkpoint` extends this boundary to a read-only view of
+the combined Rust Session/Terminal/AgentLoop metadata document. It validates
+cross-book identity references, sorted identities, safe integers, and
+clean/unclean constraints, and can refresh from disk without exposing a write
+operation or recovery authority to TS.
 
 ## Responsibility boundary
 

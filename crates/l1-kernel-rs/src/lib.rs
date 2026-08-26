@@ -48,6 +48,7 @@ pub mod process_group;
 pub mod process_group_runtime;
 pub mod protocol;
 pub mod protocol_host;
+pub mod recovery;
 pub mod registry;
 pub mod registry_base;
 pub mod reputation;

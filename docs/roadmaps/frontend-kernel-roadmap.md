@@ -578,6 +578,13 @@ StateStore 置为 unclean 并 fail-closed。新增 runtime 分片覆盖三本的
 recovery 和非持久 runtime 拒绝 checkpoint。该片仍不执行 AgentLoop/provider/tool/PTY，不接管 Python/L2
 生产入口；下一步继续补独立 cutover/recovery 触发器与 TS bridge 只读消费边界。
 
+该后续切片已落地：Rust `recovery::RecoveryTrigger` 对生命周期和已校验
+execution checkpoint 只做 `fresh/resume_clean/recover_unclean/reject` 决策，
+`KernelRuntime::recovery_decision` 不产生恢复副作用；TS `execution-checkpoint.ts`
+只读消费同一三本元数据文档，校验跨表引用、排序、safe integer 与 clean/unclean
+约束，并支持重新读取文件。恢复、终端/process rebind、生产 boot 和 Python/L2
+fallback 仍未授权，下一步是把该决策接入独立 cutover/recovery adapter 评审。
+
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
 `benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定

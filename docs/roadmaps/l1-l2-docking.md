@@ -90,6 +90,14 @@ TS 已新增独立 Rust session-store codec 与原子文件适配器（`session-
 读取，以及 Rust 对错误版本的 fail-closed 拒绝。该片不改变 Rust host
 candidate-only 状态；未构建 probe 时该进程级切片显式 skip，不伪造通过。
 
+随后补齐 Rust execution checkpoint 的 TS 只读消费边界：
+`execution-checkpoint.ts` 严格校验 `SessionBook`、`TerminalBook` 与
+`AgentLoopBook` 的版本、排序、safe integer、clean/unclean 限制和跨表身份引用，
+并只提供打开、刷新和 defensive snapshot，不提供 TS 写入、恢复或 rebind 权限。
+共享 fixture `tests/fixtures/kernel_execution_store_document.json` 同时由 Rust
+`execution_store` 测试和 TS codec 测试消费。该片仍不改变 Rust host 默认路径，
+也不把 read-only projection 误当作 R5 cutover authority。
+
 ### 分流路由原则（D1c 核心）
 
 | 流量 | 去向 |
