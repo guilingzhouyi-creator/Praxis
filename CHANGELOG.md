@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (rust)**: complete field docs and error contracts crate-wide
 - **Docs (rust)**: annotate module map, error contracts, and invariants
 - **Docs (stats)**: refresh judge dashboard
 - **Docs**: rotate alignment change-log into monthly archive
