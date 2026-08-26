@@ -8,9 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use l1_kernel_rs::contract::{CapabilityResult, JsonValue};
-use l1_kernel_rs::host_dispatch::{
-    HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS,
-};
+use l1_kernel_rs::host_dispatch::{HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS};
 use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
 use l1_kernel_rs::session_lifecycle::SessionLifecycle;
 use serde_json::json;
@@ -113,7 +111,9 @@ fn command_with_wired_executor_dispatches_through_capability_gate() {
 fn unwired_executor_answers_fail_closed_denial_envelope() {
     let router = HostRouter::new(RouterConfig::default());
     router.register_command("hello");
-    let responses = router.route(command("hello", "s-1", 7)).expect("dispatches");
+    let responses = router
+        .route(command("hello", "s-1", 7))
+        .expect("dispatches");
     assert_eq!(responses[0].payload["success"], json!(false));
     assert_eq!(
         responses[0].payload["output"],
@@ -155,7 +155,9 @@ fn command_denied_by_executor_is_wrapped_as_failed_result() {
 #[test]
 fn unknown_command_answers_denial_envelope_and_is_audited() {
     let router = HostRouter::new(RouterConfig::default());
-    let responses = router.route(command("nonsense", "s-1", 7)).expect("envelope");
+    let responses = router
+        .route(command("nonsense", "s-1", 7))
+        .expect("envelope");
     assert_eq!(responses[0].kind, MessageKind::Result);
     assert_eq!(responses[0].payload["success"], json!(false));
     assert_eq!(
@@ -209,7 +211,12 @@ fn system_ring3_without_approval_yields_gatechain_denial_envelope() {
 #[test]
 fn r4_banned_authorization_fields_are_rejected_before_routing() {
     let router = HostRouter::new(RouterConfig::default());
-    for field in ["approved", "pre_approved", "full_power", "harness_auto_approved"] {
+    for field in [
+        "approved",
+        "pre_approved",
+        "full_power",
+        "harness_auto_approved",
+    ] {
         let mut payload = BTreeMap::from([
             ("name".to_owned(), json!("status")),
             ("ring".to_owned(), json!(3)),
@@ -366,7 +373,10 @@ fn control_recovery_replays_the_session_outbox() {
     assert_eq!(replayed.len(), 1);
     assert_eq!(replayed[0].kind, MessageKind::Result);
     assert_eq!(replayed[0].payload["success"], json!(false));
-    assert_eq!(replayed[0].payload["output"], json!("no execution authority (fail-closed)"));
+    assert_eq!(
+        replayed[0].payload["output"],
+        json!("no execution authority (fail-closed)")
+    );
 }
 
 #[test]

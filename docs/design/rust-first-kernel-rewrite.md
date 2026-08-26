@@ -359,6 +359,19 @@ adapters. Registration is explicitly locked before wiring; duplicate or
 invalid descriptors fail closed. No Rust candidate in this slice opens files,
 sockets, subprocesses, threads, or hardware monitors.
 
+The T4a `input_activity` candidate is the first cross-language projection above
+that port. `InputActivityProbe` and the TypeScript reducer consume only bounded
+host-injected source labels, permission states, aggregate keyboard/pointer
+flags, and caller time. Both implementations apply the same positive idle
+window and source-count limit, reject duplicate or whitespace-bearing labels,
+future/non-finite timestamps, and activity asserted without granted permission,
+then emit the existing `InputActivitySnapshot`. The shared
+`kernel_input_activity_vectors.json` fixture covers the Rust integration target
+and TypeScript tests. No device node, raw key value, pointer coordinate, or
+system clock enters either implementation. T4b is intentionally separate: it
+must provide platform adapters, permission UX, and privacy/failure evidence
+before any production wiring review.
+
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, config-manifest, protocol,
 terminal-contract, port, and lifecycle candidates.

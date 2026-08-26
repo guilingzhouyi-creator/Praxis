@@ -7,6 +7,8 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (docs)**: register Phase 3 protocol v1 alignment in handoff log
 - **Docs (docs)**: update changelog with recent doc fixes
 - **Docs (docs)**: sync model reasoning caps keys across ja and ko locales
@@ -241,6 +243,10 @@
 ### 新增
 
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
+- **Feat (rust)**: gate process admission
+- **Feat (rust)**: bound process bridge reaper
+- **Feat (rust)**: add bounded runtime reaper
+- **Feat (rust)**: remove shell compatibility entrypoints
 - **Feat (rust)**: add bounded stdio protocol host binary
 - **Feat (rust)**: enforce conformance rulings in host dispatch
 - **Feat (l2-ts)**: harden bridge, route and envelope conformance
@@ -475,7 +481,10 @@
 - **Refactor (l2)**: eliminate shell direct l4 imports and decouple layers
 - **Refactor (l3)**: standardize directory layout and organize fixtures
 - **Refactor (kernel)**: remove L1 transition shims and clean boundaries
+- **Test (rust)**: normalize integration test domains
 - **Test (tests)**: derive mirror key list from the generator
+- **Refactor (rust)**: inject benchmark process argv
+- **Refactor (rust)**: route terminal argv through probe
 - **Test (l2)**: freeze cross-language golden vectors with three runners
 - **Refactor (l2)**: align legacy python protocol with conformance rulings
 - **Test (rust)**: pin dispatch matrix and rejection audit vectors

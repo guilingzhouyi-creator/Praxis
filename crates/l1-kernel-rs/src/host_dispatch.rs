@@ -38,8 +38,12 @@ pub const SYSTEM_RING_RISK: u8 = 3;
 pub const SYSTEM_COMMANDS: [&str; 5] = ["__system", "status", "health", "ps", "fs"];
 /// Host-derived authorization fields banned from inbound payloads (R4):
 /// approval authority is adapter-injected, never wire-declared.
-pub const HOST_DERIVED_FIELDS: [&str; 4] =
-    ["approved", "pre_approved", "full_power", "harness_auto_approved"];
+pub const HOST_DERIVED_FIELDS: [&str; 4] = [
+    "approved",
+    "pre_approved",
+    "full_power",
+    "harness_auto_approved",
+];
 /// Default terminal identifier for a control attach without a binding.
 pub const DEFAULT_TERMINAL_ID: &str = "terminal";
 /// Default process identifier for a control attach without a binding.
@@ -220,7 +224,8 @@ impl HostRouter {
             let agent_id = self.agent_id_for(&message.session_id);
             let reason = "system command requires ring adjudication".to_owned();
             self.audit_dispatch("command", &agent_id, &name, 0, false, &reason);
-            let response = self.denial_envelope(&message, &format!("system command {name} {reason}"));
+            let response =
+                self.denial_envelope(&message, &format!("system command {name} {reason}"));
             self.lock_outboxes()
                 .append(&message.session_id, response.clone());
             return Ok(vec![response]);

@@ -59,6 +59,11 @@
 | 2026-08-25 | docs/project-structure.md + src/l3/tools/* + src/l3/services/* + tests/fixtures/* | Antigravity (gemini-3.7-flash) | directory standardization: add tools package init, taxonomy docs, move test fixtures to tests/fixtures/cards/, remove scratch script | in feature/system-refactor-phase1 (3b09bb6b) |
 | 2026-08-25 | src/l2/* + src/l3/services/* + src/l4/api_handlers/* + tests/infra/test_layer_imports.py | Antigravity (gemini-3.7-flash) | Phase 2: eliminate L2 shell command L4 imports via adapter_bridge and ModelService, enforce 0 L1 upward imports | in feature/system-refactor-phase1 (0f5db057) |
 | 2026-08-26 | packages/protocol-ts/* + crates/l1-kernel-rs/* + src/l3/cell/peers/l3.py + tests/fixtures/* | Antigravity (gemini-3.7-flash) | Phase 3: align cross-language protocol v1 conformance across TypeScript, Rust, and Python, fix L3 CentralController imports | in feature/system-refactor-phase1 (this commit) |
+| 2026-08-23 | config/discovery/commits.yaml | OpenCode (ox-alpha) | register rust scope (crates/) for L1L2 docking execution | active |
+| 2026-08-25 | crates/l1-kernel-rs/tests/** + crates/l1-kernel-rs/Cargo.toml + tests/infra/test_rust_test_domain.py + Makefile + docs/architecture/* + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md + tests/fixtures/protocol_v1_conformance.json | GPT (root-l1-runtime-perf) | normalize 88 Rust integration targets into 11 explicit test domains, preserve historical Cargo target names, add bounded domain runner and root-level test regression gate | in feature/root-l1-runtime-perf |
+| 2026-08-25 | crates/l1-kernel-rs/src/input_activity.rs + crates/l1-kernel-rs/tests/terminal/input_activity.rs + crates/l1-kernel-rs/Cargo.toml + packages/protocol-ts/src/input-activity.ts + packages/protocol-ts/tests/input-activity.test.ts + tests/fixtures/kernel_input_activity_vectors.json + docs/architecture/{l1-kernel,multilang-build,llms-full}.txt + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md | GPT (root-l1-runtime-perf) | freeze T4a aggregate input-activity value contract with Rust/TS shared vectors; keep hardware adapters, raw input, permission UX, and runtime authority host-owned | in feature/root-l1-runtime-perf |
+| 2026-08-26 | config/discovery/commits.yaml + config/discovery/commits.json + docs/agent-handoff/ALIGNMENT.md | Codex (GPT5.6Terra) | register the user-pinned Codex author identity and model for verified commit attribution | in feature/root-l1-runtime-perf |
+
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an
@@ -86,7 +91,6 @@
    mirror regenerated via gen_commits_json.py after the legacy-scope
    addition above; Node-only mirror now matches canonical yaml.
    Registered per the shared-file gate.
-
 > Repair note (2026-08-25, OpenCode/ox-alpha): the stray table row below
 > warning 5 — `| 2026-08-23 | config/discovery/commits.yaml | OpenCode
 > (ox-alpha) | register rust scope (crates/) for L1L2 docking execution |

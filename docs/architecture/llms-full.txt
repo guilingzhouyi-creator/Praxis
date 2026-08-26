@@ -311,7 +311,7 @@ corresponding result handle is notified.
 Worker metrics are Rust atomics rather than a process-wide metrics mutex:
 submission rejection, active/completed/outcome counters, and pool-size changes
 avoid serializing every task on one accounting lock. The bounded task queue and
-worker join list remain mutex-owned. The independent `tests/worker.rs` target
+worker join list remain mutex-owned. The independent `tests/core/worker.rs` target
 exercises concurrent submission and verifies that completed plus evicted work
 matches the fixed submission count.
 The completion path also relies on the last active-counter transition to wake
@@ -350,7 +350,7 @@ same-loop admissions no longer serialize on one mutex. Session
 history and `input_seq` remain authoritative in `Session`; terminal mailboxes,
 PTYs, subprocesses, providers, prompts, tools, and worker execution remain
 adapter-owned. The candidate is covered by the independent
-`crates/l1-kernel-rs/tests/agent_loop.rs` target and does not grant runtime
+`crates/l1-kernel-rs/tests/session/agent_loop.rs` target and does not grant runtime
 authority. `run_agent_loop` and `rust-agent-loop-bench` add a separate v3
 fixed-work input-admission workload with lifecycle-lock wait accounting; a current
 4096-item release smoke measured median throughput of about 1.706M/0.898M/
@@ -398,6 +398,58 @@ worker failures observed before the wrapper runs (for example, FIFO eviction or
 shutdown rejection) are reconciled by `RuntimeTask::result()` so the task can be
 reaped instead of remaining in `Running`. This is measured candidate behavior,
 not production runtime authority.
+
+Runtime admission now holds a shared lifecycle barrier across the active-state
+check, scheduler reservation, shard-local task registration, and WorkerPool
+handoff. Boot holds the exclusive side; shutdown first publishes `Draining`
+and then holds it while already-admitted submissions drain. Registration precedes
+`dispatch_direct`, so a fast closure cannot publish a terminal state and then
+be overwritten by a late `Ready` insertion. The runtime task book uses the
+same configured shard count as scheduler state, avoiding one global task-map
+lock for unrelated handles. `submit_observed` is benchmark-only: its
+contention-only `try_read` and task-book `try_lock` fallbacks expose aggregate
+admission wait without timestamps or atomic updates in the normal submit path.
+`run_runtime` and `rust-runtime-bench` measure a separate
+`runtime.submit_reap` workload: each caller submits one bound `Value::Null`
+closure, waits for completion, and reaps it before taking another task.
+The aligned Linux x86_64 release sample on `06e8288c` completed all 4,096
+items in each 1/2/4-worker, three-round case with zero errors and rejections.
+Median throughput was about 18.1k/27.3k/32.1k operations/s; p95/p99 were about
+85/140, 232/562, and 600/1,342 microseconds. Aggregate WorkerPool claim/wake
+wait was 155.2/262.8/469.7 milliseconds per round, while median contended
+runtime-admission wait was zero. This identifies WorkerPool handoff and tail
+behavior, rather than runtime admission serialization, as the next candidate
+bottleneck. The unpaired host sample is evidence only: it does not promote a
+scaling policy or grant L2/TS, AgentLoop, provider, PTY, or production-entry
+authority.
+
+`KernelRuntime::reap_finished` adds a bounded caller-driven reaper seam. It
+selects at most the requested number of task handles, releases only tasks
+already in a terminal runtime state, and reports pending, unavailable, and
+scheduler-error outcomes without blocking on live work. A zero budget is
+rejected; the method does not start a background thread, change lifecycle
+state, or claim production shutdown authority.
+
+`submit_batch` reserves and registers every process handle before one grouped
+WorkerPool handoff; an incomplete reservation rolls back every earlier handle
+before a closure can execute. `run_runtime_batch` and
+`rust-runtime-batch-bench` measure the separate
+`runtime.batch_submit_reap` workload. Each caller admits at most one bounded
+group, waits for all of its tasks, and reaps every handle before its next group;
+the configured process and queue capacities cover the maximum in-flight groups
+so eviction is not part of the experiment. The v3 completed-work and throughput
+units remain tasks, but p95/p99 are explicitly per complete batch and therefore
+are not compared directly with the single-task latency distribution. One local,
+unpinned Linux x86_64 release sweep on the aligned tree with batch size 32
+completed each 4,096-item 1/2/4-caller, three-round sample with zero
+errors/rejections. Median throughput was about 363k/540k/591k tasks/s; median
+per-batch p95/p99 were about 151/218, 217/290, and 442/586 microseconds;
+aggregate WorkerPool claim/wake wait was 5.4/8.7/18.7 milliseconds and
+observed runtime lock wait was 0/0.086/0.045 milliseconds. A separately
+collected single-task sweep from the same aligned tree measured about
+18.1k/27.3k/32.1k tasks/s and 155.2/262.8/469.7 milliseconds of queue wait.
+The comparison is host-local evidence for retained grouped admission, not a
+scaling, tail-latency, L2/TS, AgentLoop, provider, PTY, or cutover decision.
 
 The Rust `identity_binding` candidate closes the mechanism portion of the
 per-Cell role registry: an injected write principal is checked fail-closed,
@@ -454,6 +506,17 @@ implementations or execute process, storage, transport, scheduler, worker, or
 input activity operations. `kernel_port_vectors.json` freezes only these
 values and metadata; provider side effects remain an R4 adapter concern.
 
+The Rust `input_activity` candidate is the T4a value projection above that port.
+`InputActivityProbe` consumes only bounded host-injected source labels,
+permission states, aggregate keyboard/pointer flags, and caller time. It
+applies an explicit idle window, rejects duplicate sources and invalid/future
+timestamps, and emits the existing `InputActivitySnapshot` without opening
+device nodes or retaining raw input. `kernel_input_activity_vectors.json` is
+the shared Rust/TypeScript fixture; platform keyboard/pointer adapters and
+permission prompts remain host-owned. T4b remains open for platform-specific
+adapters, permission UX, and privacy/failure evidence; this value projection
+does not grant hardware or runtime authority.
+
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic
@@ -481,7 +544,7 @@ failures. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint; it
 only emits accepted canonical frames and reports rejected lines to stderr. It
 does not dispatch commands, execute intents, own sessions, or route AgentLoop
 work, and its public behavior is tested in the independent
-`tests/protocol_host.rs` target.
+`tests/protocol/protocol_host.rs` target.
 
 The Rust `config_store` candidate closes the configuration half of the R4
 ownership boundary. It creates a fresh JSON-only Rust root with a versioned
@@ -516,8 +579,8 @@ user `input_seq`, monotonic message sequences, cursor paging, explicit
 created/active/closing/closed/crashed lifecycle, and versioned checkpoint
 values. Duplicate IDs, invalid cursors, over-capacity history, and inconsistent
 snapshots fail closed. It does not execute prompts/tools, own PTYs, or route
-AgentLoop work; its behavior is covered by independent `tests/session.rs` and
-`tests/session_vectors.rs` targets.
+AgentLoop work; its behavior is covered by independent `tests/session/session.rs` and
+`tests/session/session_vectors.rs` targets.
 
 The Rust `session_store` adapter closes the first durable P0 session boundary.
 It atomically persists the deterministically ordered `SessionBook` collection
@@ -527,7 +590,7 @@ closing. An unclean document is loaded as explicit `crashed` sessions so the
 caller must recover and reactivate them before accepting input. The adapter
 uses only the fresh Rust state root; it does not import Python state, replay
 AgentLoop work, or grant runtime authority. Its behavior is covered by the
-independent `tests/session_store.rs` target.
+independent `tests/session/session_store.rs` target.
 
 The `execution_store` adapter extends this durable boundary to the metadata
 books needed by the future terminal-backed AgentLoop bridge. It atomically
@@ -539,7 +602,7 @@ active terminals, pending mailbox frames, or process bindings. Unclean writes
 normalize sessions to `crashed`, active loops to `failed`, and active terminals
 to unbound `created` records so a later adapter must explicitly recover and
 rebind them. `TerminalBook::restore` and `AgentLoopBook::restore` accept only
-these safe metadata states. Coverage is isolated in `tests/execution_store.rs`;
+these safe metadata states. Coverage is isolated in `tests/session/execution_store.rs`;
 this is an R4/R5 recovery seam, not boot or runtime authority.
 
 The session hot path keeps hash indexes for message-id duplicate checks and
@@ -645,12 +708,12 @@ persist, protocol, protocol-host, constitution, gatechain, allocator, vfs, load-
 versioning mechanism
 tests are maintained as
 independent integration files under
-`crates/l1-kernel-rs/tests/`; the public contract-version check is also part of
+`crates/l1-kernel-rs/tests/<domain>/`; the public contract-version check is also part of
 `contract_vectors.rs`. Their public APIs are therefore the only test-visible
 boundary for these slices.
 
 The synchronization mechanism tests are also fully isolated under
-`crates/l1-kernel-rs/tests/sync.rs`; the shared RWLock vectors remain in
+`crates/l1-kernel-rs/tests/core/sync.rs`; the shared RWLock vectors remain in
 `sync_vectors.rs`. The source module now contains no private test block, so
 Mutex, Semaphore, Barrier, Condition, and RWLock are validated only through
 the public candidate API. This is a test-domain boundary, not runtime lock
@@ -745,7 +808,7 @@ class AuthPort(ABC): issue_token / verify_token / revoke_token / refresh_token
 class WebSocketPort(ABC): upgrade / recv(conn) / send(conn) / close(conn) / broadcast
 class RpcServerPort(ABC): register_handler / call / notify
 class FilesystemPort(ABC): read / write / list_tree / watch
-class ProcessPort(ABC): run / run_args (ProcessOptions) → ProcessResult
+class ProcessPort(ABC): run_args (direct argv, ProcessOptions) → ProcessResult
 class CandidateLedgerPort(ABC): list / validate / publish / activate / retire
 class InputActivityPort(ABC): start / stop / aggregate snapshot
 class ObservabilityPort(ABC): emit_count / emit_duration
@@ -779,7 +842,7 @@ via the port**. What is swappable vs. what a Rust sink replaces wholesale:
 
 | Surface | Seam | Notes |
 |---|---|---|
-| Shell/command exec | `ProcessPort` (`get_process_port()`) | `run`/`run_args` take explicit `ProcessOptions` and return `ProcessResult`; boot adapter or controlled pre-boot fallback |
+| Shell/command exec | `ProcessPort` (`get_process_port()`) | Rust uses direct argv; terminal-derived argv requires an injected `TerminalObservation`; `ProcessOptions` returns `ProcessResult` |
 | Thread pool | `WorkerPort` + `TaskHandle` | `ThreadPoolWorker`; result contract complete |
 | Filesystem / storage | `FilesystemPort` / `StoragePort` | both resolve via `get_port` |
 | R4 candidate ledger | `CandidateLedgerPort` | typed primitive-only evidence, snapshots, status, and lifecycle results; memory and API callers resolve the port |
@@ -894,7 +957,7 @@ call storage, trimming/re-rooting, and tool execution remain Python-owned; the
 candidate has no runtime singleton or capability authority.
 
 Rust parity and mechanism tests for this boundary run as independent
-integration targets under `crates/l1-kernel-rs/tests/`; implementation modules
+integration targets under `crates/l1-kernel-rs/tests/<domain>/`; implementation modules
 contain no inline test block. The Python infra gate
 `tests/infra/test_rust_test_domain.py` enforces this public-boundary rule.
 
@@ -1026,10 +1089,11 @@ and stale-handle rejection, but ProcessTable storage is not switched over.
 
 The Rust `process_adapter` candidate is the bounded one-shot implementation of
 the retained `ProcessPort` value boundary. It offers direct-argument execution
-and an explicit shell path, optional cwd/input/environment/executable settings,
-per-stream output caps with continuous draining, deadline kill, and structured
+and a terminal-observation path whose executable and invocation prefix are
+supplied by the host probe, optional cwd/input/environment settings, per-stream
+output caps with continuous draining, deadline kill, and structured
 not-found/execution/timeout results. Its public tests live in the independent
-`crates/l1-kernel-rs/tests/process_adapter.rs` target, and
+`crates/l1-kernel-rs/tests/process/process_adapter.rs` target, and
 `run_process_adapter`/`rust-process-adapter-bench` report the isolated
 `process.adapter.oneshot` workload. A current release smoke measured roughly
 707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms and no
@@ -1038,11 +1102,19 @@ children in `ProcessTable`, provide PTY or process-group semantics, reap
 long-lived handles, evaluate GateChain/capability policy, or execute AgentLoop
 work. Those responsibilities require a separate ownership and cutover design.
 
+The process benchmark runner itself has no platform command fallback. Its
+`ProcessBenchmarkCommand` requires a caller-injected, non-empty direct argv;
+the three process benchmark binaries use their own executable plus a private
+child marker as that explicit command. This keeps benchmark plumbing runnable
+without selecting `/bin/sh`, `cmd.exe`, or any invocation switches inside L1.
+Empty executable and empty-argument configurations fail closed in the
+independent benchmark-runner test target.
+
 The Rust `managed_process` candidate is the bounded lifecycle owner above the
 one-shot value adapter. It reserves a generation-safe slot before spawning,
-owns direct-args/shell children and bounded output readers, exposes caller
+owns direct-argv and terminal-derived-argv children plus bounded output readers, exposes caller
 stdin, distinguishes observer `Pending` from terminal completion, and requires
-explicit terminate/reap. `tests/managed_process.rs` is the independent public
+explicit terminate/reap. `tests/process/managed_process.rs` is the independent public
 target; `run_managed_process` and `rust-managed-process-bench` report the
 separate `process.managed.lifecycle` workload. A current release smoke measured
 roughly 707/1391/2761 ops/s at 1/2/4 workers with p95 about 1.52/1.55/1.58 ms
@@ -1058,18 +1130,20 @@ wait/terminate record ZOMBIE, and joint reap removes both the child slot and
 the table row. Table-row loss is fail-closed: a managed child that has already
 been reaped always releases its bridge binding, even when an external table
 owner won the row-reap race. Bridge names are unique across bridge instances
-sharing one table. `tests/process_bridge.rs` and the separate
+sharing one table. `tests/process/process_bridge.rs` and the separate
 `process.bridge.lifecycle` fixed-work benchmark cover these ownership rules;
 the latest 256-item release sweep completed all work with zero errors or
 rejections, and measured about 708/1401/2752 ops/s at 1/2/4 workers (p95
 roughly 1.55/1.57/1.63 ms). This is still an R3 ownership candidate: PTY,
 process-group termination, production reaper authority, GateChain/capability
 admission, AgentLoop execution, Rust boot, and runtime cutover remain open.
-The bridge also exposes a bounded `reap_finished` sweep for a future caller-
-owned reaper: it never blocks on live children, reports pending/unavailable/
-error counts, and consumes terminal managed slots even when an external table
-transition must be reported. This is a mechanism seam only; it does not start
-a background thread or claim production shutdown/reaper authority.
+The bridge also exposes a bounded `reap_finished(max_bindings)` sweep for a
+future caller-owned reaper: stable raw-handle selection never exceeds the
+caller budget, it never blocks on live children, reports
+pending/unavailable/error counts, and consumes terminal managed slots even
+when an external table transition must be reported. Zero budgets fail closed.
+This is a mechanism seam only; it does not start a background thread or claim
+production shutdown/reaper authority.
 
 The `process_group::ProcessGroupBook` candidate adds the next typed ownership
 seam: generation-safe membership, deterministic stop plans, terminal member
@@ -1080,13 +1154,13 @@ authority, terminal adapters, AgentLoop execution, and shutdown ownership
 remain outside this mechanism candidate.
 
 The `process_group_runtime::ProcessGroupRuntime` candidate now composes that
-group book with `ManagedProcessBook`. Direct-argument and shell children are
-admitted only while a group is active; failed membership admission cleans up
+group book with `ManagedProcessBook`. Direct-argv and terminal-derived-argv
+children are admitted only while a group is active; failed membership admission cleans up
 the spawned child before returning the capacity error. A non-blocking sweep
 uses zero-deadline observation and an explicit timeout sweep may terminate a
 live child, but both paths require managed-child reap and group-member reap
 before reporting a terminal outcome. The independent
-`tests/process_group_runtime.rs` target covers bounded budgets, cancellation,
+`tests/process/process_group_runtime.rs` target covers bounded budgets, cancellation,
 admission rollback, and unknown executables. This is still a caller-owned
 coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
@@ -1123,6 +1197,44 @@ used by that policy:
 Engineering transitions are recorded by L3 through the event bus and
 reference channel; this keeps audit and observability side effects out of the
 kernel's execution gates.
+
+### Terminal probe and Agent process admission
+
+The Rust `terminal_probe` candidate closes the host-terminal discovery value
+boundary without making the kernel a host scanner. A host adapter injects
+validated observations containing terminal family, resolved executable,
+invocation prefix, version, availability, interactive/PTY support, encoding,
+and probe source. `TerminalProbe` applies only caller-supplied requirements,
+allow-lists, and preference order; it has no PATH lookup, environment fallback,
+or built-in shell path. `TerminalObservation::command_argv` lets an adapter
+construct an exact shell argv for CMD, PowerShell 7, Bash, Git Bash, or a
+host-defined terminal while keeping the executable and switches outside L1.
+`PlatformDescriptor` retains host metadata only and does not construct shell
+argv, so platform helpers cannot bypass the probe boundary.
+The independent `tests/terminal/terminal_probe.rs` target covers deterministic
+selection, custom invocation construction, duplicate identity rejection, and
+no-eligible fail-closed behavior.
+
+The Rust `process_constraints` candidate is the hard Agent-process admission
+seam above managed children. It validates Agent/Cell identity, security ring,
+direct versus shell mode, discovered terminal identity/family/invocation,
+working-directory prefixes, environment-key policy, timeout, output/CPU/memory
+ceilings, and process-group membership. `ProcessGroupRuntime::spawn_constrained`
+must evaluate this receipt before spawning, reject adapter executable/cwd/env
+overrides that diverge from the admitted request, and does not discover a
+terminal on behalf of the caller. Shell argv must contain a command after the
+injected invocation prefix. The independent `tests/process/process_constraints.rs`
+target covers successful shell/direct admissions, accumulated policy
+violations, and pre-spawn override rejection. The companion
+`spawn_gated_constrained` entry requires the explicit `process.spawn`
+capability and matching gate/process identity before evaluating the GateChain
+receipt and delegating to the same constraint path; GateChain denials are
+audited by its ledger, while correlation mismatches fail closed before the
+ledger and never create a child.
+The low-level `spawn_args` methods remain mechanism helpers, while the removed
+implicit-shell entry points are not part of the Rust contract. This slice does
+not yet grant ProcessTable, AgentLoop, PTY, shutdown, or production runtime
+authority.
 
 ### Identity-binding persistence
 

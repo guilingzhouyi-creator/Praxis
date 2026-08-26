@@ -538,6 +538,20 @@ explicit caller policy; it never scans `PATH` or chooses a machine default.
 for a future adapter; `PlatformDescriptor` retains metadata but does not build
 shell argv or provide a platform fallback.
 
+The T4a `input_activity` candidate freezes the aggregate-only Rust/TypeScript
+value contract above the existing `InputActivityPort`. A host adapter supplies
+source labels, permission state, keyboard/pointer activity flags, and an
+injected observation time. The Rust `InputActivityProbe` and the TypeScript
+projection apply the same positive idle window and source-count bound, reject
+duplicate or whitespace-bearing labels, future/non-finite timestamps, and
+activity asserted without granted permission, and reduce the records to the
+existing `InputActivitySnapshot`. Neither side reads device nodes, parses raw
+key values or pointer coordinates, or reads a system clock. The shared
+`tests/fixtures/kernel_input_activity_vectors.json` fixture is consumed by the
+independent Rust `tests/terminal/input_activity.rs` target and the TypeScript
+tests. T4b remains open for platform-specific keyboard/pointer adapters and
+permission UX; those effects stay outside the kernel value boundary.
+
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,
 argv/cwd/environment policy, timeout, output/CPU/memory ceilings, and

@@ -88,7 +88,11 @@ fn canonical_encoding_matches_frozen_bytes() {
             case.name
         );
         let line = encode_message(&message).expect("encodes");
-        assert_eq!(line, case.expected_line, "canonical bytes for {}", case.name);
+        assert_eq!(
+            line, case.expected_line,
+            "canonical bytes for {}",
+            case.name
+        );
         assert_eq!(
             decode_message(&line).expect("round trips"),
             message,
@@ -106,7 +110,9 @@ fn invalid_frames_fail_closed() {
             .unwrap_or_else(|| panic!("{} must be rejected", case.name));
         let text = error.to_string();
         assert!(
-            case.error_contains_any.iter().any(|fragment| text.contains(fragment)),
+            case.error_contains_any
+                .iter()
+                .any(|fragment| text.contains(fragment)),
             "{name}: {text}",
             name = case.name,
             text = text
@@ -142,6 +148,10 @@ fn outbox_recovery_semantics_r1() {
             .iter()
             .map(|message| message.seq as i64)
             .collect();
-        assert_eq!(recovery, case.expect_recovery_from_minus_one, "{}", case.name);
+        assert_eq!(
+            recovery, case.expect_recovery_from_minus_one,
+            "{}",
+            case.name
+        );
     }
 }

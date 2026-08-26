@@ -844,7 +844,8 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T1 | `terminal_probe`：宿主注入终端观测、能力过滤、显式优先级、argv 构造 | ✅ 候选完成 | 宿主适配器逐平台提供真实 probe observations；不能在 L1 扫描 PATH |
 | T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
 | T3 | `ProcessGroupRuntime::spawn_gated_constrained`：GateChain → 约束 → adapter spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
-| T4 | L2/TS 协议投影与硬件终端输入探针 | ⏳ 未开始 | 先冻结 Rust 值合同，再做跨平台 adapter 与最小批量测试 |
+| T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
+| T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
 
@@ -854,6 +855,15 @@ Git Bash 的路径/开关写死，也不把 AgentLoop、provider、提示词、D
 没有满足策略的候选时，内核选择 fail-closed。T5 只清理 Rust 候选中的
 兼容入口，不等于现网 Python/L2 runtime 已完成 cutover；T6 仍以独立新入口、
 恢复协议和生产执行权威闭合为前提。
+
+T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主注入的来源
+标签、权限、键盘/指针聚合标志和调用方时间，使用相同的 idle window、来源数
+上限及 fail-closed 校验，输出既有 `InputActivitySnapshot`。共享向量和测试
+分别位于 `tests/fixtures/kernel_input_activity_vectors.json`、Rust
+`tests/terminal/input_activity.rs` 与 `packages/protocol-ts/tests/input-activity.test.ts`。
+这一步不扫描设备节点、不保留原始键值/坐标，也不启用真实硬件监测。T4b
+才负责平台 adapter、权限提示和旁路监控联动，必须另行提供跨平台隐私与失败
+证据后才能进入生产 wiring 评审。
 
 ---
 

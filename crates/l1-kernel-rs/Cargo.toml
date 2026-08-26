@@ -136,6 +136,10 @@ name = "host_dispatch"
 path = "tests/runtime/host_dispatch.rs"
 
 [[test]]
+name = "input_activity"
+path = "tests/terminal/input_activity.rs"
+
+[[test]]
 name = "identity_binding"
 path = "tests/policy/identity_binding.rs"
 

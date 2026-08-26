@@ -259,6 +259,17 @@ transport, process, storage, scheduler, or input providers. The shared
 `tests/fixtures/kernel_port_vectors.json` fixture covers values and descriptor
 ordering for the future Rust adapter layer.
 
+The `input_activity` module adds the T4a Rust/TS projection for that
+privacy-preserving value. `InputActivityProbe` accepts only bounded,
+host-injected source labels, permission states, aggregate keyboard/pointer
+flags, and caller-supplied timestamps; it applies an explicit idle window and
+returns the existing `InputActivitySnapshot`. Duplicate sources, future or
+non-finite timestamps, unauthorized activity flags, and source-limit overflow
+fail closed. It never opens device nodes or retains raw input. The shared
+`tests/fixtures/kernel_input_activity_vectors.json` fixture is consumed by
+Rust and TypeScript; real keyboard/pointer adapters remain host-owned and are
+tracked separately as T4b.
+
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The
 `rust-kernel` binary is an independent no-Python entrypoint that emits this

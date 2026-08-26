@@ -319,6 +319,17 @@ implementations or execute process, storage, transport, scheduler, worker, or
 input activity operations. `kernel_port_vectors.json` freezes only these
 values and metadata; provider side effects remain an R4 adapter concern.
 
+The Rust `input_activity` candidate is the T4a value projection above that port.
+`InputActivityProbe` consumes only bounded host-injected source labels,
+permission states, aggregate keyboard/pointer flags, and caller time. It
+applies an explicit idle window, rejects duplicate sources and invalid/future
+timestamps, and emits the existing `InputActivitySnapshot` without opening
+device nodes or retaining raw input. `kernel_input_activity_vectors.json` is
+the shared Rust/TypeScript fixture; platform keyboard/pointer adapters and
+permission prompts remain host-owned. T4b remains open for platform-specific
+adapters, permission UX, and privacy/failure evidence; this value projection
+does not grant hardware or runtime authority.
+
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic

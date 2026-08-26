@@ -26,6 +26,7 @@ pub mod health;
 pub mod host_dispatch;
 pub mod identity_binding;
 pub mod identity_uid;
+pub mod input_activity;
 pub mod interrupt;
 pub mod ipc;
 pub mod lifecycle;
