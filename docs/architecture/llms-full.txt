@@ -375,15 +375,17 @@ accounting without consuming command sequences. `run_agent_loop_batch` and
 report batch p95/p99 separately from the per-input baseline; this is an
 optimization slice only and does not grant runtime authority.
 
-The `agent_loop_execution` module adds a bounded bridge from a running logical
-loop to `KernelRuntime`. `AgentLoopExecutionBridge` submits a caller-owned
-`AgentLoopAction`; the worker admits input only after task admission, passes
-the authoritative receipt and loop identity to the action, and optionally
-admits one returned event. Versioned reports retain input/event receipts, and
-structured failures identify admission, action, or event-admission stage plus
-any partial input. Pre-execution cancellation leaves session history unchanged.
-The bridge does not discover providers, prompts, tools, PTYs, or production
-policy; its independent target is `tests/runtime/agent_loop_execution.rs`.
+The `agent_loop_execution` module adds the next explicit execution seam:
+`AgentLoopExecutionBridge` submits a caller-owned `AgentLoopAction` to the
+bounded `KernelRuntime` worker pool. The task admits input only after worker
+admission succeeds, passes the authoritative receipt and loop identity to the
+action, and optionally admits one returned event. Its report and failure value
+are versioned and include the completed input receipt, event receipt, failure
+stage, and any partial input admission. Cancellation before execution leaves
+the session untouched; action/provider work remains caller-owned, and the
+bridge does not infer prompts, tools, PTYs, or production cutover policy.
+The independent `tests/runtime/agent_loop_execution.rs` target covers success,
+identity/state preflight, cancellation, and structured action failure.
 
 The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
 lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a
@@ -1211,11 +1213,12 @@ when an external table transition must be reported. Zero budgets fail closed.
 This is a mechanism seam only; it does not start a background thread or claim
 production shutdown/reaper authority.
 
-`ProcessTableBridge::stop_all_once` adds a one-shot stop-preparation pass. It
-selects stable raw handles, applies the caller timeout, jointly reaps successful
-managed and ProcessTable bindings, and reports terminated, pending,
-unavailable, error, and remaining counts. Zero budgets fail before child access;
-the pass does not start a background reaper or change ProcessTable authority.
+`ProcessTableBridge::stop_all_once` adds a matching caller-owned stop/reap
+pass. It selects ProcessTable handles in stable raw order, applies the explicit
+child termination timeout, jointly reaps successful bindings, and reports
+pending, unavailable, error, and remaining counts. A zero budget fails before
+touching any child. The pass is intentionally one-shot and does not start a
+background reaper or change ProcessTable lifecycle authority.
 
 The `process_group::ProcessGroupBook` candidate adds the next typed ownership
 seam: generation-safe membership, deterministic stop plans, terminal member
@@ -1250,19 +1253,33 @@ forcing multi-sweep bounded progress separately from process spawn, queue, and
 session benchmarks; the candidate remains mechanism-only and does not grant
 runtime or shutdown authority.
 
-`ProcessGroupRuntime::drain_once` supplies a one-shot shutdown-preparation
-boundary: it requests stop for active groups, runs one caller-bounded reaper
-sweep, and reports remaining group/member ownership. Empty groups become
-`Stopped` immediately. The method does not loop, start a background reaper,
-choose a timeout, or grant production shutdown authority; PTY and OS
-process-group signal adapters remain host-owned.
+`ProcessGroupRuntime::drain_once` now supplies the corresponding one-shot
+coordination boundary: it requests stop for every active group, performs one
+caller-supplied bounded sweep, and reports requested/already-draining groups,
+reaper counters, and remaining ownership. Empty groups transition directly to
+`Stopped`, so a caller cannot leave an unobservable Draining group behind.
+The method does not loop, sleep, start a background reaper, or choose a timeout;
+the host owns repeat policy and production shutdown authority. This closes a
+bounded shutdown-preparation seam only; PTY/process-group signals, terminal
+rebind, and R4/R5 cutover remain open.
 
-`ProcessGroupSignalPort` is the explicit host adapter seam for those signals.
-`request_stop_with_signal` supplies a generation-tagged termination plan and
-validates the returned `ProcessGroupSignalReport` against the same
-group/generation and bounded attempted/delivered counts. Adapter rejection or
-mismatch fails closed and leaves ownership in `Draining`; signal choice, PTY or
-OS calls, retries, and reaping remain caller-owned.
+`ProcessGroupSignalPort` is the explicit host adapter seam for the next step.
+`ProcessGroupRuntime::request_stop_with_signal` hands the adapter a stable
+generation-tagged `ProcessGroupTerminationPlan` and validates the returned
+`ProcessGroupSignalReport` against the exact group, generation, attempted
+handle count, and delivered count. Adapter rejection or mismatch is
+fail-closed and leaves ownership in `Draining` for caller policy; the Rust
+candidate does not select signal numbers, create PTYs, or reap in the signal
+call.
+
+`host_process_group_signal::HostProcessGroupSignalPort` is the first concrete
+closure-backed host adapter for that seam. It resolves every plan handle before
+calling one host-owned sender, preserves stable plan order, rejects zero or
+duplicate mappings, and bounds the sender's delivered count. The sender may
+implement a platform process-group signal, a PTY control operation, or a test
+double; no signal number, PID lookup, terminal scan, or retry policy is stored
+in L1. Resolver failure prevents sender dispatch, so a missing host mapping
+cannot produce a partial batch.
 
 ### Engineering-debug boundary
 

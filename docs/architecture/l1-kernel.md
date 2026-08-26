@@ -1085,6 +1085,15 @@ fail-closed and leaves ownership in `Draining` for caller policy; the Rust
 candidate does not select signal numbers, create PTYs, or reap in the signal
 call.
 
+`host_process_group_signal::HostProcessGroupSignalPort` is the first concrete
+closure-backed host adapter for that seam. It resolves every plan handle before
+calling one host-owned sender, preserves stable plan order, rejects zero or
+duplicate mappings, and bounds the sender's delivered count. The sender may
+implement a platform process-group signal, a PTY control operation, or a test
+double; no signal number, PID lookup, terminal scan, or retry policy is stored
+in L1. Resolver failure prevents sender dispatch, so a missing host mapping
+cannot produce a partial batch.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

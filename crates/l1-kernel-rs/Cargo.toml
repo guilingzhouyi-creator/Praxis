@@ -264,6 +264,10 @@ name = "process_group_runtime"
 path = "tests/process/process_group_runtime.rs"
 
 [[test]]
+name = "host_process_group_signal"
+path = "tests/process/host_process_group_signal.rs"
+
+[[test]]
 name = "process_vectors"
 path = "tests/process/process_vectors.rs"
 

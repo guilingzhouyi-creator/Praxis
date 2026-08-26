@@ -336,6 +336,13 @@ sweep. Adapter failure or mismatch leaves the group draining and fails closed;
 Rust never hardcodes signal numbers, discovers terminals, or owns retry and
 shutdown policy.
 
+The first adapter implementation is
+`host_process_group_signal::HostProcessGroupSignalPort`. It accepts explicit
+resolver and sender closures, resolves the complete handle batch before any
+host operation, and validates non-zero unique targets plus bounded delivery.
+This is a host-injection seam rather than a platform implementation: Linux,
+Windows, PTY, permission, and retry behavior remain outside the Rust crate.
+
 `scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output

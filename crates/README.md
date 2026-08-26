@@ -332,6 +332,13 @@ rejects stale or mismatched reports while retaining the group in `Draining`;
 signal selection, PTY/OS operations, retry policy, and reaping remain outside
 the candidate.
 
+`host_process_group_signal::HostProcessGroupSignalPort` is a closure-backed
+host adapter for that seam. It resolves all handles before dispatch, keeps
+plan order, and fails closed on missing/duplicate/zero targets or an
+over-reported delivery count. The injected sender owns platform signal, PTY,
+permission, and retry behavior; see
+`tests/process/host_process_group_signal.rs`.
+
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
 applies optional-field defaults, strips unknown record fields, and supplies

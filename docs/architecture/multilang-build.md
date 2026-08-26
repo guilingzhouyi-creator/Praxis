@@ -514,6 +514,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   `ProcessGroupSignalReport` echoes the same group/generation and bounded
   attempted/delivered counts. Signal choice, OS calls, and subsequent reaping
   remain caller-owned.
+- `host_process_group_signal::HostProcessGroupSignalPort` provides a concrete
+  closure-backed adapter for that seam. It resolves all generation-safe handles
+  before dispatch, preserves plan order, rejects zero/duplicate targets and
+  over-reported delivery, and leaves platform signal, PTY, permission, and
+  retry policy in the injected host sender. Its independent target is
+  `tests/process/host_process_group_signal.rs`.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name

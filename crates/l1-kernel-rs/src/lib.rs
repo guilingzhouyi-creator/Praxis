@@ -26,6 +26,7 @@ pub mod execution_store;
 pub mod gatechain;
 pub mod health;
 pub mod host_dispatch;
+pub mod host_process_group_signal;
 pub mod identity_binding;
 pub mod identity_uid;
 pub mod input_activity;
