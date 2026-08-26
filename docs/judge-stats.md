@@ -1,8 +1,8 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 245 | **COMPLETE**: 37 (15%) | **PARTIAL**: 28 (11%, fast mode — checks skipped) | **INCOMPLETE**: 180 (73%, machine 'not done')
-**Mode split**: full 99 (37% complete) / fast 146 (fast = at least one check skipped)
-**Skipped tests notice**: tests skipped in 28 judge run(s) (full mode / WSL slice-serial required before merge)
+**Runs**: 246 | **COMPLETE**: 37 (15%) | **PARTIAL**: 29 (12%, fast mode — checks skipped) | **INCOMPLETE**: 180 (73%, machine 'not done')
+**Mode split**: full 99 (37% complete) / fast 147 (fast = at least one check skipped)
+**Skipped tests notice**: tests skipped in 29 judge run(s) (full mode / WSL slice-serial required before merge)
 **Gate exemptions** (MERGE_GATE_SKIP commits in history): 11
 **Waived delta passes**: 4 judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)
 
@@ -20,7 +20,7 @@
 | 2026-08-23 | 5 | 0 | 0% |
 | 2026-08-24 | 4 | 0 | 0% |
 | 2026-08-25 | 19 | 1 | 5% |
-| 2026-08-26 | 5 | 2 | 40% |
+| 2026-08-26 | 6 | 2 | 33% |
 
 **Failures by check** (most frequent evidence gaps):
 - `changelog`: 154 (86% of incomplete)
@@ -36,23 +36,23 @@
 - `index`: 13 (7% of incomplete)
 
 **Check pass rate** (over executed runs — ratchet evidence):
-- `audit`: 217/241 (90%)
-- `changelog`: 89/243 (37%)
-- `complex`: 229/242 (95%)
+- `audit`: 218/242 (90%)
+- `changelog`: 90/244 (37%)
+- `complex`: 230/243 (95%)
 - `coverage`: 72/100 (72%)
-- `cycle`: 228/242 (94%)
-- `delta`: 167/242 (69%)
-- `docs`: 191/245 (78%)
-- `index`: 229/242 (95%)
-- `lint`: 185/245 (76%)
-- `singleton`: 225/242 (93%)
+- `cycle`: 229/243 (94%)
+- `delta`: 168/243 (69%)
+- `docs`: 192/246 (78%)
+- `index`: 230/243 (95%)
+- `lint`: 186/246 (76%)
+- `singleton`: 226/243 (93%)
 - `tests`: 69/101 (68%)
 
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
 - `coverage_pct`: 68.0 / 67.02 / 0.0 / 69.0
-- `mega_funcs`: 3.0 / 12.99 / 0.0 / 316.0
-- `net_delta`: 499.0 / 2165.49 / -4.0 / 27424.0
-- `ruff_errors`: 0.0 / 1.21 / 0.0 / 6.0
+- `mega_funcs`: 3.0 / 12.95 / 0.0 / 316.0
+- `net_delta`: 0.0 / 2145.98 / -4.0 / 27424.0
+- `ruff_errors`: 0.0 / 1.18 / 0.0 / 6.0
 - `tests_failed`: 0.0 / 1.34 / 0.0 / 7.0
 - `tests_passed`: 5046.0 / 4809.87 / 2302.0 / 5065.0
