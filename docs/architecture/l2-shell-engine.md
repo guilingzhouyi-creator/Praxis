@@ -221,6 +221,7 @@ vectors are frozen from the TS engine, not from the Python host.
 | R6 | Dialect routing order: `$` system → `/` engine command → `\|` pipeline → direct tool → L3A intent. Argument splitting is quote-aware (shlex-compatible subset). | a `\|` inside a quoted argument or command payload must not misroute into the pipeline |
 | R7 | Gate denials, unregistered commands, and unwired executors produce `result{success:false}` envelopes on the wire — not transport-level errors. Only undecodable/oversized frames fail at the transport layer. | clients must receive structured rejections; fail-closed |
 | R8 | Wire-contract constants (`PROTOCOL_VERSION`, `OUTBOX_MAXLEN`, frame limits, kind sets) are exempt from the params rule and inlined identically in all three implementations. | contract constants mirror across languages by design |
+| R9 | TS `SessionMultiplexer` keeps a bounded local event mirror (default 16,384; configurable for tests). It first evicts the shared acknowledged prefix, then evicts the oldest entries if a stalled view reaches capacity; host replay remains authoritative. | a disconnected or stalled frontend cannot grow client memory without bound |
 
 ## Execution bridge
 

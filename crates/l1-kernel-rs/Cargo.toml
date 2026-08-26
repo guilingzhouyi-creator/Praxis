@@ -16,6 +16,10 @@ sha2 = "0.10"
 name = "l1_kernel_rs"
 path = "src/lib.rs"
 
+[[bin]]
+name = "rust-session-store-probe"
+path = "src/bin/rust-session-store-probe.rs"
+
 # Keep the historical target names stable while making the test domain explicit.
 # Tests are grouped by boundary under tests/<domain>/; the Python infra gate
 # verifies that every target is registered here and that the root stays empty.

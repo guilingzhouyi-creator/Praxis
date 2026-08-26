@@ -103,6 +103,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   non-terminal sessions to explicit `crashed` state and require caller-driven
   recovery. It does not import Python state or execute AgentLoop/provider work.
   Its public behavior is isolated in `crates/l1-kernel-rs/tests/session/session_store.rs`.
+  The `rust-session-store-probe` binary is test-only (build with
+  `make rust-session-store-probe`): `emit` writes a
+  deterministic unclean checkpoint and `validate` reads and validates an
+  existing one. The TS `session-store.e2e.test.ts` suite invokes it only when
+  the candidate binary is built, so cross-process coverage never becomes a
+  hidden in-process substitute or a production entry point.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report

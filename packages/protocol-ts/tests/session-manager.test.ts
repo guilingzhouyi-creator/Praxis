@@ -60,6 +60,35 @@ describe("SessionMultiplexer", () => {
     mux.detach("web");
     expect(mux.listViews()).toEqual([]);
   });
+
+  it("bounds the local mirror when a view remains stalled", () => {
+    const mux = new SessionMultiplexer("s-1", { maxEvents: 2 });
+    mux.attach("web");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    mux.emit(makeMessage("s-1", 3, "event", { name: "c" }));
+    expect(mux.viewState("web")?.unacked.map((event) => event.seq)).toEqual([2, 3]);
+    expect(mux.replay("web", -1).map((event) => event.seq)).toEqual([2, 3]);
+  });
+
+  it("releases acknowledged prefixes before retaining new events", () => {
+    const mux = new SessionMultiplexer("s-1", { maxEvents: 2 });
+    mux.attach("web");
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    mux.ack("web", 2);
+    mux.emit(makeMessage("s-1", 3, "event", { name: "c" }));
+    expect(mux.replay("web", 2).map((event) => event.seq)).toEqual([3]);
+  });
+
+  it("keeps replay events ordered when an older host event arrives", () => {
+    const mux = new SessionMultiplexer("s-1", { maxEvents: 2 });
+    mux.attach("web");
+    mux.emit(makeMessage("s-1", 2, "event", { name: "b" }));
+    mux.emit(makeMessage("s-1", 3, "event", { name: "c" }));
+    mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
+    expect(mux.replay("web", -1).map((event) => event.seq)).toEqual([2, 3]);
+  });
 });
 
 describe("SessionManager over a fake bridge", () => {

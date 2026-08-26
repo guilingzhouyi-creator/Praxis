@@ -98,7 +98,7 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 | 交付 | 内容 | 当前边界 |
 |---|---|---|
 | Rust session-store codec | TS typed codec、原子文件适配器、共享 checkpoint fixture；严格校验版本、状态、序列、排序和安全整数 | 已落分支；只读/显式写入 Rust-owned checkpoint，不接生产 boot |
-| G4 剩余 | Rust 写出→TS 读取、TS 写出→Rust 读取的进程级互验与故障矩阵 | 未完成，完成前保持双 host 与 Python 回滚路径 |
+| G4 进程级互验 | test-only `rust-session-store-probe` + TS `session-store.e2e.test.ts`：Rust 写出→TS 读取、TS 写出→Rust 读取、错误版本拒绝 | 已落分支；probe 构建后分片绿，不接生产 boot/Port |
 
 ## 3. 每分支统一验证门
 
