@@ -143,6 +143,7 @@ describe("ProtocolBridge domain helpers", () => {
     const { transport } = makeRecordingTransport();
     expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: 0 })).toThrow("maxSeq");
     expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: 1.5 })).toThrow("maxSeq");
+    expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: Number.MAX_SAFE_INTEGER + 1 })).toThrow("safe");
   });
 });
 

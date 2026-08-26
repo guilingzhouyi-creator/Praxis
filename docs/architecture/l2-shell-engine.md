@@ -183,6 +183,9 @@ reference or the Rust candidate as a child process, selected only by the
 explicit `PRAXIS_RUST_HOST` switch. `bridge.ts` and the L2 engine remain
 host-agnostic and only speak protocol v1; Rust activation does not grant L2,
 AgentLoop, provider, or production boot authority.
+The TS bridge constrains its optional sequence wrap bound to safe integers and
+checks the bound before incrementing, so no generated envelope loses precision
+at the JavaScript number boundary.
 Managed transports fail pending requests immediately when their input source
 or child exits, and `close()` is idempotent; reconnection remains an explicit
 `ConnectionManager` concern rather than an implicit Python fallback.

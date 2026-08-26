@@ -37,6 +37,9 @@ export interface BridgeOptions {
   onTelemetry?: (event: BridgeTelemetry) => void;
 }
 
+/** Highest exact sequence value representable by the TS wire encoder. */
+const MAX_SAFE_SEQUENCE = Number.MAX_SAFE_INTEGER;
+
 export interface RoundTripResult {
   messages: Message[];
   elapsedMs: number;
@@ -53,8 +56,11 @@ export class ProtocolBridge {
   private seq = 1;
 
   constructor(private readonly opts: BridgeOptions) {
-    if (opts.maxSeq !== undefined && (!Number.isInteger(opts.maxSeq) || opts.maxSeq < 1)) {
-      throw new Error("maxSeq must be a positive integer");
+    if (
+      opts.maxSeq !== undefined
+      && (!Number.isSafeInteger(opts.maxSeq) || opts.maxSeq < 1)
+    ) {
+      throw new Error(`maxSeq must be a positive safe integer <= ${MAX_SAFE_SEQUENCE}`);
     }
   }
 
@@ -140,8 +146,9 @@ export class ProtocolBridge {
   // ── Internal ──
 
   private nextSeq(): number {
-    const cur = this.seq++;
-    if (this.opts.maxSeq !== undefined && this.seq > this.opts.maxSeq) this.seq = 1;
+    const cur = this.seq;
+    if (this.opts.maxSeq !== undefined && cur >= this.opts.maxSeq) this.seq = 1;
+    else this.seq += 1;
     return cur;
   }
 
@@ -203,4 +210,3 @@ export async function* streamResponses(
     }
   }
 }
-
