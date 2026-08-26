@@ -793,7 +793,7 @@ M2  会话收尾 + 文档            — Phase 4–5；外围契约独立（l2-s
 M3  Rust-first R0/R1           — 完成语义地图、typed substrate、边界与基准 schema（前置包：`docs/design/rust-first-kernel-rewrite.md`）
 M4  Rust-first R2/R3           — 固定总量性能证据与机制闭环，选择 Rust-native 调度/锁/队列/存储方案
 M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协议和 clean cutover/recovery
-MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 语义修复 → D1 Rust 协议主机 → D2 缝合
+MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 语义修复 → D1 Rust 协议主机 → D2 缝合（首片已在 feature 分支完成，默认仍 Python）
                                   （计划表与风险册：`docs/roadmaps/l1-l2-docking.md`；衔接 §5.3 割接阶梯）
 ```
 

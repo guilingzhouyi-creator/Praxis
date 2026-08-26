@@ -160,6 +160,7 @@ are **additive** - no existing engine behavior was changed.
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
 | TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
+| Rust host candidate | `crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `packages/protocol-ts/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring and stderr capture, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
 | Dispatch JSON contract | `tests/l2/test_dispatch_contract.py` | every render-ready dispatch result must survive `json.dumps`; stable shapes for /help /lang /history /sysinfo, unknown-command, pipeline, alias |
 
@@ -177,8 +178,11 @@ semantics 1:1 into `envelope.ts` and `records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
 Vitest. The Python tests and fixture double as the TS spec; this package is
 read-only until the P0 recovery gates are complete.
-The host is the integration seam: `bridge.ts` spawns it as a child process
-(or connects over WebSocket later) and only ever speaks protocol v1.
+The host is the integration seam: the transport factory can spawn the Python
+reference or the Rust candidate as a child process, selected only by the
+explicit `PRAXIS_RUST_HOST` switch. `bridge.ts` and the L2 engine remain
+host-agnostic and only speak protocol v1; Rust activation does not grant L2,
+AgentLoop, provider, or production boot authority.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 

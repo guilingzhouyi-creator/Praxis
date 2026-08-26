@@ -12,6 +12,9 @@
  */
 
 import type { Transport } from "../bridge.ts";
+import { MAX_FRAME_BYTES } from "../../types.ts";
+
+const UTF8_ENCODER = new TextEncoder();
 
 export interface LineTransportOptions {
   /** Register the handler that receives every inbound line. */
@@ -22,6 +25,8 @@ export interface LineTransportOptions {
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Maximum UTF-8 bytes accepted for one wire frame (default 1 MiB). */
+  maxFrameBytes?: number;
 }
 
 /**
@@ -47,17 +52,42 @@ export function isAckLine(line: string): boolean {
 }
 
 export function createLineRequestTransport(options: LineTransportOptions): Transport {
-  const { onLine, writeLine, maxLines = 256, timeoutMs = 5000 } = options;
+  const {
+    onLine,
+    writeLine,
+    maxLines = 256,
+    timeoutMs = 5000,
+    maxFrameBytes = MAX_FRAME_BYTES,
+  } = options;
+
+  if (!Number.isInteger(maxFrameBytes) || maxFrameBytes < 1) {
+    throw new Error(`maxFrameBytes must be a positive integer, got ${String(maxFrameBytes)}`);
+  }
+
+  const frameSize = (line: string): number => UTF8_ENCODER.encode(line).byteLength;
 
   /** One pending request: resolve with collected lines once acked. */
-  let pending: { resolve: (lines: string[]) => void; lines: string[] } | undefined;
+  let pending: {
+    resolve: (lines: string[]) => void;
+    reject: (error: Error) => void;
+    lines: string[];
+    timer: ReturnType<typeof setTimeout>;
+  } | undefined;
 
   onLine((line: string) => {
     if (!pending) return;
+    if (frameSize(line) > maxFrameBytes) {
+      const request = pending;
+      pending = undefined;
+      clearTimeout(request.timer);
+      request.reject(new Error(`line transport: response frame exceeds ${maxFrameBytes} bytes`));
+      return;
+    }
     pending.lines.push(line);
     if (isAckLine(line) || pending.lines.length >= maxLines) {
       const request = pending;
       pending = undefined;
+      clearTimeout(request.timer);
       request.resolve(request.lines);
     }
   });
@@ -68,16 +98,31 @@ export function createLineRequestTransport(options: LineTransportOptions): Trans
         reject(new Error("line transport: concurrent request while one is pending"));
         return;
       }
-      pending = { resolve, lines: [] };
-      const timer = setTimeout(() => {
-        const request = pending;
-        pending = undefined;
-        if (request) request.resolve(request.lines);
-      }, timeoutMs);
-      pending.resolve = (lines: string[]) => {
-        clearTimeout(timer);
-        resolve(lines);
+      const size = frameSize(line);
+      if (size > maxFrameBytes) {
+        reject(new Error(`line transport: request frame exceeds ${maxFrameBytes} bytes`));
+        return;
+      }
+      const request = {
+        resolve,
+        reject,
+        lines: [] as string[],
+        timer: undefined as unknown as ReturnType<typeof setTimeout>,
       };
-      writeLine(line);
+      request.timer = setTimeout(() => {
+        if (pending !== request) return;
+        pending = undefined;
+        resolve(request.lines);
+      }, timeoutMs);
+      pending = request;
+      try {
+        writeLine(line);
+      } catch (error) {
+        if (pending === request) {
+          pending = undefined;
+          clearTimeout(request.timer);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      }
     });
 }

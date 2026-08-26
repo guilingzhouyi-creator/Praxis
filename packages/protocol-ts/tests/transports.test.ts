@@ -9,6 +9,7 @@ import { decodeMessage, encodeMessage, makeMessage } from "../src/envelope.ts";
 import { createLineRequestTransport, isAckLine } from "../src/engine/transports/line-transport.ts";
 import { createWsTransport, type WsTransportOptions } from "../src/engine/transports/ws.ts";
 import { createSshTransport, type SshChannelLike, type SshTransportOptions } from "../src/engine/transports/ssh.ts";
+import { MAX_FRAME_BYTES } from "../src/types.ts";
 
 /** Fake WebSocket implementation injected into the ws adapter. */
 class FakeWebSocket {
@@ -70,6 +71,38 @@ describe("line transport engine", () => {
     handler?.("partial");
     const lines = await request;
     expect(lines).toEqual(["partial"]);
+  });
+
+  it("rejects frames above the shared UTF-8 byte bound before writing", async () => {
+    let writes = 0;
+    const transport = createLineRequestTransport({
+      onLine: () => undefined,
+      writeLine: () => {
+        writes++;
+      },
+    });
+    await expect(transport("x".repeat(MAX_FRAME_BYTES + 1))).rejects.toThrow("request frame exceeds");
+    expect(writes).toBe(0);
+    // Multi-byte input is measured in bytes, not JavaScript UTF-16 units.
+    await expect(transport("界".repeat(Math.ceil(MAX_FRAME_BYTES / 3)))).rejects.toThrow("request frame exceeds");
+  });
+
+  it("clears a pending request when the sink throws", async () => {
+    let fail = true;
+    let handler: ((line: string) => void) | undefined;
+    const transport = createLineRequestTransport({
+      onLine: (h) => {
+        handler = h;
+      },
+      writeLine: () => {
+        if (fail) throw new Error("sink failed");
+      },
+    });
+    await expect(transport("first")).rejects.toThrow("sink failed");
+    fail = false;
+    const request = transport("second");
+    handler?.(encodeMessage(makeMessage("s", 1, "ack", { ack_seq: 1 })));
+    await expect(request).resolves.toHaveLength(1);
   });
 });
 

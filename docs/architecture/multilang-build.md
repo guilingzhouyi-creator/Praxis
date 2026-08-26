@@ -298,6 +298,13 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   rejected lines are diagnostics only. Its mechanism tests live in the
   independent `crates/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
   not own AgentLoop, provider, session, or runtime authority.
+- The TS L2 transport layer now exposes a managed child-process factory for
+  the Python reference and Rust `rust-protocol-host`. `PRAXIS_RUST_HOST` is
+  opt-in (`1/true/yes/on/rust`); unset or unknown values keep the Python
+  rollback path. The factory captures stderr separately, exposes idempotent
+  close, and applies the shared 1 MiB UTF-8 frame bound before writing. This
+  is a docking/e2e seam only: it does not wire Rust into production boot or
+  grant TS ownership of L1 policy.
 - The Rust `config_store` module is the clean-break R4 configuration owner. It
   creates a versioned JSON manifest plus separate `config.json` and
   `settings.json` documents, persists revisions through atomic rename and

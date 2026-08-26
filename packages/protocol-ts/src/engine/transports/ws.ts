@@ -18,6 +18,8 @@ export interface WsTransportOptions {
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Maximum UTF-8 bytes accepted for one wire frame (default 1 MiB). */
+  maxFrameBytes?: number;
   /** Injectable WebSocket class for tests / fake servers. */
   WebSocketImpl?: typeof WebSocket;
   /** Pre-built WebSocket instance — tests drive the exact socket. */
@@ -25,7 +27,7 @@ export interface WsTransportOptions {
 }
 
 export function createWsTransport(options: WsTransportOptions): Transport {
-  const { url, maxLines = 256, timeoutMs = 5000 } = options;
+  const { url, maxLines = 256, timeoutMs = 5000, maxFrameBytes } = options;
   const ws = options.WebSocketInstance ?? new (options.WebSocketImpl ?? WebSocket)(url);
   const Ws = ws.constructor as typeof WebSocket;
 
@@ -43,6 +45,7 @@ export function createWsTransport(options: WsTransportOptions): Transport {
     },
     maxLines,
     timeoutMs,
+    maxFrameBytes,
   };
   return createLineRequestTransport(engineOptions);
 }

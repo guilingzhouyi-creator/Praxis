@@ -37,6 +37,8 @@ export interface SshTransportOptions {
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Maximum UTF-8 bytes accepted for one wire frame (default 1 MiB). */
+  maxFrameBytes?: number;
   /** Max writes buffered while the channel connects (default 64). */
   maxPendingWrites?: number;
   /** Injectable client factory for tests (default: ssh2 Client). */
@@ -53,6 +55,7 @@ export function createSshTransport(options: SshTransportOptions): Transport {
     command = "python -m l2.protocol",
     maxLines = 256,
     timeoutMs = 5000,
+    maxFrameBytes,
     maxPendingWrites = 64,
   } = options;
   const createClient = options.createClient ?? (() => new Client());
@@ -91,6 +94,7 @@ export function createSshTransport(options: SshTransportOptions): Transport {
     },
     maxLines,
     timeoutMs,
+    maxFrameBytes,
   };
   const transport = createLineRequestTransport(engineOptions);
 

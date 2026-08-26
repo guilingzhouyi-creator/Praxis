@@ -20,10 +20,12 @@ export interface StdioTransportOptions {
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Maximum UTF-8 bytes accepted for one wire frame (default 1 MiB). */
+  maxFrameBytes?: number;
 }
 
 export function createStdioTransport(options: StdioTransportOptions): Transport {
-  const { input, output, maxLines = 256, timeoutMs = 5000 } = options;
+  const { input, output, maxLines = 256, timeoutMs = 5000, maxFrameBytes } = options;
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
 
   const engineOptions: LineTransportOptions = {
@@ -31,6 +33,7 @@ export function createStdioTransport(options: StdioTransportOptions): Transport 
     writeLine: (line) => output.write(`${line}\n`),
     maxLines,
     timeoutMs,
+    maxFrameBytes,
   };
   return createLineRequestTransport(engineOptions);
 }

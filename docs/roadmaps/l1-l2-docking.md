@@ -1,8 +1,7 @@
 # L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）
 
 > Status: in progress（操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核。
-> 2026-08-25 复核：D0 语义修复与 D1a–D1d 机制候选已落 main——F1 已修复、`host_dispatch.rs`/`outbox_registry.rs`/
-> `session_lifecycle.rs`/`session_identity.rs` 与 `rust-protocol-host` bin 在库并有独立测试域；D2 缝合（TS↔Rust e2e）未启动）
+> 2026-08-26 复核：D0 语义修复与 D1a–D1d 机制候选已落 main；本分支已完成 D2 首片——`PRAXIS_RUST_HOST` 选择器、受管 stdio child transport、双 host e2e 和 TS/Python/Rust canonical vector 互验。D2 不改变生产默认（仍为 Python），Rust host 仍是 candidate-only、未接入 boot/Port。
 > 关联: `l2-ts-rewrite-mapping.md` §5 割接标准 · `frontend-kernel-roadmap.md` §4 Rust 路线 ·
 > `kernel-boundary-audit.md` 绕过路径清单 · `rust-first-kernel-rewrite.md` R0–R5 门槛 · 施工载体 `../design/l1l2-docking-execution-plan.md`
 > 审查基线: main @ e1f0dc10（2026-08-23 深度审查结论）；复核基线 main @ 123b22d2
@@ -19,7 +18,7 @@
 |---|---|---|
 | Py-L2 ↔ Py-L1 | 进程内函数调用（~40 import 点：params ×12、capability ×2、ports/vfs/skill/process/event/identity_binding） | 今日生产路径；B4 绕过长于此 |
 | TS-L2 ↔ Py-host | 协议 v1 线缆（stdio/http/ws/ssh） | ✅ 已通，e2e.stdio 验证 |
-| **TS-L2 ↔ Rust-L1** | 无 | ❌ 本计划目标 |
+| **TS-L2 ↔ Rust-L1** | 协议 v1 stdio，`PRAXIS_RUST_HOST` opt-in | 🟡 D2 首片已通；默认仍 Python |
 
 ## 2. 审查发现（2026-08-23 深度审查）
 
@@ -27,7 +26,7 @@
 |---|---|---|---|
 | F1 | ~~Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量~~ **✅ 已修复（落 main）**：`Outbox::ack` 改为 `last_acked` 单调推进的游标式非破坏 ack，per-view cursor 与共享水位=最落后视图已实现；多视图重放回归由独立测试域覆盖（`tests/outbox_registry.rs`、`tests/session_lifecycle.rs`） | ✅ 关闭 | `crates/l1-kernel-rs/src/protocol.rs` |
 | F2 | ~~Rust 侧只有协议验证门；`rust-protocol-gate` bin 为回声器~~ **✅ 已补齐（机制级）**：`host_dispatch.rs` 提供 KIND 逐类路由 + gatechain/capability 裁决 + ring 门控 `__system` 命令（边界审计 B4 在新边界的关闭载体）+ 审计接线 + L3 上游透传管道；`bin/rust-protocol-host.rs` 镜像 Python host I/O 契约（行协议、1 MiB 帧上限、stderr 错误通道）。仍未接入生产 boot/Port | 🟢 机制闭合 | `crates/l1-kernel-rs/src/host_dispatch.rs`、`crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` |
-| F3 | 地基成熟度超预期：约 68 个 Rust src 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS 传输缝环境变量选 host，零改动可换。协议 v1 跨语言 conformance 向量已从 TS 引擎冻结（`tests/fixtures/protocol_v1_conformance.json`，逐字节比对） | 🟢 利好 | `crates/l1-kernel-rs/src/` |
+| F3 | 地基成熟度超预期：约 68 个 Rust src 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS transport 已可由环境选择 Python/Rust，且保留 child 生命周期与 stderr 隔离。协议 v1 跨语言 conformance 向量已从 TS 引擎冻结并由 Rust gate/Python reference 逐字节互验 | 🟢 利好 | `crates/l1-kernel-rs/src/`、`packages/protocol-ts/src/engine/transports/rust-host.ts` |
 
 ## 3. 阶段计划 D0–D3
 
@@ -68,14 +67,16 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 
 ### D2 — TS↔Rust 缝合（机械性）
 
-> 状态（2026-08-25 复核）：⏳ 未启动——`packages/protocol-ts/` 全库无 `PRAXIS_RUST_HOST`
-> 开关；D2.3 的帧上限契约钉已有 Rust 侧 1 MiB 常量（`protocol_host.rs`），Python 侧上限待验证对齐。
+> 状态（2026-08-26 复核）：🟡 首片已落本分支。`PRAXIS_RUST_HOST` 只在明确取值
+> `1/true/yes/on/rust` 时启用 Rust；默认及未知值回到 Python。D2.3 的 1 MiB 上限已在
+> TS line transport、Rust `protocol_host`、Python `ProtocolHost` 三侧固定；超限请求在
+> TS 适配层先拒绝，避免把无 ack 的 DoS frame 写入 host。
 
 | 任务 | 验收 |
 |---|---|
-| D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | 现有 e2e 测试套件全绿于双 host |
-| D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | 差异清单为空或逐项记录有意分歧 |
-| D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | 双端上限一致入 schema 测试 |
+| D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | ✅ `e2e.stdio` 按开关选择双 host；Rust 独立 e2e 覆盖 command/attach/recovery |
+| D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | ✅ fixture canonical lines 逐字节一致；Rust gate 与 Python reference 均纳入测试 |
+| D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | ✅ TS/Rust/Python 均为 1 MiB；TS 请求/响应边界测试已锁定 UTF-8 byte size |
 
 ### 分流路由原则（D1c 核心）
 
@@ -94,7 +95,7 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | **M-D1b** | rust-host: outbox 注册表 | 多视图并发 attach/ack/replay 压测零漂移 | M（2–3 天） | M-D0 |
 | **M-D1c** | rust-host: capability 分派 | 全 KIND 分派矩阵 + 拒绝路径审计落盘；B4 关闭证据 | L（4–6 天） | M-D1a/b |
 | **M-D1d** | rust-protocol-host bin | 与 python host I/O 契约互验绿 | S（1–2 天） | M-D1c |
-| **M-D2** | TS↔Rust e2e 绿 | 双 host 测试矩阵全绿 + 三方向量互验 | S–M（2–3 天） | M-D1d |
+| **M-D2** | TS↔Rust e2e 绿（首片） | ✅ 双 host 测试矩阵全绿 + 三方向量互验；生产默认未切换 | S–M（2–3 天） | M-D1d |
 | **G1–G6** | l2-ts-rewrite-mapping §5.3 阶梯实例化 | 覆盖 ≥95/90 → 向量冻结 → 反转 e2e → 持久化互读 → 切默认+开关 → 移除旧 host | 按 §5.2 | M-D2 |
 
 关键路径：D0 → D1a/D1b（可并行） → D1c → D1d → D2 ≈ **12–17 个工作日**（单 Agent 串行估算；D1a/b 并行可压缩 2–3 天）。
@@ -106,7 +107,7 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | R1 | seq 类型/回绕差异 | D0.4 向量用例 | 编码层 |
 | R2 | 政策/机制冲突复制进 Rust（边界审计 §6：params 硬编码策略） | Rust 侧策略一律注入 + 快照驱动（rewrite 设计 §3.4） | D1c |
 | R3 | L3 归属未定导致 intent 转发目标悬空 | D2 前由操作员裁定 L3 权威面；此前 D1 只建透传管道 | D1c→D2 之间 |
-| R4 | 双 host 长期共存漂移（edc5caa6 教训） | golden vectors 进 CI；任何一侧改动必须同步向量 | 全程 |
+| R4 | 双 host 长期共存漂移（edc5caa6 教训） | golden vectors 已进 TS/Rust/Python slice；任何一侧改动必须同步向量 | 全程 |
 | R5 | Rust host 性能未达 R2 证据即被误用于生产判断 | bench 结果标注 candidate-only（现有纪律延续） | M-D1d 后 |
 
 ## 6. 与既有路线图的接缝

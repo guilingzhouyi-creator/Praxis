@@ -1,6 +1,6 @@
 # L1↔L2 对接执行计划（施工级）
 
-> Status: active execution plan · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
+> Status: active execution plan · D2 首片已在 `feature/ts-rust-e2e-docking` 完成 · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
 > 治理: 全部工作在独立 worktree 分支递进提交；完成后统一合入集成分支
 > `feature/l1l2-integration`；**Diff 审查后须经操作员批准方可合入本地 main——未批准不得合入。**
 
@@ -82,6 +82,9 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 | 3 | `feat(rust): expose frame limit contract constant` | 帧上限契约钉（对齐 TS/python） |
 
 ### D2 — feature/ts-rust-e2e-docking（S–M，2–3 天）
+
+> 首片实现已落地：host 工厂、环境开关、UTF-8 帧上限、双 host e2e 与三向量
+> canonical 互验均已提交到本分支；Rust 仍为 opt-in candidate，未接生产 boot/Port。
 
 | # | 提交信息 | 内容 |
 |---|---|---|

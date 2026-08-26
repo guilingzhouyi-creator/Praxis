@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Feat (l2)**: add opt-in Rust protocol host transport and three-way envelope docking tests
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission
