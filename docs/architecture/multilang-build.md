@@ -508,6 +508,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   bounded sweep report, including remaining groups and members; empty groups
   are closed as `Stopped` during the stop request. It does not select a repeat
   policy, spawn a reaper thread, or grant shutdown authority.
+- `ProcessGroupSignalPort` is the explicit host adapter seam for actual
+  process-group or PTY stop operations. `request_stop_with_signal` supplies a
+  generation-tagged termination plan and fail-closes unless the returned
+  `ProcessGroupSignalReport` echoes the same group/generation and bounded
+  attempted/delivered counts. Signal choice, OS calls, and subsequent reaping
+  remain caller-owned.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name

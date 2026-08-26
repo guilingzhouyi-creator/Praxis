@@ -325,6 +325,13 @@ reaper sweep, and returns remaining group/member counts. Empty groups become
 candidate starts no background reaper and does not own PTY or OS process-group
 signals.
 
+`ProcessGroupSignalPort` is the host-owned signal seam. Its
+`request_stop_with_signal` adapter call receives a stable generation-tagged
+termination plan and must return matching attempted/delivered counts. Rust
+rejects stale or mismatched reports while retaining the group in `Draining`;
+signal selection, PTY/OS operations, retry policy, and reaping remain outside
+the candidate.
+
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
 applies optional-field defaults, strips unknown record fields, and supplies

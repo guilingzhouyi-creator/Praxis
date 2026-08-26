@@ -327,6 +327,15 @@ preventing a zero-member group from staying in `Draining` forever. The API does
 not loop, start a background thread, choose a timeout, or claim production
 shutdown authority; hosts repeat it under their own lifecycle policy.
 
+The next host boundary adds `ProcessGroupSignalPort` and
+`request_stop_with_signal`. Rust emits a stable generation-tagged termination
+plan; the host chooses its platform signal or PTY operation and returns a
+`ProcessGroupSignalReport`. The report must echo group/generation and bounded
+attempted/delivered counts before the caller proceeds to a separate reaper
+sweep. Adapter failure or mismatch leaves the group draining and fails closed;
+Rust never hardcodes signal numbers, discovers terminals, or owns retry and
+shutdown policy.
+
 `scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output

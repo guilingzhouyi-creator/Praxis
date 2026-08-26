@@ -1,6 +1,7 @@
 //! Independent tests for managed process-group coordination.
 
 use std::collections::BTreeSet;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
@@ -11,7 +12,10 @@ use l1_kernel_rs::process_adapter::ProcessAdapterConfig;
 use l1_kernel_rs::process_constraints::{
     AgentProcessMode, AgentProcessPolicy, AgentProcessSpec, AgentResourceRequest,
 };
-use l1_kernel_rs::process_group::{ProcessGroupError, ProcessGroupState, ReaperBudget};
+use l1_kernel_rs::process_group::{
+    PROCESS_GROUP_SIGNAL_CONTRACT_VERSION, ProcessGroupError, ProcessGroupSignalError,
+    ProcessGroupSignalPort, ProcessGroupSignalReport, ProcessGroupState, ReaperBudget,
+};
 use l1_kernel_rs::process_group_runtime::{
     GatedProcessAdmission, PROCESS_GROUP_RUNTIME_CONTRACT_VERSION, PROCESS_SPAWN_CAPABILITY,
     ProcessGroupRuntime, ProcessGroupRuntimeError,
@@ -108,6 +112,33 @@ fn drain(runtime: &ProcessGroupRuntime, group: l1_kernel_rs::process_group::Proc
         thread::sleep(Duration::from_millis(1));
     }
     panic!("group did not drain: {:?}", runtime.snapshot(group));
+}
+
+#[derive(Default)]
+struct RecordingSignalPort {
+    plans: Mutex<Vec<l1_kernel_rs::process_group::ProcessGroupTerminationPlan>>,
+    delivered: u64,
+    wrong_group: bool,
+}
+
+impl ProcessGroupSignalPort for RecordingSignalPort {
+    fn send_stop(
+        &self,
+        plan: &l1_kernel_rs::process_group::ProcessGroupTerminationPlan,
+    ) -> Result<ProcessGroupSignalReport, String> {
+        self.plans.lock().expect("plans lock").push(plan.clone());
+        Ok(ProcessGroupSignalReport {
+            contract_version: PROCESS_GROUP_SIGNAL_CONTRACT_VERSION,
+            group_id: if self.wrong_group {
+                plan.group_id + 1
+            } else {
+                plan.group_id
+            },
+            generation: plan.generation,
+            attempted: plan.handles.len() as u64,
+            delivered: self.delivered.min(plan.handles.len() as u64),
+        })
+    }
 }
 
 #[test]
@@ -326,4 +357,54 @@ fn drain_once_requests_all_groups_and_respects_sweep_budget() {
     }
     assert!(report.complete, "groups did not drain: {report:?}");
     assert_eq!(runtime.processes().active_count(), 0);
+}
+
+#[test]
+fn host_signal_report_is_generation_bound_before_reaping() {
+    let runtime = runtime(1);
+    let group = runtime.create_group("signal", None).expect("group");
+    runtime
+        .spawn_args(group, &shell_args("sleep 5"), None)
+        .expect("child");
+    let port = RecordingSignalPort {
+        delivered: 1,
+        ..RecordingSignalPort::default()
+    };
+    let report = runtime
+        .request_stop_with_signal(group, "signal stop", &port)
+        .expect("signal report");
+    assert_eq!(report.attempted, 1);
+    assert_eq!(report.delivered, 1);
+    assert_eq!(port.plans.lock().expect("plans lock").len(), 1);
+    let sweep = runtime.sweep_with_timeout(
+        ReaperBudget::new(1, 1).expect("budget"),
+        Duration::from_millis(250),
+    );
+    assert_eq!(sweep.reaped, 1);
+}
+
+#[test]
+fn mismatched_host_signal_report_fails_closed_and_keeps_group_owned() {
+    let runtime = runtime(1);
+    let group = runtime
+        .create_group("signal-mismatch", None)
+        .expect("group");
+    runtime
+        .spawn_args(group, &shell_args("sleep 0.02"), None)
+        .expect("child");
+    let port = RecordingSignalPort {
+        wrong_group: true,
+        ..RecordingSignalPort::default()
+    };
+    assert_eq!(
+        runtime.request_stop_with_signal(group, "bad report", &port),
+        Err(ProcessGroupRuntimeError::Signal(
+            ProcessGroupSignalError::InvalidReport("group_id")
+        ))
+    );
+    assert_eq!(
+        runtime.snapshot(group).expect("snapshot").state,
+        ProcessGroupState::Draining
+    );
+    drain(&runtime, group);
 }

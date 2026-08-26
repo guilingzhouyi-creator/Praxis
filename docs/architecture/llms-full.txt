@@ -1257,6 +1257,13 @@ sweep, and reports remaining group/member ownership. Empty groups become
 choose a timeout, or grant production shutdown authority; PTY and OS
 process-group signal adapters remain host-owned.
 
+`ProcessGroupSignalPort` is the explicit host adapter seam for those signals.
+`request_stop_with_signal` supplies a generation-tagged termination plan and
+validates the returned `ProcessGroupSignalReport` against the same
+group/generation and bounded attempted/delivered counts. Adapter rejection or
+mismatch fails closed and leaves ownership in `Draining`; signal choice, PTY or
+OS calls, retries, and reaping remain caller-owned.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

@@ -15,6 +15,8 @@ use crate::substrate::ProcessHandle;
 
 /// Version of the process-group and reaper value contract.
 pub const PROCESS_GROUP_CONTRACT_VERSION: u32 = 1;
+/// Version of the host process-group stop-signal report contract.
+pub const PROCESS_GROUP_SIGNAL_CONTRACT_VERSION: u32 = 1;
 /// Maximum encoded group-name size accepted by the value boundary.
 pub const PROCESS_GROUP_MAX_NAME_BYTES: usize = 128;
 /// Maximum members in one group unless a smaller caller limit is supplied.
@@ -156,6 +158,64 @@ pub struct ProcessGroupTerminationPlan {
     pub reason: String,
     /// Members in stable raw-handle order.
     pub handles: Vec<u64>,
+}
+
+/// Host-observed result of sending one termination plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessGroupSignalReport {
+    /// Signal report contract version.
+    pub contract_version: u32,
+    /// Group targeted by the host adapter.
+    pub group_id: u64,
+    /// Stop-plan generation echoed by the host adapter.
+    pub generation: u64,
+    /// Number of member handles supplied to the adapter.
+    pub attempted: u64,
+    /// Number of member handles for which the adapter accepted a signal.
+    pub delivered: u64,
+}
+
+/// Host-owned process-group signal adapter.
+pub trait ProcessGroupSignalPort: Send + Sync {
+    /// Send the caller-selected stop signal for one validated plan.
+    fn send_stop(
+        &self,
+        plan: &ProcessGroupTerminationPlan,
+    ) -> Result<ProcessGroupSignalReport, String>;
+}
+
+/// Fail-closed errors at the process-group signal boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProcessGroupSignalError {
+    /// The host adapter rejected the signal request.
+    Adapter(String),
+    /// The adapter report did not match the supplied plan.
+    InvalidReport(&'static str),
+}
+
+impl ProcessGroupSignalReport {
+    /// Validate the host report against the exact plan it claims to service.
+    pub fn validate_for(
+        &self,
+        plan: &ProcessGroupTerminationPlan,
+    ) -> Result<(), ProcessGroupSignalError> {
+        if self.contract_version != PROCESS_GROUP_SIGNAL_CONTRACT_VERSION {
+            return Err(ProcessGroupSignalError::InvalidReport("contract_version"));
+        }
+        if self.group_id != plan.group_id {
+            return Err(ProcessGroupSignalError::InvalidReport("group_id"));
+        }
+        if self.generation != plan.generation {
+            return Err(ProcessGroupSignalError::InvalidReport("generation"));
+        }
+        if self.attempted != plan.handles.len() as u64 {
+            return Err(ProcessGroupSignalError::InvalidReport("attempted"));
+        }
+        if self.delivered > self.attempted {
+            return Err(ProcessGroupSignalError::InvalidReport("delivered"));
+        }
+        Ok(())
+    }
 }
 
 /// Bounded group-book failures.

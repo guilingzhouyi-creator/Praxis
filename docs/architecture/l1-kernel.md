@@ -1076,6 +1076,15 @@ the host owns repeat policy and production shutdown authority. This closes a
 bounded shutdown-preparation seam only; PTY/process-group signals, terminal
 rebind, and R4/R5 cutover remain open.
 
+`ProcessGroupSignalPort` is the explicit host adapter seam for the next step.
+`ProcessGroupRuntime::request_stop_with_signal` hands the adapter a stable
+generation-tagged `ProcessGroupTerminationPlan` and validates the returned
+`ProcessGroupSignalReport` against the exact group, generation, attempted
+handle count, and delivered count. Adapter rejection or mismatch is
+fail-closed and leaves ownership in `Draining` for caller policy; the Rust
+candidate does not select signal numbers, create PTYs, or reap in the signal
+call.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

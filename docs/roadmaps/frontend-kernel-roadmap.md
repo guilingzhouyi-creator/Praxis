@@ -768,6 +768,13 @@ member 而永久停在 `Draining`。该 API 不循环、不启动后台 reaper�
 重复策略与生产 shutdown authority 仍由宿主适配器持有；PTY、OS process-group signal、
 AgentLoop 和 R4/R5 cutover 继续是开放硬门。
 
+随后补齐 `ProcessGroupSignalPort` 宿主接缝：`request_stop_with_signal` 将稳定的
+generation-tagged termination plan 交给平台 adapter，由 adapter 选择实际 signal/PTY
+操作并返回 `ProcessGroupSignalReport`。Rust 在 reaper 前校验 group、generation 以及
+bounded attempted/delivered 计数；拒绝或错报 fail-closed，组仍由 caller 持有在
+`Draining`。该片不硬编码信号、不扫描终端、不启动后台 reaper；下一步仍需真实平台
+adapter、权限/失败证据和生产 shutdown 评审。
+
 The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
 indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
 `snapshot_page(after, limit)` keeps at most `limit + 1` record handles in a

@@ -23,7 +23,8 @@ use crate::process_constraints::{
     ProcessConstraintViolation,
 };
 use crate::process_group::{
-    MemberTerminal, ProcessGroupBook, ProcessGroupError, ProcessGroupId, ProcessGroupSnapshot,
+    MemberTerminal, ProcessGroupBook, ProcessGroupError, ProcessGroupId, ProcessGroupSignalError,
+    ProcessGroupSignalPort, ProcessGroupSignalReport, ProcessGroupSnapshot,
     ProcessGroupTerminationPlan, ProcessReaper, ReaperBudget, ReaperObservation, ReaperReport,
 };
 use crate::substrate::ProcessHandle;
@@ -73,6 +74,8 @@ pub enum ProcessGroupRuntimeError {
     Constraints(ProcessConstraintError),
     /// The capability gate denied the process admission before spawn.
     GateBlocked(GateDecision),
+    /// The host signal adapter rejected or misreported a stop plan.
+    Signal(ProcessGroupSignalError),
 }
 
 /// Caller-owned inputs for GateChain plus hard process admission.
@@ -281,6 +284,29 @@ impl ProcessGroupRuntime {
         reason: impl Into<String>,
     ) -> Result<ProcessGroupTerminationPlan, ProcessGroupRuntimeError> {
         Ok(self.reaper.request_stop(group, reason)?)
+    }
+
+    /// Request a stop and validate the host adapter's signal report.
+    ///
+    /// The adapter chooses the platform-specific signal or PTY operation. The
+    /// Rust boundary only supplies stable generation-tagged member handles and
+    /// rejects reports that do not echo the exact plan. Reaping remains a
+    /// separate caller-owned sweep; a signal failure leaves the group draining
+    /// so the caller can retry, mark it failed, or apply another policy.
+    pub fn request_stop_with_signal<P: ProcessGroupSignalPort>(
+        &self,
+        group: ProcessGroupId,
+        reason: impl Into<String>,
+        signal_port: &P,
+    ) -> Result<ProcessGroupSignalReport, ProcessGroupRuntimeError> {
+        let plan = self.request_stop(group, reason)?;
+        let report = signal_port.send_stop(&plan).map_err(|error| {
+            ProcessGroupRuntimeError::Signal(ProcessGroupSignalError::Adapter(error))
+        })?;
+        report
+            .validate_for(&plan)
+            .map_err(ProcessGroupRuntimeError::Signal)?;
+        Ok(report)
     }
 
     /// Request all active groups to stop and run one bounded reaper sweep.
