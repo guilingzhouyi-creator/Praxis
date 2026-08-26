@@ -113,7 +113,7 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 18,598 lines |
-| L2 Shell | 45 files / 6,615 lines |
+| L2 Shell | 45 files / 6,624 lines |
 | L3 Cell | 351 files / 79,484 lines |
 | L4 Bridge | 113 files / 23,465 lines |
 | L5 User | 2 files / 599 lines |
@@ -386,12 +386,13 @@ the session untouched; action/provider work remains caller-owned, and the
 bridge does not infer prompts, tools, PTYs, or production cutover policy.
 The independent `tests/runtime/agent_loop_execution.rs` target covers success,
 identity/state preflight, cancellation, and structured action failure.
-`AgentLoopExecutionBridge::submit_input_batch` reserves a complete group
-through one runtime admission boundary before workers can admit input; a
-strict queue-capacity rejection rolls back all reservations without evicting
-older queued work, while accepted items retain independent receipts and failure
-stages. This grouped path remains a measured candidate and does not own
-provider, PTY, or production runtime authority.
+`AgentLoopExecutionBridge::submit_input_batch` also reserves a caller-sized
+group through one `KernelRuntime::submit_batch_strict` boundary before any input
+admission. Its strict worker-queue check rejects an undersized queue instead of
+evicting older work, and capacity failure therefore rolls back every reserved
+task; accepted items retain independent receipts and failure stages. This is a
+grouped execution optimization candidate, not provider, PTY, or production
+authority.
 
 The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
 lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a
