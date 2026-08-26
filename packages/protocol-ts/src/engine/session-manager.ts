@@ -24,6 +24,7 @@ export interface ViewState {
 export class SessionMultiplexer {
   private views = new Map<string, ViewState>();
   private events: Message[] = [];
+  private eventKeys = new Set<string>();
 
   constructor(public readonly sessionId: string) {}
 
@@ -46,7 +47,8 @@ export class SessionMultiplexer {
     // become replayable state in the local projection mirror.
     if (message.kind === "ack") return;
     const key = this.messageKey(message);
-    if (this.events.some((event) => this.messageKey(event) === key)) return;
+    if (this.eventKeys.has(key)) return;
+    this.eventKeys.add(key);
     this.events.push(message);
     for (const view of this.views.values()) {
       if (!view.unacked.some((event) => this.messageKey(event) === key)) view.unacked.push(message);

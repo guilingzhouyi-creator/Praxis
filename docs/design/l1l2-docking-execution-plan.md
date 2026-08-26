@@ -93,6 +93,13 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 | 3 | `test(l2): add three-way envelope equivalence harness` | Py-host/TS/Rust 三方向量互验 |
 | 4 | `fix(l2): fail pending requests on host disconnect` | child/input 断开、主动 close、合成协议故障帧即时结束；非法预算构造拒绝 |
 
+### G4 前置片（2026-08-26）
+
+| 交付 | 内容 | 当前边界 |
+|---|---|---|
+| Rust session-store codec | TS typed codec、原子文件适配器、共享 checkpoint fixture；严格校验版本、状态、序列、排序和安全整数 | 已落分支；只读/显式写入 Rust-owned checkpoint，不接生产 boot |
+| G4 剩余 | Rust 写出→TS 读取、TS 写出→Rust 读取的进程级互验与故障矩阵 | 未完成，完成前保持双 host 与 Python 回滚路径 |
+
 ## 3. 每分支统一验证门
 
 ```bash

@@ -79,6 +79,15 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | ✅ TS/Rust/Python 均为 1 MiB；TS 请求/响应边界测试已锁定 UTF-8 byte size |
 | D2.4 传输故障恢复语义 | ✅ child `error`/`exit`、stdio `close`、主动 `close()` 即时拒绝 pending；合成协议故障帧不再等待 ack；预算参数非法时构造即失败；重连仍由 `ConnectionManager` 显式触发 |
 
+### G4 前置片（2026-08-26）
+
+TS 已新增独立 Rust session-store codec 与原子文件适配器（`session-checkpoint.ts`），
+严格镜像 Rust `SessionStoreDocument`、`SessionCheckpoint`、`SessionSnapshot` 的版本、状态、
+序列和排序不变量；TS 无法精确表示的 `u64` 在边界 fail-closed。共享 fixture
+`tests/fixtures/kernel_session_store_document.json` 已由 TS 编解码测试和 Rust
+`session_store` 测试共同消费。该片只证明文档互读形状与原子写入，不改变 Rust host
+candidate-only 状态；G4 仍需补充 Rust 写出→TS 读取和 TS 写出→Rust 读取的进程级互验。
+
 ### 分流路由原则（D1c 核心）
 
 | 流量 | 去向 |

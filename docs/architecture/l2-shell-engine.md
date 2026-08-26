@@ -12,6 +12,12 @@ Current snapshot (2026-08): 43 modules / 5,860 lines; 51 YAML commands + 63
 `_cmd_*` handler functions (15 code-only); 74 allowlisted cross-layer imports (67 → L3,
 7 → L4). Boundary audit score: 36/100 (see roadmap §1).
 
+The Rust docking candidate exposes a separate TS `session-checkpoint` codec for
+the Rust-owned session-store document. It is a typed, fail-closed persistence
+adapter only; live session authority, recovery transitions, and production host
+selection remain on the Rust/Python host boundary described in the docking
+roadmap.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation

@@ -1,0 +1,34 @@
+{
+  "store_version": 1,
+  "generation": 7,
+  "clean_shutdown": false,
+  "sessions": [
+    {
+      "checkpoint_version": 1,
+      "snapshot": {
+        "contract_version": 1,
+        "spec": {
+          "session_id": "session-golden",
+          "agent_id": "agent-1",
+          "cell_id": "cell-1",
+          "role": "operator",
+          "max_messages": 8
+        },
+        "state": "crashed",
+        "next_input_seq": 2,
+        "next_message_seq": 2,
+        "clean_shutdown": false,
+        "messages": [
+          {
+            "sequence": 1,
+            "input_seq": 1,
+            "message_id": "m-1",
+            "role": "user",
+            "content": "persist",
+            "created_at_ns": 42
+          }
+        ]
+      }
+    }
+  ]
+}
