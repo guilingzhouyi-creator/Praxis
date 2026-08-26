@@ -239,6 +239,15 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   failures and panics stop the dependency-ordered run with a completed-prefix
   report. This remains a host-owned execution seam and does not grant provider,
   lifecycle, or production boot authority.
+- `agent_loop_execution::AgentLoopExecutionBridge` is the bounded execution
+  seam above the routing state. It submits a caller-owned `AgentLoopAction` to
+  `KernelRuntime`; the worker admits input, invokes the action with its receipt,
+  and optionally admits one returned event. Versioned reports retain input/event
+  receipts, while structured failures identify admission, action, or
+  event-admission stage and any partial input. Pre-execution cancellation cannot
+  write session history. The bridge does not discover providers, prompts, tools,
+  PTYs, or production policy; `tests/runtime/agent_loop_execution.rs` is its
+  independent Rust target.
 - The Rust `state_layout` module is the first R4 state-ownership candidate. It
   validates a versioned manifest of canonical relative entries and declared
   parents, then maps explicit host probes to `initialize`, `resume`, `recover`,

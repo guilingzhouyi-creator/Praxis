@@ -205,6 +205,16 @@ cutover/recovery 逐步闭合后才可进入新内核 authority。
 0/5.011/13.583 ms，全部样本无错误/拒绝。它仍将共享路由锁列为下一优先级优化对象，
 不把增加 worker 数或接入 runtime 当作默认策略。
 
+随后完成 `agent_loop_execution` bridge 前置：`AgentLoopExecutionBridge` 将已启动
+loop 的输入排入 `KernelRuntime`，任务在 worker 真正执行后才完成 input admission，
+把 receipt/loop identity 交给调用方 action，并可将一个返回的 event 写回 Session。
+报告和失败值固定版本与 admission/action/event-admission 阶段；pre-execution cancel
+不产生历史写入，action failure 保留已提交 input receipt。该片只闭合 Rust-native
+AgentLoop/WorkerPool/Session 机制，不接 provider/prompt/tool/PTY，不做副作用 rollback，
+也不授予生产入口或 R4/R5 cutover authority；独立测试位于
+`crates/l1-kernel-rs/tests/runtime/agent_loop_execution.rs`。下一步仍需真实 host
+adapter、进程组信号/PTY、生产 reaper、持久化执行失败策略和 TS/L2 消费协议评审。
+
 随后已完成 IPC 与持久化机制切片：Rust `ipc` 覆盖 `LockMessage`、
 `LockChannel`、`LockBus` 的有界历史、handler、request/response、超时清理和
 reset；Rust `persist` 覆盖 `{seq,event,payload,ts}` 事件行、批量追加、过滤查询、

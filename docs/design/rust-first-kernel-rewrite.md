@@ -224,6 +224,18 @@ report per-batch p95/p99 and loop lock wait under the same v3 fixed-work
 contract. Batch and per-input latency units remain separate, and the slice
 does not execute providers/tools or promote Rust runtime authority.
 
+The `agent_loop_execution::AgentLoopExecutionBridge` now provides a bounded
+execution seam above that routing state. A caller submits an input and an
+`AgentLoopAction`; the runtime worker admits the input only after task
+admission, passes the authoritative receipt and loop identity to the action,
+and can admit one returned event. Versioned reports and failures retain the
+input/event receipts, failure stage, and any partial input admission. A
+pre-execution cancellation therefore leaves Session unchanged, while action
+panic is converted to a structured failure. This joins Rust AgentLoop,
+WorkerPool, and Session mechanisms without discovering provider/prompt/tool/
+PTY behavior, rolling back side effects, or granting production authority.
+The independent target is `tests/runtime/agent_loop_execution.rs`.
+
 The next process-boundary slice is now present as the Rust
 `process_adapter::ProcessAdapter` candidate. It implements only bounded
 one-shot `ProcessPort` behavior: direct argv execution, or terminal-derived argv

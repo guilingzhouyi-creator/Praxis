@@ -105,6 +105,17 @@ with batch-level p95/p99, kept separate from the per-input workload. A batch
 report is not a direct replacement for the per-input tail distribution and
 does not authorize runtime cutover.
 
+The `agent_loop_execution` module adds an explicit bounded bridge from a
+running `AgentLoopBook` identity to `KernelRuntime`. `AgentLoopAction` is
+caller-owned provider/tool work: the worker admits the input after task
+admission, passes its receipt and identity to the action, and optionally admits
+one returned event. `AgentLoopExecutionReport` and
+`AgentLoopExecutionFailure` are versioned structured values, including the
+failure stage and any input receipt already committed. Cancellation before
+execution leaves the session unchanged. This bridge does not discover
+providers, prompts, tools, PTYs, or production policy; its public behavior is
+covered by the independent `tests/runtime/agent_loop_execution.rs` target.
+
 The `process_adapter` module is a bounded one-shot `ProcessPort` candidate for
 the future Rust/TS adapter edge. It supports direct argument execution and an
 explicit shell path, optional cwd/input/environment/executable values, separate

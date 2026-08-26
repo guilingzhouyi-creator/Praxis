@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod agent_loop;
+pub mod agent_loop_execution;
 pub mod allocator;
 pub mod assembly;
 pub mod audit;

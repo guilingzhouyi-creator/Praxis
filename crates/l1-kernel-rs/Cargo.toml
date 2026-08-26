@@ -36,6 +36,10 @@ name = "agent_loop"
 path = "tests/session/agent_loop.rs"
 
 [[test]]
+name = "agent_loop_execution"
+path = "tests/runtime/agent_loop_execution.rs"
+
+[[test]]
 name = "allocator"
 path = "tests/core/allocator.rs"
 

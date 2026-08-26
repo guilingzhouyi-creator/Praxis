@@ -188,6 +188,18 @@ accounting without consuming command sequences. `run_agent_loop_batch` and
 report batch p95/p99 separately from the per-input baseline; this is an
 optimization slice only and does not grant runtime authority.
 
+The `agent_loop_execution` module adds the next explicit execution seam:
+`AgentLoopExecutionBridge` submits a caller-owned `AgentLoopAction` to the
+bounded `KernelRuntime` worker pool. The task admits input only after worker
+admission succeeds, passes the authoritative receipt and loop identity to the
+action, and optionally admits one returned event. Its report and failure value
+are versioned and include the completed input receipt, event receipt, failure
+stage, and any partial input admission. Cancellation before execution leaves
+the session untouched; action/provider work remains caller-owned, and the
+bridge does not infer prompts, tools, PTYs, or production cutover policy.
+The independent `tests/runtime/agent_loop_execution.rs` target covers success,
+identity/state preflight, cancellation, and structured action failure.
+
 The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
 lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a
 single explicit execution host. It validates halted-to-booting-to-active
