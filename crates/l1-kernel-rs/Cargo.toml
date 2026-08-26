@@ -20,6 +20,10 @@ path = "src/lib.rs"
 name = "rust-session-store-probe"
 path = "src/bin/rust-session-store-probe.rs"
 
+[[bin]]
+name = "rust-kernel-preflight"
+path = "src/bin/rust-kernel-preflight.rs"
+
 # Keep the historical target names stable while making the test domain explicit.
 # Tests are grouped by boundary under tests/<domain>/; the Python infra gate
 # verifies that every target is registered here and that the root stays empty.
@@ -218,6 +222,10 @@ path = "tests/assembly/port_vectors.rs"
 [[test]]
 name = "ports"
 path = "tests/assembly/ports.rs"
+
+[[test]]
+name = "preflight"
+path = "tests/assembly/preflight.rs"
 
 [[test]]
 name = "process"

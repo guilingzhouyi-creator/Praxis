@@ -40,6 +40,7 @@ pub mod paths;
 pub mod persist;
 pub mod platform;
 pub mod ports;
+pub mod preflight;
 pub mod process;
 pub mod process_adapter;
 pub mod process_bridge;

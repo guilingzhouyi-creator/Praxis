@@ -261,6 +261,15 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   configuration/filesystem/provider side effects. Config, protocol, terminal,
   and assembly metadata mismatches fail closed; `state_store` supplies fresh
   state initialization and durable recovery.
+- The Rust `preflight` module is a read-only entry preparation seam. Its
+  `PreflightRequest` requires explicit assembly metadata and an injected
+  `StateProbe`; `inspect` returns the validated snapshot, state action, and
+  operator disposition without probing or mutating the host. The standalone
+  `rust-kernel-preflight` binary reads one JSON request from stdin and emits
+  one JSON report, and `make rust-kernel-preflight` builds it for automation.
+  Its tests live in `tests/assembly/preflight.rs`. It does not execute boot,
+  create state, rebind processes, or select a Python fallback, so it is
+  evidence for R4 assembly rather than an R5 production entrypoint.
 - The Rust `runtime` candidate composes that locked assembly, lifecycle FSM,
   sharded scheduler state, and bounded WorkerPool into an explicit
   boot/submit/cancel/reap/shutdown host for already-bound Rust closures.

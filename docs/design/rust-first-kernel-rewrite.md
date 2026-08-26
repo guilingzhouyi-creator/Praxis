@@ -385,6 +385,16 @@ clock ownership, and runtime session state remain adapter obligations. The
 settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
 
+The `preflight` candidate is the next R4 entry preparation slice. It accepts
+only a caller-supplied `AssemblySpec` and `StateProbe`, validates both through
+the existing assembly boundary, and emits a versioned report containing the
+deterministic assembly snapshot, state action, and operator disposition.
+`rust-kernel-preflight` is a JSON stdin/stdout tool exposed through
+`make rust-kernel-preflight`; it performs no host probing, filesystem mutation,
+boot execution, process rebind, or Python fallback. This closes the read-only
+entry evidence seam but does not close R4 boot ownership or the R5 clean
+cutover/recovery procedure.
+
 The `execution_store` adapter is the next R4/R5 recovery slice. It writes one
 versioned, atomically replaced document for the Rust-owned `SessionBook`,
 `TerminalBook`, and `AgentLoopBook`, with deterministic ordering and explicit

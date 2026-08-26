@@ -588,6 +588,15 @@ fallback 仍未授权。当前 runtime 已把 `recover_unclean` 与状态/检查
 `acknowledge_recovery` 后才能进入 active，确认本身不执行 rebind 或
 checkpoint 写入。下一步仍是独立 cutover/recovery adapter 评审。
 
+随后补充 R4 入口预检切片：新增 `preflight::PreflightRequest` 与
+`PreflightReport`，将显式 `AssemblySpec` 和宿主注入的 `StateProbe` 汇总为
+确定性 assembly snapshot、state action 及 `Ready`/recovery/migration/reject
+处置。`rust-kernel-preflight` 和 `make rust-kernel-preflight` 提供无 Python、
+只读 JSON 自动化入口；它不探测或修改文件系统、不执行 boot、不重绑定进程、
+不选择 Python fallback。该片只闭合 R4 assembly 的 entry evidence，R4 boot
+ownership、真实 PTY/进程组、AgentLoop/provider/tool/DVG/R5 以及 clean cutover
+仍保持高优先级未完成。
+
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
 `benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定

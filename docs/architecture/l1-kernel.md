@@ -365,6 +365,16 @@ create directories, run callbacks, or instantiate providers. `state_store`
 owns fresh-root initialization and durable lifecycle recovery; versioned
 protocol serving and terminal I/O remain outside this assembly candidate.
 
+The Rust `preflight` candidate adds a read-only R4 entry boundary above that
+assembly. `PreflightRequest` requires an explicit `AssemblySpec` and host
+`StateProbe`; `inspect` returns the validated assembly snapshot, state action,
+and a coarse `Ready`/`RecoveryRequired`/`MigrationRequired`/`Rejected`
+disposition. `rust-kernel-preflight` reads one JSON request from stdin and
+emits one JSON report, while refusing malformed or incompatible input. It does
+not probe the filesystem, create state, execute boot callbacks, start workers,
+rebind processes, or select a Python fallback. This is operator and automation
+evidence for R4 assembly, not Rust production-entry or R5 cutover authority.
+
 The Rust `protocol` candidate now closes the retained R4 wire boundary without
 granting runtime authority. It validates v1 envelopes and TS-neutral record
 schemas, recursively canonicalizes JSON, removes unknown record fields for

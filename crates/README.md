@@ -279,6 +279,15 @@ is the R4 assembly seam; `state_store` now owns fresh-root initialization and
 durable recovery. Mechanism and shared-vector coverage live in
 `tests/assembly/assembly.rs` and `tests/assembly/assembly_vectors.rs`.
 
+The `preflight` module adds a read-only entry check above assembly. It requires
+explicit `AssemblySpec` and host `StateProbe` values, then emits a versioned
+snapshot with the selected state action and `Ready`/recovery/migration/reject
+disposition. `rust-kernel-preflight` consumes one JSON request from stdin and
+prints one JSON report; `make rust-kernel-preflight` builds it for automation.
+The tool never probes or mutates the filesystem, executes boot callbacks,
+rebinds processes, or selects a Python fallback. Its tests are isolated in
+`tests/assembly/preflight.rs`, and the candidate does not imply R5 cutover.
+
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
 applies optional-field defaults, strips unknown record fields, and supplies
