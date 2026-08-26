@@ -783,6 +783,15 @@ signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/host
 验证无部分派发与有界报告。这仍是候选宿主接缝，不等于真实平台 wiring 或生产 shutdown
 authority 已完成。
 
+随后补齐 ProcessTable 权威的分组执行路径：
+`process_table_group_runtime::ProcessTableGroupRuntime` 将 `ProcessGroupBook`
+与 `ProcessTableBridge` 组合，公开身份只保留 ProcessTable 的 generation-safe
+handle；host child 与 table row 必须在终态 sweep 中共同回收，分组准入失败也
+必须 joint cleanup。`bridge()` 只提供 PID/state 等有界元数据供宿主 adapter
+解析，不泄漏 `Child` 或 pipe 对象。独立 `tests/process/process_table_group_runtime.rs`
+覆盖自然退出、host signal report、容量回滚与双表收敛。这仍不授予 PTY、平台
+signal 或后台 reaper 权威。
+
 The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
 indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
 `snapshot_page(after, limit)` keeps at most `limit + 1` record handles in a
@@ -927,6 +936,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
 | T3 | `ProcessGroupRuntime::spawn_gated_constrained`：GateChain → 约束 → adapter spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
 | T3b | `HostProcessGroupSignalPort`：显式 handle→host target 解析与整批 stop sender | ✅ 候选完成 | 真实平台 signal/PTY、权限失败证据与生产 shutdown wiring 仍待完成 |
+| T3c | `ProcessTableGroupRuntime`：ProcessTableBridge 与 ProcessGroupBook 统一子进程身份和 joint reap | ✅ 候选完成 | GateChain/审计统一 wiring、真实 PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
 | T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |

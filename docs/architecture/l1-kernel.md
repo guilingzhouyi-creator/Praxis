@@ -1054,6 +1054,15 @@ coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
 authority.
 
+`process_table_group_runtime::ProcessTableGroupRuntime` is the follow-on
+coordination path that removes the duplicate child authority. It composes the
+same group book with `ProcessTableBridge`, so ProcessTable owns the public
+generation-safe identity and the bridge owns the host child. A terminal sweep
+reaps the bridge binding before publishing the matching group outcome; failed
+group admission also reaps the ProcessTable row. The candidate exposes the
+bridge snapshot for host target resolution without leaking `Child` or pipe
+objects, and remains caller-driven rather than a production supervisor.
+
 The group book keeps a terminal-member counter so repeated terminal
 observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
 separate mark-and-reap fast path that avoids cloning snapshots when the caller

@@ -50,6 +50,7 @@ pub mod process_bridge;
 pub mod process_constraints;
 pub mod process_group;
 pub mod process_group_runtime;
+pub mod process_table_group_runtime;
 pub mod protocol;
 pub mod protocol_host;
 pub mod recovery;

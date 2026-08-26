@@ -325,6 +325,14 @@ reaper sweep, and returns remaining group/member counts. Empty groups become
 candidate starts no background reaper and does not own PTY or OS process-group
 signals.
 
+`process_table_group_runtime::ProcessTableGroupRuntime` is the
+ProcessTable-authoritative group path. It uses `ProcessTableBridge` for host
+child ownership and public handles, while `ProcessGroupBook` retains only
+membership and stop generations. Sweeps jointly reap the bridge binding and
+group member, and failed membership admission removes the ProcessTable row;
+`bridge()` exposes only bounded metadata for host adapters. See
+`tests/process/process_table_group_runtime.rs`.
+
 `ProcessGroupSignalPort` is the host-owned signal seam. Its
 `request_stop_with_signal` adapter call receives a stable generation-tagged
 termination plan and must return matching attempted/delivered counts. Rust

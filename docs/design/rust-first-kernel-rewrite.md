@@ -319,6 +319,15 @@ not-found execution. This remains an adapter seam, not production process
 supervision: PTY, OS process-group signaling, ProcessTable registration,
 AgentLoop execution, background reaping, and R4/R5 cutover remain open.
 
+`process_table_group_runtime::ProcessTableGroupRuntime` then composes the
+group book with `ProcessTableBridge` rather than another standalone managed
+process book. ProcessTable remains the only public child identity; bridge
+snapshots provide bounded host metadata for adapter resolution, while a
+terminal observation jointly reaps the host child and table row before the
+group member is released. Capacity rollback uses the same joint cleanup. This
+is still a caller-owned candidate and does not add PTY, signal, or background
+reaper authority.
+
 The shutdown-preparation follow-on adds `ProcessGroupRuntime::drain_once`.
 It requests stop for all active groups, performs one bounded caller-supplied
 sweep, and returns deterministic reaper counters plus remaining group/member

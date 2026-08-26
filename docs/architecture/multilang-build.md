@@ -508,6 +508,12 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   bounded sweep report, including remaining groups and members; empty groups
   are closed as `Stopped` during the stop request. It does not select a repeat
   policy, spawn a reaper thread, or grant shutdown authority.
+- `process_table_group_runtime::ProcessTableGroupRuntime` composes group
+  membership with `ProcessTableBridge`, making the ProcessTable handle the
+  only public child identity. Bridge snapshots expose only PID/state metadata
+  for host target resolution; terminal sweeps jointly reap the bridge binding
+  and group member, and admission rollback removes the table row. Its
+  independent target is `tests/process/process_table_group_runtime.rs`.
 - `ProcessGroupSignalPort` is the explicit host adapter seam for actual
   process-group or PTY stop operations. `request_stop_with_signal` supplies a
   generation-tagged termination plan and fail-closes unless the returned
