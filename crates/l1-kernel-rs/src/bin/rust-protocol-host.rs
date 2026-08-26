@@ -14,8 +14,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use l1_kernel_rs::host_dispatch::{HostRouter, RouterConfig};
-use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
-use l1_kernel_rs::protocol_host::DEFAULT_MAX_FRAME_BYTES;
+use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, encode_message};
+use l1_kernel_rs::protocol_host::ProtocolHost;
 
 fn now_seconds() -> f64 {
     SystemTime::now()
@@ -52,22 +52,22 @@ fn synthetic_error(seq: u64, error: &str) -> Result<Message, ProtocolError> {
 
 fn main() -> std::io::Result<()> {
     let router = HostRouter::new(RouterConfig::default());
+    let protocol_host = ProtocolHost::default();
     let stdin = std::io::stdin();
     let mut stdout = BufWriter::new(std::io::stdout().lock());
     let synthetic_seq = AtomicU64::new(0);
 
     for line in stdin.lock().lines() {
         let line = line?;
-        if line.len() > DEFAULT_MAX_FRAME_BYTES {
-            eprintln!(
-                "protocol frame rejected: {} bytes exceeds {}",
-                line.len(),
-                DEFAULT_MAX_FRAME_BYTES
-            );
-            continue;
-        }
-        match decode_message(&line) {
-            Err(error) => {
+        match protocol_host.decode_line(&line) {
+            Err(l1_kernel_rs::protocol_host::ProtocolHostError::FrameTooLarge {
+                actual_bytes,
+                max_bytes,
+            }) => {
+                eprintln!("protocol frame rejected: {actual_bytes} bytes exceeds {max_bytes}");
+                continue;
+            }
+            Err(l1_kernel_rs::protocol_host::ProtocolHostError::Protocol(error)) => {
                 let seq = synthetic_seq.fetch_add(1, Ordering::Relaxed) + 1;
                 match synthetic_error(seq, &error.to_string()) {
                     Ok(envelope) => writeln!(stdout, "{}", wire(&envelope)?)?,

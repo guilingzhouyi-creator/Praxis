@@ -1,6 +1,6 @@
 # L1↔L2 对接执行计划（施工级）
 
-> Status: active execution plan · D2 首片已在 `feature/ts-rust-e2e-docking` 完成 · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
+> Status: active execution plan · D2 首片及故障恢复片已在 `feature/ts-rust-e2e-docking` 完成 · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
 > 治理: 全部工作在独立 worktree 分支递进提交；完成后统一合入集成分支
 > `feature/l1l2-integration`；**Diff 审查后须经操作员批准方可合入本地 main——未批准不得合入。**
 
@@ -83,14 +83,15 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 
 ### D2 — feature/ts-rust-e2e-docking（S–M，2–3 天）
 
-> 首片实现已落地：host 工厂、环境开关、UTF-8 帧上限、双 host e2e 与三向量
-> canonical 互验均已提交到本分支；Rust 仍为 opt-in candidate，未接生产 boot/Port。
+> 首片及故障恢复片已落地：host 工厂、环境开关、UTF-8 帧上限、双 host e2e、三向量
+> canonical 互验和 child/input 断开即时失败均已提交到本分支；Rust 仍为 opt-in candidate，未接生产 boot/Port。
 
 | # | 提交信息 | 内容 |
 |---|---|---|
 | 1 | `feat(l2): add PRAXIS_RUST_HOST transport switch` | TS e2e spawn 开关 |
 | 2 | `test(l2): run engine e2e matrix against rust host` | 双 host 测试矩阵全绿 |
 | 3 | `test(l2): add three-way envelope equivalence harness` | Py-host/TS/Rust 三方向量互验 |
+| 4 | `fix(l2): fail pending requests on host disconnect` | child/input 断开、主动 close、合成协议故障帧即时结束；非法预算构造拒绝 |
 
 ## 3. 每分支统一验证门
 

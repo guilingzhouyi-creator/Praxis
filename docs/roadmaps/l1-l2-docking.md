@@ -1,7 +1,7 @@
 # L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）
 
 > Status: in progress（操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核。
-> 2026-08-26 复核：D0 语义修复与 D1a–D1d 机制候选已落 main；本分支已完成 D2 首片——`PRAXIS_RUST_HOST` 选择器、受管 stdio child transport、双 host e2e 和 TS/Python/Rust canonical vector 互验。D2 不改变生产默认（仍为 Python），Rust host 仍是 candidate-only、未接入 boot/Port。
+> 2026-08-26 复核：D0 语义修复与 D1a–D1d 机制候选已落 main；本分支已完成 D2 首片及故障恢复片——`PRAXIS_RUST_HOST` 选择器、受管 stdio child transport、双 host e2e、TS/Python/Rust canonical vector 互验，以及 child/input 断开时 pending 请求即时失败。D2 不改变生产默认（仍为 Python），Rust host 仍是 candidate-only、未接入 boot/Port。
 > 关联: `l2-ts-rewrite-mapping.md` §5 割接标准 · `frontend-kernel-roadmap.md` §4 Rust 路线 ·
 > `kernel-boundary-audit.md` 绕过路径清单 · `rust-first-kernel-rewrite.md` R0–R5 门槛 · 施工载体 `../design/l1l2-docking-execution-plan.md`
 > 审查基线: main @ e1f0dc10（2026-08-23 深度审查结论）；复核基线 main @ 123b22d2
@@ -77,6 +77,7 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | ✅ `e2e.stdio` 按开关选择双 host；Rust 独立 e2e 覆盖 command/attach/recovery |
 | D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | ✅ fixture canonical lines 逐字节一致；Rust gate 与 Python reference 均纳入测试 |
 | D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | ✅ TS/Rust/Python 均为 1 MiB；TS 请求/响应边界测试已锁定 UTF-8 byte size |
+| D2.4 传输故障恢复语义 | ✅ child `error`/`exit`、stdio `close`、主动 `close()` 即时拒绝 pending；合成协议故障帧不再等待 ack；预算参数非法时构造即失败；重连仍由 `ConnectionManager` 显式触发 |
 
 ### 分流路由原则（D1c 核心）
 
@@ -95,7 +96,7 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 | **M-D1b** | rust-host: outbox 注册表 | 多视图并发 attach/ack/replay 压测零漂移 | M（2–3 天） | M-D0 |
 | **M-D1c** | rust-host: capability 分派 | 全 KIND 分派矩阵 + 拒绝路径审计落盘；B4 关闭证据 | L（4–6 天） | M-D1a/b |
 | **M-D1d** | rust-protocol-host bin | 与 python host I/O 契约互验绿 | S（1–2 天） | M-D1c |
-| **M-D2** | TS↔Rust e2e 绿（首片） | ✅ 双 host 测试矩阵全绿 + 三方向量互验；生产默认未切换 | S–M（2–3 天） | M-D1d |
+| **M-D2** | TS↔Rust e2e 与故障恢复绿 | ✅ 双 host 测试矩阵、三方向量互验、child/input 断开即时失败全绿；生产默认未切换 | S–M（2–3 天） | M-D1d |
 | **G1–G6** | l2-ts-rewrite-mapping §5.3 阶梯实例化 | 覆盖 ≥95/90 → 向量冻结 → 反转 e2e → 持久化互读 → 切默认+开关 → 移除旧 host | 按 §5.2 | M-D2 |
 
 关键路径：D0 → D1a/D1b（可并行） → D1c → D1d → D2 ≈ **12–17 个工作日**（单 Agent 串行估算；D1a/b 并行可压缩 2–3 天）。

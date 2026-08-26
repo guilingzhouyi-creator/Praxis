@@ -16,9 +16,11 @@ class FakeChild implements ChildProcessLike {
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
   readonly received: string[] = [];
+  suppressResponses = false;
   readonly stdin = {
     write: (data: string) => {
       this.received.push(data);
+      if (this.suppressResponses) return;
       const request = decodeMessage(data.trim()).message;
       if (!request) return;
       this.stdout.write(`${encodeMessage(makeMessage(request.session_id, 1, "result", { success: true }))}\n`);
@@ -39,6 +41,10 @@ class FakeChild implements ChildProcessLike {
   kill(): boolean {
     this.killed = true;
     return true;
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    for (const listener of this.listeners.get(event) ?? []) listener(...args);
   }
 }
 
@@ -92,6 +98,34 @@ describe("configured host transport", () => {
     expect(transport.host).toBe("rust");
     expect(log.command).toBe("/opt/praxis/rust-protocol-host");
     expect(log.args).toEqual(["--test"]);
+    transport.close();
+  });
+
+  it("fails a pending request immediately when the Rust child exits", async () => {
+    const log: { child?: FakeChild } = {};
+    const transport = createRustHostTransport({
+      timeoutMs: 5_000,
+      spawnImpl: fakeFactory(log),
+    });
+    log.child!.suppressResponses = true;
+    const pending = transport(encodeMessage(makeMessage("s", 1, "command", { name: "status" })));
+    log.child!.emit("exit", 17, null);
+    await expect(pending).rejects.toThrow("protocol rust host exited");
+    await expect(transport(encodeMessage(makeMessage("s", 2, "command", { name: "status" })))).rejects.toThrow(
+      "protocol rust host exited",
+    );
+  });
+
+  it("fails pending requests when the managed transport closes", async () => {
+    const log: { child?: FakeChild } = {};
+    const transport = createRustHostTransport({
+      timeoutMs: 5_000,
+      spawnImpl: fakeFactory(log),
+    });
+    log.child!.suppressResponses = true;
+    const pending = transport(encodeMessage(makeMessage("s", 1, "command", { name: "status" })));
+    transport.close();
+    await expect(pending).rejects.toThrow("transport is closed");
     transport.close();
   });
 });

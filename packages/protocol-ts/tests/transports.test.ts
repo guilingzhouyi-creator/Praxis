@@ -58,6 +58,19 @@ describe("line transport engine", () => {
     expect(isAckLine("not-json")).toBe(false);
   });
 
+  it("closes on a synthetic host protocol failure without waiting for an ack", async () => {
+    let handler: ((line: string) => void) | undefined;
+    const transport = createLineRequestTransport({
+      onLine: (h) => { handler = h; },
+      writeLine: () => undefined,
+      timeoutMs: 5_000,
+    });
+    const request = transport("request");
+    const failure = encodeMessage(makeMessage("-", 1, "result", { success: false, error: "invalid json" }));
+    handler?.(failure);
+    await expect(request).resolves.toEqual([failure]);
+  });
+
   it("times out a stalled host with what it has collected", async () => {
     let handler: ((line: string) => void) | undefined;
     const transport = createLineRequestTransport({
@@ -103,6 +116,31 @@ describe("line transport engine", () => {
     const request = transport("second");
     handler?.(encodeMessage(makeMessage("s", 1, "ack", { ack_seq: 1 })));
     await expect(request).resolves.toHaveLength(1);
+  });
+
+  it("rejects invalid response budgets at construction", () => {
+    const base = {
+      onLine: () => undefined,
+      writeLine: () => undefined,
+    };
+    expect(() => createLineRequestTransport({ ...base, maxLines: 0 })).toThrow("maxLines");
+    expect(() => createLineRequestTransport({ ...base, maxLines: 1.5 })).toThrow("maxLines");
+    expect(() => createLineRequestTransport({ ...base, timeoutMs: -1 })).toThrow("timeoutMs");
+    expect(() => createLineRequestTransport({ ...base, timeoutMs: Number.NaN })).toThrow("timeoutMs");
+  });
+
+  it("rejects a pending request when the source fails", async () => {
+    let fail!: (error: unknown) => void;
+    const transport = createLineRequestTransport({
+      onLine: () => undefined,
+      onError: (handler) => { fail = handler; },
+      writeLine: () => undefined,
+      timeoutMs: 5_000,
+    });
+    const request = transport("request");
+    fail(new Error("source failed"));
+    await expect(request).rejects.toThrow("source failed");
+    await expect(transport("after failure")).rejects.toThrow("source failed");
   });
 });
 

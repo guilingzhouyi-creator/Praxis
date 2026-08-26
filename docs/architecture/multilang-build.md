@@ -292,7 +292,8 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   consume `tests/fixtures/protocol_v1_records.json`; HTTP/WS framing, L2
   dispatch, clocks, and runtime session ownership remain adapters.
 - The Rust `protocol_host` module is the bounded R4 JSONL adapter seam. It
-  rejects oversized frames before protocol decode, canonicalizes accepted v1
+  rejects oversized frames before protocol decode, exposes a typed `decode_line`
+  path for routing without a redundant re-encode, canonicalizes accepted v1
   envelopes, and returns structured failures without dispatching or executing
   them. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint;
   rejected lines are diagnostics only. Its mechanism tests live in the

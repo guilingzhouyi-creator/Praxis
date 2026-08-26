@@ -132,21 +132,28 @@ export function createHostTransport(options: HostTransportOptions = {}): Managed
 
   let closed = false;
   let processError: Error | undefined;
+  let failPending: ((error: unknown) => void) | undefined;
   let stderr = "";
   child.stderr.on?.("data", (chunk: unknown) => {
     stderr += String(chunk);
   });
-  child.on("error", (error: unknown) => {
+  const recordProcessError = (error: unknown): void => {
+    if (closed || processError) return;
     processError = error instanceof Error ? error : new Error(String(error));
-  });
+    failPending?.(processError);
+  };
+  child.on("error", recordProcessError);
   child.on("exit", (code: unknown, signal: unknown) => {
     if (!closed && !processError) {
-      processError = new Error(`protocol ${host} host exited (code=${String(code)}, signal=${String(signal)})`);
+      recordProcessError(new Error(`protocol ${host} host exited (code=${String(code)}, signal=${String(signal)})`));
     }
   });
 
   const transport = createStdioTransport({
     input: child.stdout,
+    onError: (handler) => {
+      failPending = handler;
+    },
     output: {
       write: (line: string) => {
         if (processError) throw processError;
@@ -168,6 +175,7 @@ export function createHostTransport(options: HostTransportOptions = {}): Managed
       value: () => {
         if (closed) return;
         closed = true;
+        failPending?.(new Error(`protocol ${host} host transport is closed`));
         child.stdin.end?.();
         child.kill();
       },

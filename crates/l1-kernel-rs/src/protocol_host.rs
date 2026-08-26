@@ -6,7 +6,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use crate::protocol::{ProtocolError, decode_message, encode_message};
+use crate::protocol::{Message, ProtocolError, decode_message, encode_message};
 
 /// Default maximum UTF-8 frame size accepted by the protocol gate.
 pub const DEFAULT_MAX_FRAME_BYTES: usize = 1024 * 1024;
@@ -100,6 +100,16 @@ impl ProtocolHost {
 
     /// Decode, validate, and canonicalize one JSONL envelope.
     pub fn canonicalize_line(&self, line: &str) -> Result<String, ProtocolHostError> {
+        let message = self.decode_line(line)?;
+        Ok(encode_message(&message)?)
+    }
+
+    /// Decode one bounded JSONL envelope without re-serializing it.
+    ///
+    /// Stdio host adapters use this method when they need the typed message
+    /// for routing; keeping the byte gate here prevents adapter-specific
+    /// frame checks from drifting away from the protocol gate.
+    pub fn decode_line(&self, line: &str) -> Result<Message, ProtocolHostError> {
         let actual_bytes = line.len();
         if actual_bytes > self.config.max_frame_bytes {
             return Err(ProtocolHostError::FrameTooLarge {
@@ -107,7 +117,6 @@ impl ProtocolHost {
                 max_bytes: self.config.max_frame_bytes,
             });
         }
-        let message = decode_message(line)?;
-        Ok(encode_message(&message)?)
+        Ok(decode_message(line)?)
     }
 }

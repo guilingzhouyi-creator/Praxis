@@ -8,6 +8,8 @@
 ### 新增
 
 - **Feat (l2)**: add opt-in Rust protocol host transport and three-way envelope docking tests
+- **Fix (l2)**: fail pending TS bridge requests immediately on host disconnect
+- **Fix (l2)**: close protocol requests on synthetic host fault frames
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission

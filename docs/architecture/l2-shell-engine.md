@@ -160,7 +160,7 @@ are **additive** - no existing engine behavior was changed.
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
 | TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
-| Rust host candidate | `crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `packages/protocol-ts/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring and stderr capture, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
+| Rust host candidate | `crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `packages/protocol-ts/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring, stderr capture, and immediate pending-request failure on child/input close, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
 | Dispatch JSON contract | `tests/l2/test_dispatch_contract.py` | every render-ready dispatch result must survive `json.dumps`; stable shapes for /help /lang /history /sysinfo, unknown-command, pipeline, alias |
 
@@ -183,6 +183,12 @@ reference or the Rust candidate as a child process, selected only by the
 explicit `PRAXIS_RUST_HOST` switch. `bridge.ts` and the L2 engine remain
 host-agnostic and only speak protocol v1; Rust activation does not grant L2,
 AgentLoop, provider, or production boot authority.
+Managed transports fail pending requests immediately when their input source
+or child exits, and `close()` is idempotent; reconnection remains an explicit
+`ConnectionManager` concern rather than an implicit Python fallback.
+Synthetic protocol-fault results on the `"-"` session also close a pending
+line request without an ack; `ProtocolBridge` then surfaces the session error
+instead of converting a malformed frame into a timeout.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 
