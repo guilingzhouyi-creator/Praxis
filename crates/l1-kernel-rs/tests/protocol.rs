@@ -27,7 +27,7 @@ fn envelope_round_trip_is_canonical_and_versioned() {
     let line = encode_message(&message).expect("message encodes");
     assert_eq!(
         line,
-        r#"{"kind":"command","payload":{"name":"status"},"seq":7,"session_id":"s-1","trace_id":"trace-1","ts":100.0,"v":1}"#
+        r#"{"kind":"command","payload":{"name":"status"},"seq":7,"session_id":"s-1","trace_id":"trace-1","ts":100,"v":1}"#
     );
     assert_eq!(decode_message(&line).expect("message decodes"), message);
 }
@@ -35,7 +35,7 @@ fn envelope_round_trip_is_canonical_and_versioned() {
 #[test]
 fn canonical_json_golden_vectors_match_python_reference() {
     // Frozen against `python -c "from l2.protocol.envelope import ..."`
-    // outputs with ts pinned to 100.0: recursive key sort + same field order.
+    // outputs with ts pinned to 100: recursive key sort + same field order.
     let cases: Vec<(Message, &str)> = vec![
         (
             Message::new(
@@ -46,7 +46,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"command","payload":{"args":["a","b"],"name":"status"},"seq":7,"session_id":"s-1","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"command","payload":{"args":["a","b"],"name":"status"},"seq":7,"session_id":"s-1","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -57,7 +57,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"intent","payload":{"text":"hello world"},"seq":0,"session_id":"s-2","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"intent","payload":{"text":"hello world"},"seq":0,"session_id":"s-2","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -71,7 +71,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"event","payload":{"data":{"a":[3,{"x":1,"y":2}],"z":1},"event_type":"tick"},"seq":42,"session_id":"s-3","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"event","payload":{"data":{"a":[3,{"x":1,"y":2}],"z":1},"event_type":"tick"},"seq":42,"session_id":"s-3","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -82,7 +82,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"ack","payload":{"ack_seq":9,"view_id":"view-web"},"seq":9,"session_id":"s-4","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"ack","payload":{"ack_seq":9,"view_id":"view-web"},"seq":9,"session_id":"s-4","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -93,7 +93,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"control","payload":{"op":"attach","session_id":"s-5"},"seq":1,"session_id":"s-5","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"control","payload":{"op":"attach","session_id":"s-5"},"seq":1,"session_id":"s-5","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -104,7 +104,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"result","payload":{"output":"ok","success":true},"seq":5,"session_id":"s-6","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"result","payload":{"output":"ok","success":true},"seq":5,"session_id":"s-6","trace_id":"","ts":100,"v":1}"#,
         ),
         (
             Message::new(
@@ -115,7 +115,7 @@ fn canonical_json_golden_vectors_match_python_reference() {
                 "",
                 100.0,
             ),
-            r#"{"kind":"stream_chunk","payload":{"data":"partial"},"seq":8,"session_id":"s-7","trace_id":"","ts":100.0,"v":1}"#,
+            r#"{"kind":"stream_chunk","payload":{"data":"partial"},"seq":8,"session_id":"s-7","trace_id":"","ts":100,"v":1}"#,
         ),
     ];
     for (message, expected) in cases {

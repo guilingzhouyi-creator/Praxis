@@ -44,7 +44,7 @@ def _records() -> list[object]:
             payload={"success": True, "labels": ["stable", "json"]},
             input_seq=1,
             trace_id="trace-1",
-            ts=100.0,
+            ts=100,
         ),
         SessionMessage(
             message_id="message-1",
@@ -53,7 +53,7 @@ def _records() -> list[object]:
             role="assistant",
             content="The result is ready.",
             trace_id="trace-1",
-            ts=101.0,
+            ts=101,
         ),
         ToolFailure(
             failure_id="failure-1",
@@ -64,7 +64,7 @@ def _records() -> list[object]:
             message="tool timed out",
             retryable=True,
             trace_id="trace-1",
-            ts=102.0,
+            ts=102,
         ),
         DecisionSummary(
             decision_id="decision-1",
@@ -74,7 +74,7 @@ def _records() -> list[object]:
             outcome="completed",
             evidence_refs=("evidence-1",),
             trace_id="trace-1",
-            ts=103.0,
+            ts=103,
         ),
         EvidenceRef(
             evidence_id="evidence-1",

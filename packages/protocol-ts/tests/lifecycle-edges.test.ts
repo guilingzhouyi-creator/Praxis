@@ -15,7 +15,7 @@ function scriptedFactory(script: Array<() => Promise<string[]>>) {
   return { factory, calls };
 }
 
-const okStatus = () => [JSON.stringify(makeMessage("sess", 1, "event", { ok: true }))];
+const okStatus = (sessionId = "sess") => [JSON.stringify(makeMessage(sessionId, 1, "event", { ok: true }))];
 
 describe("ConnectionManager lifecycle", () => {
   it("rejects invalid retry configuration up front", () => {
@@ -56,7 +56,7 @@ describe("ConnectionManager lifecycle", () => {
     const flaky = (): Promise<string[]> => {
       attempts += 1;
       if (attempts < 3) return Promise.reject(new Error("transport down"));
-      return Promise.resolve(okStatus());
+      return Promise.resolve(okStatus("s"));
     };
     const cm = new ConnectionManager({
       factory: () => flaky, sessionId: "s", maxRetries: 3, baseDelayMs: 1,
