@@ -60,6 +60,17 @@ impl CapabilityAuthority {
     }
 
     /// Invoke exactly one wired executor, auditing every accepted or denied call.
+    ///
+    /// This seam never panics and never propagates an `Err`: every outcome
+    /// folds into the returned [`CapabilityResult`] and is written to the
+    /// bounded audit log before the caller observes it.
+    ///
+    /// # Errors
+    ///
+    /// Encoded in the result rather than thrown:
+    /// - no executor wired → fail-closed `unwired` denial (audited);
+    /// - executor panic → caught via `catch_unwind`, surfaced as
+    ///   `success=false` with error `"capability executor panicked"`.
     pub fn invoke(&self, request: CapabilityRequest) -> CapabilityResult {
         let executor = self
             .executor

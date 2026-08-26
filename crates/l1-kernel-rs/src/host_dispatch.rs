@@ -63,6 +63,11 @@ pub struct RouterConfig {
 
 impl RouterConfig {
     /// Build a configuration with a positive pending-intent buffer capacity.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` when `intent_buffer_cap` is zero — an intent buffer
+    /// that cannot hold anything would silently drop upstream traffic.
     pub fn new(intent_buffer_cap: usize) -> Result<Self, &'static str> {
         if intent_buffer_cap == 0 {
             return Err("intent buffer capacity must be positive");
@@ -130,6 +135,15 @@ impl HostRouter {
     }
 
     /// Route one decoded envelope by kind, returning any outbound responses.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtocolError::InvalidContract`] when host-derived
+    /// authorization fields appear inbound (R4), a control payload violates
+    /// its contract (unknown resume target, missing detach `view_id`), or the
+    /// kind is outbound-only (`event` / `result` / `stream_chunk`, R7).
+    /// Gate denials are deliberately NOT errors: they travel back as
+    /// `result{success:false}` envelopes recorded in the session outbox.
     pub fn route(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         match message.kind {
             MessageKind::Command | MessageKind::Control => reject_host_derived(&message.payload)?,
@@ -158,6 +172,11 @@ impl HostRouter {
     }
 
     /// Dispatch one system-class command through gatechain ring adjudication.
+    ///
+    /// # Errors
+    ///
+    /// Only protocol-contract violations return `Err` (R4/R7); ring/danger
+    /// denials resolve to `result{success:false}` envelopes plus an audit row.
     pub fn dispatch_system(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let name = message
             .payload
@@ -209,6 +228,11 @@ impl HostRouter {
     }
 
     /// Dispatch one command envelope through the capability gate.
+    ///
+    /// # Errors
+    ///
+    /// Only protocol-contract violations return `Err`; capability/gate
+    /// denials resolve to `result{success:false}` envelopes plus audit rows.
     pub fn dispatch_command(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let name = message
             .payload

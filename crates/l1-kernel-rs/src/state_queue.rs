@@ -57,6 +57,13 @@ struct StateShard {
 }
 
 /// Sharded process state store with no global table lock on normal operations.
+///
+/// # Invariants
+///
+/// - Each shard carries its own lock; normal admission never crosses a
+///   global table lock.
+/// - Slot reuse is generation-guarded: a stale handle fails closed instead
+///   of resolving to a recycled record.
 pub struct ShardedStateStore {
     plan: ShardPlan,
     shards: Vec<Mutex<StateShard>>,
@@ -294,6 +301,15 @@ pub enum QueueWaitError {
 }
 
 /// Bounded FIFO queue using shared atomic admission metrics.
+///
+/// # Invariants
+///
+/// - Capacity is hard-bounded: admission beyond capacity fails fast instead
+///   of blocking the caller.
+/// - Pops are token-aware — a caller whose cancellation token is already set
+///   receives `QueueWaitError::Cancelled` before any work executes.
+/// - Completion accounting is atomic (single CAS depth update), so repeated
+///   completions cannot underflow the fixed-work totals.
 pub struct BoundedWorkQueue {
     capacity: usize,
     items: Mutex<VecDeque<WorkItem>>,
