@@ -118,6 +118,8 @@ pub enum RuntimeError {
     ProcessCapacity,
     /// The worker pool could not be created.
     WorkerConfig(&'static str),
+    /// The worker pool rejected a strict all-or-none batch.
+    WorkerRejected(String),
     /// The Rust-owned session book could not be initialized or restored.
     Session(String),
     /// The combined execution checkpoint could not be opened or restored.
@@ -637,7 +639,19 @@ impl KernelRuntime {
     /// and reap behavior as [`Self::submit`]. If process reservation fails,
     /// the complete batch is rolled back before any closure reaches a worker.
     pub fn submit_batch(&self, actions: Vec<TaskFn>) -> Result<Vec<RuntimeTask>, RuntimeError> {
-        self.submit_batch_inner(actions, false)
+        self.submit_batch_inner(actions, false, false)
+    }
+
+    /// Submit a batch only when the worker queue can retain every item.
+    ///
+    /// Unlike [`Self::submit_batch`], this path never evicts older queued
+    /// work. A queue-capacity or shutdown rejection rolls back every reserved
+    /// scheduler/task handle before returning.
+    pub fn submit_batch_strict(
+        &self,
+        actions: Vec<TaskFn>,
+    ) -> Result<Vec<RuntimeTask>, RuntimeError> {
+        self.submit_batch_inner(actions, false, true)
     }
 
     /// Submit one benchmark task while recording only contended admission waits.
@@ -658,7 +672,7 @@ impl KernelRuntime {
         &self,
         actions: Vec<TaskFn>,
     ) -> Result<Vec<RuntimeTask>, RuntimeError> {
-        self.submit_batch_inner(actions, true)
+        self.submit_batch_inner(actions, true, false)
     }
 
     /// Reset benchmark-only runtime admission lock-wait counters.
@@ -697,6 +711,7 @@ impl KernelRuntime {
         &self,
         actions: Vec<TaskFn>,
         observed: bool,
+        strict: bool,
     ) -> Result<Vec<RuntimeTask>, RuntimeError> {
         if self.lifecycle.state() != LifecycleState::Active {
             return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
@@ -715,7 +730,17 @@ impl KernelRuntime {
             .zip(actions)
             .map(|(handle, action)| self.bind_action(handle, action))
             .collect::<Vec<_>>();
-        let results = self.workers.submit_result_batch(actions);
+        let results = if strict {
+            match self.workers.submit_result_batch_strict(actions) {
+                Ok(results) => results,
+                Err(error) => {
+                    self.rollback_reserved_tasks(&handles);
+                    return Err(RuntimeError::WorkerRejected(error));
+                }
+            }
+        } else {
+            self.workers.submit_result_batch(actions)
+        };
         Ok(handles
             .into_iter()
             .zip(results)

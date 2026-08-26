@@ -115,6 +115,12 @@ failure stage and any input receipt already committed. Cancellation before
 execution leaves the session unchanged. This bridge does not discover
 providers, prompts, tools, PTYs, or production policy; its public behavior is
 covered by the independent `tests/runtime/agent_loop_execution.rs` target.
+`AgentLoopExecutionBridge::submit_input_batch` adds a grouped admission path:
+runtime task reservations and strict worker-queue admission complete before any
+input is admitted, so process, queue, or shutdown capacity failure rolls the
+whole group back; accepted items still produce independent reports and may
+finish in parallel. Empty groups are a no-op, and the grouped path does not
+change provider ownership or production runtime authority.
 
 The `process_adapter` module is a bounded one-shot `ProcessPort` candidate for
 the future Rust/TS adapter edge. It supports direct argument execution and an

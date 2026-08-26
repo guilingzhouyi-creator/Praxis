@@ -235,6 +235,12 @@ panic is converted to a structured failure. This joins Rust AgentLoop,
 WorkerPool, and Session mechanisms without discovering provider/prompt/tool/
 PTY behavior, rolling back side effects, or granting production authority.
 The independent target is `tests/runtime/agent_loop_execution.rs`.
+The bridge also exposes `submit_input_batch`, which reserves all runtime tasks
+before any worker can admit input. A capacity failure is therefore all-or-none
+at the task boundary, including strict worker-queue capacity without evicting
+older work; successful items still complete independently with the same receipt
+and structured-failure contract. This is only a grouped execution mechanism
+candidate and leaves provider, PTY, and production authority with the caller.
 
 The next process-boundary slice is now present as the Rust
 `process_adapter::ProcessAdapter` candidate. It implements only bounded

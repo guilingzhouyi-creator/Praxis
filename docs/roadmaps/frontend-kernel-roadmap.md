@@ -215,6 +215,15 @@ AgentLoop/WorkerPool/Session 机制，不接 provider/prompt/tool/PTY，不做�
 `crates/l1-kernel-rs/tests/runtime/agent_loop_execution.rs`。下一步仍需真实 host
 adapter、进程组信号/PTY、生产 reaper、持久化执行失败策略和 TS/L2 消费协议评审。
 
+随后补齐 AgentLoop 批量执行准入：`AgentLoopExecutionBridge::submit_input_batch`
+在 worker 开始前通过一次 `KernelRuntime::submit_batch_strict` 预留整个请求组，容量不足时
+严格 worker queue 也拒绝无法完整保留的批次并回滚所有 runtime task，因此不会留下部分
+input history，也不会淘汰已有排队工作；已接受的成员仍分别执行
+action/event admission 并保留独立 receipt 和失败阶段。空组是无副作用 no-op，独立
+测试覆盖容量回滚、身份预检与成功批次。该切片只优化 Rust-native
+AgentLoop/WorkerPool 边界，不引入 provider、PTY、进程副作用或生产 runtime authority，
+后续仍需持久化执行失败策略与 TS/L2 只读消费协议。
+
 随后已完成 IPC 与持久化机制切片：Rust `ipc` 覆盖 `LockMessage`、
 `LockChannel`、`LockBus` 的有界历史、handler、request/response、超时清理和
 reset；Rust `persist` 覆盖 `{seq,event,payload,ts}` 事件行、批量追加、过滤查询、

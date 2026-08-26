@@ -90,6 +90,8 @@
 | 2026-08-26 | crates/l1-kernel-rs/src/process_table_group_runtime.rs + crates/l1-kernel-rs/tests/process/process_table_group_runtime.rs + docs/{architecture/l1-kernel,multilang-build,llms-full}.txt + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md + CHANGELOG.md | Codex (GPT5.6Terra) | inject bounded AuditLog into ProcessTable group admission and stop path; redact argv/environment/host PID details | in feature/ts-rust-e2e-docking |
 | 2026-08-26 | crates/l1-kernel-rs/src/input_activity.rs + crates/l1-kernel-rs/tests/terminal/input_activity.rs + docs/{architecture/l1-kernel,multilang-build,llms-full}.txt + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md + CHANGELOG.md | Codex (GPT5.6Terra) | add HostInputActivityPort and host-injected permission/sample lifecycle; invalid samples stop adapter and no raw input crosses L1 | in feature/ts-rust-e2e-docking |
 
+| 2026-08-26 | crates/l1-kernel-rs/src/agent_loop_execution.rs + crates/l1-kernel-rs/tests/runtime/agent_loop_execution.rs + docs/architecture/{l1-kernel,llms-full}.txt + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md | Codex (GPT5.6Terra) | add grouped AgentLoop execution admission with all-or-none runtime reservation and independent receipt outcomes | in feature/ts-rust-e2e-docking |
+
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an

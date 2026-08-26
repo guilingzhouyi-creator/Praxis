@@ -286,6 +286,54 @@ impl WorkerPool {
         handles
     }
 
+    /// Submit a batch without evicting already queued work.
+    ///
+    /// This strict path is used by callers that need all-or-none admission:
+    /// the queue is checked and filled under one lock, so a capacity or
+    /// shutdown rejection leaves both the existing queue and the new batch
+    /// untouched.
+    pub fn submit_result_batch_strict(
+        &self,
+        actions: Vec<TaskFn>,
+    ) -> Result<Vec<TaskHandle>, String> {
+        if actions.is_empty() {
+            return Ok(Vec::new());
+        }
+        let handles = actions
+            .iter()
+            .map(|_| TaskHandle::new())
+            .collect::<Vec<_>>();
+        let tasks = actions
+            .into_iter()
+            .zip(handles.iter().cloned())
+            .map(|(action, handle)| Task {
+                action: Some(action),
+                handle: Some(handle),
+                deadline: None,
+            })
+            .collect::<Vec<_>>();
+        let batch_size = tasks.len();
+        let mut queue = self.queue.lock();
+        if queue.closed {
+            self.metrics
+                .rejected
+                .fetch_add(batch_size.try_into().unwrap_or(u64::MAX), Ordering::Relaxed);
+            return Err("pool is shut down".to_owned());
+        }
+        if queue.queue.len().saturating_add(batch_size) > self.queue.capacity {
+            self.metrics
+                .rejected
+                .fetch_add(batch_size.try_into().unwrap_or(u64::MAX), Ordering::Relaxed);
+            return Err("worker queue capacity is insufficient for batch".to_owned());
+        }
+        queue.queue.extend(tasks);
+        let queued = queue.queue.len();
+        self.notify_waiting_workers(batch_size);
+        drop(queue);
+        self.maybe_grow_worker(queued);
+        Ok(handles)
+    }
+
     fn submit_result_with_deadline(&self, action: TaskFn, deadline: Option<Instant>) -> TaskHandle {
         let handle = TaskHandle::new();
         let result = self.enqueue(action, Some(handle.clone()), deadline);

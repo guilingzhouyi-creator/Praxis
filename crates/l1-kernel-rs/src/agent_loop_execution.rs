@@ -32,6 +32,21 @@ pub type AgentLoopAction = Box<
         + 'static,
 >;
 
+/// One caller-owned input/action pair for grouped execution admission.
+pub struct AgentLoopExecutionRequest {
+    /// Input admitted before the caller-owned action runs.
+    pub input: SessionInput,
+    /// Caller-owned provider/tool action for this input.
+    pub action: AgentLoopAction,
+}
+
+impl AgentLoopExecutionRequest {
+    /// Build one grouped execution request.
+    pub fn new(input: SessionInput, action: AgentLoopAction) -> Self {
+        Self { input, action }
+    }
+}
+
 /// Immutable context passed to the caller-owned execution action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentLoopExecutionContext {
@@ -174,6 +189,59 @@ impl<'runtime> AgentLoopExecutionBridge<'runtime> {
         timeout: Duration,
     ) -> Result<AgentLoopExecutionTask, AgentLoopExecutionError> {
         self.submit_inner(loop_id, session, input, action, Some(timeout))
+    }
+
+    /// Submit a non-empty group of input/action executions through one runtime
+    /// admission boundary.
+    ///
+    /// The runtime reserves every task before any worker can execute. If the
+    /// process or worker capacity is exhausted, the complete group is rolled
+    /// back and no input is admitted. Once accepted, each item retains the
+    /// single-input bridge semantics and may complete independently.
+    pub fn submit_input_batch(
+        &self,
+        loop_id: &str,
+        session: Arc<Session>,
+        requests: Vec<AgentLoopExecutionRequest>,
+    ) -> Result<Vec<AgentLoopExecutionTask>, AgentLoopExecutionError> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+        let handle = self
+            .runtime
+            .agent_loops()
+            .handle(loop_id)
+            .map_err(AgentLoopExecutionError::AgentLoop)?;
+        let spec = handle.spec();
+        if session.id() != spec.session_id {
+            return Err(AgentLoopExecutionError::AgentLoop(
+                AgentLoopError::SessionMismatch,
+            ));
+        }
+        let state = handle.snapshot().state;
+        if state != AgentLoopState::Running {
+            return Err(AgentLoopExecutionError::AgentLoop(
+                AgentLoopError::NotRunning(state),
+            ));
+        }
+        let actions = requests
+            .into_iter()
+            .map(|request| {
+                let session = Arc::clone(&session);
+                let handle = handle.clone();
+                Box::new(move || execute_input(handle, session, request.input, request.action))
+                    as TaskFn
+            })
+            .collect();
+        self.runtime
+            .submit_batch_strict(actions)
+            .map(|tasks| {
+                tasks
+                    .into_iter()
+                    .map(|task| AgentLoopExecutionTask { task })
+                    .collect()
+            })
+            .map_err(AgentLoopExecutionError::Runtime)
     }
 
     /// Reap a terminal execution task through the owning runtime.

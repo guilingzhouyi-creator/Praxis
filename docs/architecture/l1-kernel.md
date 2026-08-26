@@ -199,6 +199,13 @@ the session untouched; action/provider work remains caller-owned, and the
 bridge does not infer prompts, tools, PTYs, or production cutover policy.
 The independent `tests/runtime/agent_loop_execution.rs` target covers success,
 identity/state preflight, cancellation, and structured action failure.
+`AgentLoopExecutionBridge::submit_input_batch` also reserves a caller-sized
+group through one `KernelRuntime::submit_batch_strict` boundary before any input
+admission. Its strict worker-queue check rejects an undersized queue instead of
+evicting older work, and capacity failure therefore rolls back every reserved
+task; accepted items retain independent receipts and failure stages. This is a
+grouped execution optimization candidate, not provider, PTY, or production
+authority.
 
 The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
 lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a

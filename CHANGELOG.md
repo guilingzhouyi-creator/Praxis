@@ -18,6 +18,7 @@
 - **Feat (rust)**: gate unified process-table group admission
 - **Feat (rust)**: wire bounded audit evidence for process groups
 - **Feat (rust)**: add host input activity adapter seam
+- **Feat (rust)**: add grouped AgentLoop execution admission
 - **Fix (protocol)**: bound wire sequence cursors to the exact cross-language safe range
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python

@@ -1,12 +1,12 @@
 //! Independent AgentLoop execution-bridge tests for the Rust runtime.
 
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use l1_kernel_rs::agent_loop::{AgentLoopEvent, AgentLoopSpec};
 use l1_kernel_rs::agent_loop_execution::{
-    AgentLoopAction, AgentLoopExecutionBridge, AgentLoopExecutionError, AgentLoopExecutionStage,
-    AgentLoopExecutionWaitError,
+    AgentLoopAction, AgentLoopExecutionBridge, AgentLoopExecutionError, AgentLoopExecutionRequest,
+    AgentLoopExecutionStage, AgentLoopExecutionWaitError,
 };
 use l1_kernel_rs::assembly::AssemblySpec;
 use l1_kernel_rs::boot::BootStepSpec;
@@ -255,4 +255,187 @@ fn cancellation_before_worker_execution_does_not_admit_input() {
         assert_eq!(session.message_count(), 0);
     }
     bridge.reap(&task).expect("reap");
+}
+
+#[test]
+fn grouped_execution_reserves_work_before_admitting_inputs() {
+    let runtime = runtime();
+    let session = attached_loop(&runtime);
+    let bridge = AgentLoopExecutionBridge::new(&runtime);
+    let requests = vec![
+        AgentLoopExecutionRequest::new(
+            SessionInput::new("input-1", "hello", 10),
+            Box::new(|context| {
+                Ok(Some(AgentLoopEvent::new(
+                    "assistant-1",
+                    context.receipt.input_seq,
+                    MessageRole::Assistant,
+                    "one",
+                    11,
+                )))
+            }),
+        ),
+        AgentLoopExecutionRequest::new(
+            SessionInput::new("input-2", "world", 12),
+            Box::new(|context| {
+                Ok(Some(AgentLoopEvent::new(
+                    "assistant-2",
+                    context.receipt.input_seq,
+                    MessageRole::Assistant,
+                    "two",
+                    13,
+                )))
+            }),
+        ),
+    ];
+    let tasks = bridge
+        .submit_input_batch("loop-1", Arc::clone(&session), requests)
+        .expect("submit batch");
+    assert_eq!(tasks.len(), 2);
+    let reports = tasks
+        .iter()
+        .map(|task| task.result(Some(Duration::from_secs(1))).expect("report"))
+        .collect::<Vec<_>>();
+    assert_eq!(reports[0].input.input_seq, 1);
+    assert_eq!(reports[1].input.input_seq, 2);
+    assert_eq!(session.message_count(), 4);
+    for task in &tasks {
+        bridge.reap(task).expect("reap");
+    }
+}
+
+#[test]
+fn empty_group_is_a_noop_and_preflight_failure_does_not_queue_work() {
+    let runtime = runtime();
+    let session = attached_loop(&runtime);
+    let bridge = AgentLoopExecutionBridge::new(&runtime);
+    assert!(
+        bridge
+            .submit_input_batch("loop-1", Arc::clone(&session), Vec::new())
+            .expect("empty batch")
+            .is_empty()
+    );
+    let wrong = runtime
+        .sessions()
+        .create(SessionSpec::new(
+            "session-2",
+            "agent-1",
+            "cell-1",
+            "worker",
+            16,
+        ))
+        .expect("wrong session");
+    let error = bridge.submit_input_batch(
+        "loop-1",
+        wrong,
+        vec![AgentLoopExecutionRequest::new(
+            SessionInput::new("input-1", "blocked", 10),
+            Box::new(|_| Ok(None)),
+        )],
+    );
+    assert!(matches!(
+        error,
+        Err(AgentLoopExecutionError::AgentLoop(
+            l1_kernel_rs::agent_loop::AgentLoopError::SessionMismatch
+        ))
+    ));
+    assert_eq!(session.message_count(), 0);
+}
+
+#[test]
+fn grouped_execution_rolls_back_all_reservations_on_capacity_failure() {
+    let runtime = KernelRuntime::new(
+        AssemblySpec::new(
+            "state",
+            vec![
+                BootStepSpec::new("state", Vec::new()),
+                BootStepSpec::new("runtime", vec!["state".to_owned()]),
+            ],
+            Vec::new(),
+        ),
+        RuntimeConfig::new(2, 2, WorkerConfig::new(1, 2, 4, Duration::from_millis(20))),
+    )
+    .expect("runtime");
+    runtime.boot().expect("boot");
+    let session = attached_loop(&runtime);
+    let bridge = AgentLoopExecutionBridge::new(&runtime);
+    let requests = (0..3)
+        .map(|index| {
+            AgentLoopExecutionRequest::new(
+                SessionInput::new(format!("input-{index}"), "blocked", index as u64),
+                Box::new(|_| Ok(None)),
+            )
+        })
+        .collect();
+    let error = bridge.submit_input_batch("loop-1", session, requests);
+    assert!(matches!(
+        error,
+        Err(AgentLoopExecutionError::Runtime(
+            l1_kernel_rs::runtime::RuntimeError::Scheduler(
+                l1_kernel_rs::scheduler::SchedulerError::CapacityExhausted
+            )
+        ))
+    ));
+    assert_eq!(runtime.snapshot().task_count, 0);
+}
+
+#[test]
+fn grouped_execution_rejects_when_worker_queue_cannot_retain_the_group() {
+    let runtime = KernelRuntime::new(
+        AssemblySpec::new(
+            "state",
+            vec![
+                BootStepSpec::new("state", Vec::new()),
+                BootStepSpec::new("runtime", vec!["state".to_owned()]),
+            ],
+            Vec::new(),
+        ),
+        RuntimeConfig::new(8, 2, WorkerConfig::new(1, 1, 1, Duration::from_millis(20))),
+    )
+    .expect("runtime");
+    runtime.boot().expect("boot");
+    let session = attached_loop(&runtime);
+    let started = Arc::new(Barrier::new(2));
+    let release = Arc::new(Barrier::new(2));
+    let blocker = runtime
+        .submit(Box::new({
+            let started = Arc::clone(&started);
+            let release = Arc::clone(&release);
+            move || {
+                started.wait();
+                release.wait();
+                Ok(serde_json::Value::Null)
+            }
+        }))
+        .expect("blocker");
+    started.wait();
+    let queued = runtime
+        .submit(Box::new(|| Ok(serde_json::Value::Null)))
+        .expect("queued");
+    let bridge = AgentLoopExecutionBridge::new(&runtime);
+    let error = bridge.submit_input_batch(
+        "loop-1",
+        session,
+        vec![AgentLoopExecutionRequest::new(
+            SessionInput::new("input-1", "blocked", 10),
+            Box::new(|_| Ok(None)),
+        )],
+    );
+    assert!(matches!(
+        error,
+        Err(AgentLoopExecutionError::Runtime(
+            l1_kernel_rs::runtime::RuntimeError::WorkerRejected(_)
+        ))
+    ));
+    assert_eq!(runtime.snapshot().task_count, 2);
+    release.wait();
+    blocker
+        .result(Some(Duration::from_secs(1)))
+        .expect("blocker result");
+    queued
+        .result(Some(Duration::from_secs(1)))
+        .expect("queued result");
+    runtime.reap(blocker.handle()).expect("reap blocker");
+    runtime.reap(queued.handle()).expect("reap queued");
+    assert_eq!(runtime.snapshot().task_count, 0);
 }
