@@ -523,7 +523,7 @@ Mutex 重入/竞争/超时/优先级回调、Semaphore、Barrier、Condition，�
 FIFO ticket、公平性和取消唤醒。该片移除 `sync.rs` 内联测试块，统一通过公开 API 验证；任务/队列取消、跨进程
 锁所有权、deadlock-cycle 报告和生产运行时路由仍未完成，不授予 Rust runtime authority。
 随后新增 `assembly` R4 seam：`KernelAssembly` 组合 `BootPlan`、`StateLayoutManifest`、`PortRegistry` 与 halted
-lifecycle，独立 `rust-kernel` binary 可在无 Python/FFI 下输出确定性 JSON snapshot；共享
+lifecycle，独立 `rust-kernel` binary 要求宿主显式传入 state root，并可在无 Python/FFI 下输出确定性 JSON snapshot；共享
 `kernel_assembly_vectors.json` 在 Rust/Python 两侧通过。当前仍不读配置、不创建 state root、不执行 callback、不实例化
 provider；随后新增 `state_store::StateStore` filesystem adapter，按 manifest 创建全新 Rust root，
 以临时文件 + `sync_all` + 原子 rename 持久化 manifest/lifecycle/checkpoint，并将 clean resume、unclean

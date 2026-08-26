@@ -375,8 +375,9 @@ before any production wiring review.
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, config-manifest, protocol,
 terminal-contract, port, and lifecycle candidates.
-The standalone `rust-kernel` binary emits a deterministic JSON snapshot and
-has no Python or FFI dependency. The assembly remains a build-only proof;
+The standalone `rust-kernel` binary requires an explicit state-root argument
+and emits a deterministic JSON snapshot with no Python or FFI dependency. The
+assembly remains a build-only proof;
 `state_store` now covers fresh-root creation and durable recovery, while
 the `protocol` candidate now validates the retained v1/TS-neutral wire values,
 canonical JSON, and bounded replay cursor. HTTP/WS serving, provider wiring,

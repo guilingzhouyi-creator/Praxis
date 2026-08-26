@@ -391,6 +391,30 @@ requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
 the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
 fail-closed and audited.
 
+`KernelRuntime` now owns the Rust execution metadata books used by the future
+clean-break entry: `SessionBook`, `TerminalBook`, and `AgentLoopBook`. A
+persistent runtime opens the separate `ExecutionStore` under the same
+Rust-owned root and restores only its validated metadata; an unclean document
+returns crashed sessions, failed loops, and unbound created terminals. The
+explicit `checkpoint_execution(false)` API supports caller-owned unclean
+checkpoints, while a persistent `shutdown` writes the clean execution
+checkpoint before marking the lifecycle halted. A clean checkpoint failure
+keeps the lifecycle fail-closed and does not claim a successful shutdown.
+These accessors expose lower-layer state to a future TS bridge without moving
+AgentLoop execution, provider/tool policy, PTY ownership, or production entry
+authority into the candidate.
+
+The separate `recovery` module provides a pure `RecoveryTrigger` decision over
+the validated execution document and lifecycle state: `fresh`, `resume_clean`,
+`recover_unclean`, or `reject`. `KernelRuntime::recovery_decision` exposes this
+decision without mutating books or booting workers. An unclean decision remains
+a caller-owned gate for session recovery and terminal/process rebind; it is not
+an implicit cutover or Python fallback selector. Persistent runtimes retain this
+decision as a boot gate: `boot` rejects `recover_unclean` and inconsistent
+(`reject`) roots until the caller acknowledges the exact decision generation.
+Acknowledgement is in-memory and side-effect-free; it does not fabricate a
+process/PTY binding or make TS/L2 the recovery authority.
+
 Runtime submission uses a direct scheduler path when the WorkerPool already owns
 the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve
 generation-safe scheduler state without double-counting queue admission. Terminal
@@ -521,12 +545,24 @@ The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic
 `KernelAssembly`. `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
-entrypoint that emits this complete snapshot as JSON with no Python import.
+entrypoint that requires an explicit state-root argument and emits this
+complete snapshot as JSON with no Python import; it never infers a relative
+working-directory root.
 Assembly rejects config-contract, protocol, terminal-contract, and divergent
 metadata before provider wiring. The entrypoint does not read configuration,
 create directories, run callbacks, or instantiate providers. `state_store`
 owns fresh-root initialization and durable lifecycle recovery; versioned
 protocol serving and terminal I/O remain outside this assembly candidate.
+
+The Rust `preflight` candidate adds a read-only R4 entry boundary above that
+assembly. `PreflightRequest` requires an explicit `AssemblySpec` and host
+`StateProbe`; `inspect` returns the validated assembly snapshot, state action,
+and a coarse `Ready`/`RecoveryRequired`/`MigrationRequired`/`Rejected`
+disposition. `rust-kernel-preflight` reads one JSON request from stdin and
+emits one JSON report, while refusing malformed or incompatible input. It does
+not probe the filesystem, create state, execute boot callbacks, start workers,
+rebind processes, or select a Python fallback. This is operator and automation
+evidence for R4 assembly, not Rust production-entry or R5 cutover authority.
 
 The Rust `protocol` candidate now closes the retained R4 wire boundary without
 granting runtime authority. It validates v1 envelopes and TS-neutral record

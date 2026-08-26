@@ -358,7 +358,9 @@ The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic
 `KernelAssembly`. `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
-entrypoint that emits this complete snapshot as JSON with no Python import.
+entrypoint that requires an explicit state-root argument and emits this
+complete snapshot as JSON with no Python import; it never infers a relative
+working-directory root.
 Assembly rejects config-contract, protocol, terminal-contract, and divergent
 metadata before provider wiring. The entrypoint does not read configuration,
 create directories, run callbacks, or instantiate providers. `state_store`

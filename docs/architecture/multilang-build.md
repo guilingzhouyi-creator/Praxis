@@ -257,8 +257,9 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   `ConfigLayoutManifest`, `ProtocolDescriptor`,
   `TerminalContractDescriptor`, `PortRegistry`, and the halted lifecycle into
   a validated `KernelAssembly` snapshot. The standalone `rust-kernel` binary
-  emits that complete snapshot without importing Python or performing
-  configuration/filesystem/provider side effects. Config, protocol, terminal,
+  requires an explicit state-root argument and emits that complete snapshot
+  without importing Python or performing configuration/filesystem/provider
+  side effects. Config, protocol, terminal,
   and assembly metadata mismatches fail closed; `state_store` supplies fresh
   state initialization and durable recovery.
 - The Rust `preflight` module is a read-only entry preparation seam. Its

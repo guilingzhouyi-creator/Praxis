@@ -272,8 +272,9 @@ tracked separately as T4b.
 
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The
-`rust-kernel` binary is an independent no-Python entrypoint that emits this
-snapshot as JSON. It is deliberately declarative: it does not read config,
+`rust-kernel` binary is an independent no-Python entrypoint that requires an
+explicit state-root argument and emits this snapshot as JSON. It is
+deliberately declarative: it does not read config,
 create the state root, execute boot callbacks, or instantiate providers. This
 is the R4 assembly seam; `state_store` now owns fresh-root initialization and
 durable recovery. Mechanism and shared-vector coverage live in
