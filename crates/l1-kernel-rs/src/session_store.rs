@@ -100,6 +100,14 @@ pub struct SessionStore {
 
 impl SessionStore {
     /// Open a Rust-owned state root, treating an absent or empty file as fresh.
+    ///
+    /// # Errors
+    ///
+    /// - [`SessionStoreError::RootNotDirectory`] when `root` exists but is
+    ///   not a directory;
+    /// - [`SessionStoreError::Io`] when the checkpoint file cannot be read;
+    /// - [`SessionStoreError::InvalidDocument`] on malformed JSON, version
+    ///   mismatch, or invariant violations.
     pub fn open(root: impl AsRef<Path>) -> Result<Self, SessionStoreError> {
         let root = root.as_ref();
         if root.exists() && !root.is_dir() {
@@ -138,6 +146,11 @@ impl SessionStore {
     }
 
     /// Read the current document, returning an empty fresh collection if absent.
+    ///
+    /// # Errors
+    ///
+    /// [`SessionStoreError::Io`] on read failure; [`SessionStoreError::InvalidDocument`]
+    /// on malformed JSON, version mismatch, or invariant violations.
     pub fn document(&self) -> Result<SessionStoreDocument, SessionStoreError> {
         if !self.path.exists() || fs::metadata(&self.path)?.len() == 0 {
             return Ok(empty_document());
@@ -148,6 +161,12 @@ impl SessionStore {
     }
 
     /// Restore all sessions into a new sharded book.
+    ///
+    /// # Errors
+    ///
+    /// [`SessionStoreError::Io`] on read failure; [`SessionStoreError::InvalidDocument`]
+    /// on schema/version/invariant violations; [`SessionStoreError::Session`]
+    /// when an individual session checkpoint violates the session contract.
     pub fn load_book(&self, shard_count: usize) -> Result<SessionBook, SessionStoreError> {
         let document = self.document()?;
         let book = SessionBook::new(shard_count)?;

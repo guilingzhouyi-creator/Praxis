@@ -18,8 +18,10 @@ pub const DEFAULT_PEER_EVICT_AFTER_MS: u64 = 300_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerPolicy {
     /// Time without an announce before a peer is considered dead.
+    /// Peer reachability timeout.
     pub timeout_ms: u64,
     /// Time without an announce before a reported dead peer is removed.
+    /// Silence window before eviction.
     pub evict_after_ms: u64,
 }
 
@@ -34,6 +36,11 @@ impl Default for PeerPolicy {
 
 impl PeerPolicy {
     /// Reject zero or non-increasing liveness windows.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the timeout is non-positive or eviction does not exceed
+    /// the timeout.
     pub fn validate(self) -> Result<(), &'static str> {
         if self.timeout_ms == 0 {
             return Err("peer timeout must be positive");
@@ -49,21 +56,35 @@ impl PeerPolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerAnnouncement {
     /// Stable peer node identifier.
+    /// Announced peer identity.
+    /// Peer identity.
     pub peer_id: String,
     /// Resolved host or address supplied by discovery.
+    /// Advertised host/address.
+    /// Last-known host.
     pub host: String,
     /// TCP/transport port supplied by discovery.
+    /// Advertised port.
+    /// Last-known port.
     pub port: u16,
     /// Number of Cells currently advertised by the peer.
     #[serde(default)]
+    /// Cell count announced by the peer.
+    /// Last-announced cell count.
     pub cell_count: u32,
     /// Adapter or protocol version advertised by the peer.
     #[serde(default)]
+    /// Protocol version announcement.
+    /// Last-announced version.
     pub version: String,
 }
 
 impl PeerAnnouncement {
     /// Build an announcement with empty optional metadata.
+    ///
+    /// # Errors
+    ///
+    /// `Err` forwarding PeerPolicy::validate failures (timeout/eviction bounds).
     pub fn new(peer_id: impl Into<String>, host: impl Into<String>, port: u16) -> Self {
         Self {
             peer_id: peer_id.into(),
@@ -98,6 +119,7 @@ pub struct PeerRecord {
     /// Last announced port.
     pub port: u16,
     /// Last announce time in caller-defined milliseconds.
+    /// Caller-clocked last-seen time.
     pub last_seen_ms: u64,
     /// Advertised Cell count.
     pub cell_count: u32,
@@ -105,6 +127,7 @@ pub struct PeerRecord {
     pub version: String,
     /// Whether a loss event was already emitted for this record.
     #[serde(default)]
+    /// Whether a loss was reported for this peer.
     pub loss_reported: bool,
 }
 
@@ -119,12 +142,16 @@ impl PeerRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerObservation {
     /// Peer ID inserted for the first time, if any.
+    /// Newly joined peer id, if any.
     pub joined: Option<String>,
     /// True when an announce for the local node was ignored.
+    /// Whether our own announcement was ignored.
     pub ignored_self: bool,
     /// Peers crossing the timeout window during this operation.
+    /// Peers classified lost this tick.
     pub lost: Vec<String>,
     /// Peers removed after crossing the eviction window.
+    /// Peers evicted after the grace window.
     pub evicted: Vec<String>,
 }
 
@@ -143,12 +170,16 @@ impl PeerObservation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerHealth {
     /// `healthy` when one or more peers are alive, otherwise `lonely`.
+    /// Aggregate health label.
     pub status: String,
     /// Number of records retained after eviction.
+    /// Tracked peer count.
     pub peers_total: usize,
     /// Number of retained records inside the timeout window.
+    /// Peers within the alive window.
     pub peers_alive: usize,
     /// Number of retained records outside the timeout window.
+    /// Peers beyond the alive window.
     pub peers_dead: usize,
     /// Loss and eviction transitions observed during this health read.
     pub observation: PeerObservation,
@@ -182,6 +213,10 @@ pub struct PeerBook {
 
 impl PeerBook {
     /// Create an empty peer book for one local node.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the local node id is empty or the policy is invalid.
     pub fn new(self_id: impl Into<String>, policy: PeerPolicy) -> Result<Self, &'static str> {
         let self_id = self_id.into();
         if self_id.trim().is_empty() {

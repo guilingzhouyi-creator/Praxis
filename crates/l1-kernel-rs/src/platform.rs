@@ -6,17 +6,29 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformSnapshot {
     /// Whether the host uses the Windows command shell and path rules.
+    /// Windows-family snapshot flag.
+    /// Windows-family view flag.
     pub is_windows: bool,
     /// Whether the host is macOS.
+    /// macOS snapshot flag.
+    /// macOS view flag.
     pub is_mac: bool,
     /// Shell executable selected by the host environment.
+    /// Shell binary path observed on the host.
+    /// Resolved shell binary path.
     pub shell_path: String,
     /// Python executable exposed to bounded command adapters.
+    /// Python interpreter path observed on the host.
+    /// Python interpreter used by tooling.
     pub python_exe: String,
     /// Whether `rg` is available for search command construction.
+    /// Whether ripgrep was found on PATH.
+    /// Whether to emit ripgrep vs grep argument shapes.
     pub rg_available: bool,
     /// Path separator used by the host adapter.
     #[serde(default = "default_path_separator")]
+    /// PATH list separator for this platform.
+    /// PATH list separator.
     pub path_separator: String,
 }
 
@@ -62,28 +74,38 @@ pub struct PlatformDescriptor {
     /// Whether the host is macOS.
     pub is_mac: bool,
     /// Whether the host is Linux.
+    /// Linux view flag.
     pub is_linux: bool,
     /// Whether the host uses the NT OS family.
+    /// NT (Windows) shell semantics flag.
     pub is_nt: bool,
     /// Whether the host uses POSIX semantics.
+    /// POSIX shell semantics flag.
     pub is_posix: bool,
     /// Selected shell executable.
     pub shell_path: String,
     /// Stable shell display name.
+    /// Shell family name (bash/zsh/powershell…).
     pub shell_name: String,
     /// Prompt prefix used by the shell adapter.
+    /// Prompt string convention for this shell.
     pub shell_prompt: String,
     /// Shell executable selected by the host snapshot.
+    /// Shell actually selected for command construction.
     pub selected_shell: String,
     /// Platform-specific ping count flag.
+    /// Reachability-probe parameter for this OS.
     pub ping_param: String,
     /// Host Python executable.
     pub python_exe: String,
     /// Explicit subprocess encoding policy.
+    /// Default text encoding name.
     pub default_encoding: String,
     /// Whether IPC should use Unix sockets.
+    /// Whether IPC prefers Unix domain sockets.
     pub ipc_use_unix_socket: bool,
     /// IPC transport name (`unix` or `tcp`).
+    /// Selected IPC transport label.
     pub ipc_transport: String,
     /// Host path separator used for pure path helpers.
     pub path_separator: String,
@@ -91,6 +113,12 @@ pub struct PlatformDescriptor {
 
 impl PlatformDescriptor {
     /// Derive platform constants from an adapter-owned snapshot.
+    ///
+    /// # Errors
+    ///
+    /// ConflictingOsFlags when multiple OS flags are set; MissingShellPath
+    /// when the shell path is empty; InvalidPathSeparator when the separator
+    /// is neither `:` nor `;`.
     pub fn from_snapshot(snapshot: PlatformSnapshot) -> Result<Self, PlatformError> {
         if snapshot.is_windows && snapshot.is_mac {
             return Err(PlatformError::ConflictingOsFlags);
@@ -219,6 +247,10 @@ impl PlatformDescriptor {
     }
 
     /// Parse a Windows-style TCP endpoint used by the IPC adapter.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTcpEndpoint when host/port cannot be split or parsed.
     pub fn parse_tcp_endpoint(
         &self,
         endpoint: &str,
@@ -248,18 +280,25 @@ impl PlatformDescriptor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GrepOptions<'a> {
     /// Search pattern.
+    /// Search pattern to pass through.
     pub pattern: &'a str,
     /// Search root.
+    /// Target path or directory.
     pub path: &'a str,
     /// Request literal matching.
+    /// Treat `pattern` as a literal string.
     pub fixed: bool,
     /// Request case-insensitive matching.
+    /// Case-insensitive matching.
     pub ignore_case: bool,
     /// Maximum matches per file, or zero for the default.
+    /// Per-file match cap (0 = unlimited).
     pub max_count: usize,
     /// Optional glob filter.
+    /// File glob filter (empty = all files).
     pub glob_pattern: &'a str,
     /// Optional ripgrep file type.
+    /// ripgrep file-type filter (empty = none).
     pub file_type: &'a str,
     /// Whether the host adapter found `rg`.
     pub rg_available: bool,

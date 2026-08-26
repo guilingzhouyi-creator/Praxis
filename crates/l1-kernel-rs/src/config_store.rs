@@ -30,6 +30,7 @@ pub const SETTINGS_FILE: &str = "settings.json";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfigEntry {
     /// Canonical path relative to the configuration root.
+    /// Config-relative path key.
     pub path: String,
 }
 
@@ -37,12 +38,16 @@ pub struct ConfigEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfigLayoutManifest {
     /// Layout schema version.
+    /// Layout schema version of the store.
     pub layout_version: u32,
     /// Kernel contract version associated with the root.
+    /// Contract version this root was created under.
     pub contract_version: u32,
     /// Host-selected configuration root.
+    /// Canonical config root path.
     pub config_root: String,
     /// Deterministically ordered owned files.
+    /// Declared config entries (sorted by path).
     pub entries: Vec<ConfigEntry>,
 }
 
@@ -110,10 +115,13 @@ impl ConfigLayoutManifest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConfigDocument {
     /// Document schema version.
+    /// Values-document schema version.
     pub document_version: u32,
     /// Monotonic document revision.
+    /// Monotonic mutation counter.
     pub revision: u64,
     /// Flat, typed JSON values selected by the Rust host.
+    /// Key/value map with deterministic order.
     pub values: BTreeMap<String, Value>,
 }
 
@@ -220,6 +228,12 @@ pub struct ConfigStore {
 
 impl ConfigStore {
     /// Open a fresh Rust root or resume a matching root.
+    ///
+    /// # Errors
+    ///
+    /// RootNotDirectory for a non-directory; ForeignRoot when the layout
+    /// manifest is missing, unreadable, or written by a different contract;
+    /// UnsupportedLayout/InvalidPath/DuplicateEntry during manifest load.
     pub fn open(root: impl AsRef<Path>, contract_version: u32) -> Result<Self, ConfigError> {
         let root = root.as_ref().to_path_buf();
         if root.exists() && !root.is_dir() {
@@ -277,6 +291,10 @@ impl ConfigStore {
     }
 
     /// Set one kernel configuration value and persist the document.
+    ///
+    /// # Errors
+    ///
+    /// InvalidKey when the key escapes the config/ namespace.
     pub fn set_config(&mut self, key: impl Into<String>, value: Value) -> Result<(), ConfigError> {
         let key = key.into();
         validate_key(&key)?;
@@ -286,6 +304,10 @@ impl ConfigStore {
     }
 
     /// Set one runtime setting and persist the document.
+    ///
+    /// # Errors
+    ///
+    /// InvalidKey when the key escapes the settings/ namespace.
     pub fn set_setting(&mut self, key: impl Into<String>, value: Value) -> Result<(), ConfigError> {
         let key = key.into();
         validate_key(&key)?;
@@ -295,6 +317,11 @@ impl ConfigStore {
     }
 
     /// Persist both documents as separate atomic updates.
+    ///
+    /// # Errors
+    ///
+    /// Io/serialization failures surfaced as ConfigError; writes are
+    /// atomic via temp-file rename.
     pub fn persist(&self) -> Result<(), ConfigError> {
         self.persist_document(CONFIG_FILE, &self.config)?;
         self.persist_document(SETTINGS_FILE, &self.settings)

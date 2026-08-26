@@ -63,6 +63,10 @@ impl Default for ReputationPolicy {
 
 impl ReputationPolicy {
     /// Validate bounds and deltas before a ledger can use the policy.
+    ///
+    /// # Errors
+    ///
+    /// `Err` naming the violated policy bound.
     pub fn validate(self) -> Result<(), &'static str> {
         let bounds = [self.default_score, self.min_score, self.max_score];
         if bounds.iter().any(|value| !value.is_finite()) {
@@ -97,6 +101,10 @@ pub struct ReputationLedger {
 
 impl ReputationLedger {
     /// Create an empty ledger after validating its explicit policy.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the policy fails validation.
     pub fn new(policy: ReputationPolicy) -> Result<Self, &'static str> {
         policy.validate()?;
         Ok(Self {
@@ -121,6 +129,10 @@ impl ReputationLedger {
     }
 
     /// Set a score after rejecting non-finite input and applying bounds.
+    ///
+    /// # Errors
+    ///
+    /// `Err` on non-finite scores or unknown identity floors.
     pub fn set(&self, agent_id: impl Into<String>, score: f64) -> Result<f64, &'static str> {
         let normalized = self.normalize(score)?;
         self.scores
@@ -131,6 +143,10 @@ impl ReputationLedger {
     }
 
     /// Apply a finite delta and return the clamped score.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the delta drives the score out of bounds.
     pub fn adjust(&self, agent_id: impl Into<String>, delta: f64) -> Result<f64, &'static str> {
         if !delta.is_finite() {
             return Err("reputation delta must be finite");

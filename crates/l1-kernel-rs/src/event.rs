@@ -38,12 +38,16 @@ const BUILTIN_SIGNAL_TYPES: &[&str] = &[
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventBusConfig {
     /// Maximum history records retained.
+    /// Bounded per-type history length.
     pub max_history: usize,
     /// Number of callback worker threads.
+    /// Dispatch worker threads.
     pub workers: usize,
     /// Maximum callbacks in flight, including active callbacks.
+    /// Dispatch queue capacity before drops.
     pub max_queued: usize,
     /// Maximum custom signal names retained.
+    /// Dynamic signal-registry capacity.
     pub registry_max: usize,
 }
 
@@ -315,6 +319,10 @@ impl EventBus {
     }
 
     /// Register a custom signal name with explicit rejection reasons.
+    ///
+    /// # Errors
+    ///
+    /// BuiltIn when shadowing a built-in signal; Full at registry capacity.
     pub fn register_signal_type(&self, event_type: &str) -> Result<(), SignalRegistrationError> {
         if BUILTIN_SIGNAL_TYPES.contains(&event_type) {
             return Err(SignalRegistrationError::BuiltIn);

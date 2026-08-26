@@ -19,12 +19,17 @@ pub const SWAPPER_SWAP_COUNT: usize = 10;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SwapEntry {
     /// Stable memory-entry identifier.
+    /// Swap entry identity.
+    /// Entry targeted by this action.
     pub id: String,
     /// Entry importance used for ring placement.
+    /// Higher value keeps the entry resident longer.
     pub importance: f64,
     /// Remaining TTL in seconds, or zero for no expiry.
+    /// Remaining residency budget in seconds.
     pub ttl: f64,
     /// Expiration result already evaluated by the provider.
+    /// Whether the TTL already elapsed.
     pub expired: bool,
 }
 
@@ -34,6 +39,7 @@ pub struct SwapAction {
     /// Entry identifier to move.
     pub id: String,
     /// Destination ring number.
+    /// Destination memory ring for the swap-out.
     pub target_ring: u8,
 }
 
@@ -41,12 +47,16 @@ pub struct SwapAction {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PressureSnapshot {
     /// Whether allocator pressure crossed the low-pressure threshold.
+    /// Whether allocator pressure triggered planning.
     pub under_pressure: bool,
     /// Working-ring occupancy percentage.
+    /// Working-set usage percentage.
     pub working_pct: f64,
     /// Short-ring occupancy percentage.
+    /// Short-term ring usage percentage.
     pub short_pct: f64,
     /// Long-ring occupancy percentage.
+    /// Long-term ring usage percentage.
     pub long_pct: f64,
 }
 
@@ -54,10 +64,13 @@ pub struct PressureSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PressurePlan {
     /// Whether working entries should be moved out.
+    /// Plan requests swapping the working set out.
     pub swap_out_working: bool,
     /// Whether expired short entries should be compacted.
+    /// Plan requests short-ring compaction.
     pub compact_short_term: bool,
     /// Whether long-term memory is full enough to report.
+    /// Long ring reported full.
     pub long_term_full: bool,
 }
 

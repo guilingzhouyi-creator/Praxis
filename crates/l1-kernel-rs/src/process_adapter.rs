@@ -42,6 +42,14 @@ pub struct ProcessAdapterConfig {
 
 impl ProcessAdapterConfig {
     /// Build the default bounded configuration with an explicit output limit.
+    ///
+    /// # Errors
+    ///
+    /// ProcessAdapterError when option bounds are invalid (non-positive limits).
+    ///
+    /// # Errors
+    ///
+    /// ProcessAdapterError when argv/shell requirements are unmet.
     pub fn new(max_output_bytes: usize) -> Result<Self, ProcessAdapterError> {
         if max_output_bytes == 0 {
             return Err(ProcessAdapterError::InvalidOutputLimit);
@@ -74,6 +82,10 @@ impl Default for ProcessAdapter {
 
 impl ProcessAdapter {
     /// Construct an adapter with an explicit per-stream output limit.
+    ///
+    /// # Errors
+    ///
+    /// ProcessAdapterError forwarding config bound validation.
     pub fn new(max_output_bytes: usize) -> Result<Self, ProcessAdapterError> {
         Ok(Self {
             config: ProcessAdapterConfig::new(max_output_bytes)?,

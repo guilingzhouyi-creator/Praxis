@@ -453,7 +453,17 @@ impl GateChain {
         &self.ledger
     }
 
-    /// Evaluate G1-G5 and append the final decision to the bounded ledger.
+    /// Evaluate G1-G5 in order and append the final decision to the bounded ledger.
+    ///
+    /// Snapshot-driven evaluation: every input rides on the request, so the
+    /// verdict is deterministic given `(request, whitelist, policy)`.
+    ///
+    /// # Errors
+    ///
+    /// None are thrown. Any failing gate downgrades `overall` to Warn, Block,
+    /// or Report and is captured as a structured step in the returned result;
+    /// the ledger append is lossy by design (oldest rows evicted) and cannot
+    /// fail.
     pub fn check(&self, request: &GateRequest) -> GateCheckResult {
         let now = request.timestamp.unwrap_or_else(unix_timestamp);
         let whitelist = self
@@ -737,6 +747,7 @@ fn retain_warning(current: GateDecision, next: GateDecision) -> GateDecision {
     }
 }
 
+/// Return whether `target` sits inside one of the allowed territory bases.
 pub(crate) fn path_within(target: &str, bases: &[String]) -> bool {
     crate::territory::is_within(target, bases)
 }

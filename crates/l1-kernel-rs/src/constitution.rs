@@ -108,20 +108,28 @@ enum ActionCategory {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstitutionRule {
     /// Unique machine-readable rule id.
+    /// Unique rule id.
     pub id: String,
     /// Constitution section label.
+    /// Constitution section grouping.
+    /// Section being summarized.
     pub section: String,
     /// Enforcement severity.
+    /// MUST / SHOULD / MAY severity.
     pub severity: RuleSeverity,
     /// Human-readable description.
+    /// Human-facing rule text.
     pub description: String,
     /// Built-in evaluator kind.
+    /// Action-classification kind index.
     pub kind: RuleKind,
     /// Source label (`builtin` or `custom`).
     #[serde(default = "default_source")]
+    /// `builtin` or `custom` provenance.
     pub source: String,
     /// Stable classification tags for API/export consumers.
     #[serde(default)]
+    /// Sorted matching tags.
     pub tags: Vec<String>,
 }
 
@@ -145,6 +153,11 @@ impl ConstitutionRule {
     }
 
     /// Validate and normalize a rule before it crosses the Rust policy seam.
+    ///
+    /// # Errors
+    ///
+    /// `Err` with a stable message for empty id/section, non-builtin
+    /// source misuse, custom rules not using the noop kind, or empty tags.
     pub fn validate_and_normalize(mut self) -> Result<Self, &'static str> {
         if self.id.trim().is_empty() {
             return Err("constitution rule id must not be empty");
@@ -171,20 +184,26 @@ impl ConstitutionRule {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstitutionInput {
     /// Action or tool name.
+    /// Action under adjudication.
     pub action: String,
     /// Calling agent identity.
+    /// Acting agent identity.
     pub agent_id: String,
     /// Target path/resource, if present.
     #[serde(default)]
+    /// Target resource/path.
     pub target: String,
     /// Territory roots supplied by the card/adapter.
     #[serde(default)]
+    /// Declared territory scopes.
     pub territory: Vec<String>,
     /// Whether the target skill is explicitly offensive-posture.
     #[serde(default)]
+    /// Offensive-skill posture input.
     pub offensive_skill: bool,
     /// Explicit posture result supplied by an adapter.
     #[serde(default)]
+    /// Full-power posture input.
     pub full_power: bool,
 }
 
@@ -206,11 +225,14 @@ impl ConstitutionInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckReport {
     /// Rule that produced the result.
+    /// Rule that produced this detail.
     pub rule: ConstitutionRule,
     /// Rule result.
+    /// Per-rule verdict.
     pub result: CheckResult,
     /// Stable contextual detail.
     #[serde(default)]
+    /// Explanation captured at check time.
     pub detail: String,
 }
 
@@ -218,14 +240,19 @@ pub struct CheckReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstitutionDecision {
     /// Whether no rule blocked the action.
+    /// Final allow/deny verdict.
     pub allowed: bool,
     /// Lowercase compatibility spelling used by Python API responses.
+    /// Decision summary string.
     pub decision: String,
     /// Number of blocking reports.
+    /// Blocking rule count.
     pub blocks: usize,
     /// Number of warning reports.
+    /// Warning rule count.
     pub warns: usize,
     /// Non-pass details in evaluation order.
+    /// Root-first decision details.
     pub details: Vec<DecisionDetail>,
 }
 
@@ -360,6 +387,10 @@ impl ConstitutionEngine {
     }
 
     /// Validate, normalize, and replace rules from an explicit config snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Constitution error when any incoming rule fails validation; failure replaces nothing (old snapshot retained).
     pub fn replace_rules_checked(&self, rules: Vec<ConstitutionRule>) -> Result<(), &'static str> {
         let mut normalized = Vec::with_capacity(rules.len());
         let mut ids = BTreeSet::new();

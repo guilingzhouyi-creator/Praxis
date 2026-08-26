@@ -143,6 +143,10 @@ impl ProcessTableBridge {
     }
 
     /// Close stdin for a child identified by its ProcessTable handle.
+    ///
+    /// # Errors
+    ///
+    /// ProcessBridgeError when the managed slot is gone or stdin already closed.
     pub fn close_stdin(&self, handle: ProcessHandle) -> Result<(), ProcessBridgeError> {
         let binding = self.binding(handle)?;
         self.managed
@@ -198,6 +202,10 @@ impl ProcessTableBridge {
     }
 
     /// Reap the managed child and its ProcessTable row as one public operation.
+    ///
+    /// # Errors
+    ///
+    /// ProcessBridgeError until the child reaches a terminal state; TableReap surfaces external table conflicts.
     pub fn reap(&self, handle: ProcessHandle) -> Result<ProcessResult, ProcessBridgeError> {
         let binding = self.binding(handle)?;
         let result = match self.managed.wait(binding.managed_handle, Duration::ZERO)? {

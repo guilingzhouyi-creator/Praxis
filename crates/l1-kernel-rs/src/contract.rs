@@ -79,14 +79,19 @@ impl ProcessState {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProcessResult {
     /// Child exit code, or a synthetic adapter code for timeout/execution failure.
+    /// Child exit code (negative conventions host-defined).
     pub returncode: i32,
     /// Captured standard output as UTF-8 text.
+    /// Captured stdout (bounded by caller options).
     pub stdout: String,
     /// Captured standard error as UTF-8 text.
+    /// Captured stderr (bounded by caller options).
     pub stderr: String,
     /// Whether the adapter stopped the child because its deadline elapsed.
+    /// Whether the deadline killed the child.
     pub timed_out: bool,
     /// Structured adapter error; empty when the child actually started.
+    /// Stable adapter-error classification; empty on success.
     pub error_kind: String,
 }
 
@@ -113,12 +118,16 @@ impl ProcessResult {
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProcessOptions {
     /// Optional working directory.
+    /// Working directory override.
     pub cwd: Option<String>,
     /// Optional UTF-8 input sent to the child.
+    /// Stdin payload override.
     pub input_text: Option<String>,
     /// Optional environment replacement with deterministic key ordering.
+    /// Environment overlay applied by the host.
     pub env: Option<BTreeMap<String, String>>,
     /// Optional executable used by shell execution.
+    /// Explicit executable override.
     pub executable: Option<String>,
 }
 
@@ -127,14 +136,20 @@ pub struct ProcessOptions {
 pub struct Signal {
     /// Stable built-in or registered event name.
     #[serde(rename = "type")]
+    /// IRQ/signal classification.
     pub signal_type: String,
     /// JSON-compatible signal payload.
+    /// Signal payload.
+    /// Structured event attributes.
     pub data: JsonObject,
     /// Sending principal.
+    /// Emitting component id.
     pub sender: String,
     /// Optional target principal.
+    /// Addressed component or broadcast marker.
     pub target: String,
     /// Wall-clock timestamp supplied by the producer.
+    /// Unix timestamp in seconds.
     pub timestamp: f64,
 }
 
@@ -143,14 +158,19 @@ pub struct Signal {
 pub struct Event {
     /// Event name.
     #[serde(rename = "type")]
+    /// Observability event classification.
     pub event_type: String,
     /// Producing component.
+    /// Emitting subsystem label.
     pub source: String,
     /// Severity string kept policy-neutral.
+    /// Severity tier (debug/info/warn/error).
     pub severity: String,
     /// Human-readable message, if one exists.
+    /// Human-readable summary.
     pub message: String,
     /// Locale tag for the message.
+    /// Locale tag of `message`.
     pub message_locale: String,
     /// JSON-compatible event data.
     pub data: JsonObject,
@@ -160,20 +180,28 @@ pub struct Event {
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EventBusStats {
     /// Number of registered signal types with listeners.
+    /// Registered signal-type count.
     pub signal_types: usize,
     /// Number of typed listeners.
+    /// Attached typed listeners.
     pub listeners: usize,
     /// Number of retained history records.
+    /// Bounded history entries retained.
     pub history: usize,
     /// Number of wildcard listeners.
+    /// Listeners subscribed to all signals.
     pub wildcard_listeners: usize,
     /// Maximum number of in-flight callback tasks.
+    /// Dispatch queue capacity.
     pub queue_max: usize,
     /// Current number of in-flight callback tasks.
+    /// Current dispatch queue depth.
     pub queue_depth: usize,
     /// Successfully submitted callback tasks.
+    /// Lifetime submissions accepted.
     pub submitted: u64,
     /// Submitted callback tasks that completed.
+    /// Lifetime dispatches completed.
     pub completed: u64,
     /// Callback tasks rejected by bounded overload or executor failure.
     pub dropped: u64,

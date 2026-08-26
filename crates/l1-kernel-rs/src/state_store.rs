@@ -35,10 +35,13 @@ pub const CHECKPOINT_VERSION: u32 = 1;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StateCheckpoint {
     /// Checkpoint schema version.
+    /// Checkpoint envelope version.
     pub checkpoint_version: u32,
     /// Monotonic write generation.
+    /// Monotonic persistence generation.
     pub generation: u64,
     /// Lifecycle record captured at the checkpoint boundary.
+    /// Embedded lifecycle record.
     pub lifecycle: LifecycleRecord,
 }
 
@@ -120,6 +123,12 @@ pub struct StateStore {
 
 impl StateStore {
     /// Open a fresh Rust root or restore an existing Rust-owned root.
+    ///
+    /// # Errors
+    ///
+    /// RootNotDirectory for a non-directory root; StateRejected when the
+    /// layout probe rejects resume/recover; InvalidDocument on manifest
+    /// parse/version divergence.
     pub fn open(root: impl AsRef<Path>, contract_version: u32) -> Result<Self, StateStoreError> {
         let root = root.as_ref().to_path_buf();
         if root.exists() && !root.is_dir() {
@@ -169,6 +178,10 @@ impl StateStore {
     }
 
     /// Mark a boot attempt dirty before provider work begins.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless currently halted/installing.
     pub fn begin_boot(&mut self) -> Result<(), StateStoreError> {
         let state = self.lifecycle.state();
         let transitions = match state {
@@ -193,6 +206,10 @@ impl StateStore {
     }
 
     /// Mark the boot as active and durable.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless currently booting.
     pub fn mark_active(&mut self) -> Result<(), StateStoreError> {
         self.transition(LifecycleState::Active)?;
         self.lifecycle.record_boot_success();
@@ -200,6 +217,11 @@ impl StateStore {
     }
 
     /// Record a clean or unclean shutdown and persist it durably.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless active/draining; `clean=false` records an
+    /// unclean shutdown for later recovery classification.
     pub fn shutdown(&mut self, clean: bool) -> Result<(), StateStoreError> {
         let state = self.lifecycle.state();
         if state == LifecycleState::Active {
@@ -221,6 +243,10 @@ impl StateStore {
     }
 
     /// Convert an unclean open into an explicit crashed state before recovery.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless crashed.
     pub fn recover(&mut self) -> Result<(), StateStoreError> {
         if self.action != StateAction::Recover {
             return Ok(());
@@ -232,6 +258,11 @@ impl StateStore {
     }
 
     /// Persist lifecycle.json and runtime/checkpoint.json atomically per file.
+    ///
+    /// # Errors
+    ///
+    /// Io/serialization failures surfaced as StateStoreError variants;
+    /// writes are atomic via temp-file rename.
     pub fn persist(&mut self) -> Result<(), StateStoreError> {
         self.generation = self.generation.saturating_add(1);
         let lifecycle = self.lifecycle.encode()?;
@@ -251,6 +282,10 @@ impl StateStore {
     }
 
     /// Read and validate the latest runtime checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition when checkpointing is forbidden mid-transition.
     pub fn checkpoint(&self) -> Result<StateCheckpoint, StateStoreError> {
         read_json(&self.root.join(CHECKPOINT_FILE))
     }

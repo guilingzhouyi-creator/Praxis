@@ -48,13 +48,17 @@ pub enum PortKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PortDescriptor {
     /// Stable lookup name.
+    /// Unique port name.
     pub name: String,
     /// Mechanism category.
+    /// Port mechanism classification.
     pub kind: PortKind,
     /// Contract version implemented by this adapter.
+    /// Contract version this port speaks.
     pub contract_version: u32,
     /// Optional primitive metadata for host diagnostics.
     #[serde(default)]
+    /// Additional descriptor metadata.
     pub metadata: JsonObject,
 }
 
@@ -111,6 +115,11 @@ impl PortRegistry {
     }
 
     /// Register a descriptor, optionally replacing an existing declaration.
+    ///
+    /// # Errors
+    ///
+    /// Locked after the registry was sealed; Duplicate on name reuse with
+    /// the conflicting descriptor attached.
     pub fn register(
         &mut self,
         descriptor: PortDescriptor,
@@ -143,6 +152,10 @@ impl PortRegistry {
     }
 
     /// Return one descriptor by stable name.
+    ///
+    /// # Errors
+    ///
+    /// Duplicate-carrier variant reused as NotFound with the missing name.
     pub fn get(&self, name: &str) -> Result<PortDescriptor, PortRegistryError> {
         self.descriptors
             .get(name)
@@ -180,10 +193,13 @@ impl PortRegistry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PortResult {
     /// Whether the adapter accepted or completed the operation.
+    /// Whether the port operation succeeded.
     pub success: bool,
     /// Stable error text for a failed operation.
+    /// Failure detail; empty on success.
     pub error: String,
     /// Additional JSON-compatible result data.
+    /// Structured result payload.
     pub data: JsonObject,
 }
 
@@ -218,9 +234,11 @@ impl PortResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Endpoint {
     /// Opaque address string interpreted by the transport adapter.
+    /// Endpoint address (host:port).
     pub address: String,
     /// Transport hint, such as `tcp` or `udp`.
     #[serde(default = "default_transport_hint")]
+    /// Operator-facing remediation hint.
     pub hint: String,
 }
 
@@ -234,6 +252,18 @@ impl Endpoint {
     }
 
     /// Validate the value without opening a socket.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when address or hint is empty.
+    ///
+    /// # Errors
+    ///
+    /// `Err` with a stable message for empty address/hint fields.
+    ///
+    /// # Errors
+    ///
+    /// `Err` with a stable message for the second endpoint descriptor shape.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.address.trim().is_empty() {
             return Err("endpoint address is required");
@@ -272,6 +302,10 @@ pub struct Message {
 
 impl Message {
     /// Validate type and timestamp without interpreting payload policy.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when `message_type` is empty.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.message_type.trim().is_empty() {
             return Err("message type is required");
@@ -316,6 +350,11 @@ pub struct InputActivitySnapshot {
 
 impl InputActivitySnapshot {
     /// Validate numeric fields without collecting input contents.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when timestamps are non-finite or counts are negative —
+    /// numeric-only validation; no input content is inspected.
     pub fn validate(&self) -> Result<(), &'static str> {
         if !self.last_activity_at.is_finite() || !self.idle_seconds.is_finite() {
             return Err("activity timestamps must be finite");

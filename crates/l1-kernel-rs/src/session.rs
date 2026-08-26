@@ -99,19 +99,28 @@ impl MessageRole {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionSpec {
     /// Stable session identity.
+    /// Unique session identity.
     pub session_id: String,
     /// Owning AgentLoop identity, without an execution callback.
+    /// Owning agent execution body.
     pub agent_id: String,
     /// Owning Cell identity.
+    /// Owning cell domain.
     pub cell_id: String,
     /// Role selected by the upper-layer dispatcher.
+    /// Declared role fragment bound at creation.
     pub role: String,
     /// Maximum retained messages for this session.
+    /// Hard bound on retained messages (bounded history).
     pub max_messages: usize,
 }
 
 impl SessionSpec {
     /// Build a session specification; validation runs when it is admitted.
+    ///
+    /// # Errors
+    ///
+    /// SessionError::InvalidSnapshot / capacity violations from the spec.
     pub fn new(
         session_id: impl Into<String>,
         agent_id: impl Into<String>,
@@ -133,16 +142,25 @@ impl SessionSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionMessage {
     /// Monotonic history sequence assigned by the kernel.
+    /// Monotonic message sequence assigned by the book.
     pub sequence: u64,
     /// Authoritative user-input sequence associated with this entry.
+    /// Authoritative input ordinal allocated exactly once.
     pub input_seq: u64,
     /// Caller-supplied idempotency identity.
+    /// Deduplication id supplied by the caller.
+    /// Id of the evicted (oldest) message.
     pub message_id: String,
     /// Closed message role.
+    /// User/assistant/system classification.
     pub role: MessageRole,
     /// Opaque UTF-8 message body.
+    /// Message body (CoT excluded by contract).
+    /// Body of the evicted message.
     pub content: String,
     /// Caller-supplied creation timestamp in nanoseconds.
+    /// Creation time in nanoseconds since the epoch.
+    /// Original creation time of the evicted message.
     pub created_at_ns: u64,
 }
 
@@ -176,10 +194,13 @@ impl SessionInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionPage {
     /// Entries after the requested cursor.
+    /// Page of messages in stable identity order.
     pub items: Vec<SessionMessage>,
     /// Last returned sequence when another page exists.
+    /// Exclusive continuation cursor; None ends paging.
     pub next_cursor: Option<u64>,
     /// Total retained entries at the observation point.
+    /// Total retained messages across all pages.
     pub total: usize,
 }
 
@@ -187,18 +208,25 @@ pub struct SessionPage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionSnapshot {
     /// Session contract version.
+    /// Checkpoint schema version.
     pub contract_version: u32,
     /// Session identity and retention policy.
+    /// Immutable creation specification.
     pub spec: SessionSpec,
     /// Current lifecycle state.
+    /// Lifecycle state at checkpoint time.
     pub state: SessionState,
     /// Next user input sequence to admit.
+    /// Next input ordinal to allocate on resume.
     pub next_input_seq: u64,
     /// Next history sequence to assign.
+    /// Next message sequence to allocate on resume.
     pub next_message_seq: u64,
     /// Whether the last checkpoint was clean.
+    /// False marks unclean shutdown; sessions load as crashed.
     pub clean_shutdown: bool,
     /// Bounded retained history in ascending sequence order.
+    /// Retained history snapshot.
     pub messages: Vec<SessionMessage>,
 }
 
@@ -206,8 +234,10 @@ pub struct SessionSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionCheckpoint {
     /// Checkpoint envelope version.
+    /// Envelope version of the outer checkpoint file.
     pub checkpoint_version: u32,
     /// Snapshot captured at the checkpoint boundary.
+    /// Embedded snapshot payload.
     pub snapshot: SessionSnapshot,
 }
 
@@ -265,6 +295,10 @@ pub struct Session {
 
 impl Session {
     /// Create a validated session in the `created` state.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot when the spec violates identity/bound invariants.
     pub fn new(spec: SessionSpec) -> Result<Self, SessionError> {
         validate_spec(&spec)?;
         Ok(Self {
@@ -281,6 +315,11 @@ impl Session {
     }
 
     /// Restore a session from a validated snapshot without side effects.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot on version mismatch or broken identity/sequence
+    /// invariants.
     pub fn from_snapshot(snapshot: SessionSnapshot) -> Result<Self, SessionError> {
         if snapshot.contract_version != SESSION_CONTRACT_VERSION {
             return Err(SessionError::InvalidSnapshot(
@@ -319,6 +358,10 @@ impl Session {
     }
 
     /// Restore a session from a versioned checkpoint envelope.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot when envelope/checkpoint validation fails.
     pub fn from_checkpoint(checkpoint: SessionCheckpoint) -> Result<Self, SessionError> {
         if checkpoint.checkpoint_version != SESSION_CHECKPOINT_VERSION {
             return Err(SessionError::InvalidSnapshot(
@@ -329,6 +372,10 @@ impl Session {
     }
 
     /// Validate a checkpoint without constructing a live session.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot enumerating every violated invariant.
     pub fn validate(checkpoint: &SessionCheckpoint) -> Result<(), SessionError> {
         if checkpoint.checkpoint_version != SESSION_CHECKPOINT_VERSION {
             return Err(SessionError::InvalidSnapshot(
@@ -354,6 +401,11 @@ impl Session {
     }
 
     /// Apply one lifecycle transition with fail-closed validation.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition when the FSM forbids `target` from the current
+    /// state.
     pub fn transition(&self, target: SessionState) -> Result<(), SessionError> {
         let mut inner = self.lock();
         if !inner.state.can_transition_to(target) {
@@ -368,11 +420,20 @@ impl Session {
     }
 
     /// Mark the session active after creation or explicit crash recovery.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless the current state admits activation.
     pub fn activate(&self) -> Result<(), SessionError> {
         self.transition(SessionState::Active)
     }
 
     /// Close cleanly or record an unclean crash without deleting history.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition from states that forbid closing; `clean=false`
+    /// marks the persisted checkpoint as unclean.
     pub fn close(&self, clean: bool) -> Result<(), SessionError> {
         if !clean {
             let state = self.state();
@@ -388,6 +449,10 @@ impl Session {
     }
 
     /// Move a crashed session back to `created` for an explicit reactivation.
+    ///
+    /// # Errors
+    ///
+    /// InvalidTransition unless the session is in the crashed state.
     pub fn recover(&self) -> Result<(), SessionError> {
         self.transition(SessionState::Created)
     }
@@ -575,6 +640,10 @@ impl Default for SessionBook {
 
 impl SessionBook {
     /// Create a session registry with explicit shard count.
+    ///
+    /// # Errors
+    ///
+    /// SessionError::InvalidShardCount when `shard_count` is zero.
     pub fn new(shard_count: usize) -> Result<Self, SessionError> {
         if shard_count == 0 {
             return Err(SessionError::InvalidShardCount);
@@ -586,6 +655,10 @@ impl SessionBook {
     }
 
     /// Create and atomically admit one session identity.
+    ///
+    /// # Errors
+    ///
+    /// SessionError::SessionFull at message bound; DuplicateMessageId on id collision; InvalidTransition unless Active.
     pub fn create(&self, spec: SessionSpec) -> Result<Arc<Session>, SessionError> {
         let session = Arc::new(Session::new(spec)?);
         let mut shard = self.shards[self.shard_index(session.id())]
@@ -672,6 +745,10 @@ impl SessionBook {
     }
 
     /// Restore and atomically admit a checkpointed session identity.
+    ///
+    /// # Errors
+    ///
+    /// InvalidSnapshot on version/identity/sequence divergence.
     pub fn restore(&self, checkpoint: SessionCheckpoint) -> Result<Arc<Session>, SessionError> {
         let session = Arc::new(Session::from_checkpoint(checkpoint)?);
         let mut shard = self.shards[self.shard_index(session.id())]
@@ -694,6 +771,10 @@ impl SessionBook {
     }
 
     /// Remove only a closed session and return its final checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// InvalidState unless the session is Closed/Crashed.
     pub fn remove_closed(&self, session_id: &str) -> Result<SessionCheckpoint, SessionError> {
         let mut shard = self.shards[self.shard_index(session_id)]
             .write()

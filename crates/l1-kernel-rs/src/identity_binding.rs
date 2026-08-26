@@ -23,14 +23,19 @@ pub const DEFAULT_MIN_WRITE_CLEARANCE: u8 = 3;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindingPolicy {
     /// Maximum distinct roles that one Cell may own.
+    /// Binding capacity per cell.
     pub max_bindings_per_cell: usize,
     /// Maximum domain tags retained in one binding.
+    /// Domain tags allowed per binding.
     pub max_domain_tags: usize,
     /// Maximum declared prompt budget; prompt bytes stay outside this crate.
+    /// Prompt-fragment character budget.
     pub max_fragment_chars: usize,
     /// Minimum explicit clearance for a non-role-based write.
+    /// Minimum clearance required to mutate bindings.
     pub min_write_clearance: u8,
     /// Roles allowed to write regardless of numeric clearance.
+    /// Roles authorized for binding writes.
     pub write_roles: Vec<String>,
 }
 
@@ -48,6 +53,11 @@ impl Default for BindingPolicy {
 
 impl BindingPolicy {
     /// Reject an unbounded or unusable policy before registry construction.
+    ///
+    /// # Errors
+    ///
+    /// `Err` with a stable message when any capacity/budget/role floor is
+    /// non-positive or the write-role list is empty.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.max_bindings_per_cell == 0 {
             return Err("binding cell capacity must be positive");
@@ -69,12 +79,17 @@ impl BindingPolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WritePrincipal {
     /// Stable caller identity, when available.
+    /// Bound agent identity.
     pub agent_id: String,
     /// Declared caller role used by the role allow-list.
+    /// Role fragment key.
+    /// Role served within the cell.
     pub role: String,
     /// Caller clearance evaluated by the adapter or kernel authority.
+    /// Authority clearance level.
     pub clearance: u8,
     /// Whether this is a trusted boot/system mutation.
+    /// Internal system identities bypass external checks.
     pub internal: bool,
 }
 
@@ -112,16 +127,20 @@ impl WritePrincipal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BindingSpec {
     /// Cell owning the role binding.
+    /// Cell this binding belongs to.
     pub cell_id: String,
     /// Role key unique within the Cell.
     pub role: String,
     /// System-issued identity identifier supplied by the UID adapter.
+    /// Referenced identity UID.
     pub identity_id: String,
     /// Structured domain tags used by upper-layer routing.
     #[serde(default)]
+    /// Knowledge-domain tags for injection matching.
     pub domain_tags: Vec<String>,
     /// Declared adapter-owned fragment budget; zero selects the policy default.
     #[serde(default)]
+    /// Fragment budget actually used.
     pub max_chars: usize,
 }
 
@@ -156,8 +175,10 @@ pub struct BindingRecord {
     /// Bounded prompt budget declared for the adapter boundary.
     pub max_chars: usize,
     /// Monotonic registry revision at which this record was written.
+    /// Monotonic mutation counter.
     pub revision: u64,
     /// Caller identity recorded for audit correlation.
+    /// Last writer identity.
     pub updated_by: String,
 }
 
@@ -175,6 +196,10 @@ pub struct IdentityBindingRegistry {
 
 impl IdentityBindingRegistry {
     /// Create an empty registry with an explicit validated policy.
+    ///
+    /// # Errors
+    ///
+    /// `Err` forwarding [`BindingPolicy::validate`] failures.
     pub fn new(policy: BindingPolicy) -> Result<Self, &'static str> {
         policy.validate()?;
         Ok(Self {
@@ -189,6 +214,10 @@ impl IdentityBindingRegistry {
     }
 
     /// Check a caller before any binding mutation is admitted.
+    ///
+    /// # Errors
+    ///
+    /// Denied result when clearance < min_write_clearance, role not in write_roles, or cell binding capacity is exhausted.
     pub fn authorize_write(&self, principal: &WritePrincipal) -> Result<(), &'static str> {
         if principal.internal {
             return Ok(());

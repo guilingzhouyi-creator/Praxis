@@ -36,6 +36,10 @@ pub struct NotificationBuffer {
 
 impl NotificationBuffer {
     /// Create an empty buffer; zero capacity is rejected rather than lossy.
+    ///
+    /// # Errors
+    ///
+    /// Err when retention capacity is zero.
     pub fn new(capacity: usize) -> Result<Self, &'static str> {
         if capacity == 0 {
             return Err("notification capacity must be positive");

@@ -21,12 +21,16 @@ pub const OUTBOX_MAXLEN: usize = 1024;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProtocolDescriptor {
     /// Envelope protocol version.
+    /// Wire protocol version this host speaks.
     pub protocol_version: u32,
     /// TS-neutral record schema version.
+    /// Version of the typed-record schema family.
     pub record_schema_version: u32,
     /// Bounded replay window per session.
+    /// Replay-window bound every session outbox must honor.
     pub outbox_maxlen: usize,
     /// Message kinds accepted by the v1 envelope.
+    /// Envelope kinds admitted by this descriptor.
     pub message_kinds: Vec<String>,
 }
 
@@ -50,6 +54,12 @@ impl ProtocolDescriptor {
     }
 
     /// Validate a host-supplied descriptor without accepting partial versions.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolVersion / RecordSchemaVersion / OutboxMaxlen when values fall
+    /// outside supported bounds; MessageKinds when the set is empty or
+    /// contains unknown kinds.
     pub fn validate(&self) -> Result<(), ProtocolDescriptorError> {
         let expected = Self::current();
         if self.protocol_version != expected.protocol_version {
@@ -151,24 +161,35 @@ impl std::error::Error for ProtocolError {}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     /// Envelope version.
+    /// Envelope version (currently 1).
     pub v: u32,
     /// Session correlation identifier.
+    /// Session the envelope belongs to.
     pub session_id: String,
     /// Monotonic session sequence.
+    /// Per-session monotonic sequence.
     pub seq: u64,
     /// Producer timestamp in seconds.
+    /// Unix timestamp in seconds (fractional).
     pub ts: f64,
     /// Optional trace correlation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Optional correlation id for cross-system tracing.
     pub trace_id: Option<String>,
     /// Envelope message kind.
+    /// Envelope kind driving dispatch.
     pub kind: MessageKind,
     /// Kind-specific JSON payload.
+    /// Kind-specific payload with deterministic key order.
     pub payload: BTreeMap<String, Value>,
 }
 
 impl Message {
     /// Construct a v1 message with an explicit timestamp.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolError when `maxlen` is zero.
     pub fn new(
         session_id: impl Into<String>,
         seq: u64,
@@ -288,6 +309,10 @@ fn non_empty_text(value: Option<&Value>) -> bool {
 }
 
 /// Serialize a validated message with recursively sorted object keys.
+///
+/// # Errors
+///
+/// InvalidContract carrying every validation failure of `message`.
 pub fn encode_message(message: &Message) -> Result<String, ProtocolError> {
     let errors = validate_message(message);
     if !errors.is_empty() {
@@ -299,6 +324,11 @@ pub fn encode_message(message: &Message) -> Result<String, ProtocolError> {
 }
 
 /// Decode one JSONL envelope and fail closed on malformed input.
+///
+/// # Errors
+///
+/// InvalidContract for an empty line, malformed JSON, missing/bad
+/// `v`, unknown kind, or any envelope validation failure.
 pub fn decode_message(line: &str) -> Result<Message, ProtocolError> {
     if line.trim().is_empty() {
         return Err(ProtocolError::InvalidContract("empty line".to_owned()));
@@ -376,10 +406,13 @@ pub fn decode_message(line: &str) -> Result<Message, ProtocolError> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolRecord {
     /// Stable record discriminator.
+    /// Typed-record discriminator.
     pub record_type: String,
     /// Record schema version.
+    /// Schema version of `data` for this record type.
     pub schema_version: u32,
     /// Known record data fields.
+    /// Record payload with canonical key ordering.
     pub data: BTreeMap<String, Value>,
 }
 
@@ -393,6 +426,11 @@ const RECORD_TYPES: [&str; 6] = [
 ];
 
 /// Decode and validate one TS-neutral record envelope.
+///
+/// # Errors
+///
+/// InvalidContract for empty input, malformed JSON, unknown record
+/// type, or unsupported schema version.
 pub fn decode_record(line: &str) -> Result<ProtocolRecord, ProtocolError> {
     if line.trim().is_empty() {
         return Err(ProtocolError::InvalidContract(
@@ -794,6 +832,10 @@ fn require_object(value: &Value, name: &str) -> Result<(), ProtocolError> {
 }
 
 /// Serialize a validated TS-neutral record with unknown fields removed.
+///
+/// # Errors
+///
+/// InvalidContract when the record fails its schema validation.
 pub fn encode_record(record: &ProtocolRecord) -> Result<String, ProtocolError> {
     let normalized = normalize_record(record)?;
     let value = serde_json::to_value(normalized)
@@ -830,6 +872,11 @@ fn normalize_record(record: &ProtocolRecord) -> Result<ProtocolRecord, ProtocolE
 }
 
 /// Canonicalize JSON recursively by sorting every object key.
+///
+/// # Errors
+///
+/// Serialization when `value` cannot be canonically ordered (e.g.
+/// non-string object keys or non-finite floats).
 pub fn canonical_json(value: &Value) -> Result<String, ProtocolError> {
     let canonical = canonical_value(value)?;
     serde_json::to_string(&canonical)
@@ -892,6 +939,10 @@ impl Default for Outbox {
 
 impl Outbox {
     /// Create a replay window with a positive capacity.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolError::InvalidContract when `maxlen` is zero.
     pub fn new(maxlen: usize) -> Result<Self, ProtocolError> {
         if maxlen == 0 {
             return Err(ProtocolError::InvalidContract(

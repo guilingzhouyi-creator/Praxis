@@ -149,6 +149,10 @@ impl SessionRecord {
     }
 
     /// Validate and apply one lifecycle transition; state is unchanged on error.
+    ///
+    /// # Errors
+    ///
+    /// SessionLifecycleError::InvalidTransition when the FSM forbids the move.
     pub fn transition(&mut self, next: SessionLifecycle) -> Result<(), ProtocolError> {
         if !self.lifecycle.can_transition_to(next) {
             return Err(ProtocolError::InvalidContract(format!(
@@ -242,6 +246,10 @@ impl SessionRegistry {
 
     /// Create and store a session record from a validated identity at the
     /// current epoch time; rejects empty identities and duplicate session ids.
+    ///
+    /// # Errors
+    ///
+    /// SessionLifecycleError on duplicate session id or invalid spec.
     pub fn create(&mut self, identity: SessionIdentity) -> Result<(), ProtocolError> {
         self.create_at(identity, now_epoch_secs())
     }

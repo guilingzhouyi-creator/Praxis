@@ -51,30 +51,44 @@ impl TerminalKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalObservation {
     /// Stable adapter-assigned terminal identity.
+    /// Probed terminal identity.
     pub terminal_id: String,
     /// Terminal family used by policy, not by execution dispatch.
+    /// Terminal family classification.
     pub kind: TerminalKind,
     /// Executable resolved by the host adapter.
+    /// Binary backing the terminal.
     pub executable: String,
     /// Adapter-supplied argument prefix for shell execution.
+    /// argv template to spawn it.
     pub invocation: Vec<String>,
     /// Version reported by the host probe, if available.
+    /// Reported version string, if detected.
     pub version: Option<String>,
     /// Whether the executable was found and can be started.
+    /// Whether the binary was found.
     pub available: bool,
     /// Whether the terminal supports an interactive session.
+    /// Whether interactive use is supported.
     pub interactive: bool,
     /// Whether the host adapter can attach a PTY to this terminal.
+    /// Whether a PTY can be attached.
     pub pty: bool,
     /// Encoding reported by the host adapter.
+    /// Text encoding expectation.
     pub encoding: String,
     /// Probe implementation or host source identifier.
+    /// Observation provenance label.
     pub source: String,
 }
 
 impl TerminalObservation {
     /// Construct an observation from host-supplied facts.
     #[allow(clippy::too_many_arguments)]
+    ///
+    /// # Errors
+    ///
+    /// InvalidConfig when caps/preference bounds are non-positive.
     pub fn new(
         terminal_id: impl Into<String>,
         kind: TerminalKind,
@@ -102,6 +116,11 @@ impl TerminalObservation {
     }
 
     /// Validate identity and host-provided execution metadata.
+    ///
+    /// # Errors
+    ///
+    /// InvalidObservation when identity/invocation/encoding invariants
+    /// break.
     pub fn validate(&self) -> Result<(), TerminalProbeError> {
         if self.terminal_id.trim().is_empty()
             || self.executable.trim().is_empty()
@@ -136,16 +155,22 @@ impl TerminalObservation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalProbeConfig {
     /// Whether unavailable observations are rejected from the eligible set.
+    /// Drop observations whose binary is missing.
     pub require_available: bool,
     /// Whether an eligible terminal must support interactive operation.
+    /// Drop non-interactive terminals.
     pub require_interactive: bool,
     /// Whether an eligible terminal must support PTY attachment.
+    /// Drop PTY-less terminals.
     pub require_pty: bool,
     /// Optional allow-list of terminal families.
+    /// Kind allowlist; None admits all.
     pub allowed_kinds: Option<BTreeSet<TerminalKind>>,
     /// Explicit preference order; no built-in terminal preference exists.
+    /// Tie-break preference order by id.
     pub preferred_ids: Vec<String>,
     /// Maximum number of eligible records retained in the result.
+    /// Eligible-list cap before selection.
     pub max_candidates: usize,
 }
 
@@ -190,12 +215,16 @@ impl TerminalProbeConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalDiscovery {
     /// Discovery contract version.
+    /// Discovery result schema version.
     pub contract_version: u32,
     /// All validated host observations in stable identity order.
+    /// Raw observations in submission order.
     pub observed: Vec<TerminalObservation>,
     /// Eligible observations after policy filtering and preference ordering.
+    /// Observations passing every requirement.
     pub eligible: Vec<TerminalObservation>,
     /// Explicitly selected first eligible observation, if one exists.
+    /// Winning candidate after preference order.
     pub selected: Option<TerminalObservation>,
 }
 
@@ -231,6 +260,11 @@ impl TerminalProbe {
     }
 
     /// Validate, filter, and select injected host observations.
+    ///
+    /// # Errors
+    ///
+    /// DuplicateTerminal on repeated ids; NoEligibleTerminal when nothing
+    /// passes the configured requirements.
     pub fn discover<I>(&self, observations: I) -> Result<TerminalDiscovery, TerminalProbeError>
     where
         I: IntoIterator<Item = TerminalObservation>,

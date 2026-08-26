@@ -173,6 +173,10 @@ impl ManagedProcessBook {
     }
 
     /// Close stdin while retaining ownership of the child handle.
+    ///
+    /// # Errors
+    ///
+    /// ManagedProcessError when the handle is unknown or stdin was already closed.
     pub fn close_stdin(&self, handle: ProcessHandle) -> Result<(), ManagedProcessError> {
         let process = self.lookup(handle)?;
         let mut inner = process.inner.lock().unwrap_or_else(PoisonError::into_inner);
@@ -270,6 +274,10 @@ impl ManagedProcessBook {
     }
 
     /// Reap a terminal child and release its generation-safe slot.
+    ///
+    /// # Errors
+    ///
+    /// ManagedProcessError when the child has not reached a terminal state.
     pub fn reap(&self, handle: ProcessHandle) -> Result<ProcessResult, ManagedProcessError> {
         let mut processes = self.write_processes();
         let process = processes

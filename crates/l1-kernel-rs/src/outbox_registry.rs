@@ -32,6 +32,13 @@ pub struct OutboxMetrics {
 }
 
 /// Bounded per-session replay-window registry.
+///
+/// # Invariants
+///
+/// - Acknowledgement is non-destructive: messages stay replayable until they
+///   age out of the bounded window (eviction order = oldest first).
+/// - The shared watermark equals the LAGGING view's `last_acked`, so one
+///   fast view can never erase another view's replay window.
 pub struct OutboxRegistry {
     maxlen: usize,
     outboxes: BTreeMap<String, Outbox>,
@@ -61,6 +68,10 @@ impl OutboxRegistry {
     }
 
     /// Create a registry with a custom positive per-session capacity.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolError when maxlen is zero — replay windows must hold at least one message.
     pub fn with_maxlen(maxlen: usize) -> Result<Self, ProtocolError> {
         if maxlen == 0 {
             return Err(ProtocolError::InvalidContract(

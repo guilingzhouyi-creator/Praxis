@@ -70,22 +70,31 @@ impl LifecycleState {
 #[serde(default)]
 pub struct LifecycleRecord {
     /// Installation counter or release marker.
+    /// Install-generation counter.
     pub install_version: u64,
     /// Schema version used by the persisted state.
+    /// Active schema version label.
     pub schema_version: String,
     /// Application/kernel version at the last install or upgrade.
+    /// Application version that wrote this record.
     pub app_version: String,
     /// Timestamp of the last boot attempt.
+    /// ISO timestamp of the last boot attempt.
     pub last_boot: String,
     /// Whether the last boot completed successfully.
+    /// Outcome of the last boot.
     pub last_boot_success: bool,
     /// Timestamp of the last shutdown attempt.
+    /// ISO timestamp of the last shutdown.
     pub last_shutdown: String,
+    /// Whether the last shutdown was clean.
     /// Whether the last shutdown was clean.
     pub last_shutdown_clean: bool,
     /// Number of successful boot attempts recorded.
+    /// Lifetime boot attempts.
     pub boot_count: u64,
     /// Serialized current lifecycle state.
+    /// State name at record time.
     pub lifecycle_state: String,
 }
 
@@ -119,8 +128,10 @@ pub enum LifecycleErrorCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LifecycleError {
     /// Stable machine-readable category.
+    /// Stable error classification.
     pub code: LifecycleErrorCode,
     /// Human-readable context for the adapter or audit layer.
+    /// Human-readable failure detail.
     pub message: String,
 }
 
@@ -156,6 +167,10 @@ impl LifecycleRegistry {
     }
 
     /// Create a registry by restoring a record, rejecting unknown states.
+    ///
+    /// # Errors
+    ///
+    /// LifecycleError when the record fails schema/invariant validation.
     pub fn from_record(record: LifecycleRecord) -> Result<Self, LifecycleError> {
         let state = LifecycleState::parse(&record.lifecycle_state).ok_or_else(|| {
             LifecycleError::new(
@@ -179,6 +194,10 @@ impl LifecycleRegistry {
     }
 
     /// Restore a record atomically after validating its state value.
+    ///
+    /// # Errors
+    ///
+    /// LifecycleError on validation failure; success bumps the revision.
     pub fn restore(&self, record: LifecycleRecord) -> Result<(), LifecycleError> {
         let state = LifecycleState::parse(&record.lifecycle_state).ok_or_else(|| {
             LifecycleError::new(
@@ -193,6 +212,10 @@ impl LifecycleRegistry {
     }
 
     /// Encode the current record for a provider-owned checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// LifecycleError on serialization failure.
     pub fn encode(&self) -> Result<Vec<u8>, LifecycleError> {
         serde_json::to_vec(&self.snapshot()).map_err(|error| {
             LifecycleError::new(
@@ -203,6 +226,10 @@ impl LifecycleRegistry {
     }
 
     /// Decode and restore a provider-supplied checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// LifecycleError on decode/validation failure.
     pub fn restore_encoded(&self, bytes: &[u8]) -> Result<(), LifecycleError> {
         let record: LifecycleRecord = serde_json::from_slice(bytes).map_err(|error| {
             LifecycleError::new(

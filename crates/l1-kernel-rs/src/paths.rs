@@ -62,52 +62,71 @@ impl DeployMode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PathInputs {
     /// Selected deployment mode.
+    /// Selected deployment mode.
+    /// Resolved deployment mode.
     pub deploy_mode: DeployMode,
+    /// User home directory.
     /// User home directory.
     pub home_dir: String,
     /// Windows roaming application-data directory.
     #[serde(default)]
+    /// Roaming app-data directory.
     pub appdata_dir: String,
     /// Windows local application-data directory.
     #[serde(default)]
+    /// Local app-data directory.
     pub localappdata_dir: String,
     /// Installation prefix for installed data files.
     #[serde(default)]
+    /// Install prefix root.
     pub prefix_dir: String,
     /// Source or package root used for read-only project assets.
     #[serde(default)]
+    /// Package installation root.
     pub package_root: String,
     /// Frozen executable directory.
     #[serde(default)]
+    /// Directory holding the running binary.
     pub executable_dir: String,
     /// Host temporary directory.
+    /// Platform temp directory.
     pub temp_dir: String,
     /// Host OS path separator.
+    /// PATH list separator.
     pub path_separator: String,
     /// Whether the host is Windows.
+    /// Windows-family flag.
     pub is_windows: bool,
     /// Whether the host is macOS.
+    /// macOS flag.
     pub is_mac: bool,
     /// Optional deployment data root override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub data_dir_override: String,
     /// Optional config directory override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub config_dir_override: String,
     /// Optional config file override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub config_file_override: String,
     /// Optional install directory override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub install_dir_override: String,
     /// Optional config-template directory override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub templates_dir_override: String,
     /// Optional isolated skill root override.
     #[serde(default)]
+    /// Explicit override; empty = derived.
     pub skill_dir_override: String,
     /// Skill write scope (`project` or `global`).
     #[serde(default = "default_skill_scope")]
+    /// Skill scope label (user/project).
     pub skill_scope: String,
 }
 
@@ -155,30 +174,43 @@ pub struct PraxisPaths {
     /// Selected deployment mode.
     pub deploy_mode: DeployMode,
     /// Runtime data root.
+    /// Derived data directory.
     pub data_dir: String,
     /// Runtime config directory.
+    /// Derived config directory.
     pub config_dir: String,
     /// Read-only installation root.
+    /// Derived install directory.
     pub install_dir: String,
     /// Shipped config-template source.
+    /// Derived config-template directory.
     pub config_templates_dir: String,
     /// Log directory.
+    /// Derived logs directory.
     pub logs_dir: String,
     /// Runtime directories created by the boot layout step.
+    /// Directories created by the state-layout initializer.
     pub layout_dirs: Vec<String>,
     /// Main config file.
+    /// Main config file path.
     pub config_file: String,
     /// Constitution file name.
+    /// Constitution rules file path.
     pub constitution_file: String,
     /// Settings file name.
+    /// Settings file path.
     pub settings_file: String,
     /// Skill discovery roots, in priority order.
+    /// Skill search roots in precedence order.
     pub skill_dirs: Vec<String>,
     /// Global evolved skill target.
+    /// Evolved-skill storage directory.
     pub skill_evolved_dir: String,
     /// Lean skill target.
+    /// Lean-trace storage directory.
     pub skill_lean_dir: String,
     /// Project evolved skill target.
+    /// Project-scoped evolved skills directory.
     pub skill_project_evolved_dir: String,
     /// Skill write scope.
     pub skill_scope: String,

@@ -27,6 +27,10 @@ impl Default for ProtocolHostConfig {
 
 impl ProtocolHostConfig {
     /// Build a gate configuration with a positive frame limit.
+    ///
+    /// # Errors
+    ///
+    /// `&'static str` diagnostic when the frame cap is zero.
     pub fn new(max_frame_bytes: usize) -> Result<Self, &'static str> {
         if max_frame_bytes == 0 {
             return Err("protocol frame limit must be positive");
@@ -99,6 +103,10 @@ impl ProtocolHost {
     }
 
     /// Decode, validate, and canonicalize one JSONL envelope.
+    ///
+    /// # Errors
+    ///
+    /// ProtocolError for oversized frames and any envelope validation failure (R7).
     pub fn canonicalize_line(&self, line: &str) -> Result<String, ProtocolHostError> {
         let actual_bytes = line.len();
         if actual_bytes > self.config.max_frame_bytes {

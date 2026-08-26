@@ -162,6 +162,10 @@ impl StateLayoutManifest {
     }
 
     /// Return the serialized manifest after re-validating its invariants.
+    ///
+    /// # Errors
+    ///
+    /// StateLayoutError on manifest invariant violations.
     pub fn encode(&self) -> Result<Vec<u8>, StateLayoutError> {
         Self::new(
             self.state_root.clone(),
@@ -174,6 +178,10 @@ impl StateLayoutManifest {
     }
 
     /// Decode and validate a manifest supplied by a host adapter.
+    ///
+    /// # Errors
+    ///
+    /// StateLayoutError on version/shape mismatch — fail-closed.
     pub fn decode(bytes: &[u8]) -> Result<Self, StateLayoutError> {
         let manifest: Self =
             serde_json::from_slice(bytes).map_err(|_| StateLayoutError::InvalidProbe)?;

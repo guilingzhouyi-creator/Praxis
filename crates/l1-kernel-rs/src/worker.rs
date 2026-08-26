@@ -22,12 +22,16 @@ pub type TaskFn = Box<dyn FnOnce() -> Result<Value, String> + Send + 'static>;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WorkerConfig {
     /// Minimum resident workers.
+    /// Idle floor for the pool size.
     pub min_workers: usize,
     /// Maximum resident workers.
+    /// Hard ceiling for the pool size.
     pub max_workers: usize,
     /// Maximum pending tasks, excluding active tasks.
+    /// Bounded admission queue capacity.
     pub queue_size: usize,
     /// Idle wait before an above-floor worker retires.
+    /// Idle shrink threshold per worker.
     pub idle_timeout: Duration,
 }
 
@@ -94,6 +98,11 @@ impl TaskHandle {
     }
 
     /// Wait for and return the task value, or a structured failure.
+    ///
+    /// # Errors
+    ///
+    /// Timeout when the caller gives up first; Cancelled / TaskTimeout /
+    /// Failed mirror the terminal outcome recorded by the pool.
     pub fn result(&self, timeout: Option<Duration>) -> Result<Value, TaskHandleError> {
         let deadline = timeout.map(|duration| Instant::now() + duration);
         let mut result = self
@@ -216,6 +225,10 @@ pub struct WorkerPool {
 
 impl WorkerPool {
     /// Create a worker pool and start the configured minimum workers.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the minimum worker count or queue capacity is zero.
     pub fn new(config: WorkerConfig) -> Result<Self, &'static str> {
         if config.min_workers == 0 {
             return Err("minimum worker count must be at least one");

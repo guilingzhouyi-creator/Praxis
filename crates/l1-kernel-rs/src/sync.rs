@@ -53,6 +53,16 @@ struct MutexState {
 }
 
 /// Priority-aware, reentrant mutex candidate for the Rust L1 mechanism layer.
+///
+/// # Invariants
+///
+/// - Reentrancy is tracked per owning thread; nested acquisitions must be
+///   released in matching pairs.
+/// - Waiter wakeup order is derived from the recorded effective/base
+///   priorities, so priority inversion degrades to bounded waiting rather
+///   than unbounded starvation.
+/// - Poisoning is tolerated crate-wide: a poisoned guard is recovered via
+///   `PoisonError::into_inner`, never propagated to callers.
 pub struct Mutex {
     name: String,
     timeout: Duration,
@@ -568,6 +578,13 @@ struct RwLockState {
 }
 
 /// Read/write lock candidate with writer preference and reentrant reads.
+///
+/// # Invariants
+///
+/// - Reads are reentrant per thread; writes stay exclusive behind FIFO
+///   writer tickets (`writer_queue`), so queued writers cannot starve.
+/// - A timed-out or cancelled writer releases its ticket and wakes its
+///   successor — pinned by `kernel_sync_vectors.json`.
 pub struct RwLock {
     name: String,
     timeout: Duration,

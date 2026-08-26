@@ -50,18 +50,24 @@ impl MountType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MountPoint {
     /// Absolute virtual prefix, for example `/project`.
+    /// Stable mount name used as the lookup key.
     pub name: String,
     /// Provider/backing class for the mount.
+    /// Virtual vs provider-backed classification.
     pub mount_type: MountType,
     /// Provider-owned real root; never opened by this candidate.
     #[serde(default)]
+    /// Host-side directory backing this mount (virtual mounts leave it empty).
     pub real_path: String,
     /// Minimum agent ring permitted to access the mount.
+    /// Minimum agent ring admitted to this mount.
     pub min_ring: u8,
     /// Whether writes and unlink operations are denied.
+    /// Whether writes and unlinks are rejected on this mount.
     pub read_only: bool,
     /// Human-readable metadata retained for `/proc/mounts` adapters.
     #[serde(default)]
+    /// Human-facing description surfaced to adapters.
     pub description: String,
 }
 
@@ -142,8 +148,10 @@ impl VfsErrorCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VfsError {
     /// Stable machine-readable category.
+    /// Stable errno-style classification.
     pub code: VfsErrorCode,
     /// Bounded, human-readable context.
+    /// Human-readable detail; safe to cross adapters.
     pub message: String,
 }
 
@@ -173,10 +181,13 @@ impl std::error::Error for VfsError {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MountResolution {
     /// Matched virtual mount prefix.
+    /// Name of the mount that resolved the path.
     pub mount: String,
     /// Path relative to the matched mount.
+    /// Path relative to the mount root.
     pub rel: String,
     /// Provider root copied from the mount metadata.
+    /// Absolute virtual root that matched.
     pub root: String,
     /// Provider path formed by joining root and rel; never opened here.
     pub real_path: String,
@@ -192,10 +203,12 @@ pub struct MountResolution {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReadResult {
     /// UTF-8 content supplied by a virtual store or external provider.
+    /// File body served from the bounded virtual store or cache.
     pub content: String,
     /// Matched mount prefix.
     pub mount: String,
     /// Whether the content came from the bounded cache.
+    /// Whether `content` came from the TTL cache rather than the store.
     pub cached: bool,
 }
 
@@ -205,6 +218,7 @@ pub struct WriteResult {
     /// Matched mount prefix.
     pub mount: String,
     /// Virtual path acknowledged by the operation.
+    /// Canonical virtual path written or removed.
     pub path: String,
 }
 
@@ -212,6 +226,7 @@ pub struct WriteResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListResult {
     /// Returned entries in deterministic lexical order.
+    /// Child names under the listed virtual directory.
     pub entries: Vec<String>,
     /// Matched mount prefix.
     pub mount: String,
@@ -221,12 +236,16 @@ pub struct ListResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VfsConfig {
     /// Maximum number of mount points.
+    /// Hard bound on concurrent mount points.
     pub max_mounts: usize,
     /// Maximum number of provider-read cache entries.
+    /// Bounded read-cache capacity in entries.
     pub cache_capacity: usize,
     /// Maximum number of virtual files.
+    /// Bounded virtual-file store capacity in entries.
     pub virtual_capacity: usize,
     /// TTL for provider-read cache entries.
+    /// Time-to-live applied to cached provider reads.
     pub cache_ttl: Duration,
 }
 
@@ -262,6 +281,11 @@ impl MountTable {
     }
 
     /// Insert one mount, rebuilding the longest-prefix lookup index.
+    ///
+    /// # Errors
+    ///
+    /// - [`VfsErrorCode::DuplicateMount`] when `point.name` already exists;
+    /// - [`VfsErrorCode::Capacity`] when the table reached its bound.
     pub fn mount(&mut self, point: MountPoint) -> Result<(), VfsError> {
         validate_path(&point.name, true)?;
         if self.mounts.contains_key(&point.name) {
@@ -283,6 +307,10 @@ impl MountTable {
     }
 
     /// Remove one mount and return its metadata.
+    ///
+    /// # Errors
+    ///
+    /// [`VfsErrorCode::NotFound`] when no mount carries `name`.
     pub fn unmount(&mut self, name: &str) -> Result<MountPoint, VfsError> {
         let point = self.mounts.remove(name).ok_or_else(|| {
             VfsError::new(
@@ -296,6 +324,10 @@ impl MountTable {
     }
 
     /// Resolve a path using the most specific matching mount prefix.
+    ///
+    /// # Errors
+    ///
+    /// [`VfsErrorCode::NotFound`] when no mount prefix matches `path`.
     pub fn resolve(&self, path: &str) -> Result<MountResolution, VfsError> {
         validate_path(path, false)?;
         for prefix in &self.prefixes {
@@ -523,6 +555,11 @@ impl Vfs {
     }
 
     /// Register a mount point.
+    ///
+    /// # Errors
+    ///
+    /// - [`VfsErrorCode::DuplicateMount`] when `point.name` already exists;
+    /// - [`VfsErrorCode::Capacity`] when the table reached its bound.
     pub fn mount(&self, point: MountPoint) -> Result<MountPoint, VfsError> {
         let mut table = self.write_mounts();
         table.mount(point.clone())?;
@@ -530,6 +567,10 @@ impl Vfs {
     }
 
     /// Remove a mount and invalidate all cached content below it.
+    ///
+    /// # Errors
+    ///
+    /// [`VfsErrorCode::NotFound`] when no mount carries `name`.
     pub fn unmount(&self, name: &str) -> Result<MountPoint, VfsError> {
         let point = self.write_mounts().unmount(name)?;
         self.lock_cache().remove_prefix(name);
@@ -537,6 +578,10 @@ impl Vfs {
     }
 
     /// Return a structured mount resolution without accessing the provider.
+    ///
+    /// # Errors
+    ///
+    /// [`VfsErrorCode::NotFound`] when no mount prefix matches `path`.
     pub fn resolve_mount(&self, path: &str) -> Result<MountResolution, VfsError> {
         self.read_mounts().resolve(path)
     }
@@ -547,6 +592,14 @@ impl Vfs {
     }
 
     /// Read a virtual file; real/system reads remain provider-owned.
+    ///
+    /// # Errors
+    ///
+    /// - [`VfsErrorCode::PermissionDenied`] when `agent_ring` is below the
+    ///   mount requirement;
+    /// - [`VfsErrorCode::ProviderRequired`] when the resolution is
+    ///   provider-backed (real reads stay host-owned);
+    /// - [`VfsErrorCode::NotFound`] when the virtual file does not exist.
     pub fn read(&self, path: &str, agent_ring: u8) -> Result<ReadResult, VfsError> {
         let resolution = self.authorize(path, agent_ring, false)?;
         if resolution.mount_type != MountType::Virtual {
@@ -583,6 +636,10 @@ impl Vfs {
     }
 
     /// Delete a virtual file; real/system unlink remains provider-owned.
+    ///
+    /// # Errors
+    ///
+    /// NotFound when absent; ReadOnly on read-only mounts; ProviderRequired off virtual storage.
     pub fn unlink(&self, path: &str, agent_ring: u8) -> Result<WriteResult, VfsError> {
         let resolution = self.authorize(path, agent_ring, true)?;
         if resolution.mount_type != MountType::Virtual {
@@ -603,6 +660,10 @@ impl Vfs {
     }
 
     /// List virtual descendants; external providers supply real listings.
+    ///
+    /// # Errors
+    ///
+    /// NotFound when the directory does not exist; ProviderRequired off virtual storage.
     pub fn list_dir(&self, path: &str, agent_ring: u8) -> Result<ListResult, VfsError> {
         let resolution = self.authorize(path, agent_ring, false)?;
         if resolution.mount_type != MountType::Virtual {
@@ -676,6 +737,10 @@ impl Vfs {
     }
 
     /// Invalidate one cache path and all descendants.
+    ///
+    /// # Errors
+    ///
+    /// Infallible best-effort invalidation; misses are silently ignored.
     pub fn invalidate_cache(&self, path: &str) -> Result<(), VfsError> {
         validate_path(path, false)?;
         self.lock_cache().remove_prefix(path);

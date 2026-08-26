@@ -64,6 +64,11 @@ pub struct ProcessBenchmarkCommand {
 
 impl ProcessBenchmarkCommand {
     /// Validate and retain a non-empty direct argument vector.
+    ///
+    /// # Errors
+    ///
+    /// `Err` describing the first violated process-benchmark constraint
+    /// (empty executable, empty args, non-direct argv).
     pub fn new(args: Vec<String>) -> Result<Self, &'static str> {
         let Some(executable) = args.first() else {
             return Err("process benchmark command requires an executable");
@@ -94,6 +99,10 @@ impl ProcessBenchmarkCommand {
     /// The binary must handle [`PROCESS_BENCHMARK_CHILD_ARG`] before starting
     /// its benchmark. This helper exists only for benchmark plumbing; it is
     /// not a production process-dispatch default.
+    ///
+    /// # Errors
+    ///
+    /// `Err` when the current executable path cannot be determined.
     pub fn current_executable() -> Result<Self, &'static str> {
         let executable = std::env::current_exe()
             .map_err(|_| "current benchmark executable is unavailable")?
@@ -138,6 +147,11 @@ pub fn run_queue_contention_blocking(
 /// boundary, not the lower-level `state_queue` contention path. Queue capacity
 /// must cover the fixed batch so eviction cannot turn the measurement into a
 /// backpressure policy experiment.
+///
+/// # Errors
+///
+/// `Err` when queue capacity is non-positive or does not cover the
+/// fixed work total (eviction must not count as throughput).
 pub fn run_worker_pool_batch(
     spec: FixedWorkSpec,
     queue_capacity: usize,
@@ -173,6 +187,11 @@ pub fn run_worker_pool_batch(
 /// measures the public batch-submission boundary so the admission-lock
 /// optimization can be compared with the per-task baseline without mixing
 /// their latency distributions. Queue capacity must still cover all work.
+///
+/// # Errors
+///
+/// `Err` for non-positive capacity, uncovered fixed work, or a zero
+/// submit-batch size.
 pub fn run_worker_pool_batch_submit(
     spec: FixedWorkSpec,
     queue_capacity: usize,
@@ -215,6 +234,11 @@ pub fn run_worker_pool_batch_submit(
 /// eviction policy. The workload uses already-bound `Value::Null` closures;
 /// protocol decode, AgentLoop, provider, and tool execution remain outside the
 /// candidate.
+///
+/// # Errors
+///
+/// `Err` when work exceeds the handle slot range or worker count
+/// exceeds available work.
 pub fn run_runtime(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "total work does not fit the target architecture")?;
@@ -243,6 +267,10 @@ pub fn run_runtime(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str>
 /// complete batch operation, while completed work and throughput remain task
 /// counts. This keeps batch tails separate from [`run_runtime`]'s per-task
 /// measurement and prevents queue eviction from becoming the experiment.
+///
+/// # Errors
+///
+/// `Err` mirroring `run_runtime` plus a zero submit-batch size check.
 pub fn run_runtime_batch(
     spec: FixedWorkSpec,
     submit_batch_size: usize,
@@ -280,6 +308,10 @@ pub fn run_runtime_batch(
 /// Each work item creates, activates, and appends one independent session.
 /// The workload measures the Rust-native identity/history hot path; it does
 /// not invoke AgentLoop, providers, tools, terminals, or persistence.
+///
+/// # Errors
+///
+/// `Err` when the shard count is non-positive-validated.
 pub fn run_session_book(
     spec: FixedWorkSpec,
     shard_count: usize,
@@ -310,6 +342,10 @@ pub fn run_session_book(
 /// Batch latency is reported as its own distribution, separate from
 /// [`run_session_book`]'s per-session operation latency. Queue and lock waits
 /// remain zero because the session book has no queue boundary or wait probe.
+///
+/// # Errors
+///
+/// `Err` for invalid shard count or zero batch size.
 pub fn run_session_book_batch(
     spec: FixedWorkSpec,
     shard_count: usize,
@@ -474,6 +510,10 @@ pub fn run_terminal_book_snapshot_page(
 /// Each item registers a unique descriptor and immediately resolves it again.
 /// Registration order remains an observable output invariant, while the
 /// internal name lookup is measured through the Rust-native hash index.
+///
+/// # Errors
+///
+/// `Err` when the fixed-work spec violates registry-base bounds.
 pub fn run_registry_base(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "registry work does not fit the target architecture")?;
@@ -494,6 +534,10 @@ pub fn run_registry_base(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'stati
 /// workload measures the serialized routing boundary. Session history remains
 /// the authoritative message truth; terminal mailbox mutation and provider or
 /// tool execution are intentionally excluded.
+///
+/// # Errors
+///
+/// `Err` when the work item count exceeds loop admission bounds.
 pub fn run_agent_loop(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
     run_agent_loop_mode(spec, true)
 }
@@ -662,6 +706,10 @@ pub fn run_process_bridge(
 /// group-member terminal admission and reaping under the requested worker
 /// count. No OS child, PTY, process-group signal, or background reaper is
 /// involved; this is a mechanism-only lock/contention workload.
+///
+/// # Errors
+///
+/// `Err` when group/member budgets cannot cover the workload.
 pub fn run_process_group(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'static str> {
     let total_work = usize::try_from(spec.total_work_items)
         .map_err(|_| "process-group work does not fit the target architecture")?;

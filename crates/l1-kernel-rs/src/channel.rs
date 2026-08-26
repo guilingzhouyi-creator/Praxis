@@ -23,6 +23,10 @@ struct ChannelState {
 
 impl RingChannel {
     /// Create a fixed-capacity channel; capacity zero is rejected explicitly.
+    ///
+    /// # Errors
+    ///
+    /// Err when the requested capacity is zero — a channel that holds nothing is refused.
     pub fn new(capacity: usize, overwrite: bool) -> Result<Self, &'static str> {
         if capacity == 0 {
             return Err("capacity must be at least one");

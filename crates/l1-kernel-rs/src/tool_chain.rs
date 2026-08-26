@@ -17,18 +17,28 @@ pub const FINGERPRINT_HEX_LENGTH: usize = 40;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FingerprintLink {
     /// Stable call identifier.
+    /// Unique tool-call id.
+    /// Verified call id.
     pub call_id: String,
     /// Tool name supplied by the caller.
+    /// Invoked tool name.
     pub tool_name: String,
     /// Agent identifier supplied by the caller.
+    /// Calling agent identity.
     pub agent_id: String,
     /// Execution ring supplied by the caller.
+    /// Authority ring of the call.
     pub ring: i64,
     /// Parent call identifier, empty for a root.
+    /// Parent call id (GENESIS at the root).
     pub parent_id: String,
     /// Depth supplied by the chain owner.
+    /// Chain depth from the root call.
+    /// Depth recorded in the chain.
+    /// Verified chain depth.
     pub depth: usize,
     /// Stored fingerprint to validate.
+    /// Truncated HMAC-SHA256 chain fingerprint.
     pub fingerprint: String,
 }
 
@@ -38,10 +48,12 @@ pub struct VerificationStep {
     /// Call identifier checked by this step.
     pub call_id: String,
     /// Tool name retained for audit display.
+    /// Tool name recorded in the chain.
     pub tool: String,
     /// Declared chain depth.
     pub depth: usize,
     /// Whether the stored fingerprint matched the recomputed value.
+    /// Whether recomputation matched the stored link.
     pub fingerprint_match: bool,
 }
 
@@ -49,8 +61,10 @@ pub struct VerificationStep {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerificationResult {
     /// Whether every chain step matched.
+    /// Overall chain validity verdict.
     pub valid: bool,
     /// Per-link verification details.
+    /// Root-first per-link verification steps.
     pub steps: Vec<VerificationStep>,
     /// Number of links checked.
     pub depth: usize,
