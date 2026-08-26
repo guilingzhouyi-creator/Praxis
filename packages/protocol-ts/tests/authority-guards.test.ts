@@ -33,6 +33,8 @@ describe("validateMessage fail-closed branches", () => {
     expect(validateMessage(m4)).toContain("unknown kind: bogus");
     const m5 = { ...VALID(), session_id: "" } as unknown as Record<string, unknown>;
     expect(validateMessage(m5)).toContain("session_id must be a non-empty string");
+    const unsafe = { ...VALID(), seq: Number.MAX_SAFE_INTEGER + 1 } as unknown as Record<string, unknown>;
+    expect(validateMessage(unsafe)).toContain("seq must be a non-negative integer");
   });
 
   it("rejects non-string trace_id", () => {
@@ -63,6 +65,9 @@ describe("validateMessage fail-closed branches", () => {
       "control payload session_id must be a non-empty string",
     );
     expect(bad("ack", { ack_seq: -2 })).toContain("ack payload requires a non-negative integer ack_seq");
+    expect(bad("ack", { ack_seq: Number.MAX_SAFE_INTEGER + 1 })).toContain(
+      "ack payload requires a non-negative integer ack_seq",
+    );
   });
 
   it("encodeMessage throws on invalid envelope; decodeMessage reports without throwing", () => {

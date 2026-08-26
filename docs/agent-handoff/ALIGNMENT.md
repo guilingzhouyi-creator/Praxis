@@ -68,6 +68,7 @@
 | 2026-08-26 | packages/protocol-ts/src/engine/transports/line-transport.ts + packages/protocol-ts/tests/transports.test.ts + docs/roadmaps/l1-l2-docking.md + docs/design/l1l2-docking-execution-plan.md + CHANGELOG.md | Codex (GPT5.6Terra) | terminate on synthetic session-fault result without waiting for an ack | in feature/ts-rust-e2e-docking |
 | 2026-08-26 | packages/protocol-ts/src/engine/bridge.ts + packages/protocol-ts/tests/bridge-domains.test.ts + docs/architecture/l2-shell-engine.md + docs/roadmaps/l1-l2-docking.md + CHANGELOG.md | Codex (GPT5.6Terra) | constrain TS sequence wraparound to safe integers and avoid unsafe increment | in feature/ts-rust-e2e-docking |
 | 2026-08-26 | docs/design/l1l2-docking-execution-plan.md | Codex (GPT5.6Terra) | record partial D0.4 sequence-boundary closure in the construction plan | in feature/ts-rust-e2e-docking |
+| 2026-08-26 | packages/protocol-ts/src/envelope.ts + packages/protocol-ts/tests/authority-guards.test.ts + docs/architecture/l2-shell-engine.md + docs/roadmaps/l1-l2-docking.md + CHANGELOG.md | Codex (GPT5.6Terra) | reject unsafe TS wire sequence integers to prevent JSON rounding; retain Rust u64 peer capability | in feature/ts-rust-e2e-docking |
 
 ## Clobber warnings (do not repeat)
 

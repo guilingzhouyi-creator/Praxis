@@ -32,7 +32,9 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function isInteger(value: unknown, minimum = 0): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= minimum;
+  // JSON.parse stores numbers as IEEE-754 doubles; unsafe integers would be
+  // silently rounded before the protocol validator could inspect them.
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum;
 }
 
 function nowSeconds(): number {

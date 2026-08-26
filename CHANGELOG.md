@@ -11,6 +11,7 @@
 - **Fix (l2)**: fail pending TS bridge requests immediately on host disconnect
 - **Fix (l2)**: close protocol requests on synthetic host fault frames
 - **Fix (l2)**: bound bridge sequence wraparound to safe integers
+- **Fix (l2)**: reject unsafe wire sequence numbers before rounding
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission
