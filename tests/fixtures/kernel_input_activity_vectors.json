@@ -1,0 +1,45 @@
+{
+  "contract_version": 1,
+  "config": {"idle_after_seconds": 5.0, "max_sources": 4},
+  "cases": [
+    {
+      "name": "active_keyboard",
+      "now": 100.0,
+      "observations": [
+        {"source": "keyboard", "permission": "granted", "keyboard_active": true, "pointer_active": false, "last_activity_at": 99.0}
+      ],
+      "expected": {"state": "active", "keyboard_active": true, "pointer_active": false, "last_activity_at": 99.0, "idle_seconds": 1.0, "source": "rust-probe", "permission": "granted"}
+    },
+    {
+      "name": "stale_pointer_becomes_idle",
+      "now": 100.0,
+      "observations": [
+        {"source": "pointer", "permission": "granted", "keyboard_active": false, "pointer_active": true, "last_activity_at": 90.0}
+      ],
+      "expected": {"state": "idle", "keyboard_active": false, "pointer_active": false, "last_activity_at": 90.0, "idle_seconds": 10.0, "source": "rust-probe", "permission": "granted"}
+    },
+    {
+      "name": "denied_source_is_unknown",
+      "now": 100.0,
+      "observations": [
+        {"source": "keyboard", "permission": "denied", "keyboard_active": false, "pointer_active": false, "last_activity_at": 0.0}
+      ],
+      "expected": {"state": "unknown", "keyboard_active": false, "pointer_active": false, "last_activity_at": 0.0, "idle_seconds": 0.0, "source": "rust-probe", "permission": "denied"}
+    },
+    {
+      "name": "mixed_sources_keep_granted_activity",
+      "now": 100.0,
+      "observations": [
+        {"source": "keyboard", "permission": "granted", "keyboard_active": true, "pointer_active": false, "last_activity_at": 98.0},
+        {"source": "pointer", "permission": "denied", "keyboard_active": false, "pointer_active": false, "last_activity_at": 0.0}
+      ],
+      "expected": {"state": "active", "keyboard_active": true, "pointer_active": false, "last_activity_at": 98.0, "idle_seconds": 2.0, "source": "rust-probe", "permission": "granted"}
+    },
+    {
+      "name": "no_sources_are_unavailable",
+      "now": 100.0,
+      "observations": [],
+      "expected": {"state": "unknown", "keyboard_active": false, "pointer_active": false, "last_activity_at": 0.0, "idle_seconds": 0.0, "source": "rust-probe", "permission": "unavailable"}
+    }
+  ]
+}

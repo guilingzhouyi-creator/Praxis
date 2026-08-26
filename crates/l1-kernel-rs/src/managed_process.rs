@@ -148,24 +148,6 @@ impl ManagedProcessBook {
         self.spawn_command(command)
     }
 
-    /// Spawn one shell command through the platform shell.
-    pub fn spawn_shell(
-        &self,
-        command_text: &str,
-        options: Option<&ProcessOptions>,
-    ) -> Result<ProcessHandle, ManagedProcessError> {
-        if let Some(error) = invalid_cwd(options) {
-            return Err(ManagedProcessError::InvalidCwd(error));
-        }
-        let executable = options
-            .and_then(|value| value.executable.as_deref())
-            .unwrap_or(default_shell());
-        let mut command = Command::new(executable);
-        command.arg(shell_switch()).arg(command_text);
-        apply_options(&mut command, options);
-        self.spawn_command(command)
-    }
-
     /// Write one bounded caller-provided input frame to a running child.
     pub fn write_stdin(
         &self,
@@ -508,24 +490,4 @@ fn invalid_cwd(options: Option<&ProcessOptions>) -> Option<String> {
         Ok(_) => Some(format!("working directory is not a directory: {cwd}")),
         Err(error) => Some(format!("working directory is unavailable: {error}")),
     }
-}
-
-#[cfg(unix)]
-fn default_shell() -> &'static str {
-    "/bin/sh"
-}
-
-#[cfg(windows)]
-fn default_shell() -> &'static str {
-    "cmd.exe"
-}
-
-#[cfg(unix)]
-fn shell_switch() -> &'static str {
-    "-c"
-}
-
-#[cfg(windows)]
-fn shell_switch() -> &'static str {
-    "/C"
 }

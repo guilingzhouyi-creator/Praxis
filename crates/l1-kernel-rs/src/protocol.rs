@@ -208,8 +208,12 @@ pub fn validate_message(message: &Message) -> Vec<String> {
 /// Host-derived authorization fields banned from inbound command/control
 /// payloads (R4): approval authority is adapter-injected at the GateRequest
 /// boundary and must never be wire-declared.
-const HOST_DERIVED_PAYLOAD_FIELDS: [&str; 4] =
-    ["approved", "pre_approved", "full_power", "harness_auto_approved"];
+const HOST_DERIVED_PAYLOAD_FIELDS: [&str; 4] = [
+    "approved",
+    "pre_approved",
+    "full_power",
+    "harness_auto_approved",
+];
 
 fn validate_payload(kind: MessageKind, payload: &BTreeMap<String, Value>) -> Vec<String> {
     let mut errors = Vec::new();
@@ -842,7 +846,8 @@ fn canonical_value(value: &Value) -> Result<Value, ProtocolError> {
                         "non-finite number cannot be encoded as JSON".to_owned(),
                     ));
                 }
-                if float.fract() == 0.0 && float >= (i64::MIN as f64) && float <= (u64::MAX as f64) {
+                if float.fract() == 0.0 && float >= (i64::MIN as f64) && float <= (u64::MAX as f64)
+                {
                     if float >= 0.0 {
                         return Ok(Value::Number(serde_json::Number::from(float as u64)));
                     } else {

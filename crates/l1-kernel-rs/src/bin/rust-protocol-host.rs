@@ -14,9 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use l1_kernel_rs::host_dispatch::{HostRouter, RouterConfig};
-use l1_kernel_rs::protocol::{
-    Message, MessageKind, ProtocolError, decode_message, encode_message,
-};
+use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
 use l1_kernel_rs::protocol_host::DEFAULT_MAX_FRAME_BYTES;
 
 fn now_seconds() -> f64 {
@@ -27,7 +25,8 @@ fn now_seconds() -> f64 {
 
 /// Encode one outbound envelope, mapping protocol failures to I/O errors.
 fn wire(message: &Message) -> std::io::Result<String> {
-    encode_message(message).map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))
+    encode_message(message)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))
 }
 
 /// Synthetic failure envelope for frames that cannot reach the router
@@ -87,8 +86,7 @@ fn main() -> std::io::Result<()> {
                     Err(route_error) => {
                         // Protocol-level violation: answer with a denial
                         // envelope so the client never stalls (R7).
-                        let denial =
-                            router.error_envelope_for(&message, &route_error.to_string());
+                        let denial = router.error_envelope_for(&message, &route_error.to_string());
                         writeln!(stdout, "{}", wire(&denial)?)?;
                     }
                 }

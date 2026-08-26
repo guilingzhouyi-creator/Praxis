@@ -70,6 +70,8 @@ pub enum ProcessBridgeError {
     TableTransition,
     /// The ProcessTable row could not be removed during rollback or reap.
     TableReap,
+    /// A bounded reaper sweep must inspect at least one binding.
+    InvalidReapBudget,
 }
 
 impl From<ManagedProcessError> for ProcessBridgeError {
@@ -126,15 +128,6 @@ impl ProcessTableBridge {
         options: Option<&ProcessOptions>,
     ) -> Result<ProcessHandle, ProcessBridgeError> {
         self.spawn_registered(|managed| managed.spawn_args(args, options))
-    }
-
-    /// Spawn an explicit shell command through the managed-child adapter.
-    pub fn spawn_shell(
-        &self,
-        command: &str,
-        options: Option<&ProcessOptions>,
-    ) -> Result<ProcessHandle, ProcessBridgeError> {
-        self.spawn_registered(|managed| managed.spawn_shell(command, options))
     }
 
     /// Write to a child identified by its ProcessTable handle.
@@ -238,9 +231,21 @@ impl ProcessTableBridge {
         Ok(result)
     }
 
-    /// Reap all children that are already terminal without blocking on live ones.
-    pub fn reap_finished(&self) -> ProcessReapReport {
-        let handles = self.read_bindings().keys().copied().collect::<Vec<_>>();
+    /// Reap up to `max_bindings` children that are already terminal.
+    ///
+    /// Handle selection is stable by raw generation-tagged identity, and live
+    /// children remain owned and are reported as pending. The sweep never
+    /// blocks on child I/O and never changes ProcessTable lifecycle authority.
+    pub fn reap_finished(
+        &self,
+        max_bindings: usize,
+    ) -> Result<ProcessReapReport, ProcessBridgeError> {
+        if max_bindings == 0 {
+            return Err(ProcessBridgeError::InvalidReapBudget);
+        }
+        let mut handles = self.read_bindings().keys().copied().collect::<Vec<_>>();
+        handles.sort_unstable_by_key(|handle| handle.raw());
+        handles.truncate(max_bindings);
         let mut report = ProcessReapReport {
             inspected: handles.len() as u64,
             ..ProcessReapReport::default()
@@ -270,7 +275,7 @@ impl ProcessTableBridge {
                 Err(_) => report.errors = report.errors.saturating_add(1),
             }
         }
-        report
+        Ok(report)
     }
 
     fn spawn_registered(

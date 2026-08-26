@@ -5,7 +5,7 @@
     "frozen_at_branch": "feature/protocol-v1-conformance",
     "runners": {
       "typescript": "packages/protocol-ts/tests/conformance.test.ts",
-      "rust": "crates/l1-kernel-rs/tests/conformance_vectors.rs",
+      "rust": "crates/l1-kernel-rs/tests/protocol/conformance_vectors.rs",
       "python_legacy": "tests/l2/test_conformance_vectors.py"
     },
     "legacy_exceptions": [

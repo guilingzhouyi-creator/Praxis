@@ -195,7 +195,7 @@ def test_feature_branch_allows_feat():
 
 def test_rust_and_typescript_paths_are_code_for_type_checks():
     assert validate_type_content("feat", ["crates/l1-kernel-rs/src/lib.rs"]) == []
-    assert validate_type_content("test", ["crates/l1-kernel-rs/tests/contract_vectors.rs"]) == []
+    assert validate_type_content("test", ["crates/l1-kernel-rs/tests/protocol/contract_vectors.rs"]) == []
     assert validate_type_content("feat", ["packages/protocol-ts/src/envelope.ts"]) == []
 
 

@@ -1,7 +1,9 @@
 //! Emit a release-mode fixed-work ProcessTable bridge lifecycle report.
 
 use l1_kernel_rs::benchmark::{BenchmarkEvidence, BenchmarkMetadata, FixedWorkSpec};
-use l1_kernel_rs::benchmark_runner::run_process_bridge;
+use l1_kernel_rs::benchmark_runner::{
+    PROCESS_BENCHMARK_CHILD_ARG, ProcessBenchmarkCommand, run_process_bridge,
+};
 
 fn env_or(name: &str, fallback: &str) -> String {
     std::env::var(name)
@@ -11,9 +13,17 @@ fn env_or(name: &str, fallback: &str) -> String {
 }
 
 fn main() {
+    if std::env::args()
+        .skip(1)
+        .any(|arg| arg == PROCESS_BENCHMARK_CHILD_ARG)
+    {
+        return;
+    }
     let spec = FixedWorkSpec::new("process.bridge.lifecycle", 256, vec![1, 2, 4], 3)
         .expect("benchmark specification is valid");
-    let report = run_process_bridge(spec).expect("process bridge benchmark completed");
+    let command = ProcessBenchmarkCommand::current_executable()
+        .expect("benchmark child command is available");
+    let report = run_process_bridge(spec, command).expect("process bridge benchmark completed");
     let metadata = BenchmarkMetadata::new(
         std::env::consts::OS,
         std::env::consts::ARCH,

@@ -1,7 +1,9 @@
 //! Emit a release-mode fixed-work managed-process lifecycle report.
 
 use l1_kernel_rs::benchmark::{BenchmarkEvidence, BenchmarkMetadata, FixedWorkSpec};
-use l1_kernel_rs::benchmark_runner::run_managed_process;
+use l1_kernel_rs::benchmark_runner::{
+    PROCESS_BENCHMARK_CHILD_ARG, ProcessBenchmarkCommand, run_managed_process,
+};
 
 fn env_or(name: &str, fallback: &str) -> String {
     std::env::var(name)
@@ -11,9 +13,17 @@ fn env_or(name: &str, fallback: &str) -> String {
 }
 
 fn main() {
+    if std::env::args()
+        .skip(1)
+        .any(|arg| arg == PROCESS_BENCHMARK_CHILD_ARG)
+    {
+        return;
+    }
     let spec = FixedWorkSpec::new("process.managed.lifecycle", 256, vec![1, 2, 4], 3)
         .expect("benchmark specification is valid");
-    let report = run_managed_process(spec).expect("managed process benchmark completed");
+    let command = ProcessBenchmarkCommand::current_executable()
+        .expect("benchmark child command is available");
+    let report = run_managed_process(spec, command).expect("managed process benchmark completed");
     let metadata = BenchmarkMetadata::new(
         std::env::consts::OS,
         std::env::consts::ARCH,

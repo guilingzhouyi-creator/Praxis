@@ -8,8 +8,11 @@
 
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::{Arc, Mutex as StdMutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Arc, Mutex as StdMutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, TryLockError,
+};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -86,6 +89,21 @@ pub struct RuntimeSnapshot {
     pub worker_stats: BTreeMap<String, Value>,
 }
 
+/// Result of one bounded caller-driven runtime reaper sweep.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeReapReport {
+    /// Number of task handles selected within the requested budget.
+    pub inspected: u64,
+    /// Number of terminal tasks whose scheduler slots were released.
+    pub reaped: u64,
+    /// Number of selected tasks that were still ready or running.
+    pub pending: u64,
+    /// Number of handles removed concurrently before this sweep could reap them.
+    pub unavailable: u64,
+    /// Number of terminal tasks whose scheduler slot could not be released.
+    pub errors: u64,
+}
+
 /// Fail-closed errors at the runtime host boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeError {
@@ -109,8 +127,144 @@ pub enum RuntimeError {
     InvalidHandle,
     /// A task is still ready or running and cannot be reaped.
     TaskNotTerminal(RuntimeTaskState),
+    /// A bounded reaper sweep must inspect at least one task.
+    InvalidReapBudget,
     /// The runtime cannot accept new work after shutdown begins.
     ShuttingDown,
+}
+
+/// Benchmark-only lock-wait evidence for runtime admission.
+///
+/// Both counters accumulate only after a `try_read` or `try_lock` reports
+/// contention. The normal runtime submission path neither reads a clock nor
+/// updates these counters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeLockWaitSnapshot {
+    /// Time blocked by the lifecycle/shutdown admission barrier.
+    pub admission_wait_ns: u64,
+    /// Time blocked while registering a task in its shard-local task book.
+    pub task_book_wait_ns: u64,
+}
+
+impl RuntimeLockWaitSnapshot {
+    /// Return the aggregate blocked time recorded by benchmark-only admission.
+    pub const fn total_ns(self) -> u64 {
+        self.admission_wait_ns
+            .saturating_add(self.task_book_wait_ns)
+    }
+}
+
+#[derive(Default)]
+struct RuntimeLockWaitMetrics {
+    admission_wait_ns: AtomicU64,
+    task_book_wait_ns: AtomicU64,
+}
+
+struct RuntimeTaskBook {
+    shards: Vec<StdMutex<BTreeMap<u64, RuntimeTaskState>>>,
+    metrics: Arc<RuntimeLockWaitMetrics>,
+}
+
+impl RuntimeTaskBook {
+    fn new(shard_count: u32, metrics: Arc<RuntimeLockWaitMetrics>) -> Self {
+        let mut shards = Vec::with_capacity(shard_count as usize);
+        for _ in 0..shard_count {
+            shards.push(StdMutex::new(BTreeMap::new()));
+        }
+        Self { shards, metrics }
+    }
+
+    fn insert(&self, handle: ProcessHandle, state: RuntimeTaskState, observed: bool) {
+        self.lock_shard(handle, observed)
+            .insert(handle.raw(), state);
+    }
+
+    fn state(&self, handle: ProcessHandle) -> Option<RuntimeTaskState> {
+        self.lock_shard(handle, false).get(&handle.raw()).copied()
+    }
+
+    fn set_state(&self, handle: ProcessHandle, state: RuntimeTaskState) {
+        self.lock_shard(handle, false).insert(handle.raw(), state);
+    }
+
+    fn cancel_if_ready(&self, handle: ProcessHandle) -> bool {
+        let mut tasks = self.lock_shard(handle, false);
+        if tasks.get(&handle.raw()) == Some(&RuntimeTaskState::Ready) {
+            tasks.insert(handle.raw(), RuntimeTaskState::Cancelled);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn remove(&self, handle: ProcessHandle) {
+        self.lock_shard(handle, false).remove(&handle.raw());
+    }
+
+    fn handles_up_to(&self, limit: usize) -> Vec<ProcessHandle> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        let mut handles = Vec::with_capacity(limit);
+        for shard in &self.shards {
+            let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
+            for raw in tasks.keys() {
+                if handles.len() == limit {
+                    return handles;
+                }
+                if let Some(handle) = ProcessHandle::from_raw(*raw) {
+                    handles.push(handle);
+                }
+            }
+        }
+        handles
+    }
+
+    fn snapshot_counts(&self) -> (usize, usize) {
+        self.shards.iter().fold((0, 0), |(count, terminal), shard| {
+            let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
+            (
+                count.saturating_add(tasks.len()),
+                terminal.saturating_add(tasks.values().filter(|state| state.is_terminal()).count()),
+            )
+        })
+    }
+
+    fn reset_observed_wait(&self) {
+        self.metrics.admission_wait_ns.store(0, Ordering::Release);
+        self.metrics.task_book_wait_ns.store(0, Ordering::Release);
+    }
+
+    fn observed_wait(&self) -> RuntimeLockWaitSnapshot {
+        RuntimeLockWaitSnapshot {
+            admission_wait_ns: self.metrics.admission_wait_ns.load(Ordering::Acquire),
+            task_book_wait_ns: self.metrics.task_book_wait_ns.load(Ordering::Acquire),
+        }
+    }
+
+    fn lock_shard(
+        &self,
+        handle: ProcessHandle,
+        observed: bool,
+    ) -> MutexGuard<'_, BTreeMap<u64, RuntimeTaskState>> {
+        let shard = &self.shards[handle.slot() as usize % self.shards.len()];
+        if !observed {
+            return shard.lock().unwrap_or_else(PoisonError::into_inner);
+        }
+        match shard.try_lock() {
+            Ok(tasks) => tasks,
+            Err(TryLockError::Poisoned(error)) => error.into_inner(),
+            Err(TryLockError::WouldBlock) => {
+                let started = Instant::now();
+                let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
+                self.metrics.task_book_wait_ns.fetch_add(
+                    started.elapsed().as_nanos().try_into().unwrap_or(u64::MAX),
+                    Ordering::Relaxed,
+                );
+                tasks
+            }
+        }
+    }
 }
 
 /// A submitted runtime task and its generation-safe process identity.
@@ -118,7 +272,7 @@ pub enum RuntimeError {
 pub struct RuntimeTask {
     handle: ProcessHandle,
     result: TaskHandle,
-    tasks: Arc<StdMutex<BTreeMap<u64, RuntimeTaskState>>>,
+    tasks: Arc<RuntimeTaskBook>,
     scheduler: Arc<KernelScheduler>,
 }
 
@@ -143,7 +297,7 @@ impl RuntimeTask {
                 // shutdown rejection, or queue admission failure). In that case
                 // no completion callback can release the scheduler state.
                 let _ = self.scheduler.stop_direct(self.handle);
-                set_task_state(&self.tasks, self.handle, state);
+                self.tasks.set_state(self.handle, state);
             }
         }
         result
@@ -152,13 +306,11 @@ impl RuntimeTask {
     /// Request cooperative cancellation before the worker starts execution.
     pub fn cancel(&self, reason: impl Into<String>) -> bool {
         let accepted = self.result.cancel(reason);
-        if accepted {
-            let mut tasks = lock_tasks(&self.tasks);
-            if tasks.get(&self.handle.raw()) == Some(&RuntimeTaskState::Ready)
-                && self.scheduler.stop_direct(self.handle).is_ok()
-            {
-                tasks.insert(self.handle.raw(), RuntimeTaskState::Cancelled);
-            }
+        if accepted
+            && self.tasks.cancel_if_ready(self.handle)
+            && self.scheduler.stop_direct(self.handle).is_err()
+        {
+            self.tasks.set_state(self.handle, RuntimeTaskState::Ready);
         }
         accepted
     }
@@ -170,7 +322,7 @@ impl RuntimeTask {
 
     /// Return the latest runtime-owned task state.
     pub fn state(&self) -> Option<RuntimeTaskState> {
-        lock_tasks(&self.tasks).get(&self.handle.raw()).copied()
+        self.tasks.state(self.handle)
     }
 }
 
@@ -180,11 +332,11 @@ pub struct KernelRuntime {
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
     scheduler: Arc<KernelScheduler>,
-    admission: StdMutex<()>,
+    admission: RwLock<()>,
     gatechain: Arc<GateChain>,
     capability: Arc<CapabilityAuthority>,
     workers: WorkerPool,
-    tasks: Arc<StdMutex<BTreeMap<u64, RuntimeTaskState>>>,
+    tasks: Arc<RuntimeTaskBook>,
 }
 
 impl KernelRuntime {
@@ -203,11 +355,11 @@ impl KernelRuntime {
             lifecycle: Arc::new(LifecycleRegistry::new()),
             state_store: None,
             scheduler: Arc::new(scheduler),
-            admission: StdMutex::new(()),
+            admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
-            tasks: Arc::new(StdMutex::new(BTreeMap::new())),
+            tasks: runtime_task_book(config.shard_count),
         })
     }
 
@@ -245,11 +397,11 @@ impl KernelRuntime {
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
             scheduler: Arc::new(scheduler),
-            admission: StdMutex::new(()),
+            admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
-            tasks: Arc::new(StdMutex::new(BTreeMap::new())),
+            tasks: runtime_task_book(config.shard_count),
         })
     }
 
@@ -290,6 +442,10 @@ impl KernelRuntime {
 
     /// Boot the runtime through booting to active without running callbacks.
     pub fn boot(&self) -> Result<RuntimeSnapshot, RuntimeError> {
+        let _admission = self
+            .admission
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
         let bootable = self.lifecycle.state() == LifecycleState::Halted
             || (self.state_store.is_some() && self.lifecycle.state() == LifecycleState::Crashed);
         if !bootable {
@@ -315,36 +471,7 @@ impl KernelRuntime {
 
     /// Submit a closure to the bounded worker pool and assign a process handle.
     pub fn submit(&self, action: TaskFn) -> Result<RuntimeTask, RuntimeError> {
-        if self.lifecycle.state() != LifecycleState::Active {
-            return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
-        }
-        let handle = self.start_task()?;
-        lock_tasks(&self.tasks).insert(handle.raw(), RuntimeTaskState::Ready);
-        let tasks = Arc::clone(&self.tasks);
-        let scheduler = Arc::clone(&self.scheduler);
-        let action = Box::new(move || {
-            set_task_state(&tasks, handle, RuntimeTaskState::Running);
-            let result = catch_unwind(AssertUnwindSafe(action))
-                .unwrap_or_else(|_| Err("task panicked".to_owned()));
-            let _ = scheduler.complete_direct(handle);
-            set_task_state(
-                &tasks,
-                handle,
-                if result.is_ok() {
-                    RuntimeTaskState::Succeeded
-                } else {
-                    RuntimeTaskState::Failed
-                },
-            );
-            result
-        });
-        let result = self.workers.submit_result(action);
-        Ok(RuntimeTask {
-            handle,
-            result,
-            tasks: Arc::clone(&self.tasks),
-            scheduler: Arc::clone(&self.scheduler),
-        })
+        self.submit_inner(action, None, false)
     }
 
     /// Submit a closure with an execution deadline enforced by the worker.
@@ -353,20 +480,110 @@ impl KernelRuntime {
         action: TaskFn,
         timeout: Duration,
     ) -> Result<RuntimeTask, RuntimeError> {
+        self.submit_inner(action, Some(timeout), false)
+    }
+
+    /// Submit an ordered task batch through one WorkerPool admission boundary.
+    ///
+    /// Each returned task retains the same cancellation, result, deadline-free,
+    /// and reap behavior as [`Self::submit`]. If process reservation fails,
+    /// the complete batch is rolled back before any closure reaches a worker.
+    pub fn submit_batch(&self, actions: Vec<TaskFn>) -> Result<Vec<RuntimeTask>, RuntimeError> {
+        self.submit_batch_inner(actions, false)
+    }
+
+    /// Submit one benchmark task while recording only contended admission waits.
+    ///
+    /// This API is for fixed-work evidence runners. Production callers should
+    /// use [`Self::submit`] or [`Self::submit_with_timeout`], which avoid
+    /// clock reads and counter updates on the uncontended path.
+    pub fn submit_observed(&self, action: TaskFn) -> Result<RuntimeTask, RuntimeError> {
+        self.submit_inner(action, None, true)
+    }
+
+    /// Submit one benchmark batch while recording only contended admission waits.
+    ///
+    /// This is the batch counterpart to [`Self::submit_observed`]. It exists
+    /// only for fixed-work evidence and does not alter normal submission
+    /// instrumentation or runtime authority.
+    pub fn submit_batch_observed(
+        &self,
+        actions: Vec<TaskFn>,
+    ) -> Result<Vec<RuntimeTask>, RuntimeError> {
+        self.submit_batch_inner(actions, true)
+    }
+
+    /// Reset benchmark-only runtime admission lock-wait counters.
+    pub fn reset_observed_lock_wait(&self) {
+        self.tasks.reset_observed_wait();
+    }
+
+    /// Return benchmark-only runtime admission lock-wait counters.
+    pub fn observed_lock_wait(&self) -> RuntimeLockWaitSnapshot {
+        self.tasks.observed_wait()
+    }
+
+    fn submit_inner(
+        &self,
+        action: TaskFn,
+        timeout: Option<Duration>,
+        observed: bool,
+    ) -> Result<RuntimeTask, RuntimeError> {
         if self.lifecycle.state() != LifecycleState::Active {
             return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
         }
-        let handle = self.start_task()?;
-        lock_tasks(&self.tasks).insert(handle.raw(), RuntimeTaskState::Ready);
+        let _admission = self.read_admission(observed);
+        if self.lifecycle.state() != LifecycleState::Active {
+            return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
+        }
+        let handle = self.reserve_task(observed)?;
+        let action = self.bind_action(handle, action);
+        let result = match timeout {
+            Some(timeout) => self.workers.submit_result_with_timeout(action, timeout),
+            None => self.workers.submit_result(action),
+        };
+        Ok(self.runtime_task(handle, result))
+    }
+
+    fn submit_batch_inner(
+        &self,
+        actions: Vec<TaskFn>,
+        observed: bool,
+    ) -> Result<Vec<RuntimeTask>, RuntimeError> {
+        if self.lifecycle.state() != LifecycleState::Active {
+            return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
+        }
+        let _admission = self.read_admission(observed);
+        if self.lifecycle.state() != LifecycleState::Active {
+            return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
+        }
+        if actions.is_empty() {
+            return Ok(Vec::new());
+        }
+        let handles = self.reserve_task_batch(actions.len(), observed)?;
+        let actions = handles
+            .iter()
+            .copied()
+            .zip(actions)
+            .map(|(handle, action)| self.bind_action(handle, action))
+            .collect::<Vec<_>>();
+        let results = self.workers.submit_result_batch(actions);
+        Ok(handles
+            .into_iter()
+            .zip(results)
+            .map(|(handle, result)| self.runtime_task(handle, result))
+            .collect())
+    }
+
+    fn bind_action(&self, handle: ProcessHandle, action: TaskFn) -> TaskFn {
         let tasks = Arc::clone(&self.tasks);
         let scheduler = Arc::clone(&self.scheduler);
-        let action = Box::new(move || {
-            set_task_state(&tasks, handle, RuntimeTaskState::Running);
+        Box::new(move || {
+            tasks.set_state(handle, RuntimeTaskState::Running);
             let result = catch_unwind(AssertUnwindSafe(action))
                 .unwrap_or_else(|_| Err("task panicked".to_owned()));
             let _ = scheduler.complete_direct(handle);
-            set_task_state(
-                &tasks,
+            tasks.set_state(
                 handle,
                 if result.is_ok() {
                     RuntimeTaskState::Succeeded
@@ -375,21 +592,23 @@ impl KernelRuntime {
                 },
             );
             result
-        });
-        let result = self.workers.submit_result_with_timeout(action, timeout);
-        Ok(RuntimeTask {
+        })
+    }
+
+    fn runtime_task(&self, handle: ProcessHandle, result: TaskHandle) -> RuntimeTask {
+        RuntimeTask {
             handle,
             result,
             tasks: Arc::clone(&self.tasks),
             scheduler: Arc::clone(&self.scheduler),
-        })
+        }
     }
 
     /// Reap a terminal task and release its generation-safe process slot.
     pub fn reap(&self, handle: ProcessHandle) -> Result<(), RuntimeError> {
-        let state = lock_tasks(&self.tasks)
-            .get(&handle.raw())
-            .copied()
+        let state = self
+            .tasks
+            .state(handle)
             .ok_or(RuntimeError::InvalidHandle)?;
         if !state.is_terminal() {
             return Err(RuntimeError::TaskNotTerminal(state));
@@ -397,21 +616,109 @@ impl KernelRuntime {
         self.scheduler
             .reap(handle)
             .map_err(RuntimeError::Scheduler)?;
-        lock_tasks(&self.tasks).remove(&handle.raw());
+        self.tasks.remove(handle);
         Ok(())
     }
 
-    fn start_task(&self) -> Result<ProcessHandle, RuntimeError> {
-        let _admission = self
-            .admission
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+    /// Reap up to `max_tasks` terminal tasks without blocking on live work.
+    ///
+    /// This is a caller-owned mechanism seam for future shutdown/reaper
+    /// integration. It never starts a background thread and never changes the
+    /// lifecycle phase; live tasks remain owned and are reported as pending.
+    pub fn reap_finished(&self, max_tasks: usize) -> Result<RuntimeReapReport, RuntimeError> {
+        if max_tasks == 0 {
+            return Err(RuntimeError::InvalidReapBudget);
+        }
+        let handles = self.tasks.handles_up_to(max_tasks);
+        let mut report = RuntimeReapReport {
+            inspected: handles.len() as u64,
+            ..RuntimeReapReport::default()
+        };
+        for handle in handles {
+            let Some(state) = self.tasks.state(handle) else {
+                report.unavailable = report.unavailable.saturating_add(1);
+                continue;
+            };
+            if !state.is_terminal() {
+                report.pending = report.pending.saturating_add(1);
+                continue;
+            }
+            match self.scheduler.reap(handle) {
+                Ok(()) => {
+                    self.tasks.remove(handle);
+                    report.reaped = report.reaped.saturating_add(1);
+                }
+                Err(SchedulerError::InvalidHandle) => {
+                    report.unavailable = report.unavailable.saturating_add(1);
+                }
+                Err(_) => {
+                    report.errors = report.errors.saturating_add(1);
+                }
+            }
+        }
+        Ok(report)
+    }
+
+    fn reserve_task(&self, observed: bool) -> Result<ProcessHandle, RuntimeError> {
         let handle = self.scheduler.spawn().map_err(RuntimeError::Scheduler)?;
+        self.tasks.insert(handle, RuntimeTaskState::Ready, observed);
         if let Err(error) = self.scheduler.dispatch_direct(handle) {
+            self.tasks.remove(handle);
             let _ = self.scheduler.reap(handle);
             return Err(RuntimeError::Scheduler(error));
         }
         Ok(handle)
+    }
+
+    fn reserve_task_batch(
+        &self,
+        count: usize,
+        observed: bool,
+    ) -> Result<Vec<ProcessHandle>, RuntimeError> {
+        let mut handles = Vec::with_capacity(count);
+        for _ in 0..count {
+            match self.reserve_task(observed) {
+                Ok(handle) => handles.push(handle),
+                Err(error) => {
+                    self.rollback_reserved_tasks(&handles);
+                    return Err(error);
+                }
+            }
+        }
+        Ok(handles)
+    }
+
+    fn rollback_reserved_tasks(&self, handles: &[ProcessHandle]) {
+        for handle in handles {
+            let _ = self.scheduler.stop_direct(*handle);
+            let _ = self.scheduler.reap(*handle);
+            self.tasks.remove(*handle);
+        }
+    }
+
+    fn read_admission(&self, observed: bool) -> RwLockReadGuard<'_, ()> {
+        if !observed {
+            return self
+                .admission
+                .read()
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        match self.admission.try_read() {
+            Ok(admission) => admission,
+            Err(TryLockError::Poisoned(error)) => error.into_inner(),
+            Err(TryLockError::WouldBlock) => {
+                let started = Instant::now();
+                let admission = self
+                    .admission
+                    .read()
+                    .unwrap_or_else(PoisonError::into_inner);
+                self.tasks.metrics.admission_wait_ns.fetch_add(
+                    started.elapsed().as_nanos().try_into().unwrap_or(u64::MAX),
+                    Ordering::Relaxed,
+                );
+                admission
+            }
+        }
     }
 
     /// Return scheduler queue metrics; direct runtime dispatch should remain zero.
@@ -427,6 +734,12 @@ impl KernelRuntime {
         if !self.lifecycle.transition(LifecycleState::Draining) {
             return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
         }
+        // Publish draining before waiting for the exclusive barrier so fresh
+        // readers fail closed while already-admitted submissions drain.
+        let _admission = self
+            .admission
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
         let result = self.workers.shutdown(true, timeout);
         if result.get("success") != Some(&json!(true)) {
             if let Some(state_store) = &self.state_store {
@@ -451,11 +764,11 @@ impl KernelRuntime {
 
     /// Return lifecycle, task, and worker metrics without mutating state.
     pub fn snapshot(&self) -> RuntimeSnapshot {
-        let tasks = lock_tasks(&self.tasks);
+        let (task_count, terminal_tasks) = self.tasks.snapshot_counts();
         RuntimeSnapshot {
             lifecycle: self.lifecycle.state(),
-            task_count: tasks.len(),
-            terminal_tasks: tasks.values().filter(|state| state.is_terminal()).count(),
+            task_count,
+            terminal_tasks,
             worker_stats: self.workers.stats(),
         }
     }
@@ -474,18 +787,9 @@ impl Drop for KernelRuntime {
     }
 }
 
-fn lock_tasks(
-    tasks: &Arc<StdMutex<BTreeMap<u64, RuntimeTaskState>>>,
-) -> MutexGuard<'_, BTreeMap<u64, RuntimeTaskState>> {
-    tasks.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-fn set_task_state(
-    tasks: &Arc<StdMutex<BTreeMap<u64, RuntimeTaskState>>>,
-    handle: ProcessHandle,
-    state: RuntimeTaskState,
-) {
-    lock_tasks(tasks).insert(handle.raw(), state);
+fn runtime_task_book(shard_count: u32) -> Arc<RuntimeTaskBook> {
+    let metrics = Arc::new(RuntimeLockWaitMetrics::default());
+    Arc::new(RuntimeTaskBook::new(shard_count, metrics))
 }
 
 fn map_state_store_error(error: StateStoreError) -> RuntimeError {

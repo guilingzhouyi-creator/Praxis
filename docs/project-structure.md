@@ -14,7 +14,7 @@ keep every new file in the layer it belongs to:
 | `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
 | `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
 | `packages/` | TypeScript workspaces: `packages/protocol-ts/` implements the wire protocol and TS shell engine |
-| `crates/` | Rust workspace: `crates/l1-kernel-rs/` implements the high-performance L1 kernel primitives |
+| `crates/` | Rust workspace: `crates/l1-kernel-rs/` implements the high-performance L1 kernel primitives. Its integration tests are explicitly grouped under `crates/l1-kernel-rs/tests/<domain>/`, and the current candidate remains independent of the Python runtime. |
 
 ## 构建环境 (build environment) — external tooling that guides the build
 

@@ -2,7 +2,7 @@
 //!
 //! This module implements the language-neutral `ProcessResult`/
 //! `ProcessOptions` value boundary with direct argument execution and an
-//! explicit shell path. It owns no long-lived child handles, PTY sessions,
+//! explicit terminal-observation path. It owns no long-lived child handles, PTY sessions,
 //! AgentLoop routing, or runtime authority; those remain adapter/cutover work.
 
 use std::io::{Read, Write};
@@ -15,6 +15,7 @@ use crate::contract::{
     PROCESS_ERROR_EXECUTION, PROCESS_ERROR_NONE, PROCESS_ERROR_NOT_FOUND,
     PROCESS_RETURN_EXECUTION_ERROR, PROCESS_RETURN_TIMEOUT, ProcessOptions, ProcessResult,
 };
+use crate::terminal_probe::TerminalObservation;
 
 /// Version of the bounded one-shot process adapter contract.
 pub const PROCESS_ADAPTER_CONTRACT_VERSION: u32 = 1;
@@ -89,27 +90,35 @@ impl ProcessAdapter {
         self.config
     }
 
-    /// Run one shell command through the platform shell.
-    pub fn run(
+    /// Run one command through an explicitly discovered terminal.
+    ///
+    /// The terminal observation supplies both the executable and invocation
+    /// prefix. No platform default or shell switch is inferred here.
+    pub fn run_terminal(
         &self,
         command_text: &str,
+        terminal: &TerminalObservation,
         timeout: Duration,
         options: Option<&ProcessOptions>,
     ) -> ProcessResult {
+        if let Err(error) = terminal.validate() {
+            return failed_result(
+                PROCESS_ERROR_EXECUTION,
+                &format!("invalid terminal observation: {error:?}"),
+            );
+        }
         if let Some(error) = invalid_cwd(options) {
             return failed_result(PROCESS_ERROR_EXECUTION, &error);
         }
-        let executable = options
-            .and_then(|options| options.executable.as_deref())
-            .unwrap_or(default_shell());
-        let mut command = Command::new(executable);
-        command.arg(shell_switch()).arg(command_text);
-        apply_options(&mut command, options);
-        self.execute(
-            command,
-            timeout,
-            options.and_then(|options| options.input_text.clone()),
-        )
+        if let Some(override_executable) = options.and_then(|value| value.executable.as_deref())
+            && override_executable != terminal.executable
+        {
+            return failed_result(
+                PROCESS_ERROR_EXECUTION,
+                "terminal executable override differs from discovered terminal",
+            );
+        }
+        self.run_args(&terminal.command_argv(command_text), timeout, options)
     }
 
     /// Run a pre-split argument list without shell interpretation.
@@ -194,14 +203,6 @@ impl ProcessAdapter {
 
 /// Language-neutral process port surface used by future Rust/TS adapters.
 pub trait ProcessPort: Send + Sync {
-    /// Run a shell command and return a value result.
-    fn run(
-        &self,
-        command_text: &str,
-        timeout: Duration,
-        options: Option<&ProcessOptions>,
-    ) -> ProcessResult;
-
     /// Run pre-split arguments without shell interpretation.
     fn run_args(
         &self,
@@ -212,15 +213,6 @@ pub trait ProcessPort: Send + Sync {
 }
 
 impl ProcessPort for ProcessAdapter {
-    fn run(
-        &self,
-        command_text: &str,
-        timeout: Duration,
-        options: Option<&ProcessOptions>,
-    ) -> ProcessResult {
-        Self::run(self, command_text, timeout, options)
-    }
-
     fn run_args(
         &self,
         args: &[String],
@@ -345,24 +337,4 @@ fn invalid_cwd(options: Option<&ProcessOptions>) -> Option<String> {
         Ok(_) => Some(format!("working directory is not a directory: {cwd}")),
         Err(error) => Some(format!("working directory is unavailable: {error}")),
     }
-}
-
-#[cfg(unix)]
-fn default_shell() -> &'static str {
-    "/bin/sh"
-}
-
-#[cfg(windows)]
-fn default_shell() -> &'static str {
-    "cmd.exe"
-}
-
-#[cfg(unix)]
-fn shell_switch() -> &'static str {
-    "-c"
-}
-
-#[cfg(windows)]
-fn shell_switch() -> &'static str {
-    "/C"
 }

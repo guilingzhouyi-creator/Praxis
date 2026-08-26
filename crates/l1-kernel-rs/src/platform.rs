@@ -73,8 +73,8 @@ pub struct PlatformDescriptor {
     pub shell_name: String,
     /// Prompt prefix used by the shell adapter.
     pub shell_prompt: String,
-    /// Default shell executable, equal to `shell_path`.
-    pub default_shell: String,
+    /// Shell executable selected by the host snapshot.
+    pub selected_shell: String,
     /// Platform-specific ping count flag.
     pub ping_param: String,
     /// Host Python executable.
@@ -135,7 +135,7 @@ impl PlatformDescriptor {
             shell_path: snapshot.shell_path.clone(),
             shell_name: shell_name.to_owned(),
             shell_prompt: shell_prompt.to_owned(),
-            default_shell: snapshot.shell_path,
+            selected_shell: snapshot.shell_path,
             ping_param: if snapshot.is_windows { "-n" } else { "-c" }.to_owned(),
             python_exe: snapshot.python_exe,
             default_encoding: "utf-8".to_owned(),
@@ -143,15 +143,6 @@ impl PlatformDescriptor {
             ipc_transport: if snapshot.is_windows { "tcp" } else { "unix" }.to_owned(),
             path_separator: snapshot.path_separator,
         })
-    }
-
-    /// Build a shell invocation without executing it.
-    pub fn shell_command(&self, command: &str) -> Vec<String> {
-        vec![
-            self.shell_path.clone(),
-            if self.is_windows { "/c" } else { "-c" }.to_owned(),
-            command.to_owned(),
-        ]
     }
 
     /// Build a grep-style command without probing or invoking the host.

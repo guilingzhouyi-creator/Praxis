@@ -149,6 +149,15 @@
       "email": "noreply@openai.com"
     },
     {
+      "name": "Codex",
+      "models": [
+        "gpt-5",
+        "GPT-5",
+        "GPT5.6Terra"
+      ],
+      "email": "noreply@openai.com"
+    },
+    {
       "name": "Kimi",
       "models": [
         "kimi-k3"
