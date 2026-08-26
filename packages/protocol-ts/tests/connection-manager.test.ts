@@ -1,14 +1,6 @@
-/**
- * ConnectionManager tests — retry FSM, config validation, exhaustion.
- *
- * Drives connect() with failing-then-succeeding and always-failing fake
- * factories, asserting the attempt count, state sequence
- * (connecting → reconnecting → connected / final disconnected), and that
- * exhaustion throws a real Error (never undefined).
- */
-
 import { describe, expect, it } from "vitest";
 import { ConnectionManager, type TransportFactory } from "../src/engine/connection-manager.ts";
+import { makeMessage } from "../src/envelope.ts";
 
 /** A fake transport that fails N times, then answers systemStatus. */
 function flakyFactory(failures: number, onAttempt: (n: number) => void): TransportFactory {
@@ -18,7 +10,7 @@ function flakyFactory(failures: number, onAttempt: (n: number) => void): Transpo
     onAttempt(n);
     return async (line: string) => {
       if (n <= failures) throw new Error(`fake failure ${n}`);
-      return [`{"kind":"result","payload":{"success":true}}`];
+      return [JSON.stringify(makeMessage("s-1", 1, "result", { success: true }))];
     };
   };
 }

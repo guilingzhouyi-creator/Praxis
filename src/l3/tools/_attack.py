@@ -47,13 +47,14 @@ def _measure_attack(tool_name: str):
             result: dict = {}
             try:
                 result = fn(args, agent_id)
-                return result
             finally:
                 from l3.services.observability import emit_count, emit_duration
 
                 tags = {"tool": tool_name, "agent": agent_id, "success": result.get("success", False)}
                 emit_duration("attack_tool.duration_ms", started, tags=tags)
                 emit_count("attack_tool.count", tags=tags)
+
+            return result
 
         return measured
 

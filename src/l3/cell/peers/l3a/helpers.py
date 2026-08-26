@@ -28,7 +28,7 @@ def build_l3a_prompt(user_id: str = "") -> str:
     central layer knows the user's established style — best-effort, never
     raises, zero impact when disabled.
     """
-    from l1.kernel.prompts import get_prompt as _gp
+    from l3.agent.prompts import get_prompt as _gp
 
     types = list_card_types()
     types_block = "\n".join(

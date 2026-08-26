@@ -250,7 +250,7 @@ class EngineeringDebugManager:
             if self._prompt_overrides_loaded:
                 return
         try:
-            from l1.kernel.prompts import get_prompt_override, set_prompt_override
+            from l3.agent.prompts import get_prompt_override, set_prompt_override
 
             values = self._settings().all()
             for key, text in values.items():
@@ -274,7 +274,7 @@ class EngineeringDebugManager:
         if not baseline:
             return
         try:
-            from l1.kernel.prompts import restore_prompt_override
+            from l3.agent.prompts import restore_prompt_override
 
             for prompt_key, text in baseline.items():
                 restore_prompt_override(prompt_key, text)
@@ -424,7 +424,7 @@ class EngineeringDebugManager:
         if not prompt_key or "\n" in prompt_key or len(prompt_text) > ENGINEERING_DEBUG_PROMPT_MAX_CHARS:
             return {"success": False, "error": "invalid prompt key or prompt text exceeds configured limit"}
         try:
-            from l1.kernel.prompts import set_prompt_override
+            from l3.agent.prompts import set_prompt_override
 
             set_prompt_override(prompt_key, prompt_text)
             self._settings().set(f"{_PROMPT_OVERRIDE_PREFIX}{prompt_key}", prompt_text)
@@ -435,7 +435,7 @@ class EngineeringDebugManager:
     def prompt_status(self) -> dict:
         """Return prompt layers and version metadata for engineering inspection."""
         try:
-            from l1.kernel.prompts import list_prompt_layers, prompt_versions
+            from l3.agent.prompts import list_prompt_layers, prompt_versions
 
             return {"success": True, "layers": list_prompt_layers(), "versions": prompt_versions()}
         except Exception as exc:
@@ -460,7 +460,7 @@ class EngineeringDebugManager:
             return {"success": False, "error": "prompt rollback requires engineering debug mode"}
         prompt_key = str(key or "").strip()
         try:
-            from l1.kernel.prompts import get_prompt_override, rollback_prompt
+            from l3.agent.prompts import get_prompt_override, rollback_prompt
 
             result = rollback_prompt(prompt_key, int(version))
             if result.get("success"):

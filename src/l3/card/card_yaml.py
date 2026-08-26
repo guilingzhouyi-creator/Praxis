@@ -1,4 +1,4 @@
-"""YAML card loader — reads snake_card.yaml into a structured CardUnified."""
+"""YAML card loader — reads YAML card files into a structured CardUnified."""
 
 from __future__ import annotations
 

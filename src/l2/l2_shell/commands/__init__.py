@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from l1.kernel.commands import get_registry
+from l2.commands import get_registry
 from l3.error_bus import capture
 
 logger = logging.getLogger(__name__)

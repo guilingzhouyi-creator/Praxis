@@ -121,7 +121,7 @@ def to_execution_card(issue_card: IssueCard, summary: str) -> CardUnified:
 
 
 def _llm_converge(doc_text: str, llm_call: Callable) -> str:
-    from l1.kernel.prompts import get_prompt
+    from l3.agent.prompts import get_prompt
 
     base = get_prompt("convergence.summary")
     prompt = base + "\n\n--- Discussion Document ---\n" + doc_text[:8000]

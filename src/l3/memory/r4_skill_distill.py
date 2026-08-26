@@ -56,7 +56,7 @@ class SkillDistillMixin:
             logger.debug("R4Agent: lesson summarization skipped (global throttle)")
             return None
         digest = "\n".join(f"- {c.get('prompt', '')[:LOG_TRUNC_200]}" for c in cases)
-        from l1.kernel.prompts import get_prompt
+        from l3.agent.prompts import get_prompt
 
         prompt = get_prompt("r4_agent.summarize_lesson").format(digest=digest)
         try:
@@ -138,8 +138,8 @@ class SkillDistillMixin:
         """One LLM sample of a distilled skill definition (batch 3)."""
         import json as _json
 
-        from l1.kernel.prompts import get_prompt
         from l1.kernel.skill import validate_skill_content as _validate_content
+        from l3.agent.prompts import get_prompt
 
         prompt = get_prompt("r4_agent.distill_patterns").format(
             tool=tool, digest=digest, verified_context=verified_context

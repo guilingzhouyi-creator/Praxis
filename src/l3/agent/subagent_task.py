@@ -163,7 +163,7 @@ class SubAgentTask:
 
         engine = get_engine()
         model_kwargs = self.resolve_model_kwargs()
-        from l1.kernel.prompts import get_prompt as _gpr
+        from l3.agent.prompts import get_prompt as _gpr
 
         system = self.spec.system_prompt or _gpr("subagent.fallback", "You are {name}. {description}").format(
             name=self.spec.name, description=self.spec.description
@@ -190,7 +190,7 @@ class SubAgentTask:
             AGENT_LOOP_DEFAULT_STEPS,
             AGENT_LOOP_DEFAULT_TIMEOUT,
         )
-        from l1.kernel.prompts import get_prompt as _gpr
+        from l3.agent.prompts import get_prompt as _gpr
 
         system = self.spec.system_prompt or _gpr("subagent.fallback", "You are {name}. {description}").format(
             name=self.spec.name, description=self.spec.description

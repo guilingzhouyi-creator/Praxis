@@ -16,7 +16,7 @@ from concurrent.futures import as_completed
 from typing import Any
 
 from l1.kernel.params.agent import AGENT_LOOP_CONTEXT_TB_LIMIT, AGENT_LOOP_FUTURE_TIMEOUT, AGENT_LOOP_MAX_CONTENT
-from l1.kernel.prompts import get_prompt
+from l3.agent.prompts import get_prompt
 
 from .session_snapshot import TRUNCATION_RESUME_NUDGE
 

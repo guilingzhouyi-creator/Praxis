@@ -51,7 +51,7 @@ class CentralController:
         self._cells.append({"id": cell_id, "territory": territory, "agents": agents or []})
 
         try:
-            from .cell.components.cell_monitor import get_cell_monitor
+            from l3.cell.components.cell_monitor import get_cell_monitor
 
             get_cell_monitor().register_cell(
                 cell_id,
@@ -69,7 +69,7 @@ class CentralController:
             logger.warning("l3b bus register failed: %s", e)
 
         try:
-            from .bus.htn_a import get_htn_a
+            from l3.bus.htn_a import get_htn_a
 
             get_htn_a()
         except Exception as e:
@@ -159,7 +159,7 @@ class CentralController:
 
         cid = ""
         try:
-            from .card.card_registry import get_registry
+            from l3.card.card_registry import get_registry
 
             cid = get_registry().submit(
                 intent=card.intent,
@@ -190,8 +190,8 @@ class CentralController:
         multi_cell = len(self._cells) >= 2
         if multi_cell:
             try:
-                from .bus.htn_a import get_htn_a
-                from .bus.htn_a import get_shards as _get_shards
+                from l3.bus.htn_a import get_htn_a
+                from l3.bus.htn_a import get_shards as _get_shards
 
                 htn_a = get_htn_a()
                 htn_task = htn_a.decompose(card.intent, domain)
@@ -322,27 +322,27 @@ class CentralController:
 
         try:
             if admin_action == "spawn_agent":
-                from l1.kernel.params.agent import AGENT_ROLE_MAP
+                from l3.cell.cell import get_cell
 
-                from .cell import get_cell
+                from l1.kernel.params.agent import AGENT_ROLE_MAP
 
                 role = AGENT_ROLE_MAP.get(3, "default")
                 cell = get_cell()
                 cell.add_agent(target_agent or f"auto-{int(time.time())}", role=role, territory=["."], auto_boot=True)
                 result = {"success": True, "action": "spawn_agent", "agent": target_agent, "role": role}
             elif admin_action == "kill_agent":
-                from .cell import get_cell
+                from l3.cell.cell import get_cell
 
                 cell = get_cell()
                 cell.remove_agent(target_agent)
                 result = {"success": True, "action": "kill_agent", "agent": target_agent}
             elif admin_action == "emergency_stop":
-                from .cell import get_cell
+                from l3.cell.cell import get_cell
 
                 cell = get_cell()
                 result = cell.emergency_stop()
             elif admin_action == "cluster_status":
-                from .cell.components.cell_monitor import get_cell_monitor
+                from l3.cell.components.cell_monitor import get_cell_monitor
 
                 cm = get_cell_monitor()
                 cells: list[Any] = getattr(cm, "list_cells", lambda: [])()

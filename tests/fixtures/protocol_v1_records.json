@@ -24,7 +24,7 @@
       "seq": 2,
       "session_id": "s-1",
       "trace_id": "trace-1",
-      "ts": 100.0
+      "ts": 100
     },
     "record_type": "event_envelope",
     "schema_version": 1
@@ -37,7 +37,7 @@
       "role": "assistant",
       "session_id": "s-1",
       "trace_id": "trace-1",
-      "ts": 101.0
+      "ts": 101
     },
     "record_type": "session_message",
     "schema_version": 1
@@ -52,7 +52,7 @@
       "session_id": "s-1",
       "tool_name": "read_file",
       "trace_id": "trace-1",
-      "ts": 102.0
+      "ts": 102
     },
     "record_type": "tool_failure",
     "schema_version": 1
@@ -66,7 +66,7 @@
       "session_id": "s-1",
       "summary": "The requested file was inspected.",
       "trace_id": "trace-1",
-      "ts": 103.0
+      "ts": 103
     },
     "record_type": "decision_summary",
     "schema_version": 1

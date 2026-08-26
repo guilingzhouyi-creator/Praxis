@@ -27,9 +27,9 @@ def _cmd_config(args: list[str]) -> dict:
 
 
 def _cmd_cron(args: list[str]) -> dict:
-    from l4.cron_scheduler import get_scheduler
+    from l3.services.adapter_bridge import get_cron_scheduler
 
-    s = get_scheduler()
+    s = get_cron_scheduler()
     sub = args[0].lower() if args else "list"
     if sub == "list":
         return {"success": True, "cron": s.list()}
@@ -73,26 +73,27 @@ def _cmd_model(args: list[str]) -> dict:
 
 def _model_spec_caps(args: list[str]) -> dict:
     """Handle `model spec caps [max_reasoning] [max_budget]`."""
-    from l4.api_handlers.api_handlers_providers import handle_think_caps_get, handle_think_caps_set
+    from l3.services.model_service import get_service as _ms
 
+    ms = _ms()
     if len(args) < 2:
-        return handle_think_caps_get({})
-    caps: dict[str, object] = {"max_reasoning": args[1]}
+        return ms.get_caps()
+    max_reasoning = args[1]
+    max_budget = None
     if len(args) >= 3:
         try:
-            caps["max_budget"] = int(args[2])
+            max_budget = int(args[2])
         except ValueError:
             return {"success": False, "error": _t("shell.app_error.model_budget_int")}
-    return handle_think_caps_set(caps)
+    return ms.set_caps(max_reasoning=max_reasoning, max_budget=max_budget)
 
 
 def _cmd_model_spec(args: list[str]) -> dict:
     """Model-spec / strategy panel: view, switch packs, set caps."""
     from l3.services.model_service import get_service as _ms
-    from l4.api_handlers.api_handlers_providers import handle_model_spec_overview
 
     if not args:
-        return handle_model_spec_overview({})
+        return _ms().get_overview()
     sub = args[0].lower()
     if sub == "strategy" and len(args) >= 3:
         return _ms().apply_strategy(args[1], args[2])
@@ -111,11 +112,10 @@ def _cmd_model_spec(args: list[str]) -> dict:
 def _cmd_model_spec_peer(args: list[str]) -> dict:
     """Peer-agent think strategy: apply/clear strategy packs on think scopes."""
     from l3.scheduler.think_registry import get_think_registry
-    from l4.api_handlers.api_handlers_providers import handle_peer_strategy_get
 
     reg = get_think_registry()
     if not args:
-        return handle_peer_strategy_get({})
+        return {"success": True, "state": reg.stats()}
     sub = args[0].lower()
     if sub == "clear" and len(args) >= 3:
         return reg.clear_strategy(args[1], args[2])
@@ -198,14 +198,8 @@ def _model_health(provider: str = "") -> dict:
     from l3.services.model_service import get_service as _ms
 
     ms = _ms()
-    try:
-        from l4.llm.llm import get_engine
-
-        engine = get_engine()
-        if hasattr(engine._provider, "health"):
-            return engine._provider.health()
-    except Exception:
-        capture("model: health check failed", error_code="E_CMD", component="l2")
+    if provider:
+        return ms.health_check(provider)
     return {"success": True, "providers": ms.list_providers()}
 
 

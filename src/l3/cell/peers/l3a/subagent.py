@@ -224,7 +224,7 @@ class L3ASubAgentPool:
             from l3.agent.agent_loop import AgentLoop
 
             agent_id = f"l3a-sa-{task_id[:_SID_LEN]}"
-            from l1.kernel.prompts import get_prompt
+            from l3.agent.prompts import get_prompt
 
             loop = AgentLoop(
                 task=task_text,

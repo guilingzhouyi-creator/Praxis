@@ -19,12 +19,12 @@
         "v": 1,
         "session_id": "s-1",
         "seq": 1,
-        "ts": 1.0,
+        "ts": 1,
         "trace_id": "",
         "kind": "result",
         "payload": { "success": false, "error": "unregistered command: hello" }
       },
-      "expected_line": "{\"kind\":\"result\",\"payload\":{\"error\":\"unregistered command: hello\",\"success\":false},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}"
+      "expected_line": "{\"kind\":\"result\",\"payload\":{\"error\":\"unregistered command: hello\",\"success\":false},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
     },
     {
       "name": "result_success_echo",
@@ -32,12 +32,12 @@
         "v": 1,
         "session_id": "s-1",
         "seq": 1,
-        "ts": 100.0,
+        "ts": 100,
         "trace_id": "",
         "kind": "result",
         "payload": { "success": true, "output": "echo:hello" }
       },
-      "expected_line": "{\"kind\":\"result\",\"payload\":{\"output\":\"echo:hello\",\"success\":true},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":100.0,\"v\":1}"
+      "expected_line": "{\"kind\":\"result\",\"payload\":{\"output\":\"echo:hello\",\"success\":true},\"seq\":1,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":100,\"v\":1}"
     },
     {
       "name": "intent_with_trace",

@@ -836,10 +836,19 @@ fn canonical_value(value: &Value) -> Result<Value, ProtocolError> {
     match value {
         Value::Null | Value::Bool(_) | Value::String(_) => Ok(value.clone()),
         Value::Number(number) => {
-            if number.as_f64().is_some_and(|number| !number.is_finite()) {
-                return Err(ProtocolError::Serialization(
-                    "non-finite number cannot be encoded as JSON".to_owned(),
-                ));
+            if let Some(float) = number.as_f64() {
+                if !float.is_finite() {
+                    return Err(ProtocolError::Serialization(
+                        "non-finite number cannot be encoded as JSON".to_owned(),
+                    ));
+                }
+                if float.fract() == 0.0 && float >= (i64::MIN as f64) && float <= (u64::MAX as f64) {
+                    if float >= 0.0 {
+                        return Ok(Value::Number(serde_json::Number::from(float as u64)));
+                    } else {
+                        return Ok(Value::Number(serde_json::Number::from(float as i64)));
+                    }
+                }
             }
             Ok(value.clone())
         }

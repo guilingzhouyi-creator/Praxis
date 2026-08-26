@@ -21,7 +21,7 @@ from l1.kernel.params.agent import (
 )
 from l1.kernel.params.kernel import RING_1
 from l1.kernel.params.system import LOG_TRUNC_40, LOG_TRUNC_200, SKILL_POSTURE_OFFENSIVE
-from l1.kernel.prompts import get_prompt
+from l3.agent.prompts import get_prompt
 from l3.tool_system.tool_spec import ParamSpec, ToolSpec
 
 logger = logging.getLogger(__name__)
@@ -326,7 +326,7 @@ class AgentLoopContextMixin:
         # prompt override (agent_loop.run_code_usage) wins if present.
         # Monitored getter: counts usage for the bypass monitor
         # (engineering/debug mode, 3.2).
-        from l1.kernel.prompts import get_prompt_monitored
+        from l3.agent.prompts import get_prompt_monitored
 
         usage = get_prompt_monitored("agent_loop.run_code_usage", "") or backend.render_usage()
         # Stable-prefix assembly: system + usage + SDK form the

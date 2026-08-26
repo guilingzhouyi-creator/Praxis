@@ -13,8 +13,8 @@ keep every new file in the layer it belongs to:
 | `locales/` | i18n: en, zh-CN, ja, ko |
 | `.praxis-rules.md` | Constitution rules (parsed by `constitution.py`; repo root) |
 | `docs/` | Architecture/config/design/workflow docs — entry points: `docs/configuration/overview.md`, `docs/workflow/branching.md` |
-| `packages/` | Language migration workspaces; `packages/protocol-ts/` is a read-only TypeScript mirror of the v1 protocol and is not imported by the Python runtime |
-| `crates/` | Rust migration workspace; `crates/l1-kernel-rs/` is currently a contract-only L1 boundary and is not imported by the Python runtime |
+| `packages/` | TypeScript workspaces: `packages/protocol-ts/` implements the wire protocol and TS shell engine |
+| `crates/` | Rust workspace: `crates/l1-kernel-rs/` implements the high-performance L1 kernel primitives |
 
 ## 构建环境 (build environment) — external tooling that guides the build
 
@@ -22,8 +22,8 @@ Never imported by the runtime; never migrated into `config/` or `src/`.
 
 | Path | Description |
 |------|-------------|
-| `scripts/` | Build/dev scripts: `py/` (python tooling) + `sh/` (shell tooling) |
-| `tests/` | Test suite (L1–L5, `infra/`, `integration/`); **`benchmarks/` is a subfolder of `tests/`** (`tests/benchmarks/`) |
+| `scripts/` | Build/dev scripts: `py/` (python tooling), `sh/` (shell tooling), `js/` (node validation tooling) |
+| `tests/` | Test suite (L1–L5, `infra/`, `integration/`, `fixtures/`, `benchmarks/`); all test fixtures live in `tests/fixtures/` |
 | `.githooks/` | Self-built git hooks (`commit-msg`, `pre-commit`, `post-checkout`) |
 | `.github/` | GitHub Actions CI workflows + `agents/` definition (companion, not a build input) |
 | `.gitcode/` | GitCode CI workflow (gray release) |

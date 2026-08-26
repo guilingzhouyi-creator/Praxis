@@ -51,8 +51,8 @@ class TestLoopIdentityChannels:
 
     def test_task_intent_injects_generic_identity_fragment(self, monkeypatch):
         import l3.agent.agent_loop_context as alc
-        from l1.kernel.prompts import get_prompt as real_prompt
         from l3.agent.agent_loop import AgentLoop
+        from l3.agent.prompts import get_prompt as real_prompt
 
         def fake_prompt(key, default=""):
             if key == "identity.test.fragment":

@@ -150,9 +150,9 @@ def _reset_singletons():
     # Only reload when the commands package was actually imported — an
     # unconditional importlib.reload() re-imports the whole L2 command tree
     # (pulling L3 modules) on every test, adding ~5s of setup cost.
-    if "l2.l2_shell.commands" in sys.modules or "l1.kernel.commands" in sys.modules:
+    if "l2.l2_shell.commands" in sys.modules or "l2.commands" in sys.modules:
         try:
-            from l1.kernel.commands import get_registry, load_command_defs, reset_registry
+            from l2.commands import get_registry, load_command_defs, reset_registry
 
             reset_registry()
             get_registry()

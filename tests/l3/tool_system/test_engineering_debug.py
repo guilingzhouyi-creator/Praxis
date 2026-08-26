@@ -74,7 +74,7 @@ def test_prompt_override_requires_engineering_mode(tmp_path):
     _configure_marker(tmp_path, present=True)
     accepted = manager.set_prompt_override("global.performance", "custom", role="developer")
     assert accepted["success"] is True
-    from l1.kernel.prompts import get_prompt
+    from l3.agent.prompts import get_prompt
 
     assert get_prompt("global.performance") == "custom"
 
@@ -93,7 +93,7 @@ def test_api_prompt_monitor_cannot_enable_in_production(tmp_path):
 
 def test_prompt_overlay_is_marker_gated_and_restores_baseline(tmp_path):
     """Persisted debug overlays stay hidden in production and restore the baseline on exit."""
-    from l1.kernel.prompts import clear_prompt_override, get_prompt, set_prompt_override
+    from l3.agent.prompts import clear_prompt_override, get_prompt, set_prompt_override
     from l3.config.settings_center import get_center
     from l3.tool_system.engineering_debug import get_engineering_debug
 
@@ -115,7 +115,7 @@ def test_prompt_overlay_is_marker_gated_and_restores_baseline(tmp_path):
 
 def test_production_does_not_load_persisted_prompt_overlay(tmp_path):
     """A persisted developer prompt is not exposed before the marker is present."""
-    from l1.kernel.prompts import get_prompt
+    from l3.agent.prompts import get_prompt
     from l3.config.settings_center import get_center
     from l3.tool_system.engineering_debug import get_engineering_debug
 

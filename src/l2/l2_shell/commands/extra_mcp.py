@@ -16,25 +16,14 @@ logger = logging.getLogger(__name__)
 
 def _cmd_mcp(args: list[str]) -> dict:
     try:
-        from l4.mcp_bridge import get_bridge
+        from l3.services.adapter_bridge import get_mcp_bridge, get_mcp_status, set_mcp_export_mode
 
-        bridge = get_bridge()
+        bridge, _ = get_mcp_bridge()
         sub = args[0].lower() if args else "status"
         if sub in ("status", "list"):
-            data = {"servers": bridge.get_status()}
-            try:
-                from l4.api_handlers.api_handlers_mcp import get_export_mode, handle_mcp_tools_list
-
-                data["server_mode"] = get_export_mode()
-                data["exported_tools"] = handle_mcp_tools_list().get("count", 0)
-            except Exception:
-                logger.debug("extra: mcp status enrichment failed", exc_info=True)
-            return {"success": True, "data": data}
+            return {"success": True, "data": get_mcp_status()}
         if sub == "mode" and len(args) >= 2:
-            from l4.api_handlers.api_handlers_mcp import set_export_mode
-
-            set_export_mode(args[1])
-            return {"success": True, "data": {"server_mode": args[1]}}
+            return {"success": True, "data": set_mcp_export_mode(args[1])}
         if sub == "enable" and len(args) >= 2:
             return bridge.set_enabled(args[1])
         if sub == "disable" and len(args) >= 2:

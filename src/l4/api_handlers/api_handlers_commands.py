@@ -12,7 +12,7 @@ from __future__ import annotations
 
 def handle_commands_list(body: dict | None = None) -> dict:
     """GET /api/v1/commands — list all registered commands with metadata."""
-    from l1.kernel.commands import get_registry
+    from l2.commands import get_registry
 
     reg = get_registry()
     category = (body or {}).get("category", "") if body else ""
@@ -40,7 +40,7 @@ def handle_commands_register(body: dict | None = None) -> dict:
     if not name or not help_text:
         return {"success": False, "error": "name and help required"}
 
-    from l1.kernel.commands import get_registry
+    from l2.commands import get_registry
 
     reg = get_registry()
 
@@ -64,7 +64,7 @@ def handle_commands_remove(name: str = "") -> dict:
     """DELETE /api/v1/commands/{name} — unregister a user command."""
     if not name:
         return {"success": False, "error": "name required"}
-    from l1.kernel.commands import get_registry
+    from l2.commands import get_registry
 
     return get_registry().unregister(name)
 
@@ -74,7 +74,7 @@ def handle_commands_update(name: str = "", body: dict | None = None) -> dict:
     if not name:
         return {"success": False, "error": "name required"}
     b = body or {}
-    from l1.kernel.commands import get_registry
+    from l2.commands import get_registry
 
     reg = get_registry()
 

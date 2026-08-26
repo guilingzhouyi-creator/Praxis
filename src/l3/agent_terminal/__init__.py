@@ -320,7 +320,7 @@ class AgentTerminal(CardExecutionMixin, WorkerPoolMixin):
 
         text = card.params.get("text", "")
         sender = card.params.get("sender", "shell")
-        from l1.kernel.prompts import get_prompt as _get_prompt
+        from l3.agent.prompts import get_prompt as _get_prompt
 
         loop = AgentLoop(
             task=text,

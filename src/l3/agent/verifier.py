@@ -14,7 +14,7 @@ from typing import Any
 
 from l1.kernel.params.agent import MAX_SELF_HEAL
 from l1.kernel.params.system import LOG_TRUNC_100, LOG_TRUNC_200, LOG_TRUNC_1000, LOG_TRUNC_2000
-from l1.kernel.prompts import get_prompt
+from l3.agent.prompts import get_prompt
 
 logger = logging.getLogger(__name__)
 

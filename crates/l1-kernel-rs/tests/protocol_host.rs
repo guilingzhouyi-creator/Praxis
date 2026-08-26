@@ -13,7 +13,7 @@ fn gate_canonicalizes_valid_envelopes_without_dispatching_them() {
     assert_eq!(
         gate.canonicalize_line(VALID_COMMAND)
             .expect("valid envelope"),
-        r#"{"kind":"command","payload":{"name":"status"},"seq":7,"session_id":"s-1","ts":100.0,"v":1}"#
+        r#"{"kind":"command","payload":{"name":"status"},"seq":7,"session_id":"s-1","ts":100,"v":1}"#
     );
     assert_eq!(gate.config().max_frame_bytes(), DEFAULT_MAX_FRAME_BYTES);
 }

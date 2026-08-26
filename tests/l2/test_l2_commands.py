@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from l1.kernel.commands import get_registry, reset_registry
+from l2.commands import get_registry, reset_registry
 
 
 class TestParseAgentRef:
@@ -36,9 +36,11 @@ class TestCommandRegistry:
         assert isinstance(cmds, list)
 
     def test_registry_has_help(self):
+        from l2.commands import CommandDef
+
         reg = get_registry()
         cmd = reg.get("help")
-        assert isinstance(cmd, (dict, type(None)))
+        assert isinstance(cmd, (dict, CommandDef, type(None)))
 
     def test_registry_get_unknown(self):
         reg = get_registry()

@@ -17,6 +17,7 @@
 | praxis-coverage-wsl | coverage-wsl | infra | WSL judge coverage (AtomCode) |
 | praxis-hooks-strict | hooks-strict | infra | strict commit-msg worktree enforcement |
 | praxis-gate-hygiene | feature/opencode-gate-hygiene | infra | gate-review follow-ups (OpenCode/ox-alpha, user-pinned) |
+| praxis-refactor | feature/system-refactor-phase1 | refactor | Phase 1: eliminate L1 transition shims and clean layer boundaries |
 
 ## Shared-file change log
 
@@ -54,6 +55,10 @@
 | 2026-08-25 | config/discovery/commits.yaml + commits.json + scripts/py/gen_commits_json.py + commit_scan.py + scripts/js/validate-commit.mjs + tests/infra/test_commit_scan.py | OpenCode (ox-alpha) | single-source imperative verb list: `non_imperative_verbs` key in registry, mirror regenerated, py/mjs consume it (inline fallback only) | in feature/opencode-gate-hygiene (this commit) |
 | 2026-08-25 | scripts/sh/verify-completion.sh + judge-stats.sh + tests/infra/test_judge_stats.py | OpenCode (ox-alpha) | waived net-delta honesty: MERGE_GATE_SKIP pass recorded as delta_waived=1, aggregated as delta_waived_runs (+ dashboard notice); drop dead XDIST_ARGS WSL branch | in feature/opencode-gate-hygiene (this commit) |
 | 2026-08-25 | scripts/sh/verify-completion.sh + scripts/js/validate-commit.mjs + docs/architecture/completion-judge.md + tests/infra/test_commit_scan.py | AtomCode | gate hygiene: align complexity doc with impl (at most 12 >200-line funcs), Node validator single-source (fail closed on missing mirror keys), type_content_rules drift guard | in feature/atomcode-gate-prompt-hygiene (this commit) |
+| 2026-08-25 | AGENTS.md + docs/contracts/kernel-contract.json + src/l1/* + src/l2/* + src/l3/* + src/l4/* | Antigravity (gemini-3.7-flash) | eliminate L1 transition shims (commands, model_registry, prompts), decouple L1 identity_binding via callback, reduce ALLOWLIST | in feature/system-refactor-phase1 (4ed1ecd3) |
+| 2026-08-25 | docs/project-structure.md + src/l3/tools/* + src/l3/services/* + tests/fixtures/* | Antigravity (gemini-3.7-flash) | directory standardization: add tools package init, taxonomy docs, move test fixtures to tests/fixtures/cards/, remove scratch script | in feature/system-refactor-phase1 (3b09bb6b) |
+| 2026-08-25 | src/l2/* + src/l3/services/* + src/l4/api_handlers/* + tests/infra/test_layer_imports.py | Antigravity (gemini-3.7-flash) | Phase 2: eliminate L2 shell command L4 imports via adapter_bridge and ModelService, enforce 0 L1 upward imports | in feature/system-refactor-phase1 (0f5db057) |
+| 2026-08-26 | packages/protocol-ts/* + crates/l1-kernel-rs/* + src/l3/cell/peers/l3.py + tests/fixtures/* | Antigravity (gemini-3.7-flash) | Phase 3: align cross-language protocol v1 conformance across TypeScript, Rust, and Python, fix L3 CentralController imports | in feature/system-refactor-phase1 (this commit) |
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an

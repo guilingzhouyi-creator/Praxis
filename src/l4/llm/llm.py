@@ -101,7 +101,7 @@ def think(prompt: str, system: str = "", max_tokens: int = LLM_DEFAULT_MAX_TOKEN
 
 def analyze(findings: list, context: str = "", user_id: str = "") -> dict:
     """Analyze findings (scout results, code review, etc.) with LLM."""
-    from l1.kernel.prompts import get_prompt as _gp
+    from l3.agent.prompts import get_prompt as _gp
 
     prompt = f"Context: {context}\n\nFindings:\n" + "\n".join(str(f) for f in findings)
     prompt += _gp("llm.analyze_suffix", "")

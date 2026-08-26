@@ -502,14 +502,14 @@ def memory_context_audit(body: dict | None = None) -> dict:
 
 def memory_prompt_version_get(body: dict | None = None) -> dict:
     """System-prompt versioning switch + version snapshot (3.2)."""
-    from l1.kernel.prompts import prompt_versioning_status, prompt_versions
+    from l3.agent.prompts import prompt_versioning_status, prompt_versions
 
     return {"status": prompt_versioning_status(), **prompt_versions()}
 
 
 def memory_prompt_version_rollback(body: dict) -> dict:
     """Roll a system prompt key back to a snapshotted version (3.2)."""
-    from l1.kernel.prompts import rollback_prompt
+    from l3.agent.prompts import rollback_prompt
 
     return rollback_prompt(str(body.get("key", "") or ""), int(body.get("version", 0) or 0))
 

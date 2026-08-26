@@ -58,7 +58,7 @@ def _convention_start(term: Any, conv_id: str, payload: dict) -> CardResult:
     if not my_issues:
         my_issues = list(issue_card.items)
 
-    from l1.kernel.prompts import get_prompt as _get_prompt
+    from l3.agent.prompts import get_prompt as _get_prompt
 
     issues_text = "\n".join(f"- {it.question} [{it.domain}]" for it in my_issues)
     system = _get_prompt("convention.system").format(

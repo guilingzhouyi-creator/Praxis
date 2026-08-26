@@ -18,7 +18,7 @@ import os
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 
@@ -38,9 +38,17 @@ from .params.agent import (
     IDENTITY_DEFINITION_MAX_CHARS,
     IDENTITY_FIELDS,
 )
-from .prompts import get_prompt
 
 logger = logging.getLogger(__name__)
+
+_prompt_resolver: Callable[[str, str], str] | None = None
+
+
+def register_prompt_resolver(resolver: Callable[[str, str], str] | None) -> None:
+    """Register a callback for resolving prompt templates from upper layers."""
+    global _prompt_resolver
+    _prompt_resolver = resolver
+
 
 _EVENT_TYPE = "identity_binding_mutated"
 _state_locks: dict[str, threading.RLock] = {}
@@ -433,13 +441,13 @@ class IdentityBindingManager:
         cached = _default_def_cache.get(role)
         if cached is not None:
             return cached
-        try:
-            from .prompts import get_prompt
-
-            text = get_prompt(f"identity_definition.{role}", "")
-        except Exception as e:
-            logger.debug("identity_binding: default definition skipped: %s", e)
-            text = ""
+        text = ""
+        if _prompt_resolver is not None:
+            try:
+                text = _prompt_resolver(f"identity_definition.{role}", "")
+            except Exception as e:
+                logger.debug("identity_binding: default definition skipped: %s", e)
+                text = ""
         _default_def_cache[role] = text
         return text
 
@@ -528,9 +536,15 @@ class IdentityBindingManager:
         binding = self.get_binding(cell_id, role)
         if binding and binding.prompt_fragment:
             return binding.prompt_fragment
-        return get_prompt("identity_binding.default_fragment", "").format(cell_id=cell_id, role=role)[
-            :IDENTITY_BINDING_MAX_CHARS
-        ]
+        tpl = ""
+        if _prompt_resolver is not None:
+            try:
+                tpl = _prompt_resolver("identity_binding.default_fragment", "")
+            except Exception:
+                tpl = ""
+        if not tpl:
+            tpl = "You are an agent in cell {cell_id} with role {role}."
+        return tpl.format(cell_id=cell_id, role=role)[:IDENTITY_BINDING_MAX_CHARS]
 
     def identity_set_for(self, cell_id: str, role: str) -> tuple[str, ...]:
         """Return the generic three-identity set for an Agent entity.

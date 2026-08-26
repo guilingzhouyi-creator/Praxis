@@ -514,7 +514,7 @@ fn result_response_golden_vector_matches_canonical_json() {
     let line = encode_message(&responses[0]).expect("response encodes");
     assert_eq!(
         line,
-        r#"{"kind":"result","payload":{"output":"echo:hello","success":true},"seq":1,"session_id":"s-1","trace_id":"","ts":100.0,"v":1}"#
+        r#"{"kind":"result","payload":{"output":"echo:hello","success":true},"seq":1,"session_id":"s-1","trace_id":"","ts":100,"v":1}"#
     );
     assert_eq!(decode_message(&line).expect("decodes"), responses[0]);
 }
