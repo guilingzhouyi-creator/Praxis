@@ -1,8 +1,16 @@
 """Regression tests for scripts/sh/verify-completion.sh — the CompletionJudge.
 
-Covers the anti "forgot the tests" behavior: a fast-mode run that skips the
-tests dimension must yield PARTIAL (never COMPLETE) and print the explicit
-"Tests were SKIPPED" notice.
+Covers three contracts:
+
+1. Zero-enabled-check invocations are REFUSED (exit 2) and record nothing —
+   an empty verdict measures nothing and must not pollute judge history.
+2. Fast mode (any check skipped) yields PARTIAL, never COMPLETE.
+3. Skipping the tests dimension prints the explicit "Tests were SKIPPED" /
+   "NOT test evidence" notices.
+
+Fast-mode tests leave exactly one cheap check enabled (`index`) so the run
+exercises the real verdict path without depending on slow or env-heavy
+verifiers.
 """
 
 from __future__ import annotations
@@ -12,13 +20,24 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 SCRIPT = ROOT / "scripts" / "sh" / "verify-completion.sh"
-SKIP_ALL = "tests,coverage,delta,docs,lint,audit,complex,cycle,singleton,changelog,index"
+ALL_CHECKS = [
+    "tests",
+    "coverage",
+    "delta",
+    "docs",
+    "lint",
+    "audit",
+    "complex",
+    "cycle",
+    "singleton",
+    "changelog",
+    "index",
+]
 
 
-def _run_fast() -> subprocess.CompletedProcess[str]:
-    """Run the judge with every check skipped (fast mode)."""
+def _run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", str(SCRIPT), f"--skip={SKIP_ALL}"],
+        ["bash", str(SCRIPT), *args],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -26,9 +45,22 @@ def _run_fast() -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_fast_mode_is_partial_never_complete():
-    r = _run_fast()
+def _skip_all_except(keep: str) -> str:
+    return "--skip=" + ",".join(c for c in ALL_CHECKS if c != keep)
+
+
+def test_zero_enabled_checks_are_refused_without_a_record():
+    r = _run(f"--skip={','.join(ALL_CHECKS)}")
     out = r.stdout + r.stderr
+    assert r.returncode == 2
+    assert "REFUSED" in out
+    assert "Nothing was recorded" in out
+
+
+def test_fast_mode_is_partial_never_complete():
+    r = _run(_skip_all_except("index"))
+    out = r.stdout + r.stderr
+    assert r.returncode == 0
     assert "verdict: PARTIAL" in out
     verdict_line = next((ln for ln in out.splitlines() if "verdict:" in ln), "")
     assert "COMPLETE" not in verdict_line
@@ -37,7 +69,7 @@ def test_fast_mode_is_partial_never_complete():
 def test_fast_mode_prints_tests_skipped_notice():
     # Skipping the tests dimension must surface an explicit warning so the
     # run is never mistaken for test evidence.
-    r = _run_fast()
+    r = _run(_skip_all_except("index"))
     out = r.stdout + r.stderr
     assert "Tests were SKIPPED" in out
     assert "NOT test evidence" in out
