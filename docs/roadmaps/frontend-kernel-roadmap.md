@@ -503,6 +503,11 @@ migration callback；filesystem probe 与 side effect 仍由后续 R4 adapter �
 integration targets，并保留各自的共享 vector target；PeerBook、规则 checker context、BootPlan 拓扑和
 PortRegistry/value 校验均只通过公开 API 验证，网络 transport、规则 provider、boot callback、provider I/O
 与硬件输入采集仍由适配器持有。
+随后补齐锁定后的 `BootPlan::execute` caller-owned seam：调用方必须提供与
+依赖图完全一致的 `BootAction` map，执行器在首个 callback 前校验缺失/多余
+handler，按 dependency-first 顺序执行，并在错误或 panic 时返回 completed
+prefix。它不自动发现 provider、不推进 lifecycle、不做副作用 rollback，也不
+授予 Rust production boot authority；这些策略仍由宿主适配器负责。
 随后将 `identity_binding` 的 4 项、`state_layout` 的 3 项、`state_store` 的 5 项和 `config_store` 的 5 项
 机制测试迁移到独立 target；filesystem-bearing 测试只使用临时 Rust-owned roots 并通过公开 API 验证，
 prompt/persistence provider、Python state import、migration callback 与配置策略仍不进入 Rust runtime authority。

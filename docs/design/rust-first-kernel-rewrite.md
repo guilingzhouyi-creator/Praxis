@@ -353,6 +353,13 @@ configuration, start workers, mutate lifecycle state, or provide boot
 authority. R4 still requires a separate Rust-owned config/state layout and
 versioned protocol boundary.
 
+The boot execution follow-on adds `BootPlan::execute` after the plan lock. The
+caller supplies one `BootAction` per declared step; the executor validates the
+set before any callback, runs dependency-first, and converts callback errors or
+panics into structured failures carrying the completed prefix. It does not
+discover provider handlers, roll back side effects, advance lifecycle, or make
+the Rust plan the production boot authority.
+
 The first concrete R4 state slice is `state_layout::StateLayoutManifest`.
 It defines a new Rust-owned root with a versioned manifest, canonical relative
 entries, parent-directory coverage, and explicit fresh-state paths. A

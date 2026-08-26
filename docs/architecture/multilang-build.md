@@ -234,6 +234,11 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   boot registry. `tests/fixtures/kernel_boot_plan_vectors.json` is consumed by
   Rust and Python tests; Python's missing-dependency omission is documented as
   an intentional reference-only difference.
+- A locked `BootPlan` also exposes `execute` with an exact caller-supplied
+  `BootAction` map. Handler shape is validated before the first callback;
+  failures and panics stop the dependency-ordered run with a completed-prefix
+  report. This remains a host-owned execution seam and does not grant provider,
+  lifecycle, or production boot authority.
 - The Rust `state_layout` module is the first R4 state-ownership candidate. It
   validates a versioned manifest of canonical relative entries and declared
   parents, then maps explicit host probes to `initialize`, `resume`, `recover`,

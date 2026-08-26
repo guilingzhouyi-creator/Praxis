@@ -505,6 +505,13 @@ change lifecycle state, or replace the Python boot registry. The shared
 boundary; Python's omission of missing dependencies remains a documented
 reference behavior rather than a Rust requirement.
 
+The locked plan also exposes an explicit `BootPlan::execute` seam. It requires
+an exact caller-supplied handler for every step, validates the complete handler
+set before invoking the first callback, and returns the completed prefix when a
+handler fails or panics. The executor does not discover handlers, roll back
+side effects, advance lifecycle state, or grant production boot authority;
+those policies remain with the host.
+
 The Rust `state_layout` candidate starts the R4 state-ownership boundary. It
 validates a versioned manifest for a fresh Rust state root, canonical relative
 entries, and declared parent directories. Given explicit host observations it

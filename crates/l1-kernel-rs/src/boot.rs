@@ -1,11 +1,12 @@
 //! Declarative boot-plan assembly for the Rust-first kernel.
 //!
-//! This candidate owns only step metadata and dependency ordering. It does
-//! not execute callbacks, start workers, read configuration, mutate lifecycle
-//! state, or wire upper-layer services. A future Rust boot owner can consume
-//! the validated plan at the R4 assembly boundary.
+//! This module owns step metadata, dependency ordering, and an explicit
+//! caller-supplied execution seam. The executor never discovers callbacks,
+//! starts workers, reads configuration, mutates lifecycle state, or wires
+//! upper-layer services on its own.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +44,44 @@ pub enum BootPlanError {
     /// The dependency graph contains a cycle.
     Cycle { path: Vec<String> },
 }
+
+/// Failure while executing an explicitly supplied boot handler set.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BootExecutionError {
+    /// Execution requires a plan locked against registration changes.
+    PlanUnlocked,
+    /// The plan could not be resolved into a dependency order.
+    InvalidPlan(BootPlanError),
+    /// A validated plan step has no caller-supplied handler.
+    MissingHandler { step: String },
+    /// A caller supplied a handler for a step absent from the plan.
+    UnexpectedHandler { step: String },
+    /// A handler returned an application error after prior steps completed.
+    StepFailed {
+        step: String,
+        reason: String,
+        completed: Vec<String>,
+    },
+    /// A handler panicked; no panic is allowed to cross the kernel boundary.
+    StepPanicked {
+        step: String,
+        completed: Vec<String>,
+    },
+}
+
+/// Stable result of one dependency-ordered boot execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BootExecutionReport {
+    /// Number of registered steps in the executed plan.
+    pub step_count: usize,
+    /// Steps attempted in dependency order.
+    pub attempted: Vec<String>,
+    /// Steps whose handlers returned success.
+    pub completed: Vec<String>,
+}
+
+/// Caller-owned callback type for one boot step.
+pub type BootAction = Box<dyn Fn() -> Result<(), String> + Send + Sync + 'static>;
 
 /// Validated declarative boot plan with deterministic registration order.
 #[derive(Debug, Default)]
@@ -115,6 +154,62 @@ impl BootPlan {
     /// Return whether no steps are registered.
     pub fn is_empty(&self) -> bool {
         self.steps.is_empty()
+    }
+
+    /// Execute every locked step through the exact caller-supplied handlers.
+    ///
+    /// Handler lookup is validated before the first callback runs. A missing
+    /// or unexpected handler therefore cannot produce a partially executed
+    /// boot. Callback failures and panics stop execution and return the
+    /// completed prefix for caller-owned rollback or recovery policy.
+    pub fn execute(
+        &self,
+        handlers: BTreeMap<String, BootAction>,
+    ) -> Result<BootExecutionReport, BootExecutionError> {
+        if !self.locked {
+            return Err(BootExecutionError::PlanUnlocked);
+        }
+        let order = self
+            .resolve_order()
+            .map_err(BootExecutionError::InvalidPlan)?;
+        for step in &order {
+            if !handlers.contains_key(step) {
+                return Err(BootExecutionError::MissingHandler { step: step.clone() });
+            }
+        }
+        for step in handlers.keys() {
+            if !self.steps.contains_key(step) {
+                return Err(BootExecutionError::UnexpectedHandler { step: step.clone() });
+            }
+        }
+
+        let mut attempted = Vec::with_capacity(order.len());
+        let mut completed = Vec::with_capacity(order.len());
+        for step in order {
+            attempted.push(step.clone());
+            let action = handlers
+                .get(&step)
+                .expect("handler presence validated before execution");
+            let result = catch_unwind(AssertUnwindSafe(action));
+            match result {
+                Ok(Ok(())) => completed.push(step),
+                Ok(Err(reason)) => {
+                    return Err(BootExecutionError::StepFailed {
+                        step,
+                        reason,
+                        completed,
+                    });
+                }
+                Err(_) => {
+                    return Err(BootExecutionError::StepPanicked { step, completed });
+                }
+            }
+        }
+        Ok(BootExecutionReport {
+            step_count: attempted.len(),
+            attempted,
+            completed,
+        })
     }
 }
 

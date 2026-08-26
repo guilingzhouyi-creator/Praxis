@@ -231,6 +231,12 @@ boot registry. `tests/fixtures/kernel_boot_plan_vectors.json` is shared with
 the Python adapter; the fixture records Python's intentional omission of
 missing dependencies so the clean-break Rust boundary does not inherit it.
 
+After the plan is locked, `BootPlan::execute` can run an exact caller-supplied
+`BootAction` map in dependency order. Missing or unexpected handlers are
+rejected before any callback runs, while callback errors and panics return the
+completed prefix. The executor does not discover providers, mutate lifecycle,
+or choose rollback/production boot policy.
+
 The `state_layout` module defines the first R4 state-ownership boundary. It
 validates a versioned Rust-owned manifest with canonical relative entries and
 declared parent directories, then maps host-supplied observations to explicit
