@@ -35,7 +35,9 @@ rustHostSuite("e2e Rust protocol host", () => {
   it("preserves attach/recovery session boundaries", async () => {
     const attached = await bridge.attach("s-rust-e2e", "view-rust");
     expect(attached.some((message) => message.kind === "ack")).toBe(true);
+    expect(attached.some((message) => message.kind === "event" && message.payload.name === "session.attached")).toBe(true);
     const replay = await bridge.replay("s-rust-e2e", "view-rust", -1);
     expect(replay.some((message) => message.kind === "ack")).toBe(true);
+    expect(replay.some((message) => message.kind === "event" && message.payload.name === "session.recovered")).toBe(true);
   }, 30_000);
 });

@@ -37,16 +37,16 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 
 ### D0 — 语义修复（前置阻断项）
 
-> 状态（2026-08-25 复核）：D0.1 ✅ 游标式非破坏 ack；D0.2 ✅ 共享水位=最落后视图；
+> 状态（2026-08-26 复核）：D0.1 ✅ 游标式非破坏 ack；D0.2 ✅ 共享水位=最落后视图；
 > D0.3 ✅ 协议 v1 conformance 向量已冻结并逐字节比对（参考源为 TS 引擎 normative fixture，
-> 强于原 Python host 参考方案）；D0.4 ⏳ seq u64/i64 边界与回绕向量待专项收口。
+> 强于原 Python host 参考方案）；D0.4 ✅ seq wire 上界、回绕和三端边界向量已专项收口。
 
 | 任务 | 验收 |
 |---|---|
 | D0.1 Rust `Outbox::ack` 改游标式非破坏性（消息保留，仅 last_acked 单调推进） | 多视图重放测试：视图 A ack 不抹除视图 B 重放窗口 |
 | D0.2 共享水位 = 最落后视图语义对齐（`_advance_shared_cursor` 镜像） | 与 Python host 同输入产出相同游标序列 |
 | D0.3 Golden vectors 冻结：Python host 输出为参考，Rust 门逐字节复现 canonical JSON 排序 | `tests/fixtures/kernel_*_vectors.json` 纪律扩展到 envelope 向量 |
-| D0.4 seq 类型统一审查（u64/i64 混用、maxSeq 回绕边界） | 🟡 TS `maxSeq` 与 inbound `seq/ack_seq/last_acked` 已限制为 safe integer 且先判定再回绕；Rust u64 精确 wire 能力保留，双端边界向量仍待收口 |
+| D0.4 seq 类型统一审查（u64/i64 混用、maxSeq 回绕边界） | ✅ wire seq/ack/recovery cursor 统一限制为 `2^53-1` safe integer；TS/Python/Rust 共用上界向量，生成计数器越界回绕到 1；Rust 内部仍可用 `u64` |
 
 ### D1 — Rust 协议主机（工程主体）
 

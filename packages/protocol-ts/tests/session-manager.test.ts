@@ -101,4 +101,17 @@ describe("SessionManager over a fake bridge", () => {
     expect(events.some((e) => e.payload.name === "session.recovered")).toBe(true);
     expect(manager.watermark("s-9")).toBe(-1);
   });
+
+  it("routes ack and recovery to the requested session without duplicating replay", async () => {
+    const received: string[] = [];
+    const manager = new SessionManager(fakeBridge(received));
+    await manager.attach("s-a", "web");
+    await manager.attach("s-b", "tui");
+    await manager.ack("s-b", "tui", 3);
+    const replay = await manager.replay("s-a", "web", -1);
+    expect(replay.filter((message) => message.payload.name === "session.recovered")).toHaveLength(1);
+    const requests = received.map((line) => JSON.parse(line) as { session_id: string; payload: Record<string, unknown> });
+    expect(requests.map((request) => request.session_id)).toEqual(["s-a", "s-b", "s-b", "s-a"]);
+    expect(requests[2].payload).toMatchObject({ ack_seq: 3, view_id: "tui" });
+  });
 });

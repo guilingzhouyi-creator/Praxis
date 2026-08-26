@@ -40,7 +40,7 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 | 2 | `fix(rust): make Outbox ack non-destructive cursor advance` | protocol.rs ack 移除 pop_front，仅单调推进 last_acked |
 | 3 | `feat(rust): add shared watermark parity with python host` | 共享水位=最落后视图语义（_advance_shared_cursor 镜像） |
 | 4 | `test(rust): pin canonical json golden vectors vs python host` | Python host 输出冻结为参考向量，Rust 逐字节复现 |
-| 5 | `chore(rust): unify seq bounds and wraparound edges` | u64/i64 边界审查 + maxSeq 回绕用例；TS `maxSeq` safe-integer 约束已先落，Rust u64 精确边界仍待双端向量收口 |
+| 5 | `chore(rust): unify seq bounds and wraparound edges` | u64/i64 边界审查 + maxSeq 回绕用例；wire 统一 safe-integer 上界，Rust 内部仍可保留 u64 |
 
 退出条件：cargo test/clippy 干净 + 向量绿 + 多视图重放零漂移。
 

@@ -33,6 +33,10 @@ ENVELOPE_FIELDS: tuple[str, ...] = ("v", "session_id", "seq", "ts", "kind", "pay
 
 # Bounded replay window per session (recovery reads this, never the past).
 OUTBOX_MAXLEN: int = 1024
+# JSON numbers are consumed by the TS L2 authority as IEEE-754 doubles. Keep
+# wire sequence fields within the exact cross-language range; Rust may use a
+# wider internal counter but must not emit an ambiguous JSON sequence.
+MAX_SAFE_SEQUENCE: int = 2**53 - 1
 
 CONTROL_ATTACH = "attach"
 CONTROL_DETACH = "detach"
@@ -88,8 +92,8 @@ def validate_message(msg: dict[str, Any]) -> list[str]:
     if not isinstance(session_id, str) or not session_id:
         errors.append("session_id must be a non-empty string")
     seq = msg.get("seq")
-    if isinstance(seq, bool) or not isinstance(seq, int) or seq < 0:
-        errors.append("seq must be a non-negative integer")
+    if isinstance(seq, bool) or not isinstance(seq, int) or not 0 <= seq <= MAX_SAFE_SEQUENCE:
+        errors.append("seq must be a non-negative integer (safe range)")
     kind = msg.get("kind")
     if not isinstance(kind, str) or kind not in KINDS:
         errors.append(f"unknown kind: {kind!r}")
@@ -136,13 +140,13 @@ def _validate_payload(kind: str, payload: dict[str, Any]) -> list[str]:
             errors.append("control payload session_id must be a non-empty string")
         last_acked = payload.get("last_acked")
         if last_acked is not None and (
-            isinstance(last_acked, bool) or not isinstance(last_acked, int) or last_acked < -1
+            isinstance(last_acked, bool) or not isinstance(last_acked, int) or not -1 <= last_acked <= MAX_SAFE_SEQUENCE
         ):
-            errors.append("control payload last_acked must be an integer >= -1")
+            errors.append("control payload last_acked must be an integer >= -1 (safe range)")
     elif kind == KIND_ACK:
         ack_seq = payload.get("ack_seq")
-        if isinstance(ack_seq, bool) or not isinstance(ack_seq, int) or ack_seq < 0:
-            errors.append("ack payload requires a non-negative integer ack_seq")
+        if isinstance(ack_seq, bool) or not isinstance(ack_seq, int) or not 0 <= ack_seq <= MAX_SAFE_SEQUENCE:
+            errors.append("ack payload requires a non-negative integer ack_seq (safe range)")
     return errors
 
 

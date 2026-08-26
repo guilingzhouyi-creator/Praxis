@@ -35,6 +35,7 @@ describe("validateMessage fail-closed branches", () => {
     expect(validateMessage(m5)).toContain("session_id must be a non-empty string");
     const unsafe = { ...VALID(), seq: Number.MAX_SAFE_INTEGER + 1 } as unknown as Record<string, unknown>;
     expect(validateMessage(unsafe)).toContain("seq must be a non-negative integer");
+    expect(validateMessage({ ...VALID(), seq: Number.MAX_SAFE_INTEGER })).toEqual([]);
   });
 
   it("rejects non-string trace_id", () => {

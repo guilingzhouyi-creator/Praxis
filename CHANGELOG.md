@@ -12,6 +12,8 @@
 - **Fix (l2)**: close protocol requests on synthetic host fault frames
 - **Fix (l2)**: bound bridge sequence wraparound to safe integers
 - **Fix (l2)**: reject unsafe wire sequence numbers before rounding
+- **Fix (l2/rust)**: align target-session control routing and recovery events
+- **Fix (protocol)**: bound wire sequence cursors to the exact cross-language safe range
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission

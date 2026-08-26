@@ -25,6 +25,7 @@ from l2.protocol.envelope import (
     KIND_EVENT,
     KIND_INTENT,
     KIND_RESULT,
+    MAX_SAFE_SEQUENCE,
     Outbox,
     decode_message,
     encode_message,
@@ -62,6 +63,8 @@ class ProtocolHost:
     def _next_seq(self, session_id: str) -> int:
         """Return the next outbound sequence id for a session."""
         next_seq = self._seqs.get(session_id, 0) + 1
+        if next_seq > MAX_SAFE_SEQUENCE:
+            next_seq = 1
         self._seqs[session_id] = next_seq
         return next_seq
 

@@ -69,6 +69,7 @@
 | 2026-08-26 | packages/protocol-ts/src/engine/bridge.ts + packages/protocol-ts/tests/bridge-domains.test.ts + docs/architecture/l2-shell-engine.md + docs/roadmaps/l1-l2-docking.md + CHANGELOG.md | Codex (GPT5.6Terra) | constrain TS sequence wraparound to safe integers and avoid unsafe increment | in feature/ts-rust-e2e-docking |
 | 2026-08-26 | docs/design/l1l2-docking-execution-plan.md | Codex (GPT5.6Terra) | record partial D0.4 sequence-boundary closure in the construction plan | in feature/ts-rust-e2e-docking |
 | 2026-08-26 | packages/protocol-ts/src/envelope.ts + packages/protocol-ts/tests/authority-guards.test.ts + docs/architecture/l2-shell-engine.md + docs/roadmaps/l1-l2-docking.md + CHANGELOG.md | Codex (GPT5.6Terra) | reject unsafe TS wire sequence integers to prevent JSON rounding; retain Rust u64 peer capability | in feature/ts-rust-e2e-docking |
+| 2026-08-26 | crates/l1-kernel-rs/src/{protocol,host_dispatch}.rs + crates/l1-kernel-rs/tests/{protocol/protocol,runtime/host_dispatch}.rs + packages/protocol-ts/src/{types,envelope}.ts + packages/protocol-ts/src/engine/{bridge,session-manager}.ts + tests/fixtures/protocol_v1_conformance.json + src/l2/protocol/{envelope,host,schema}.py + docs/architecture/l2-shell-engine.md + docs/roadmaps/l1-l2-docking.md + CHANGELOG.md | Codex (GPT5.6Terra) | close D0.4 safe wire sequence boundary, target-session control routing, deduplicated recovery, and Rust/Python host event parity | in feature/ts-rust-e2e-docking |
 
 ## Clobber warnings (do not repeat)
 

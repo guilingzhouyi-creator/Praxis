@@ -184,11 +184,12 @@ explicit `PRAXIS_RUST_HOST` switch. `bridge.ts` and the L2 engine remain
 host-agnostic and only speak protocol v1; Rust activation does not grant L2,
 AgentLoop, provider, or production boot authority.
 The TS bridge constrains its optional sequence wrap bound to safe integers and
-checks the bound before incrementing, so no generated envelope loses precision
-at the JavaScript number boundary.
-Envelope validation applies the same safe-integer rule to inbound `seq`,
-`ack_seq`, and `last_acked`; a Rust peer may retain exact wider `u64` values,
-but a TS adapter rejects them instead of accepting a rounded number.
+uses the safe wire bound when no explicit bound is configured, so no generated
+envelope loses precision at the JavaScript number boundary. Envelope validation
+applies the same safe-integer rule to inbound `seq`, `ack_seq`, and
+`last_acked` in TS, Python reference, and Rust host adapters. Rust mechanisms
+may retain wider `u64` counters internally, but the v1 JSONL wire never emits
+an ambiguous value.
 Managed transports fail pending requests immediately when their input source
 or child exits, and `close()` is idempotent; reconnection remains an explicit
 `ConnectionManager` concern rather than an implicit Python fallback.

@@ -42,8 +42,15 @@ export class SessionMultiplexer {
 
   /** Record one outbound event in the shared stream and deliver to every view. */
   emit(message: Message): void {
+    // ACKs close a transport request; they are not session events and must not
+    // become replayable state in the local projection mirror.
+    if (message.kind === "ack") return;
+    const key = this.messageKey(message);
+    if (this.events.some((event) => this.messageKey(event) === key)) return;
     this.events.push(message);
-    for (const view of this.views.values()) view.unacked.push(message);
+    for (const view of this.views.values()) {
+      if (!view.unacked.some((event) => this.messageKey(event) === key)) view.unacked.push(message);
+    }
   }
 
   /**
@@ -61,10 +68,8 @@ export class SessionMultiplexer {
   replay(viewId: string, lastAcked = -1): Message[] {
     const view = this.views.get(viewId);
     if (!view) return [];
-    if (lastAcked >= 0) {
-      view.lastAcked = lastAcked;
-      view.unacked = this.events.filter((e) => e.seq > lastAcked);
-    }
+    view.lastAcked = lastAcked;
+    view.unacked = this.events.filter((e) => e.seq > lastAcked);
     return [...view.unacked];
   }
 
@@ -82,6 +87,10 @@ export class SessionMultiplexer {
 
   viewState(viewId: string): ViewState | undefined {
     return this.views.get(viewId);
+  }
+
+  private messageKey(message: Message): string {
+    return `${message.session_id}:${message.seq}:${message.kind}`;
   }
 }
 
@@ -113,7 +122,7 @@ export class SessionManager {
   async ack(sessionId: string, viewId: string, ackSeq: number): Promise<void> {
     const mux = this.multiplexer(sessionId);
     mux.ack(viewId, ackSeq);
-    await this.bridge.ack(ackSeq, viewId);
+    await this.bridge.ack(ackSeq, viewId, sessionId);
   }
 
   /** Replay one view's window: local mirror + recovery control to host. */
@@ -122,7 +131,8 @@ export class SessionManager {
     const local = mux.replay(viewId, lastAcked);
     const responses = await this.bridge.replay(sessionId, viewId, lastAcked);
     for (const response of responses) mux.emit(response);
-    return mux.replay(viewId, lastAcked).length > 0 ? mux.replay(viewId, lastAcked) : local;
+    const merged = mux.replay(viewId, lastAcked);
+    return merged.length > 0 ? merged : local;
   }
 
   /** Shared watermark for a session (lagging view). */
