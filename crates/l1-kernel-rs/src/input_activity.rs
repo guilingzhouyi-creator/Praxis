@@ -7,6 +7,7 @@
 
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
@@ -32,13 +33,33 @@ pub enum InputActivityPermission {
 }
 
 impl InputActivityPermission {
-    fn as_wire(self) -> &'static str {
+    /// Return the stable permission spelling used by the port snapshot.
+    pub const fn as_wire(self) -> &'static str {
         match self {
             Self::Granted => "granted",
             Self::Denied => "denied",
             Self::Unavailable => "unavailable",
         }
     }
+}
+
+/// One sample supplied by a host keyboard/pointer adapter.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputActivityHostSample {
+    /// Caller-supplied current time for idle reduction.
+    pub now: f64,
+    /// Aggregate observations with no raw key or pointer content.
+    pub observations: Vec<InputActivityObservation>,
+}
+
+/// Host-owned lifecycle and sampling seam for keyboard/pointer activity.
+pub trait InputActivityHostAdapter: Send + Sync {
+    /// Start host observation and report permission or availability.
+    fn start(&self) -> InputActivityPermission;
+    /// Stop observation and release host-owned resources.
+    fn stop(&self);
+    /// Return one aggregate sample using a host-supplied timestamp.
+    fn sample(&self) -> Result<InputActivityHostSample, InputActivityPermission>;
 }
 
 /// One host-injected aggregate observation with no raw input content.
@@ -154,6 +175,116 @@ impl std::error::Error for InputActivityProbeError {}
 #[derive(Debug, Clone, Copy)]
 pub struct InputActivityProbe {
     config: InputActivityProbeConfig,
+}
+
+struct HostInputActivityState {
+    running: bool,
+    permission: InputActivityPermission,
+    snapshot: InputActivitySnapshot,
+}
+
+/// Lifecycle port that reduces samples from a caller-owned host adapter.
+pub struct HostInputActivityPort {
+    probe: InputActivityProbe,
+    adapter: Arc<dyn InputActivityHostAdapter>,
+    state: Mutex<HostInputActivityState>,
+}
+
+impl HostInputActivityPort {
+    /// Construct a host port with explicit aggregation bounds and adapter.
+    pub fn new(
+        config: InputActivityProbeConfig,
+        adapter: Arc<dyn InputActivityHostAdapter>,
+    ) -> Result<Self, InputActivityProbeError> {
+        let probe = InputActivityProbe::new(config)?;
+        Ok(Self {
+            probe,
+            adapter,
+            state: Mutex::new(HostInputActivityState {
+                running: false,
+                permission: InputActivityPermission::Unavailable,
+                snapshot: unknown_snapshot(InputActivityPermission::Unavailable),
+            }),
+        })
+    }
+
+    /// Return the immutable reducer configuration.
+    pub const fn config(&self) -> InputActivityProbeConfig {
+        self.probe.config()
+    }
+
+    /// Start host observation; false means denied or unavailable.
+    pub fn start(&self) -> bool {
+        if self.lock_state().running {
+            return true;
+        }
+        let permission = self.adapter.start();
+        let mut state = self.lock_state();
+        state.permission = permission;
+        state.running = permission == InputActivityPermission::Granted;
+        state.snapshot = unknown_snapshot(permission);
+        state.running
+    }
+
+    /// Stop host observation and expose an unavailable snapshot.
+    pub fn stop(&self) {
+        self.adapter.stop();
+        let mut state = self.lock_state();
+        state.running = false;
+        state.permission = InputActivityPermission::Unavailable;
+        state.snapshot = unknown_snapshot(InputActivityPermission::Unavailable);
+    }
+
+    /// Reduce one host sample; permission loss stops observation fail-closed.
+    pub fn snapshot(&self) -> Result<InputActivitySnapshot, InputActivityProbeError> {
+        if !self.lock_state().running {
+            return Ok(self.lock_state().snapshot.clone());
+        }
+        let sample = match self.adapter.sample() {
+            Ok(sample) => sample,
+            Err(permission) => {
+                self.adapter.stop();
+                let mut state = self.lock_state();
+                state.running = false;
+                state.permission = permission;
+                state.snapshot = unknown_snapshot(permission);
+                return Ok(state.snapshot.clone());
+            }
+        };
+        match self.probe.aggregate(sample.now, sample.observations) {
+            Ok(mut snapshot) => {
+                snapshot.source = "host-adapter".to_owned();
+                let mut state = self.lock_state();
+                state.permission = InputActivityPermission::Granted;
+                state.snapshot = snapshot.clone();
+                Ok(snapshot)
+            }
+            Err(error) => {
+                self.adapter.stop();
+                let mut state = self.lock_state();
+                state.running = false;
+                state.permission = InputActivityPermission::Unavailable;
+                state.snapshot = unknown_snapshot(InputActivityPermission::Unavailable);
+                Err(error)
+            }
+        }
+    }
+
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, HostInputActivityState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn unknown_snapshot(permission: InputActivityPermission) -> InputActivitySnapshot {
+    InputActivitySnapshot {
+        state: InputActivityState::Unknown,
+        keyboard_active: false,
+        pointer_active: false,
+        last_activity_at: 0.0,
+        idle_seconds: 0.0,
+        source: "host-adapter".to_owned(),
+        permission: permission.as_wire().to_owned(),
+    }
 }
 
 impl InputActivityProbe {

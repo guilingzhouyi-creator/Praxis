@@ -560,6 +560,15 @@ permission prompts remain host-owned. T4b remains open for platform-specific
 adapters, permission UX, and privacy/failure evidence; this value projection
 does not grant hardware or runtime authority.
 
+`HostInputActivityPort` provides the first T4b mechanism seam. It accepts an
+`InputActivityHostAdapter` that reports explicit `Granted`, `Denied`, or
+`Unavailable` permission and returns a caller-timed aggregate sample. The port
+delegates reduction to `InputActivityProbe`, exposes permission failures as an
+unknown snapshot, stops the host adapter when permission is revoked, and stops
+it when a sample violates the value contract. It never opens device nodes,
+reads a system clock, or stores raw input; platform collection, permission UX,
+and monitoring policy remain host-owned.
+
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic

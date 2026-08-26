@@ -952,6 +952,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T3d | `ProcessTableGroupRuntime::spawn_gated_constrained`：GateChain + 约束准入接入统一身份路径 | ✅ 候选完成 | 审计旁路与真实平台执行仍待完成 |
 | T3e | `ProcessTableGroupRuntime::new_with_audit`：准入/桥接/stop 共享有界审计旁路 | ✅ 候选完成 | 真实 EventStore wiring、PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
+| T4b1 | `HostInputActivityPort`：宿主权限/聚合采样接缝与 fail-closed 生命周期 | ✅ 候选完成 | 真实平台采集、权限 UX、旁路监测与 production wiring 仍待完成 |
 | T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
@@ -971,6 +972,13 @@ T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主
 这一步不扫描设备节点、不保留原始键值/坐标，也不启用真实硬件监测。T4b
 才负责平台 adapter、权限提示和旁路监控联动，必须另行提供跨平台隐私与失败
 证据后才能进入生产 wiring 评审。
+
+T4b1 先落地 Rust 侧 `HostInputActivityPort` 机制接缝：宿主通过
+`InputActivityHostAdapter` 提供 `Granted`/`Denied`/`Unavailable` 与调用方时间的
+聚合样本；Rust 复用 T4a reducer，在拒绝/不可用时返回显式 unknown，遇到非法
+样本则停止适配器并 fail-closed。该切片不访问设备节点、不读取系统时钟、不保留
+原始键值/坐标；运行期权限撤回同样停止适配器并保留 denied 快照。真实平台
+采集、权限 UX、旁路监测和 production wiring 仍待宿主提供证据。
 
 ---
 

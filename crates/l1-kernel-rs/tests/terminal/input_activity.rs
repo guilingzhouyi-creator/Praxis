@@ -1,7 +1,11 @@
 //! Independent aggregate input-activity probe tests for the Rust kernel.
 
+use std::sync::{Arc, Mutex};
+
 use l1_kernel_rs::input_activity::{
-    InputActivityObservation, InputActivityPermission, InputActivityProbe, InputActivityProbeConfig,
+    HostInputActivityPort, InputActivityHostAdapter, InputActivityHostSample,
+    InputActivityObservation, InputActivityPermission, InputActivityProbe,
+    InputActivityProbeConfig,
 };
 use l1_kernel_rs::ports::InputActivitySnapshot;
 use serde::Deserialize;
@@ -123,5 +127,137 @@ fn probe_config_rejects_zero_and_non_finite_bounds() {
             max_sources: 0,
         })
         .is_err()
+    );
+}
+
+struct FakeHostAdapter {
+    start_permission: Mutex<InputActivityPermission>,
+    sample: Mutex<Option<Result<InputActivityHostSample, InputActivityPermission>>>,
+    stops: Mutex<usize>,
+}
+
+impl Default for FakeHostAdapter {
+    fn default() -> Self {
+        Self {
+            start_permission: Mutex::new(InputActivityPermission::Unavailable),
+            sample: Mutex::new(None),
+            stops: Mutex::new(0),
+        }
+    }
+}
+
+impl InputActivityHostAdapter for FakeHostAdapter {
+    fn start(&self) -> InputActivityPermission {
+        *self.start_permission.lock().expect("start permission lock")
+    }
+
+    fn stop(&self) {
+        *self.stops.lock().expect("stop lock") += 1;
+    }
+
+    fn sample(&self) -> Result<InputActivityHostSample, InputActivityPermission> {
+        self.sample
+            .lock()
+            .expect("sample lock")
+            .clone()
+            .unwrap_or(Err(InputActivityPermission::Unavailable))
+    }
+}
+
+#[test]
+fn host_input_port_models_permission_and_aggregate_lifecycle() {
+    let adapter = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 12.0,
+            observations: vec![InputActivityObservation::new(
+                "keyboard",
+                InputActivityPermission::Granted,
+                true,
+                false,
+                11.5,
+            )],
+        }))),
+        stops: Mutex::new(0),
+    });
+    let port = HostInputActivityPort::new(InputActivityProbeConfig::default(), adapter.clone())
+        .expect("port");
+    assert!(port.start());
+    let snapshot = port.snapshot().expect("snapshot");
+    assert_eq!(snapshot.source, "host-adapter");
+    assert_eq!(snapshot.permission, "granted");
+    assert!(snapshot.keyboard_active);
+    assert!(!snapshot.pointer_active);
+    port.stop();
+    let stopped = port.snapshot().expect("stopped snapshot");
+    assert_eq!(
+        stopped.state,
+        l1_kernel_rs::ports::InputActivityState::Unknown
+    );
+    assert_eq!(stopped.permission, "unavailable");
+    assert_eq!(*adapter.stops.lock().expect("stop lock"), 1);
+}
+
+#[test]
+fn host_input_port_degrades_denial_and_stops_on_invalid_sample() {
+    let denied = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Denied),
+        ..FakeHostAdapter::default()
+    });
+    let denied_port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), denied.clone())
+            .expect("denied port");
+    assert!(!denied_port.start());
+    assert_eq!(
+        denied_port.snapshot().expect("denied snapshot").permission,
+        "denied"
+    );
+
+    let invalid = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 5.0,
+            observations: vec![InputActivityObservation::new(
+                "pointer",
+                InputActivityPermission::Granted,
+                false,
+                true,
+                6.0,
+            )],
+        }))),
+        ..FakeHostAdapter::default()
+    });
+    let invalid_port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), invalid.clone())
+            .expect("invalid port");
+    assert!(invalid_port.start());
+    assert!(invalid_port.snapshot().is_err());
+    assert_eq!(*invalid.stops.lock().expect("stop lock"), 1);
+    assert_eq!(
+        invalid_port.snapshot().expect("failed snapshot").permission,
+        "unavailable"
+    );
+}
+
+#[test]
+fn host_input_port_stops_when_permission_is_revoked_during_sampling() {
+    let adapter = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Err(InputActivityPermission::Denied))),
+        ..FakeHostAdapter::default()
+    });
+    let port = HostInputActivityPort::new(InputActivityProbeConfig::default(), adapter.clone())
+        .expect("port");
+    assert!(port.start());
+    let snapshot = port.snapshot().expect("permission snapshot");
+    assert_eq!(
+        snapshot.state,
+        l1_kernel_rs::ports::InputActivityState::Unknown
+    );
+    assert_eq!(snapshot.permission, "denied");
+    assert_eq!(*adapter.stops.lock().expect("stop lock"), 1);
+    assert_eq!(
+        port.snapshot().expect("stopped snapshot").permission,
+        "denied"
     );
 }

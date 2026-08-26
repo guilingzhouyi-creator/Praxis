@@ -287,6 +287,14 @@ fail closed. It never opens device nodes or retains raw input. The shared
 Rust and TypeScript; real keyboard/pointer adapters remain host-owned and are
 tracked separately as T4b.
 
+`HostInputActivityPort` is the first T4b mechanism seam. A host supplies an
+`InputActivityHostAdapter` that reports `Granted`, `Denied`, or `Unavailable`
+and returns aggregate samples with caller-owned time. The port delegates all
+reduction to `InputActivityProbe`, degrades permission failures to an explicit
+unknown snapshot, and stops on invalid samples; it never opens device nodes,
+reads a system clock, or retains raw input. Platform event collection and
+permission UX remain outside this crate.
+
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The
 `rust-kernel` binary is an independent no-Python entrypoint that requires an

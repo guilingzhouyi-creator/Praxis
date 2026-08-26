@@ -445,6 +445,15 @@ system clock enters either implementation. T4b is intentionally separate: it
 must provide platform adapters, permission UX, and privacy/failure evidence
 before any production wiring review.
 
+The first T4b mechanism slice is `input_activity::HostInputActivityPort`.
+`InputActivityHostAdapter` supplies explicit `Granted`, `Denied`, or
+`Unavailable` permission and caller-timed aggregate samples. The port delegates
+to the bounded Rust reducer, exposes denied/unavailable states without claiming
+enablement, and stops the adapter on invalid samples. Device discovery, event
+collection, permission UX, and monitoring policy remain host-owned; no raw
+input or system clock crosses the Rust boundary. Permission revocation also
+stops the adapter while retaining an explicit denied snapshot.
+
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, config-manifest, protocol,
 terminal-contract, port, and lifecycle candidates.

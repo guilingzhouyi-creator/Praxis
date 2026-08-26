@@ -638,6 +638,14 @@ independent Rust `tests/terminal/input_activity.rs` target and the TypeScript
 tests. T4b remains open for platform-specific keyboard/pointer adapters and
 permission UX; those effects stay outside the kernel value boundary.
 
+The T4b Rust seam is `HostInputActivityPort` plus the host-owned
+`InputActivityHostAdapter`. The adapter provides explicit permission state and
+caller-timed aggregate samples; the port reduces them with the same bounded
+probe, returns an unknown snapshot on permission failure, stops when permission
+is revoked, and stops on an invalid sample. No device node, system clock, key
+value, or pointer coordinate enters the crate. Real platform collection and
+permission UX remain a host responsibility.
+
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,
 argv/cwd/environment policy, timeout, output/CPU/memory ceilings, and
