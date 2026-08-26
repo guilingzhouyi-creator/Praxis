@@ -232,6 +232,51 @@ fn finished_reaper_rejects_zero_budget_without_touching_children() {
 }
 
 #[test]
+fn stop_sweep_is_bounded_and_reaps_selected_bindings() {
+    let (bridge, table) = setup(2);
+    bridge
+        .spawn_args(&shell_args("sleep 5"), None)
+        .expect("first spawn");
+    bridge
+        .spawn_args(&shell_args("sleep 5"), None)
+        .expect("second spawn");
+
+    let first = bridge
+        .stop_all_once(1, Duration::from_secs(1))
+        .expect("first stop sweep");
+    assert_eq!(first.inspected, 1);
+    assert_eq!(first.terminated, 1);
+    assert_eq!(first.reaped, 1);
+    assert_eq!(first.remaining, 1);
+    assert_eq!(bridge.active_count(), 1);
+
+    let second = bridge
+        .stop_all_once(2, Duration::from_secs(1))
+        .expect("second stop sweep");
+    assert_eq!(second.reaped, 1);
+    assert_eq!(second.remaining, 0);
+    assert_eq!(bridge.active_count(), 0);
+    assert_eq!(table.list_processes(None).len(), 1);
+}
+
+#[test]
+fn stop_sweep_rejects_zero_budget_without_touching_bindings() {
+    let (bridge, table) = setup(1);
+    let handle = bridge
+        .spawn_args(&shell_args("sleep 0.05"), None)
+        .expect("spawn");
+    assert_eq!(
+        bridge.stop_all_once(0, Duration::ZERO),
+        Err(ProcessBridgeError::InvalidReapBudget)
+    );
+    assert_eq!(bridge.active_count(), 1);
+    assert!(table.get_by_handle(handle).is_some());
+    bridge
+        .stop_all_once(1, Duration::from_secs(1))
+        .expect("cleanup");
+}
+
+#[test]
 fn concurrent_children_keep_table_and_managed_books_in_sync() {
     let (bridge, table) = setup(4);
     let bridge = Arc::new(bridge);

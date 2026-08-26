@@ -1194,6 +1194,12 @@ when an external table transition must be reported. Zero budgets fail closed.
 This is a mechanism seam only; it does not start a background thread or claim
 production shutdown/reaper authority.
 
+`ProcessTableBridge::stop_all_once` adds a one-shot stop-preparation pass. It
+selects stable raw handles, applies the caller timeout, jointly reaps successful
+managed and ProcessTable bindings, and reports terminated, pending,
+unavailable, error, and remaining counts. Zero budgets fail before child access;
+the pass does not start a background reaper or change ProcessTable authority.
+
 The `process_group::ProcessGroupBook` candidate adds the next typed ownership
 seam: generation-safe membership, deterministic stop plans, terminal member
 outcomes, and bounded caller-driven `ProcessReaper` sweeps. It accepts only

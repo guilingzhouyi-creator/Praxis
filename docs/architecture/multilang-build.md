@@ -486,6 +486,10 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   The independent `process.group.reaper` fixed-work runner and
   `rust-process-group-bench` binary keep this evidence separate from process
   spawn, queue, and session workloads; no runtime authority is promoted.
+- `ProcessTableBridge::stop_all_once` provides a one-shot stable-handle stop and
+  joint-reap report with explicit timeout and remaining ownership. A zero
+  budget fails before child access; the caller still owns repeat policy and
+  production shutdown authority.
 - `ProcessGroupRuntime::drain_once` adds a one-shot caller-owned stop-all plus
   bounded sweep report, including remaining groups and members; empty groups
   are closed as `Stopped` during the stop request. It does not select a repeat

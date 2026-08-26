@@ -711,6 +711,12 @@ p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得
 遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的 binding 泄漏。它是未来
 caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
 
+随后补齐 `ProcessTableBridge::stop_all_once`：按稳定 raw handle 选取有界 binding，
+将调用方 timeout 传给 child termination，成功项同时释放 managed slot 与 ProcessTable
+表项，并返回 terminated/reaped/pending/unavailable/errors/remaining 计数。零 budget
+在触碰 child 前 fail-closed；该 API 只做一次 caller-owned pass，不启动后台 reaper，
+不改变 ProcessTable 生命周期权威，后续仍需真实平台进程组信号与生产 shutdown 评审。
+
 随后新增 `process_group::ProcessGroupBook` 与 `ProcessReaper` 候选：以 generation-safe
 `ProcessHandle` 建立唯一分组归属，冻结 Active/Draining/Stopped/Failed 状态、确定性停止计划、成员终态
 和有界 `max_groups/max_members` sweep。观察结果必须由 caller-owned adapter 显式提供，`Pending` 与

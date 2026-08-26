@@ -276,6 +276,14 @@ returning an error count, so the sweep cannot leave an unrepeatable binding
 behind; zero budgets fail closed. No background thread, shutdown hook, or
 production reaper authority is introduced by this candidate.
 
+The bridge stop-preparation follow-on adds `ProcessTableBridge::stop_all_once`.
+It selects a stable raw-handle prefix, applies the caller timeout to each
+selected child, jointly reaps successful ProcessTable/managed bindings, and
+returns explicit terminated, pending, unavailable, error, and remaining
+counts. It performs one bounded pass only; a zero budget is rejected before
+child access, and callers retain repeat policy plus production shutdown
+authority.
+
 The next process-group candidate is `process_group::ProcessGroupBook` with
 `ProcessReaper`. It owns generation-safe membership, deterministic stop-plan
 ordering, terminal outcome accounting, and explicit bounded sweep budgets.

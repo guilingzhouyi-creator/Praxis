@@ -59,6 +59,27 @@ pub struct ProcessReapReport {
     pub errors: u64,
 }
 
+/// Result of one caller-owned stop and reap sweep over bridge bindings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessStopReport {
+    /// Number of stable handles selected by this sweep.
+    pub inspected: u64,
+    /// Number of selected children that accepted termination and reached a
+    /// terminal managed state.
+    pub terminated: u64,
+    /// Number of bindings jointly reaped from the managed book and table.
+    pub reaped: u64,
+    /// Number of live children still owned after the explicit timeout.
+    pub pending: u64,
+    /// Number of bindings removed by another owner before this sweep.
+    pub unavailable: u64,
+    /// Number of selected bindings that hit a lifecycle or ownership error.
+    pub errors: u64,
+    /// Number of bindings still owned after this sweep, including unselected
+    /// handles outside the caller budget.
+    pub remaining: u64,
+}
+
 /// Fail-closed errors at the ProcessTable ownership bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProcessBridgeError {
@@ -275,6 +296,52 @@ impl ProcessTableBridge {
                 Err(_) => report.errors = report.errors.saturating_add(1),
             }
         }
+        Ok(report)
+    }
+
+    /// Stop and jointly reap up to `max_bindings` in stable handle order.
+    ///
+    /// A zero timeout performs an observation-only stop attempt for children
+    /// that already exited; a non-zero timeout is passed to the managed child
+    /// termination adapter. The method performs one bounded pass and never
+    /// starts a background reaper or changes ProcessTable authority.
+    pub fn stop_all_once(
+        &self,
+        max_bindings: usize,
+        timeout: Duration,
+    ) -> Result<ProcessStopReport, ProcessBridgeError> {
+        if max_bindings == 0 {
+            return Err(ProcessBridgeError::InvalidReapBudget);
+        }
+        let mut handles = self.read_bindings().keys().copied().collect::<Vec<_>>();
+        handles.sort_unstable_by_key(|handle| handle.raw());
+        handles.truncate(max_bindings);
+        let mut report = ProcessStopReport {
+            inspected: handles.len() as u64,
+            ..ProcessStopReport::default()
+        };
+        for handle in handles {
+            match self.terminate(handle, timeout) {
+                Ok(_) => {
+                    report.terminated = report.terminated.saturating_add(1);
+                    match self.reap(handle) {
+                        Ok(_) => report.reaped = report.reaped.saturating_add(1),
+                        Err(ProcessBridgeError::TableUnavailable) => {
+                            report.unavailable = report.unavailable.saturating_add(1)
+                        }
+                        Err(_) => report.errors = report.errors.saturating_add(1),
+                    }
+                }
+                Err(ProcessBridgeError::Managed(ManagedProcessError::TerminationTimeout)) => {
+                    report.pending = report.pending.saturating_add(1);
+                }
+                Err(ProcessBridgeError::TableUnavailable) => {
+                    report.unavailable = report.unavailable.saturating_add(1)
+                }
+                Err(_) => report.errors = report.errors.saturating_add(1),
+            }
+        }
+        report.remaining = self.active_count() as u64;
         Ok(report)
     }
 
