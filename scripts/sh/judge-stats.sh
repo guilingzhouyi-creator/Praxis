@@ -103,6 +103,13 @@ rows = sorted(uniq, key=lambda r: r.get("ts", ""))
 # completion rate. Records without a checks dict (legacy) are kept.
 rows = [r for r in rows if not ((r.get("checks") or {}) and all(v == 0 for v in r["checks"].values()))]
 
+# Drop telemetry snapshots (class=telemetry, e.g. push-both's automatic
+# post-push probe): they are activity markers, never verdicts — structurally
+# PARTIAL in fast mode — and must not dilute completion rates. Counted
+# separately so the dashboard still shows pipeline activity.
+telemetry_count = sum(1 for r in rows if r.get("class") == "telemetry")
+rows = [r for r in rows if r.get("class") != "telemetry"]
+
 # Mode: explicit `mode` field wins; legacy records derive it from the check
 # flags (any flag 0 = skipped = fast; <11 checks = legacy fast). Never mix full
 # and fast runs in one completion/duration statistic — they measure different things.
@@ -141,13 +148,17 @@ for r in incomplete:
         if flag == 2:
             fail_counter[chk] += 1
 
-# trend: completion rate per day (ISO date) — full-mode COMPLETE only
-trend = defaultdict(lambda: [0, 0])
+# trend: per-day verdict stats. Two rates are reported side by side:
+#   full_rate  = full-mode COMPLETE / full runs   ("done" gold standard)
+#   rate       = legacy mixed denominator kept for continuity
+trend = defaultdict(lambda: {"runs": 0, "full_runs": 0, "complete_full": 0})
 for r in rows:
     d = datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).date().isoformat()
-    trend[d][1] += 1
-    if r.get("verdict") == "COMPLETE" and run_mode(r) == "full":
-        trend[d][0] += 1
+    trend[d]["runs"] += 1
+    if run_mode(r) == "full":
+        trend[d]["full_runs"] += 1
+        if r.get("verdict") == "COMPLETE":
+            trend[d]["complete_full"] += 1
 
 # ── A: per-branch completion rate ──────────────────────────────────────
 branch_stats = defaultdict(lambda: {"runs": 0, "complete": 0})
@@ -270,7 +281,11 @@ if as_json:
         "check_pass_rates": {chk: {"pass": p, "executed": n, "rate": round(p / n, 3)} for chk, (p, n) in check_pass.items()},
         "failure_pairs": ["+".join(pair) for pair, _ in pair_counter.most_common()],
         "metrics": metrics_summary,
-        "trend": {d: {"complete": c, "runs": t, "rate": round(c / t, 3)} for d, (c, t) in sorted(trend.items())},
+        "telemetry_excluded": telemetry_count,
+        "trend": {d: {"runs": v["runs"], "full_runs": v["full_runs"], "complete_full": v["complete_full"],
+                      "full_rate": round(v["complete_full"] / v["full_runs"], 3) if v["full_runs"] else None,
+                      "rate": round(v["complete_full"] / v["runs"], 3) if v["runs"] else None}
+                  for d, v in sorted(trend.items())},
     }))
     sys.exit(0)
 
@@ -283,6 +298,9 @@ if as_md:
     lines.append("")
     lines.append(f"**Runs**: {total} | **COMPLETE**: {complete} ({pct(complete, total)}) | **PARTIAL**: {partial} ({pct(partial, total)}, fast mode — checks skipped) | **INCOMPLETE**: {total - complete - partial} ({pct(total - complete - partial, total)}, machine 'not done')")
     lines.append(f"**Mode split**: full {len(full_runs)} ({pct(complete, len(full_runs))} complete) / fast {len(fast_runs)} (fast = at least one check skipped)")
+    lines.append(f"**Full-mode verdict rate**: {complete}/{len(full_runs)} ({pct(complete, len(full_runs))}) — the 'done' gold standard; mixed rates below include fast snapshots")
+    if telemetry_count:
+        lines.append(f"**Telemetry snapshots excluded from rates**: {telemetry_count} (push-both activity probes)")
     if skipped_tests_count:
         lines.append(f"**Skipped tests notice**: tests skipped in {skipped_tests_count} judge run(s) (full mode / WSL slice-serial required before merge)")
     if exemptions:
@@ -290,10 +308,10 @@ if as_md:
     if delta_waived_count:
         lines.append(f"**Waived delta passes**: {delta_waived_count} judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)")
     lines.append("")
-    lines.append("| Date | Runs | Complete | Rate |")
-    lines.append("|---|---|---|---|")
-    for d, (c, t) in sorted(trend.items()):
-        lines.append(f"| {d} | {t} | {c} | {pct(c, t)} |")
+    lines.append("| Date | Runs | Full Runs | Full Complete | Full Rate | Legacy Rate |")
+    lines.append("|---|---|---|---|---|---|")
+    for d, v in sorted(trend.items()):
+        lines.append(f"| {d} | {v['runs']} | {v['full_runs']} | {v['complete_full']} | {pct(v['complete_full'], v['full_runs'])} | {pct(v['complete_full'], v['runs'])} |")
     if fail_counter:
         lines.append("")
         lines.append("**Failures by check** (most frequent evidence gaps):")
@@ -355,9 +373,11 @@ if pair_counter:
     for pair, n in pair_counter.most_common(5):
         print(f"    {' + '.join(pair):<24} {n:>3}")
 print("-" * 52)
-print("  trend (completion rate per day):")
-for d, (c, t) in sorted(trend.items()):
-    print(f"    {d}  {c}/{t}  ({pct(c, t)})")
+print("  trend (full-mode verdict rate per day | legacy mixed rate):")
+for d, v in sorted(trend.items()):
+    print(f"    {d}  full {v['complete_full']}/{v['full_runs']} ({pct(v['complete_full'], v['full_runs'])})  |  all {v['complete_full']}/{v['runs']} ({pct(v['complete_full'], v['runs'])})")
+if telemetry_count:
+    print(f"  telemetry snapshots excluded from rates: {telemetry_count}")
 if metrics_summary:
     print("-" * 52)
     print("  numeric metrics (latest/avg/min/max):")

@@ -39,8 +39,10 @@ set -euo pipefail
 # Usage:
 #   bash scripts/sh/verify-completion.sh [--skip <check,...>]
 #   COMPLETION_TESTS=0 bash scripts/sh/verify-completion.sh   # skip a check
+#   COMPLETION_CLASS=telemetry ...   # activity snapshot, excluded from rates
 # Exit: 0 = COMPLETE or PARTIAL (see verdict); 1 = INCOMPLETE (prints missing
-# evidence); 2 = usage error
+# evidence); 2 = usage error / zero-enabled-checks refusal; 3 = environment
+# preflight failed (nothing recorded — fix the shell, not the code)
 #
 # Each check is a separate function so the ratchet can be extended per-domain
 # (swap the verifier, get a different tool).
@@ -107,6 +109,45 @@ for v in "$RUN_TESTS" "$RUN_COVERAGE" "$RUN_DELTA" "$RUN_DOCS" "$RUN_LINT" \
 done
 MODE="full"
 [ "$SKIPPED_ANY" = "1" ] && MODE="fast"
+
+# ── invocation sanity: a run that judges nothing must not write a record ──
+ENABLED=0
+for v in "$RUN_TESTS" "$RUN_COVERAGE" "$RUN_DELTA" "$RUN_DOCS" "$RUN_LINT" \
+         "$RUN_AUDIT" "$RUN_COMPLEX" "$RUN_CYCLE" "$RUN_SINGLETON" \
+         "$RUN_CHANGELOG" "$RUN_INDEX"; do
+  [ "$v" = "1" ] && ENABLED=$((ENABLED + 1))
+done
+if [ "$ENABLED" -eq 0 ]; then
+  echo "[judge] REFUSED — every check is skipped; an empty verdict pollutes the completion-rate history." >&2
+  echo "  Enable at least one check: drop entries from --skip=... or unset COMPLETION_*=0." >&2
+  echo "  Nothing was recorded to judge-runs.jsonl." >&2
+  exit 2
+fi
+
+# ── environment preflight: broken shell ≠ broken work ────────────────────
+# A missing interpreter fails most checks for INFRASTRUCTURE reasons and
+# would pollute judge history with evidence about the environment instead of
+# the code. Refuse BEFORE executing, print an agent-actionable fix, record
+# nothing. (Once this passes, a genuinely missing verifier still hard-fails.)
+NEEDS_PYTHON=0
+for v in "$RUN_TESTS" "$RUN_COVERAGE" "$RUN_DOCS" "$RUN_LINT" "$RUN_COMPLEX" \
+         "$RUN_CYCLE" "$RUN_SINGLETON" "$RUN_CHANGELOG" "$RUN_INDEX"; do
+  [ "$v" = "1" ] && NEEDS_PYTHON=1
+done
+if [ "$NEEDS_PYTHON" = "1" ] && ! command -v python >/dev/null 2>&1; then
+  echo "[judge] ENV PREFLIGHT FAILED — 'python' is not on PATH." >&2
+  echo "  This measures YOUR SHELL, not the work; nothing was recorded to judge-runs.jsonl." >&2
+  echo "  Agent-fix: run the judge from the repo venv first:" >&2
+  echo "    export PATH=\"\$PWD/.venv/bin:\$PATH\"   # worktrees: use <main-tree>/.venv/bin" >&2
+  echo "    bash scripts/sh/verify-completion.sh [--skip=...]" >&2
+  exit 3
+fi
+
+# Record classification: standard runs feed completion rates; telemetry
+# snapshots (COMPLETION_CLASS=telemetry, e.g. push-both's automatic probe)
+# are activity markers that judge-stats.sh excludes from every rate.
+CLASS="${COMPLETION_CLASS:-standard}"
+case "$CLASS" in standard | telemetry) ;; *) CLASS="standard" ;; esac
 
 FAILED=0
 GAPS=""
@@ -387,7 +428,7 @@ DURATION=$(( $(date +%s) - T0 ))
 # judge-stats.sh (completion rate, failure distribution, trend, metrics).
 # Each metric falls back to null when the check did not run or produced no
 # parseable value — an empty string would corrupt the JSONL line.
-RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"delta_waived\":${DELTA_WAIVED:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
+RECORD="{\"ts\":\"${TS}\",\"verdict\":\"${VERDICT}\",\"mode\":\"${MODE}\",\"class\":\"${CLASS}\",\"branch\":\"${BRANCH}\",\"duration_s\":${DURATION},\"checks\":{\"tests\":${S_TESTS},\"coverage\":${S_COVERAGE},\"delta\":${S_DELTA},\"docs\":${S_DOCS},\"lint\":${S_LINT},\"audit\":${S_AUDIT},\"complex\":${S_COMPLEX},\"cycle\":${S_CYCLE},\"singleton\":${S_SINGLETON},\"changelog\":${S_CHANGELOG},\"index\":${S_INDEX}},\"skipped_tests\":${SKIPPED_TESTS:-0},\"delta_waived\":${DELTA_WAIVED:-0},\"metrics\":{\"tests_passed\":${M_TESTS_PASSED:-null},\"tests_failed\":${M_TESTS_FAILED:-null},\"coverage_pct\":${M_COVERAGE_PCT:-null},\"net_delta\":${M_NET_DELTA:-null},\"ruff_errors\":${M_RUFF_ERRORS:-null},\"mega_funcs\":${M_MEGA_FUNCS:-null},\"audit_vulns\":${M_AUDIT_VULNS:-null}}}"
 if command -v flock >/dev/null 2>&1; then
   (
     flock -x 200
