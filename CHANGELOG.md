@@ -5,6 +5,245 @@
 
 ## [Unreleased]
 
+### 文档
+
+- **Docs (rust)**: annotate module map, error contracts, and invariants
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: rotate alignment change-log into monthly archive
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (docs)**: register Phase 3 protocol v1 alignment in handoff log
+- **Docs (docs)**: update changelog with recent doc fixes
+- **Docs (docs)**: sync model reasoning caps keys across ja and ko locales
+- **Docs (docs)**: update changelog with recent service fixes
+- **Docs (docs)**: refresh unreleased changelog and architecture doc stats
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: sync roadmaps with verified main state
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: rotate alignment change-log into monthly archive
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: document cherry-pick exception to trailer sentinel
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: align docs with code and normalize library
+- **Docs (l2)**: add protocol v1 conformance rulings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: sync agent pointers and rust evidence text
+- **Docs**: add l1l2 docking execution plan
+- **Docs (roadmaps)**: add l1-l2 wire docking plan and milestone table
+- **Docs (roadmaps)**: define ts-l2 authority cutover acceptance criteria
+- **Docs**: sync architecture docs with polished protocol-ts
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (l2-ts)**: complete jsdoc coverage on all exported types and payloads
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (arch)**: update l3-module-map and runtime-subsystems for ts mirror
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: register commit_scan attribution clobber
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (docs)**: align latest ts mapping baseline
+- **Docs**: sync l2 roadmap and handoff with ts rewrite status
+- **Docs (infra)**: reconcile generated commit mirror contract
+- **Docs**: mark shell family and multiplexing done in mapping
+- **Docs**: mark all three l2 rewrite batches done
+- **Docs**: add l2 ts rewrite mapping checklist
+- **Docs**: mark l2 ts engine restore and p4 starting point
+- **Docs**: document kernel settings facade
+- **Docs**: align l5-user reference with cli code
+- **Docs**: register services scope addition per strict gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: register module map, refresh subsystem counts
+- **Docs (roadmaps)**: record l3 normalization slice outcomes
+- **Docs**: add l3 module map, domains ownership and families
+- **Docs (roadmaps)**: mark closure slice D complete
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: mark closure slices B and C complete
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: reflect the handoff gate and rotation in agent instructions
+- **Docs**: harden the handoff area with a template and gate feedback
+- **Docs**: add shared agent-handoff exchange area
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: reconcile rust-preflight merge clobber
+- **Docs (kernel)**: refresh process group changelog
+- **Docs (kernel)**: synchronize rewrite baseline
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: register missing indexes and resync stale statuses
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: document scope-directory mapping and point to the field spec
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: rename Python to Python3 across docs and comments
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (tests)**: format the ts rewrite reference snippet
+- **Docs (agents)**: enforce slice-first testing and gate-linked prompts
+- **Docs**: source code optimization & TS rewrite readiness plan
+- **Docs (agents)**: compress to pointer index with checklist and gate scaffold
+- **Docs (agents)**: refresh instructions for multi-language and tests
+- **Docs (stats)**: regenerate changelog and doc snapshots for the branch
+- **Docs (l2)**: clarify the next-steps list and the legacy-reference note
+- **Docs (l2)**: bind nothing in l2, document the volatile-state rule
+- **Docs (l2)**: unify l2 doc layout and cross-reference status
+- **Docs (l2)**: reserve the ts rewrite architecture in docs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (tests)**: add the ts rewrite reference for test code
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (l2)**: annotate the session flow and control ops for the ts rewrite
+- **Docs (roadmaps)**: restructure l2 sections and mark p3 progress
+- **Docs (l2)**: annotate command modules and add the l2 rewrite map
+- **Docs (l2)**: annotate remaining l2 modules for the ts rewrite
+- **Docs (l2)**: annotate ts-rewrite references across l2 modules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: sync p3 status and test counts with main
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (l2)**: annotate ts-rewrite counterparts across the protocol
+- **Docs (l2)**: add agent handoff index and relayout the roadmap
+- **Docs (l2)**: record dispatch and host perf optimizations in roadmap
+- **Docs (l2)**: mark p1 l2-l3 migration complete in roadmap
+- **Docs (l2)**: sync bridge migration and protocol fixes into roadmap
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: compress AGENTS.md and CLAUDE.md to index form (147+32 lines)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats and changelog after migration
+- **Docs**: sync l3-memory and migration plan to new defaults
+- **Docs**: mark compression v2 migration gaps complete
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: add L3A compression v2 migration plan
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard with COMPLETE record
+- **Docs (roadmaps)**: record engineering debug gaps
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh L2 shell line counts after terminal format fix
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: add production-closure blind-spot roadmap
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (contracts)**: refresh kernel contract snapshot after reset_persist
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats and changelog after persist fix
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: clarify L2 handler count in architecture docs
+- **Docs (roadmaps)**: define automation rewrite boundaries
+- **Docs (docs)**: refresh stale L2 command counts in docs
+- **Docs (agents)**: correct L2 command sources, add protocol v1
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh doc-stats and changelog after dual-branch merge
+- **Docs (stats)**: refresh doc-stats and changelog for prebuild lifecycle fix
+- **Docs (stats)**: fix README snapshot and changelog drift
+- **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: add L2 shell engine architecture + multifrontend roadmap
+- **Docs**: rust-readiness hardening — plan status, kernel surface boundary
+- **Docs (docs)**: fix deps reference in commits.md
+- **Docs (docs)**: extract AGENTS.md long sections into indexed docs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats and CHANGELOG for fidelity branch
+- **Docs (memory)**: sync architecture docs for fidelity mechanisms
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats after memory perf fix
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh llms-full.txt with completion-judge row
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: add completion-judge spec and register it in doc indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: regenerate CHANGELOG [Unreleased] block
+- **Docs**: align project-structure command count to 51
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs**: regenerate llms.txt and align command counts after rebase
+- **Docs**: add engineering-debug feature review
+- **Docs**: fix doc pointers and counts; add top-level index
+- **Docs (infra)**: expand 22 short docstrings past the detail floor
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (docs)**: refresh candidate architecture indexes
+- **Docs (memory)**: detail candidate storage seam
+- **Docs (docs)**: refresh generated indexes
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh doc-stats + changelog after cleanup
+- **Docs (infra)**: fill 111 missing public docstrings
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: define two gate waivers and sync hints
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: add branch accumulation quality gate
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (agents)**: mandate main-tree venv for worktree test runs
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
+- **Docs (agents)**: document direct local push to github mirror
+
 ### 变更
 
 - **Test (infra)**: pin zero-check refusal and fast-mode contracts
@@ -260,244 +499,6 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
-
-### 文档
-
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: rotate alignment change-log into monthly archive
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (docs)**: register Phase 3 protocol v1 alignment in handoff log
-- **Docs (docs)**: update changelog with recent doc fixes
-- **Docs (docs)**: sync model reasoning caps keys across ja and ko locales
-- **Docs (docs)**: update changelog with recent service fixes
-- **Docs (docs)**: refresh unreleased changelog and architecture doc stats
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: sync roadmaps with verified main state
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: rotate alignment change-log into monthly archive
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: document cherry-pick exception to trailer sentinel
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: align docs with code and normalize library
-- **Docs (l2)**: add protocol v1 conformance rulings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: sync agent pointers and rust evidence text
-- **Docs**: add l1l2 docking execution plan
-- **Docs (roadmaps)**: add l1-l2 wire docking plan and milestone table
-- **Docs (roadmaps)**: define ts-l2 authority cutover acceptance criteria
-- **Docs**: sync architecture docs with polished protocol-ts
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (l2-ts)**: complete jsdoc coverage on all exported types and payloads
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (arch)**: update l3-module-map and runtime-subsystems for ts mirror
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: register commit_scan attribution clobber
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (docs)**: align latest ts mapping baseline
-- **Docs**: sync l2 roadmap and handoff with ts rewrite status
-- **Docs (infra)**: reconcile generated commit mirror contract
-- **Docs**: mark shell family and multiplexing done in mapping
-- **Docs**: mark all three l2 rewrite batches done
-- **Docs**: add l2 ts rewrite mapping checklist
-- **Docs**: mark l2 ts engine restore and p4 starting point
-- **Docs**: document kernel settings facade
-- **Docs**: align l5-user reference with cli code
-- **Docs**: register services scope addition per strict gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: register module map, refresh subsystem counts
-- **Docs (roadmaps)**: record l3 normalization slice outcomes
-- **Docs**: add l3 module map, domains ownership and families
-- **Docs (roadmaps)**: mark closure slice D complete
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: mark closure slices B and C complete
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: reflect the handoff gate and rotation in agent instructions
-- **Docs**: harden the handoff area with a template and gate feedback
-- **Docs**: add shared agent-handoff exchange area
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: reconcile rust-preflight merge clobber
-- **Docs (kernel)**: refresh process group changelog
-- **Docs (kernel)**: synchronize rewrite baseline
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: register missing indexes and resync stale statuses
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: document scope-directory mapping and point to the field spec
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: rename Python to Python3 across docs and comments
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (tests)**: format the ts rewrite reference snippet
-- **Docs (agents)**: enforce slice-first testing and gate-linked prompts
-- **Docs**: source code optimization & TS rewrite readiness plan
-- **Docs (agents)**: compress to pointer index with checklist and gate scaffold
-- **Docs (agents)**: refresh instructions for multi-language and tests
-- **Docs (stats)**: regenerate changelog and doc snapshots for the branch
-- **Docs (l2)**: clarify the next-steps list and the legacy-reference note
-- **Docs (l2)**: bind nothing in l2, document the volatile-state rule
-- **Docs (l2)**: unify l2 doc layout and cross-reference status
-- **Docs (l2)**: reserve the ts rewrite architecture in docs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (tests)**: add the ts rewrite reference for test code
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (l2)**: annotate the session flow and control ops for the ts rewrite
-- **Docs (roadmaps)**: restructure l2 sections and mark p3 progress
-- **Docs (l2)**: annotate command modules and add the l2 rewrite map
-- **Docs (l2)**: annotate remaining l2 modules for the ts rewrite
-- **Docs (l2)**: annotate ts-rewrite references across l2 modules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: sync p3 status and test counts with main
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (l2)**: annotate ts-rewrite counterparts across the protocol
-- **Docs (l2)**: add agent handoff index and relayout the roadmap
-- **Docs (l2)**: record dispatch and host perf optimizations in roadmap
-- **Docs (l2)**: mark p1 l2-l3 migration complete in roadmap
-- **Docs (l2)**: sync bridge migration and protocol fixes into roadmap
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: compress AGENTS.md and CLAUDE.md to index form (147+32 lines)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats and changelog after migration
-- **Docs**: sync l3-memory and migration plan to new defaults
-- **Docs**: mark compression v2 migration gaps complete
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: add L3A compression v2 migration plan
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard with COMPLETE record
-- **Docs (roadmaps)**: record engineering debug gaps
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh L2 shell line counts after terminal format fix
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: add production-closure blind-spot roadmap
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (contracts)**: refresh kernel contract snapshot after reset_persist
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats and changelog after persist fix
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (docs)**: clarify L2 handler count in architecture docs
-- **Docs (roadmaps)**: define automation rewrite boundaries
-- **Docs (docs)**: refresh stale L2 command counts in docs
-- **Docs (agents)**: correct L2 command sources, add protocol v1
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh doc-stats and changelog after dual-branch merge
-- **Docs (stats)**: refresh doc-stats and changelog for prebuild lifecycle fix
-- **Docs (stats)**: fix README snapshot and changelog drift
-- **Docs (stats)**: refresh doc-stats and changelog for test-matrix prebuild
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: add L2 shell engine architecture + multifrontend roadmap
-- **Docs**: rust-readiness hardening — plan status, kernel surface boundary
-- **Docs (docs)**: fix deps reference in commits.md
-- **Docs (docs)**: extract AGENTS.md long sections into indexed docs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats and CHANGELOG for fidelity branch
-- **Docs (memory)**: sync architecture docs for fidelity mechanisms
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats after memory perf fix
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh llms-full.txt with completion-judge row
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: add completion-judge spec and register it in doc indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs**: regenerate CHANGELOG [Unreleased] block
-- **Docs**: align project-structure command count to 51
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs**: regenerate llms.txt and align command counts after rebase
-- **Docs**: add engineering-debug feature review
-- **Docs**: fix doc pointers and counts; add top-level index
-- **Docs (infra)**: expand 22 short docstrings past the detail floor
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (docs)**: refresh candidate architecture indexes
-- **Docs (memory)**: detail candidate storage seam
-- **Docs (docs)**: refresh generated indexes
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh doc-stats + changelog after cleanup
-- **Docs (infra)**: fill 111 missing public docstrings
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: define two gate waivers and sync hints
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (roadmaps)**: centralize roadmap documents under docs/roadmaps/
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: add branch accumulation quality gate
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (agents)**: mandate main-tree venv for worktree test runs
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (readme)**: capability areas (memory/compression/prompt/session upgrades) + refresh stats snapshot
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (memory)**: document two-layer compression pipeline (execution vs decision)
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: CompletionJudge verdict + rejection-behavior rules
-- **Docs (stats)**: refresh judge dashboard
-- **Docs (stats)**: refresh snapshot before mainline merge
-- **Docs (agents)**: document direct local push to github mirror
 
 ### 修复
 
