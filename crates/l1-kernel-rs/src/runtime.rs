@@ -17,14 +17,18 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::agent_loop::AgentLoopBook;
 use crate::assembly::{AssemblyError, AssemblySpec, KernelAssembly};
 use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult};
+use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::lifecycle::{LifecycleRegistry, LifecycleState};
 use crate::scheduler::{KernelScheduler, SchedulerConfig, SchedulerError};
+use crate::session::SessionBook;
 use crate::state_store::{StateStore, StateStoreError};
 use crate::substrate::ProcessHandle;
+use crate::terminal::TerminalBook;
 use crate::worker::{TaskFn, TaskHandle, TaskHandleError, WorkerConfig, WorkerPool};
 
 /// Runtime-owned task lifecycle, independent of worker implementation details.
@@ -113,6 +117,10 @@ pub enum RuntimeError {
     ProcessCapacity,
     /// The worker pool could not be created.
     WorkerConfig(&'static str),
+    /// The Rust-owned session book could not be initialized or restored.
+    Session(String),
+    /// The combined execution checkpoint could not be opened or restored.
+    ExecutionStore(String),
     /// The scheduler candidate rejected its configuration or transition.
     Scheduler(SchedulerError),
     /// Scheduler deployment values were invalid.
@@ -331,6 +339,10 @@ pub struct KernelRuntime {
     assembly: KernelAssembly,
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
+    execution_store: Option<StdMutex<ExecutionStore>>,
+    sessions: SessionBook,
+    terminals: TerminalBook,
+    agent_loops: AgentLoopBook,
     scheduler: Arc<KernelScheduler>,
     admission: RwLock<()>,
     gatechain: Arc<GateChain>,
@@ -350,10 +362,17 @@ impl KernelRuntime {
         ))
         .map_err(RuntimeError::SchedulerConfig)?;
         let workers = WorkerPool::new(config.workers).map_err(RuntimeError::WorkerConfig)?;
+        let sessions = SessionBook::new(config.shard_count as usize).map_err(|error| {
+            RuntimeError::Session(format!("session book initialization failed: {error:?}"))
+        })?;
         Ok(Self {
             assembly,
             lifecycle: Arc::new(LifecycleRegistry::new()),
             state_store: None,
+            execution_store: None,
+            sessions,
+            terminals: TerminalBook::new(),
+            agent_loops: AgentLoopBook::new(),
             scheduler: Arc::new(scheduler),
             admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
@@ -385,6 +404,10 @@ impl KernelRuntime {
             state_store.recover().map_err(map_state_store_error)?;
         }
         let lifecycle = state_store.lifecycle_handle();
+        let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
+        let execution_state = execution_store
+            .load_state(config.shard_count as usize)
+            .map_err(map_execution_store_error)?;
         let scheduler = KernelScheduler::new(SchedulerConfig::new(
             config.max_processes,
             config.shard_count,
@@ -396,6 +419,10 @@ impl KernelRuntime {
             assembly,
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
+            execution_store: Some(StdMutex::new(execution_store)),
+            sessions: execution_state.sessions,
+            terminals: execution_state.terminals,
+            agent_loops: execution_state.loops,
             scheduler: Arc::new(scheduler),
             admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
@@ -418,6 +445,45 @@ impl KernelRuntime {
     /// Return the single capability authority used by gated submission.
     pub fn capability_authority(&self) -> Arc<CapabilityAuthority> {
         Arc::clone(&self.capability)
+    }
+
+    /// Return the Rust-owned session truth book used by this runtime.
+    pub const fn sessions(&self) -> &SessionBook {
+        &self.sessions
+    }
+
+    /// Return the Rust-owned terminal metadata and mailbox book.
+    pub const fn terminals(&self) -> &TerminalBook {
+        &self.terminals
+    }
+
+    /// Return the Rust-owned logical AgentLoop identity book.
+    pub const fn agent_loops(&self) -> &AgentLoopBook {
+        &self.agent_loops
+    }
+
+    /// Persist the three execution books through the Rust-owned checkpoint.
+    ///
+    /// This API is explicit for callers that need an unclean checkpoint before
+    /// a host restart. A clean checkpoint is also written automatically during
+    /// a successful persistent shutdown, before its lifecycle becomes halted.
+    pub fn checkpoint_execution(
+        &self,
+        clean_shutdown: bool,
+    ) -> Result<ExecutionStoreDocument, RuntimeError> {
+        let store = self
+            .execution_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ExecutionStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .save(
+                &self.sessions,
+                &self.terminals,
+                &self.agent_loops,
+                clean_shutdown,
+            )
+            .map_err(map_execution_store_error)
     }
 
     /// Submit a capability only after the Rust G1-G5 chain permits it.
@@ -750,6 +816,19 @@ impl KernelRuntime {
             }
             return Err(RuntimeError::ShuttingDown);
         }
+        if self.execution_store.is_some()
+            && let Err(error) = self.checkpoint_execution(true)
+        {
+            // Preserve the current books as an unclean checkpoint before
+            // publishing the lifecycle failure, so recovery cannot reopen
+            // a stale clean document after a rejected clean shutdown.
+            let _ = self.checkpoint_execution(false);
+            if let Some(state_store) = &self.state_store {
+                let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
+                let _ = state_store.shutdown(false);
+            }
+            return Err(error);
+        }
         if let Some(state_store) = &self.state_store {
             let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
             state_store.shutdown(true).map_err(map_state_store_error)?;
@@ -794,6 +873,10 @@ fn runtime_task_book(shard_count: u32) -> Arc<RuntimeTaskBook> {
 
 fn map_state_store_error(error: StateStoreError) -> RuntimeError {
     RuntimeError::StateStore(error.to_string())
+}
+
+fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {
+    RuntimeError::ExecutionStore(error.to_string())
 }
 
 fn capability_value(result: CapabilityResult) -> Result<Value, String> {

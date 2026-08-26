@@ -5,12 +5,15 @@ use std::sync::{Arc, Barrier, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use l1_kernel_rs::agent_loop::{AgentLoopSpec, AgentLoopState};
 use l1_kernel_rs::assembly::AssemblySpec;
 use l1_kernel_rs::boot::BootStepSpec;
 use l1_kernel_rs::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use l1_kernel_rs::gatechain::{GateDecision, GateRequest};
 use l1_kernel_rs::ports::{PortDescriptor, PortKind};
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig, RuntimeError, RuntimeTaskState};
+use l1_kernel_rs::session::{SessionSpec, SessionState};
+use l1_kernel_rs::terminal::{TerminalSpec, TerminalState};
 use l1_kernel_rs::worker::{TaskHandleError, WorkerConfig};
 use serde_json::json;
 
@@ -503,4 +506,159 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
             .expect("final shutdown");
     }
     std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn persistent_runtime_owns_and_restores_execution_books() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        let session = runtime
+            .sessions()
+            .create(SessionSpec::new(
+                "session-owned",
+                "agent-a",
+                "cell-a",
+                "worker",
+                8,
+            ))
+            .expect("session");
+        session.activate().expect("activate session");
+        session.close(true).expect("close session");
+        runtime
+            .terminals()
+            .register(TerminalSpec::new("terminal-owned", 4, 4))
+            .expect("terminal");
+        runtime
+            .agent_loops()
+            .register(AgentLoopSpec::new(
+                "loop-owned",
+                "agent-a",
+                "cell-a",
+                "session-owned",
+                "terminal-owned",
+            ))
+            .expect("loop");
+        let snapshot = runtime
+            .shutdown(Some(Duration::from_secs(1)))
+            .expect("clean shutdown checkpoints execution books");
+        assert_eq!(snapshot.lifecycle.as_str(), "halted");
+    }
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+            .expect("reopen persistent runtime");
+        assert_eq!(
+            runtime
+                .sessions()
+                .get("session-owned")
+                .expect("session")
+                .state(),
+            SessionState::Closed
+        );
+        assert_eq!(
+            runtime
+                .terminals()
+                .snapshot("terminal-owned")
+                .expect("terminal")
+                .state,
+            TerminalState::Created
+        );
+        assert_eq!(
+            runtime
+                .agent_loops()
+                .snapshot("loop-owned")
+                .expect("loop")
+                .state,
+            AgentLoopState::Created
+        );
+    }
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn explicit_unclean_execution_checkpoint_restores_recovery_states() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .sessions()
+            .create(SessionSpec::new(
+                "session-crash",
+                "agent-a",
+                "cell-a",
+                "worker",
+                8,
+            ))
+            .expect("session");
+        let document = runtime
+            .checkpoint_execution(false)
+            .expect("unclean execution checkpoint");
+        assert!(!document.clean_shutdown);
+    }
+    let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("recover persistent runtime");
+    assert_eq!(
+        runtime
+            .sessions()
+            .get("session-crash")
+            .expect("session")
+            .state(),
+        SessionState::Crashed
+    );
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn rejected_clean_shutdown_preserves_unclean_execution_checkpoint() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        let session = runtime
+            .sessions()
+            .create(SessionSpec::new(
+                "session-open",
+                "agent-a",
+                "cell-a",
+                "worker",
+                8,
+            ))
+            .expect("active session");
+        session.activate().expect("activate session");
+        let result = runtime.shutdown(Some(Duration::from_secs(1)));
+        assert!(
+            matches!(result, Err(RuntimeError::ExecutionStore(_))),
+            "{result:?}"
+        );
+    }
+    {
+        let recovered = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+            .expect("recover after rejected clean shutdown");
+        assert_eq!(
+            recovered
+                .sessions()
+                .get("session-open")
+                .expect("session")
+                .state(),
+            SessionState::Crashed
+        );
+    }
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn nonpersistent_runtime_cannot_claim_execution_checkpoint_ownership() {
+    let runtime = runtime(1, 1);
+    assert!(matches!(
+        runtime.checkpoint_execution(false),
+        Err(RuntimeError::ExecutionStore(_))
+    ));
 }

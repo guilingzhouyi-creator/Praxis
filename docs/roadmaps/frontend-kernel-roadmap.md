@@ -570,6 +570,14 @@ unclean checkpoint 将 session 归约为 `crashed`、loop 归约为 `failed`、t
 `tests/session/execution_store.rs` 已覆盖 clean round-trip、unclean recovery、拒绝和版本错误。该片仍是
 R4/R5 recovery seam，不授予 boot、Port 或生产 runtime authority。
 
+随后将 execution checkpoint 接入 Rust `KernelRuntime` 的独立入口候选：runtime
+现在拥有 `SessionBook`、`TerminalBook` 与 `AgentLoopBook` 三本元数据，持久化打开时从同一
+Rust-owned root 的 `ExecutionStore` 恢复，显式 `checkpoint_execution(false)` 支持调用方在重启前记录
+unclean 状态；持久化 `shutdown` 在生命周期进入 halted 前写入 clean execution checkpoint，失败则将
+StateStore 置为 unclean 并 fail-closed。新增 runtime 分片覆盖三本的所有权、clean round-trip、unclean
+recovery 和非持久 runtime 拒绝 checkpoint。该片仍不执行 AgentLoop/provider/tool/PTY，不接管 Python/L2
+生产入口；下一步继续补独立 cutover/recovery 触发器与 TS bridge 只读消费边界。
+
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
 `benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定

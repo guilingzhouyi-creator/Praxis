@@ -435,6 +435,18 @@ importing Python state. Capability-shaped work uses `submit_gated`, which
 requires matching caller/tool identities, evaluates G1-G5, and remains
 fail-closed when the whitelist or executor is absent.
 
+The runtime now owns the three Rust execution metadata books needed by the
+independent entry boundary: `SessionBook`, `TerminalBook`, and
+`AgentLoopBook`. `open_persistent` restores them from the separate
+`ExecutionStore` document under the same fresh state root and rejects malformed
+or cross-book-inconsistent state before exposing the runtime. Callers can write
+an explicit unclean checkpoint for restart evidence; persistent `shutdown`
+writes a clean execution checkpoint before lifecycle finalization and converts
+checkpoint failure into a failed shutdown rather than publishing a false clean
+state. The books remain metadata/state seams only: AgentLoop execution,
+provider/tool policy, PTY ownership, and TS/L2 routing are not granted by these
+accessors.
+
 The runtime performance slice removes the former globally serialized admission
 gate. A shared lifecycle barrier now protects active-state validation, process
 reservation, task-book registration, and WorkerPool handoff. Boot takes the

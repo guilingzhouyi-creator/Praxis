@@ -204,6 +204,19 @@ requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
 the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
 fail-closed and audited.
 
+`KernelRuntime` now owns the Rust execution metadata books used by the future
+clean-break entry: `SessionBook`, `TerminalBook`, and `AgentLoopBook`. A
+persistent runtime opens the separate `ExecutionStore` under the same
+Rust-owned root and restores only its validated metadata; an unclean document
+returns crashed sessions, failed loops, and unbound created terminals. The
+explicit `checkpoint_execution(false)` API supports caller-owned unclean
+checkpoints, while a persistent `shutdown` writes the clean execution
+checkpoint before marking the lifecycle halted. A clean checkpoint failure
+keeps the lifecycle fail-closed and does not claim a successful shutdown.
+These accessors expose lower-layer state to a future TS bridge without moving
+AgentLoop execution, provider/tool policy, PTY ownership, or production entry
+authority into the candidate.
+
 Runtime submission uses a direct scheduler path when the WorkerPool already owns
 the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve
 generation-safe scheduler state without double-counting queue admission. Terminal
