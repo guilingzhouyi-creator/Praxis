@@ -12,6 +12,16 @@ Current snapshot (2026-08): 43 modules / 5,860 lines; 51 YAML commands + 63
 `_cmd_*` handler functions (15 code-only); 74 allowlisted cross-layer imports (67 → L3,
 7 → L4). Boundary audit score: 36/100 (see roadmap §1).
 
+The Rust docking candidate exposes a separate TS `session-checkpoint` codec for
+the Rust-owned session-store document. It is a typed, fail-closed persistence
+adapter only; live session authority, recovery transitions, and production host
+selection remain on the Rust/Python host boundary described in the docking
+roadmap. `execution-checkpoint` extends this boundary to a read-only view of
+the combined Rust Session/Terminal/AgentLoop metadata document. It validates
+cross-book identity references, sorted identities, safe integers, and
+clean/unclean constraints, and can refresh from disk without exposing a write
+operation or recovery authority to TS.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation
@@ -160,6 +170,7 @@ are **additive** - no existing engine behavior was changed.
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
 | TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
+| Rust host candidate | `crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `packages/protocol-ts/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring, stderr capture, and immediate pending-request failure on child/input close, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
 | Dispatch JSON contract | `tests/l2/test_dispatch_contract.py` | every render-ready dispatch result must survive `json.dumps`; stable shapes for /help /lang /history /sysinfo, unknown-command, pipeline, alias |
 
@@ -177,8 +188,24 @@ semantics 1:1 into `envelope.ts` and `records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
 Vitest. The Python tests and fixture double as the TS spec; this package is
 read-only until the P0 recovery gates are complete.
-The host is the integration seam: `bridge.ts` spawns it as a child process
-(or connects over WebSocket later) and only ever speaks protocol v1.
+The host is the integration seam: the transport factory can spawn the Python
+reference or the Rust candidate as a child process, selected only by the
+explicit `PRAXIS_RUST_HOST` switch. `bridge.ts` and the L2 engine remain
+host-agnostic and only speak protocol v1; Rust activation does not grant L2,
+AgentLoop, provider, or production boot authority.
+The TS bridge constrains its optional sequence wrap bound to safe integers and
+uses the safe wire bound when no explicit bound is configured, so no generated
+envelope loses precision at the JavaScript number boundary. Envelope validation
+applies the same safe-integer rule to inbound `seq`, `ack_seq`, and
+`last_acked` in TS, Python reference, and Rust host adapters. Rust mechanisms
+may retain wider `u64` counters internally, but the v1 JSONL wire never emits
+an ambiguous value.
+Managed transports fail pending requests immediately when their input source
+or child exits, and `close()` is idempotent; reconnection remains an explicit
+`ConnectionManager` concern rather than an implicit Python fallback.
+Synthetic protocol-fault results on the `"-"` session also close a pending
+line request without an ack; `ProtocolBridge` then surfaces the session error
+instead of converting a malformed frame into a timeout.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 
@@ -198,6 +225,7 @@ vectors are frozen from the TS engine, not from the Python host.
 | R6 | Dialect routing order: `$` system → `/` engine command → `\|` pipeline → direct tool → L3A intent. Argument splitting is quote-aware (shlex-compatible subset). | a `\|` inside a quoted argument or command payload must not misroute into the pipeline |
 | R7 | Gate denials, unregistered commands, and unwired executors produce `result{success:false}` envelopes on the wire — not transport-level errors. Only undecodable/oversized frames fail at the transport layer. | clients must receive structured rejections; fail-closed |
 | R8 | Wire-contract constants (`PROTOCOL_VERSION`, `OUTBOX_MAXLEN`, frame limits, kind sets) are exempt from the params rule and inlined identically in all three implementations. | contract constants mirror across languages by design |
+| R9 | TS `SessionMultiplexer` keeps a bounded local event mirror (default 16,384; configurable for tests). It first evicts the shared acknowledged prefix, then evicts the oldest entries if a stalled view reaches capacity; host replay remains authoritative. | a disconnected or stalled frontend cannot grow client memory without bound |
 
 ## Execution bridge
 

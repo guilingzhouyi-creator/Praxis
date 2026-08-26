@@ -368,6 +368,19 @@
 ### 新增
 
 - **Feat (scripts)**: classify telemetry runs and refuse empty judge records
+- **Feat (l2)**: add opt-in Rust protocol host transport and three-way envelope docking tests
+- **Fix (l2)**: fail pending TS bridge requests immediately on host disconnect
+- **Fix (l2)**: close protocol requests on synthetic host fault frames
+- **Fix (l2)**: bound bridge sequence wraparound to safe integers
+- **Fix (l2)**: reject unsafe wire sequence numbers before rounding
+- **Fix (l2/rust)**: align target-session control routing and recovery events
+- **Feat (rust)**: add explicit host process-group signal adapter
+- **Feat (rust)**: unify process-table group ownership path
+- **Feat (rust)**: gate unified process-table group admission
+- **Feat (rust)**: wire bounded audit evidence for process groups
+- **Feat (rust)**: add host input activity adapter seam
+- **Feat (rust)**: add grouped AgentLoop execution admission
+- **Fix (protocol)**: bound wire sequence cursors to the exact cross-language safe range
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission

@@ -51,6 +51,19 @@
         "payload": { "text": "hi" }
       },
       "expected_line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"hi\"},\"seq\":3,\"session_id\":\"s-9\",\"trace_id\":\"t1\",\"ts\":0.5,\"v\":1}"
+    },
+    {
+      "name": "safe_sequence_upper_boundary",
+      "fields": {
+        "v": 1,
+        "session_id": "s-boundary",
+        "seq": 9007199254740991,
+        "ts": 1,
+        "trace_id": "",
+        "kind": "event",
+        "payload": { "event_type": "boundary" }
+      },
+      "expected_line": "{\"kind\":\"event\",\"payload\":{\"event_type\":\"boundary\"},\"seq\":9007199254740991,\"session_id\":\"s-boundary\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
     }
   ],
   "invalid_frames": [
@@ -78,6 +91,21 @@
       "name": "negative_seq",
       "line": "{\"kind\":\"intent\",\"payload\":{\"text\":\"x\"},\"seq\":-1,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
       "error_contains_any": ["seq must be a non-negative integer"]
+    },
+    {
+      "name": "unsafe_seq_rejected_everywhere",
+      "line": "{\"kind\":\"event\",\"payload\":{\"event_type\":\"edge\"},\"seq\":9007199254740992,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["seq must be a non-negative integer"]
+    },
+    {
+      "name": "unsafe_ack_rejected_everywhere",
+      "line": "{\"kind\":\"ack\",\"payload\":{\"ack_seq\":9007199254740992},\"seq\":1,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["non-negative integer ack_seq"]
+    },
+    {
+      "name": "unsafe_recovery_cursor_rejected_everywhere",
+      "line": "{\"kind\":\"control\",\"payload\":{\"op\":\"recovery\",\"last_acked\":9007199254740992},\"seq\":1,\"session_id\":\"s\",\"trace_id\":\"\",\"ts\":1.0,\"v\":1}",
+      "error_contains_any": ["last_acked must be an integer"]
     },
     {
       "name": "unknown_control_op",

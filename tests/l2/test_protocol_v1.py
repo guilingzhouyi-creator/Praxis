@@ -112,6 +112,13 @@ class TestEnvelope:
             raised = True
         assert raised, "encode_message must reject non-finite ts"
 
+    def test_wire_sequences_stop_at_javascript_safe_integer(self) -> None:
+        """The Python reference rejects values TS cannot represent exactly."""
+        msg = make_message("s", 2**53, KIND_INTENT, {"text": "hi"})
+        assert any("safe range" in error for error in validate_message(msg))
+        ack = make_message("s", 1, KIND_ACK, {"ack_seq": 2**53})
+        assert any("safe range" in error for error in validate_message(ack))
+
     def test_r4_banned_authorization_fields_never_decode(self) -> None:
         """R4: wire-declared approval authority fails decode on all kinds."""
         for field in ("approved", "pre_approved", "full_power", "harness_auto_approved"):

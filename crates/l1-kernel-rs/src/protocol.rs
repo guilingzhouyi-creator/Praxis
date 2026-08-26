@@ -16,6 +16,8 @@ pub const PROTOCOL_VERSION: u32 = 1;
 pub const RECORD_SCHEMA_VERSION: u32 = 1;
 /// Default bounded replay window per session.
 pub const OUTBOX_MAXLEN: usize = 1024;
+/// Highest sequence value that can cross the JSON/TS boundary exactly.
+pub const MAX_SAFE_SEQUENCE: u64 = 9_007_199_254_740_991;
 
 /// Stable descriptor for the retained protocol boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -219,6 +221,9 @@ pub fn validate_message(message: &Message) -> Vec<String> {
     if message.session_id.is_empty() {
         errors.push("session_id must be a non-empty string".to_owned());
     }
+    if message.seq > MAX_SAFE_SEQUENCE {
+        errors.push("seq must be a non-negative integer (safe range)".to_owned());
+    }
     if !message.ts.is_finite() {
         errors.push("ts must be a number".to_owned());
     }
@@ -286,15 +291,27 @@ fn validate_payload(kind: MessageKind, payload: &BTreeMap<String, Value>) -> Vec
             {
                 errors.push("control payload session_id must be a non-empty string".to_owned());
             }
-            if let Some(last_acked) = payload.get("last_acked")
-                && last_acked.as_i64().is_none_or(|value| value < -1)
-            {
-                errors.push("control payload last_acked must be an integer >= -1".to_owned());
+            if let Some(last_acked) = payload.get("last_acked") {
+                let valid = last_acked
+                    .as_i64()
+                    .is_some_and(|value| (-1..=MAX_SAFE_SEQUENCE as i64).contains(&value));
+                if !valid {
+                    errors.push(
+                        "control payload last_acked must be an integer >= -1 (safe range)"
+                            .to_owned(),
+                    );
+                }
             }
         }
         MessageKind::Ack => {
-            if payload.get("ack_seq").and_then(Value::as_u64).is_none() {
-                errors.push("ack payload requires a non-negative integer ack_seq".to_owned());
+            if payload
+                .get("ack_seq")
+                .and_then(Value::as_u64)
+                .is_none_or(|value| value > MAX_SAFE_SEQUENCE)
+            {
+                errors.push(
+                    "ack payload requires a non-negative integer ack_seq (safe range)".to_owned(),
+                );
             }
         }
         MessageKind::Event => {}

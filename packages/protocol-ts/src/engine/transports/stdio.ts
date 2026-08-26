@@ -16,21 +16,32 @@ import type { Transport } from "../bridge.ts";
 export interface StdioTransportOptions {
   input: any;
   output: any;
+  /** Register a handler for terminal child/input failures. */
+  onError?: (handler: (error: unknown) => void) => void;
   /** Maximum response lines per request (safety cap, default 256). */
   maxLines?: number;
   /** Idle timeout between response lines in ms (default 5000). */
   timeoutMs?: number;
+  /** Maximum UTF-8 bytes accepted for one wire frame (default 1 MiB). */
+  maxFrameBytes?: number;
 }
 
 export function createStdioTransport(options: StdioTransportOptions): Transport {
-  const { input, output, maxLines = 256, timeoutMs = 5000 } = options;
+  const { input, output, maxLines = 256, timeoutMs = 5000, maxFrameBytes } = options;
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
 
   const engineOptions: LineTransportOptions = {
     onLine: (handler) => rl.on("line", handler),
+    onError: (handler) => {
+      options.onError?.(handler);
+      if (typeof input.on !== "function") return;
+      input.on("error", handler);
+      input.on("close", () => handler(new Error("stdio transport: input closed")));
+    },
     writeLine: (line) => output.write(`${line}\n`),
     maxLines,
     timeoutMs,
+    maxFrameBytes,
   };
   return createLineRequestTransport(engineOptions);
 }

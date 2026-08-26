@@ -375,6 +375,24 @@ accounting without consuming command sequences. `run_agent_loop_batch` and
 report batch p95/p99 separately from the per-input baseline; this is an
 optimization slice only and does not grant runtime authority.
 
+The `agent_loop_execution` module adds the next explicit execution seam:
+`AgentLoopExecutionBridge` submits a caller-owned `AgentLoopAction` to the
+bounded `KernelRuntime` worker pool. The task admits input only after worker
+admission succeeds, passes the authoritative receipt and loop identity to the
+action, and optionally admits one returned event. Its report and failure value
+are versioned and include the completed input receipt, event receipt, failure
+stage, and any partial input admission. Cancellation before execution leaves
+the session untouched; action/provider work remains caller-owned, and the
+bridge does not infer prompts, tools, PTYs, or production cutover policy.
+The independent `tests/runtime/agent_loop_execution.rs` target covers success,
+identity/state preflight, cancellation, and structured action failure.
+`AgentLoopExecutionBridge::submit_input_batch` reserves a complete group
+through one runtime admission boundary before workers can admit input; a
+strict queue-capacity rejection rolls back all reservations without evicting
+older queued work, while accepted items retain independent receipts and failure
+stages. This grouped path remains a measured candidate and does not own
+provider, PTY, or production runtime authority.
+
 The Rust `runtime::KernelRuntime` candidate composes the locked assembly,
 lifecycle FSM, `KernelScheduler` state ownership, and bounded WorkerPool into a
 single explicit execution host. It validates halted-to-booting-to-active
@@ -390,6 +408,30 @@ root into an explicit recovery boot; it never imports Python state.
 requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
 the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
 fail-closed and audited.
+
+`KernelRuntime` now owns the Rust execution metadata books used by the future
+clean-break entry: `SessionBook`, `TerminalBook`, and `AgentLoopBook`. A
+persistent runtime opens the separate `ExecutionStore` under the same
+Rust-owned root and restores only its validated metadata; an unclean document
+returns crashed sessions, failed loops, and unbound created terminals. The
+explicit `checkpoint_execution(false)` API supports caller-owned unclean
+checkpoints, while a persistent `shutdown` writes the clean execution
+checkpoint before marking the lifecycle halted. A clean checkpoint failure
+keeps the lifecycle fail-closed and does not claim a successful shutdown.
+These accessors expose lower-layer state to a future TS bridge without moving
+AgentLoop execution, provider/tool policy, PTY ownership, or production entry
+authority into the candidate.
+
+The separate `recovery` module provides a pure `RecoveryTrigger` decision over
+the validated execution document and lifecycle state: `fresh`, `resume_clean`,
+`recover_unclean`, or `reject`. `KernelRuntime::recovery_decision` exposes this
+decision without mutating books or booting workers. An unclean decision remains
+a caller-owned gate for session recovery and terminal/process rebind; it is not
+an implicit cutover or Python fallback selector. Persistent runtimes retain this
+decision as a boot gate: `boot` rejects `recover_unclean` and inconsistent
+(`reject`) roots until the caller acknowledges the exact decision generation.
+Acknowledgement is in-memory and side-effect-free; it does not fabricate a
+process/PTY binding or make TS/L2 the recovery authority.
 
 Runtime submission uses a direct scheduler path when the WorkerPool already owns
 the worker queue: `dispatch_direct`, `complete_direct`, and `stop_direct` preserve
@@ -481,6 +523,13 @@ change lifecycle state, or replace the Python boot registry. The shared
 boundary; Python's omission of missing dependencies remains a documented
 reference behavior rather than a Rust requirement.
 
+The locked plan also exposes an explicit `BootPlan::execute` seam. It requires
+an exact caller-supplied handler for every step, validates the complete handler
+set before invoking the first callback, and returns the completed prefix when a
+handler fails or panics. The executor does not discover handlers, roll back
+side effects, advance lifecycle state, or grant production boot authority;
+those policies remain with the host.
+
 The Rust `state_layout` candidate starts the R4 state-ownership boundary. It
 validates a versioned manifest for a fresh Rust state root, canonical relative
 entries, and declared parent directories. Given explicit host observations it
@@ -517,16 +566,50 @@ permission prompts remain host-owned. T4b remains open for platform-specific
 adapters, permission UX, and privacy/failure evidence; this value projection
 does not grant hardware or runtime authority.
 
+`HostInputActivityPort` provides the first T4b mechanism seam. It accepts an
+`InputActivityHostAdapter` that reports explicit `Granted`, `Denied`, or
+`Unavailable` permission and returns a caller-timed aggregate sample. The port
+delegates reduction to `InputActivityProbe`, exposes permission failures as an
+unknown snapshot, stops the host adapter when permission is revoked, and stops
+it when a sample violates the value contract. It never opens device nodes,
+reads a system clock, or stores raw input; platform collection, permission UX,
+and monitoring policy remain host-owned.
+
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic
 `KernelAssembly`. `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
-entrypoint that emits this complete snapshot as JSON with no Python import.
+entrypoint that requires an explicit state-root argument and emits this
+complete snapshot as JSON with no Python import; it never infers a relative
+working-directory root.
 Assembly rejects config-contract, protocol, terminal-contract, and divergent
 metadata before provider wiring. The entrypoint does not read configuration,
 create directories, run callbacks, or instantiate providers. `state_store`
 owns fresh-root initialization and durable lifecycle recovery; versioned
 protocol serving and terminal I/O remain outside this assembly candidate.
+
+The Rust `preflight` candidate adds a read-only R4 entry boundary above that
+assembly. `PreflightRequest` requires an explicit `AssemblySpec` and host
+`StateProbe`; `inspect` returns the validated assembly snapshot, state action,
+and a coarse `Ready`/`RecoveryRequired`/`MigrationRequired`/`Rejected`
+disposition. `rust-kernel-preflight` reads one JSON request from stdin and
+emits one JSON report, while refusing malformed or incompatible input. It does
+not probe the filesystem, create state, execute boot callbacks, start workers,
+rebind processes, or select a Python fallback. This is operator and automation
+evidence for R4 assembly, not Rust production-entry or R5 cutover authority.
+
+The Rust `entry` candidate is the explicit coordinator above persistent
+runtime state. `EntryRequest` requires a version, complete assembly, JSON-safe
+runtime limits, and an operation. `inspect` reports the current recovery
+decision without booting; `boot_once` accepts only an exact current
+`RecoverUnclean` acknowledgement when recovery is required, then boots,
+captures the active snapshot, and cleanly shuts down within the caller's
+timeout. `rust-kernel-entry` is a bounded JSON stdin/stdout smoke entrypoint.
+It never chooses a Python fallback, scans host terminals, runs providers or
+AgentLoop work, fabricates process/PTY bindings, or changes the production
+default. The independent `tests/runtime/entry.rs` target covers fresh, clean,
+unclean, stale-acknowledgement, and invalid-config paths; R5 cutover remains
+open.
 
 The Rust `protocol` candidate now closes the retained R4 wire boundary without
 granting runtime authority. It validates v1 envelopes and TS-neutral record
@@ -1145,6 +1228,13 @@ when an external table transition must be reported. Zero budgets fail closed.
 This is a mechanism seam only; it does not start a background thread or claim
 production shutdown/reaper authority.
 
+`ProcessTableBridge::stop_all_once` adds a matching caller-owned stop/reap
+pass. It selects ProcessTable handles in stable raw order, applies the explicit
+child termination timeout, jointly reaps successful bindings, and reports
+pending, unavailable, error, and remaining counts. A zero budget fails before
+touching any child. The pass is intentionally one-shot and does not start a
+background reaper or change ProcessTable lifecycle authority.
+
 The `process_group::ProcessGroupBook` candidate adds the next typed ownership
 seam: generation-safe membership, deterministic stop plans, terminal member
 outcomes, and bounded caller-driven `ProcessReaper` sweeps. It accepts only
@@ -1166,6 +1256,29 @@ coordination seam: it does not create PTYs, signal an OS process group, run a
 background reaper, register ProcessTable rows, or grant AgentLoop/shutdown
 authority.
 
+`process_table_group_runtime::ProcessTableGroupRuntime` is the follow-on
+coordination path that removes the duplicate child authority. It composes the
+same group book with `ProcessTableBridge`, so ProcessTable owns the public
+generation-safe identity and the bridge owns the host child. A terminal sweep
+reaps the bridge binding before publishing the matching group outcome; failed
+group admission also reaps the ProcessTable row. The candidate exposes the
+bridge snapshot for host target resolution without leaking `Child` or pipe
+objects, and remains caller-driven rather than a production supervisor.
+
+The ProcessTable-authoritative path also exposes `spawn_constrained` and
+`spawn_gated_constrained`. It reuses the explicit Agent process policy and
+G1-G5 capability request before calling the bridge, preserving the rule that
+gate or constraint rejection creates no host child and no table binding. The
+gate ledger remains the source of admission evidence; PTY discovery and
+platform signal policy remain host-owned.
+
+The runtime accepts a caller-owned `AuditLog` through `new_with_audit` and
+exposes it through `audit()`. Group creation, gate/constraint admission,
+bridge failures, successful spawn, and stop requests record bounded metadata
+for the same execution path. The audit detail excludes argv, environment
+values, and host process identifiers; journal durability and retention remain
+the host's explicit `AuditLog`/`EventStore` configuration.
+
 The group book keeps a terminal-member counter so repeated terminal
 observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
 separate mark-and-reap fast path that avoids cloning snapshots when the caller
@@ -1177,6 +1290,34 @@ measure this member-reaping workload with a fixed 64-member sweep budget,
 forcing multi-sweep bounded progress separately from process spawn, queue, and
 session benchmarks; the candidate remains mechanism-only and does not grant
 runtime or shutdown authority.
+
+`ProcessGroupRuntime::drain_once` now supplies the corresponding one-shot
+coordination boundary: it requests stop for every active group, performs one
+caller-supplied bounded sweep, and reports requested/already-draining groups,
+reaper counters, and remaining ownership. Empty groups transition directly to
+`Stopped`, so a caller cannot leave an unobservable Draining group behind.
+The method does not loop, sleep, start a background reaper, or choose a timeout;
+the host owns repeat policy and production shutdown authority. This closes a
+bounded shutdown-preparation seam only; PTY/process-group signals, terminal
+rebind, and R4/R5 cutover remain open.
+
+`ProcessGroupSignalPort` is the explicit host adapter seam for the next step.
+`ProcessGroupRuntime::request_stop_with_signal` hands the adapter a stable
+generation-tagged `ProcessGroupTerminationPlan` and validates the returned
+`ProcessGroupSignalReport` against the exact group, generation, attempted
+handle count, and delivered count. Adapter rejection or mismatch is
+fail-closed and leaves ownership in `Draining` for caller policy; the Rust
+candidate does not select signal numbers, create PTYs, or reap in the signal
+call.
+
+`host_process_group_signal::HostProcessGroupSignalPort` is the first concrete
+closure-backed host adapter for that seam. It resolves every plan handle before
+calling one host-owned sender, preserves stable plan order, rejects zero or
+duplicate mappings, and bounds the sender's delivered count. The sender may
+implement a platform process-group signal, a PTY control operation, or a test
+double; no signal number, PID lookup, terminal scan, or retry policy is stored
+in L1. Resolver failure prevents sender dispatch, so a missing host mapping
+cannot produce a partial batch.
 
 ### Engineering-debug boundary
 

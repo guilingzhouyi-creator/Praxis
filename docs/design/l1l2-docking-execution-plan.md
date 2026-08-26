@@ -1,6 +1,6 @@
 # L1↔L2 对接执行计划（施工级）
 
-> Status: active execution plan · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
+> Status: active execution plan · D2 首片及故障恢复片已在 `feature/ts-rust-e2e-docking` 完成 · 关联路线图: `docs/roadmaps/l1-l2-docking.md`
 > 治理: 全部工作在独立 worktree 分支递进提交；完成后统一合入集成分支
 > `feature/l1l2-integration`；**Diff 审查后须经操作员批准方可合入本地 main——未批准不得合入。**
 
@@ -40,7 +40,7 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 | 2 | `fix(rust): make Outbox ack non-destructive cursor advance` | protocol.rs ack 移除 pop_front，仅单调推进 last_acked |
 | 3 | `feat(rust): add shared watermark parity with python host` | 共享水位=最落后视图语义（_advance_shared_cursor 镜像） |
 | 4 | `test(rust): pin canonical json golden vectors vs python host` | Python host 输出冻结为参考向量，Rust 逐字节复现 |
-| 5 | `chore(rust): unify seq bounds and wraparound edges` | u64/i64 边界审查 + maxSeq 回绕用例 |
+| 5 | `chore(rust): unify seq bounds and wraparound edges` | u64/i64 边界审查 + maxSeq 回绕用例；wire 统一 safe-integer 上界，Rust 内部仍可保留 u64 |
 
 退出条件：cargo test/clippy 干净 + 向量绿 + 多视图重放零漂移。
 
@@ -83,11 +83,22 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 
 ### D2 — feature/ts-rust-e2e-docking（S–M，2–3 天）
 
+> 首片及故障恢复片已落地：host 工厂、环境开关、UTF-8 帧上限、双 host e2e、三向量
+> canonical 互验和 child/input 断开即时失败均已提交到本分支；Rust 仍为 opt-in candidate，未接生产 boot/Port。
+
 | # | 提交信息 | 内容 |
 |---|---|---|
 | 1 | `feat(l2): add PRAXIS_RUST_HOST transport switch` | TS e2e spawn 开关 |
 | 2 | `test(l2): run engine e2e matrix against rust host` | 双 host 测试矩阵全绿 |
 | 3 | `test(l2): add three-way envelope equivalence harness` | Py-host/TS/Rust 三方向量互验 |
+| 4 | `fix(l2): fail pending requests on host disconnect` | child/input 断开、主动 close、合成协议故障帧即时结束；非法预算构造拒绝 |
+
+### G4 前置片（2026-08-26）
+
+| 交付 | 内容 | 当前边界 |
+|---|---|---|
+| Rust session-store codec | TS typed codec、原子文件适配器、共享 checkpoint fixture；严格校验版本、状态、序列、排序和安全整数 | 已落分支；只读/显式写入 Rust-owned checkpoint，不接生产 boot |
+| G4 进程级互验 | test-only `rust-session-store-probe` + TS `session-store.e2e.test.ts`：Rust 写出→TS 读取、TS 写出→Rust 读取、错误版本拒绝 | 已落分支；probe 构建后分片绿，不接生产 boot/Port |
 
 ## 3. 每分支统一验证门
 

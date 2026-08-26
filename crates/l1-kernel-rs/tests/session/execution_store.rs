@@ -176,3 +176,53 @@ fn unsupported_store_version_fails_closed() {
     assert!(ExecutionStore::open(&root).is_err());
     fs::remove_dir_all(root).expect("remove root");
 }
+
+#[test]
+fn shared_execution_fixture_round_trips_through_rust_store() {
+    let root = temp_root("shared-fixture");
+    let store = ExecutionStore::open(&root).expect("open");
+    fs::create_dir_all(store.path().parent().expect("parent")).expect("parent");
+    fs::write(
+        store.path(),
+        include_str!("../../../../tests/fixtures/kernel_execution_store_document.json"),
+    )
+    .expect("write shared fixture");
+
+    let reopened = ExecutionStore::open(&root).expect("reopen shared fixture");
+    let document = reopened.document().expect("read shared fixture");
+    assert_eq!(document.store_version, EXECUTION_STORE_VERSION);
+    assert_eq!(document.generation, 3);
+    assert!(!document.clean_shutdown);
+    assert_eq!(document.sessions.len(), 1);
+    assert_eq!(document.terminals.len(), 1);
+    assert_eq!(document.loops.len(), 1);
+    assert_eq!(
+        document.sessions[0].snapshot.spec.session_id,
+        "session-golden"
+    );
+    assert_eq!(document.terminals[0].terminal_id, "terminal-golden");
+    assert_eq!(document.loops[0].spec.loop_id, "loop-golden");
+
+    let restored = reopened.load_state(2).expect("load shared fixture");
+    assert_eq!(
+        restored
+            .sessions
+            .get("session-golden")
+            .expect("session")
+            .state(),
+        SessionState::Crashed
+    );
+    assert_eq!(
+        restored
+            .terminals
+            .snapshot("terminal-golden")
+            .expect("terminal")
+            .state,
+        TerminalState::Created
+    );
+    assert_eq!(
+        restored.loops.snapshot("loop-golden").expect("loop").state,
+        AgentLoopState::Failed
+    );
+    fs::remove_dir_all(root).expect("remove root");
+}

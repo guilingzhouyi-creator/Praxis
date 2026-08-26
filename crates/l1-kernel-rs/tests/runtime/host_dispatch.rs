@@ -282,9 +282,13 @@ fn system_ring1_is_safe_when_executor_is_wired() {
 #[test]
 fn control_attach_creates_session_record_and_view_cursor() {
     let router = HostRouter::new(RouterConfig::default());
-    router
+    let responses = router
         .route(control("attach", "s-1", Some("view-a"), 1))
         .expect("attach");
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0].kind, MessageKind::Event);
+    assert_eq!(responses[0].payload["name"], json!("session.attached"));
+    assert_eq!(responses[0].payload["data"]["session_id"], json!("s-1"));
     assert!(router.sessions().contains(&"s-1".to_owned()));
     assert_eq!(router.session_state("s-1"), Some(SessionLifecycle::Created));
     let cursor = router.view_cursor("s-1", "view-a").expect("view attached");
@@ -371,10 +375,17 @@ fn control_recovery_replays_the_session_outbox() {
     );
     let replayed = router.route(recovery).expect("recovery replays the outbox");
     assert_eq!(replayed.len(), 1);
-    assert_eq!(replayed[0].kind, MessageKind::Result);
-    assert_eq!(replayed[0].payload["success"], json!(false));
+    assert_eq!(replayed[0].kind, MessageKind::Event);
+    assert_eq!(replayed[0].payload["name"], json!("session.recovered"));
+    assert_eq!(replayed[0].payload["data"]["session_id"], json!("s-1"));
+    let replay = replayed[0].payload["data"]["replay"]
+        .as_array()
+        .expect("replay array");
+    assert_eq!(replay.len(), 1);
+    assert_eq!(replay[0]["kind"], json!("result"));
+    assert_eq!(replay[0]["payload"]["success"], json!(false));
     assert_eq!(
-        replayed[0].payload["output"],
+        replay[0]["payload"]["output"],
         json!("no execution authority (fail-closed)")
     );
 }

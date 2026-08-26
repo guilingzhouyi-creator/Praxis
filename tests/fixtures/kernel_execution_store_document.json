@@ -1,0 +1,65 @@
+{
+  "store_version": 1,
+  "generation": 3,
+  "clean_shutdown": false,
+  "sessions": [
+    {
+      "checkpoint_version": 1,
+      "snapshot": {
+        "contract_version": 1,
+        "spec": {
+          "session_id": "session-golden",
+          "agent_id": "agent-1",
+          "cell_id": "cell-1",
+          "role": "worker",
+          "max_messages": 8
+        },
+        "state": "crashed",
+        "next_input_seq": 2,
+        "next_message_seq": 2,
+        "clean_shutdown": false,
+        "messages": [
+          {
+            "sequence": 1,
+            "input_seq": 1,
+            "message_id": "m-1",
+            "role": "user",
+            "content": "persist",
+            "created_at_ns": 42
+          }
+        ]
+      }
+    }
+  ],
+  "terminals": [
+    {
+      "terminal_id": "terminal-golden",
+      "state": "created",
+      "session_id": "session-golden",
+      "process_id": null,
+      "input_capacity": 4,
+      "output_capacity": 4,
+      "input_depth": 0,
+      "output_depth": 0,
+      "input_dropped": 1,
+      "output_dropped": 2
+    }
+  ],
+  "loops": [
+    {
+      "contract_version": 1,
+      "spec": {
+        "loop_id": "loop-golden",
+        "agent_id": "agent-1",
+        "cell_id": "cell-1",
+        "session_id": "session-golden",
+        "terminal_id": "terminal-golden"
+      },
+      "state": "failed",
+      "next_command_seq": 3,
+      "accepted_commands": 2,
+      "failed_commands": 1,
+      "lock_wait_ns": 9
+    }
+  ]
+}

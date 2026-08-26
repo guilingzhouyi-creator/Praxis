@@ -9,12 +9,12 @@
 //! Module map:
 //!   - Crate contract & shared values: contract, errors, identity_uid, territory, paths, platform, discovery, registry, registry_base, schema, rule_descriptor, tool_chain, identity_binding, device, notify, swapper, health, load_adaptive, ports
 //!   - Concurrency mechanisms: sync, channel, event, bus, ipc, interrupt, cancellation, worker, state_queue, substrate, scheduler, runtime
-//!   - Process ownership: process, process_adapter, managed_process, process_bridge, process_constraints, process_group, process_group_runtime
+//!   - Process ownership: process, process_adapter, managed_process, process_bridge, process_constraints, process_group, process_group_runtime, host_process_group_signal, process_table_group_runtime
 //!   - Resource accounting: allocator
 //!   - Policy adjudication (fail-closed gates): capability, gatechain, constitution, reputation, audit
-//!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
+//!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
 //!   - Networking peers: network
-//!   - Lifecycle, state & persistence: boot, lifecycle, versioning, migration, assembly, state_layout, state_store, config_store, persist, vfs
+//!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, versioning, migration, assembly, state_layout, state_store, config_store, persist, vfs
 //!   - Benchmark evidence: benchmark, benchmark_runner
 
 #![forbid(unsafe_code)]
@@ -139,6 +139,12 @@ pub mod process_group;
 /// Rust-native coordination boundary for managed children and process groups.
 pub mod process_group_runtime;
 
+/// Host-owned process-group signal resolver and bounded sender seam.
+pub mod host_process_group_signal;
+
+/// ProcessTable-authoritative process-group runtime candidate.
+pub mod process_table_group_runtime;
+
 // ── Resource accounting ──
 
 /// Rust resource-accounting candidates behind the Python allocator contracts.
@@ -187,6 +193,9 @@ pub mod terminal_probe;
 /// Rust-owned AgentLoop routing state for the clean-break kernel.
 pub mod agent_loop;
 
+/// Bounded AgentLoop execution admission bridge for the Rust runtime.
+pub mod agent_loop_execution;
+
 /// Bounded per-session outbox registry, per-view ack cursors, and eviction metrics mirroring `ProtocolHost.
 pub mod outbox_registry;
 
@@ -214,6 +223,15 @@ pub mod network;
 
 /// Declarative boot-plan assembly for the Rust-first kernel.
 pub mod boot;
+
+/// Explicit inspect/boot-once entry coordinator for the candidate kernel.
+pub mod entry;
+
+/// Read-only recovery and assembly preflight report.
+pub mod preflight;
+
+/// Side-effect-free persistent recovery decision boundary.
+pub mod recovery;
 
 /// Provider-neutral lifecycle state machine and checkpoint record candidate.
 pub mod lifecycle;

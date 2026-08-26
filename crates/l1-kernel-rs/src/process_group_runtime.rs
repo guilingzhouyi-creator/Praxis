@@ -10,6 +10,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 use crate::contract::ProcessOptions;
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::managed_process::{
@@ -21,7 +23,8 @@ use crate::process_constraints::{
     ProcessConstraintViolation,
 };
 use crate::process_group::{
-    MemberTerminal, ProcessGroupBook, ProcessGroupError, ProcessGroupId, ProcessGroupSnapshot,
+    MemberTerminal, ProcessGroupBook, ProcessGroupError, ProcessGroupId, ProcessGroupSignalError,
+    ProcessGroupSignalPort, ProcessGroupSignalReport, ProcessGroupSnapshot,
     ProcessGroupTerminationPlan, ProcessReaper, ReaperBudget, ReaperObservation, ReaperReport,
 };
 use crate::substrate::ProcessHandle;
@@ -30,6 +33,33 @@ use crate::substrate::ProcessHandle;
 pub const PROCESS_GROUP_RUNTIME_CONTRACT_VERSION: u32 = 1;
 /// Capability name required for a gated process spawn.
 pub const PROCESS_SPAWN_CAPABILITY: &str = "process.spawn";
+
+/// Result of one caller-owned stop request plus bounded reaper sweep.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessGroupDrainReport {
+    /// Number of active groups that accepted the stop request.
+    pub groups_requested: u64,
+    /// Number of groups already draining when this call started.
+    pub groups_already_draining: u64,
+    /// Number of draining groups inspected by the bounded sweep.
+    pub groups_inspected: u64,
+    /// Number of member handles inspected by the bounded sweep.
+    pub members_inspected: u64,
+    /// Number of members jointly reaped by the sweep.
+    pub reaped: u64,
+    /// Number of live members left for a later caller sweep.
+    pub pending: u64,
+    /// Number of members unavailable to this owner.
+    pub unavailable: u64,
+    /// Number of terminal observations rejected by group ownership.
+    pub errors: u64,
+    /// Number of groups still draining after the sweep.
+    pub remaining_groups: u64,
+    /// Number of members still owned by those groups.
+    pub remaining_members: u64,
+    /// Whether every group is stopped or failed and no member remains.
+    pub complete: bool,
+}
 
 /// Fail-closed errors from the process-group coordination boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +74,8 @@ pub enum ProcessGroupRuntimeError {
     Constraints(ProcessConstraintError),
     /// The capability gate denied the process admission before spawn.
     GateBlocked(GateDecision),
+    /// The host signal adapter rejected or misreported a stop plan.
+    Signal(ProcessGroupSignalError),
 }
 
 /// Caller-owned inputs for GateChain plus hard process admission.
@@ -254,6 +286,76 @@ impl ProcessGroupRuntime {
         Ok(self.reaper.request_stop(group, reason)?)
     }
 
+    /// Request a stop and validate the host adapter's signal report.
+    ///
+    /// The adapter chooses the platform-specific signal or PTY operation. The
+    /// Rust boundary only supplies stable generation-tagged member handles and
+    /// rejects reports that do not echo the exact plan. Reaping remains a
+    /// separate caller-owned sweep; a signal failure leaves the group draining
+    /// so the caller can retry, mark it failed, or apply another policy.
+    pub fn request_stop_with_signal<P: ProcessGroupSignalPort>(
+        &self,
+        group: ProcessGroupId,
+        reason: impl Into<String>,
+        signal_port: &P,
+    ) -> Result<ProcessGroupSignalReport, ProcessGroupRuntimeError> {
+        let plan = self.request_stop(group, reason)?;
+        let report = signal_port.send_stop(&plan).map_err(|error| {
+            ProcessGroupRuntimeError::Signal(ProcessGroupSignalError::Adapter(error))
+        })?;
+        report
+            .validate_for(&plan)
+            .map_err(ProcessGroupRuntimeError::Signal)?;
+        Ok(report)
+    }
+
+    /// Request all active groups to stop and run one bounded reaper sweep.
+    ///
+    /// This method is intentionally one-shot: callers own the repeat policy,
+    /// timeout budget, and eventual production shutdown authority. It performs
+    /// no background work and reports remaining groups/members so a caller can
+    /// continue with another bounded invocation.
+    pub fn drain_once(
+        &self,
+        reason: impl Into<String>,
+        budget: ReaperBudget,
+        timeout: Duration,
+    ) -> Result<ProcessGroupDrainReport, ProcessGroupRuntimeError> {
+        let reason = reason.into();
+        let mut report = ProcessGroupDrainReport::default();
+        for group in self.groups.snapshots() {
+            match group.state {
+                crate::process_group::ProcessGroupState::Active => {
+                    self.request_stop(group_id(&group)?, reason.clone())?;
+                    report.groups_requested = report.groups_requested.saturating_add(1);
+                }
+                crate::process_group::ProcessGroupState::Draining => {
+                    report.groups_already_draining =
+                        report.groups_already_draining.saturating_add(1);
+                }
+                crate::process_group::ProcessGroupState::Stopped
+                | crate::process_group::ProcessGroupState::Failed => {}
+            }
+        }
+        let sweep = self.sweep_with_timeout(budget, timeout);
+        report.groups_inspected = sweep.groups_inspected;
+        report.members_inspected = sweep.members_inspected;
+        report.reaped = sweep.reaped;
+        report.pending = sweep.pending;
+        report.unavailable = sweep.unavailable;
+        report.errors = sweep.errors;
+        for group in self.groups.snapshots() {
+            if group.state == crate::process_group::ProcessGroupState::Draining {
+                report.remaining_groups = report.remaining_groups.saturating_add(1);
+            }
+            report.remaining_members = report
+                .remaining_members
+                .saturating_add(group.members.len() as u64);
+        }
+        report.complete = report.remaining_groups == 0 && report.remaining_members == 0;
+        Ok(report)
+    }
+
     /// Run a non-blocking bounded sweep over draining groups.
     pub fn sweep(&self, budget: ReaperBudget) -> ReaperReport {
         self.sweep_with_timeout(budget, Duration::ZERO)
@@ -355,4 +457,10 @@ impl ProcessGroupRuntime {
             ReaperObservation::Terminal(MemberTerminal::Failed(result.stderr))
         }
     }
+}
+
+fn group_id(snapshot: &ProcessGroupSnapshot) -> Result<ProcessGroupId, ProcessGroupRuntimeError> {
+    ProcessGroupId::new(snapshot.group_id).ok_or(ProcessGroupRuntimeError::Group(
+        ProcessGroupError::UnknownGroup,
+    ))
 }

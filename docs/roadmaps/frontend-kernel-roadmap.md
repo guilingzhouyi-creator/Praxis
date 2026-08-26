@@ -205,6 +205,25 @@ cutover/recovery 逐步闭合后才可进入新内核 authority。
 0/5.011/13.583 ms，全部样本无错误/拒绝。它仍将共享路由锁列为下一优先级优化对象，
 不把增加 worker 数或接入 runtime 当作默认策略。
 
+随后完成 `agent_loop_execution` bridge 前置：`AgentLoopExecutionBridge` 将已启动
+loop 的输入排入 `KernelRuntime`，任务在 worker 真正执行后才完成 input admission，
+把 receipt/loop identity 交给调用方 action，并可将一个返回的 event 写回 Session。
+报告和失败值固定版本与 admission/action/event-admission 阶段；pre-execution cancel
+不产生历史写入，action failure 保留已提交 input receipt。该片只闭合 Rust-native
+AgentLoop/WorkerPool/Session 机制，不接 provider/prompt/tool/PTY，不做副作用 rollback，
+也不授予生产入口或 R4/R5 cutover authority；独立测试位于
+`crates/l1-kernel-rs/tests/runtime/agent_loop_execution.rs`。下一步仍需真实 host
+adapter、进程组信号/PTY、生产 reaper、持久化执行失败策略和 TS/L2 消费协议评审。
+
+随后补齐 AgentLoop 批量执行准入：`AgentLoopExecutionBridge::submit_input_batch`
+在 worker 开始前通过一次 `KernelRuntime::submit_batch_strict` 预留整个请求组，容量不足时
+严格 worker queue 也拒绝无法完整保留的批次并回滚所有 runtime task，因此不会留下部分
+input history，也不会淘汰已有排队工作；已接受的成员仍分别执行
+action/event admission 并保留独立 receipt 和失败阶段。空组是无副作用 no-op，独立
+测试覆盖容量回滚、身份预检与成功批次。该切片只优化 Rust-native
+AgentLoop/WorkerPool 边界，不引入 provider、PTY、进程副作用或生产 runtime authority，
+后续仍需持久化执行失败策略与 TS/L2 只读消费协议。
+
 随后已完成 IPC 与持久化机制切片：Rust `ipc` 覆盖 `LockMessage`、
 `LockChannel`、`LockBus` 的有界历史、handler、request/response、超时清理和
 reset；Rust `persist` 覆盖 `{seq,event,payload,ts}` 事件行、批量追加、过滤查询、
@@ -503,6 +522,11 @@ migration callback；filesystem probe 与 side effect 仍由后续 R4 adapter �
 integration targets，并保留各自的共享 vector target；PeerBook、规则 checker context、BootPlan 拓扑和
 PortRegistry/value 校验均只通过公开 API 验证，网络 transport、规则 provider、boot callback、provider I/O
 与硬件输入采集仍由适配器持有。
+随后补齐锁定后的 `BootPlan::execute` caller-owned seam：调用方必须提供与
+依赖图完全一致的 `BootAction` map，执行器在首个 callback 前校验缺失/多余
+handler，按 dependency-first 顺序执行，并在错误或 panic 时返回 completed
+prefix。它不自动发现 provider、不推进 lifecycle、不做副作用 rollback，也不
+授予 Rust production boot authority；这些策略仍由宿主适配器负责。
 随后将 `identity_binding` 的 4 项、`state_layout` 的 3 项、`state_store` 的 5 项和 `config_store` 的 5 项
 机制测试迁移到独立 target；filesystem-bearing 测试只使用临时 Rust-owned roots 并通过公开 API 验证，
 prompt/persistence provider、Python state import、migration callback 与配置策略仍不进入 Rust runtime authority。
@@ -523,7 +547,7 @@ Mutex 重入/竞争/超时/优先级回调、Semaphore、Barrier、Condition，�
 FIFO ticket、公平性和取消唤醒。该片移除 `sync.rs` 内联测试块，统一通过公开 API 验证；任务/队列取消、跨进程
 锁所有权、deadlock-cycle 报告和生产运行时路由仍未完成，不授予 Rust runtime authority。
 随后新增 `assembly` R4 seam：`KernelAssembly` 组合 `BootPlan`、`StateLayoutManifest`、`PortRegistry` 与 halted
-lifecycle，独立 `rust-kernel` binary 可在无 Python/FFI 下输出确定性 JSON snapshot；共享
+lifecycle，独立 `rust-kernel` binary 要求宿主显式传入 state root，并可在无 Python/FFI 下输出确定性 JSON snapshot；共享
 `kernel_assembly_vectors.json` 在 Rust/Python 两侧通过。当前仍不读配置、不创建 state root、不执行 callback、不实例化
 provider；随后新增 `state_store::StateStore` filesystem adapter，按 manifest 创建全新 Rust root，
 以临时文件 + `sync_all` + 原子 rename 持久化 manifest/lifecycle/checkpoint，并将 clean resume、unclean
@@ -569,6 +593,44 @@ unclean checkpoint 将 session 归约为 `crashed`、loop 归约为 `failed`、t
 `created`。不会持久化 PID/PTY 或 mailbox bytes，恢复必须由上层显式 rebind/recover；独立
 `tests/session/execution_store.rs` 已覆盖 clean round-trip、unclean recovery、拒绝和版本错误。该片仍是
 R4/R5 recovery seam，不授予 boot、Port 或生产 runtime authority。
+
+随后将 execution checkpoint 接入 Rust `KernelRuntime` 的独立入口候选：runtime
+现在拥有 `SessionBook`、`TerminalBook` 与 `AgentLoopBook` 三本元数据，持久化打开时从同一
+Rust-owned root 的 `ExecutionStore` 恢复，显式 `checkpoint_execution(false)` 支持调用方在重启前记录
+unclean 状态；持久化 `shutdown` 在生命周期进入 halted 前写入 clean execution checkpoint，失败则将
+StateStore 置为 unclean 并 fail-closed。新增 runtime 分片覆盖三本的所有权、clean round-trip、unclean
+recovery 和非持久 runtime 拒绝 checkpoint。该片仍不执行 AgentLoop/provider/tool/PTY，不接管 Python/L2
+生产入口；下一步继续补独立 cutover/recovery 触发器与 TS bridge 只读消费边界。
+
+该后续切片已落地：Rust `recovery::RecoveryTrigger` 对生命周期和已校验
+execution checkpoint 只做 `fresh/resume_clean/recover_unclean/reject` 决策，
+`KernelRuntime::recovery_decision` 不产生恢复副作用；TS `execution-checkpoint.ts`
+只读消费同一三本元数据文档，校验跨表引用、排序、safe integer 与 clean/unclean
+约束，并支持重新读取文件。恢复、终端/process rebind、生产 boot 和 Python/L2
+fallback 仍未授权。当前 runtime 已把 `recover_unclean` 与状态/检查点
+不一致的 `reject` 保留为 boot gate；调用方必须提交同代的
+`acknowledge_recovery` 后才能进入 active，确认本身不执行 rebind 或
+checkpoint 写入。下一步仍是独立 cutover/recovery adapter 评审。
+
+随后补充 R4 入口预检切片：新增 `preflight::PreflightRequest` 与
+`PreflightReport`，将显式 `AssemblySpec` 和宿主注入的 `StateProbe` 汇总为
+确定性 assembly snapshot、state action 及 `Ready`/recovery/migration/reject
+处置。`rust-kernel-preflight` 和 `make rust-kernel-preflight` 提供无 Python、
+只读 JSON 自动化入口；它不探测或修改文件系统、不执行 boot、不重绑定进程、
+不选择 Python fallback。该片只闭合 R4 assembly 的 entry evidence，R4 boot
+ownership、真实 PTY/进程组、AgentLoop/provider/tool/DVG/R5 以及 clean cutover
+仍保持高优先级未完成。
+
+随后补齐独立 Rust entry coordinator：`entry::EntryRequest` 要求显式
+assembly、JSON-safe runtime limits 和 `inspect`/`boot_once` 操作，持久化入口
+只打开 Rust-owned state root；`inspect` 返回当前 recovery decision，
+`boot_once` 在 `RecoverUnclean` 时必须收到同代、同 action/reason 的显式确认，
+随后捕获 active snapshot 并在输出前执行 bounded clean shutdown。新增
+`rust-kernel-entry` 与 `make rust-kernel-entry`，请求大小有界，错误配置和 stale/
+missing recovery acknowledgement 均 fail-closed。该片闭合 R4 entry coordination
+和一次性 smoke 的状态卫生，但不扫描终端、不接管 PTY/process/provider/AgentLoop，
+不改变 Python 默认，也不等价于 R5 clean cutover；后续仍需真实 host adapter、
+生产 reaper 和独立 cutover/recovery 评审。
 
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
@@ -673,6 +735,12 @@ p95 约 1.55/1.57/1.63 ms。该片只闭合 R3 进程所有权候选，仍不得
 遇到外部表状态冲突仍消费 managed terminal slot，再报告错误，防止不可重试的 binding 泄漏。它是未来
 caller-owned reaper 的机制接缝，不启动后台线程，也不授予生产 shutdown/reaper authority。
 
+随后补齐 `ProcessTableBridge::stop_all_once`：按稳定 raw handle 选取有界 binding，
+将调用方 timeout 传给 child termination，成功项同时释放 managed slot 与 ProcessTable
+表项，并返回 terminated/reaped/pending/unavailable/errors/remaining 计数。零 budget
+在触碰 child 前 fail-closed；该 API 只做一次 caller-owned pass，不启动后台 reaper，
+不改变 ProcessTable 生命周期权威，后续仍需真实平台进程组信号与生产 shutdown 评审。
+
 随后新增 `process_group::ProcessGroupBook` 与 `ProcessReaper` 候选：以 generation-safe
 `ProcessHandle` 建立唯一分组归属，冻结 Active/Draining/Stopped/Failed 状态、确定性停止计划、成员终态
 和有界 `max_groups/max_members` sweep。观察结果必须由 caller-owned adapter 显式提供，`Pending` 与
@@ -700,6 +768,50 @@ shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观
 `rust-process-group-bench` binary 按 4096 items、1/2/4 workers、3 rounds 输出统一 v3
 吞吐、尾延迟和资源证据；它只测 caller-owned 机制回收，不改变 PTY、OS process-group signal、
 ProcessTable、AgentLoop 或 shutdown authority 的边界。
+
+随后补齐 process-group shutdown preparation：`ProcessGroupRuntime::drain_once`
+对全部 Active group 发出一次 stop 请求，再按调用方的 `ReaperBudget` 和 timeout
+执行单次 bounded sweep，报告 groups requested/already draining、reaper 计数和
+remaining group/member ownership。空组在 stop 请求时直接进入 `Stopped`，不会因没有
+member 而永久停在 `Draining`。该 API 不循环、不启动后台 reaper、不选默认 timeout，
+重复策略与生产 shutdown authority 仍由宿主适配器持有；PTY、OS process-group signal、
+AgentLoop 和 R4/R5 cutover 继续是开放硬门。
+
+随后补齐 `ProcessGroupSignalPort` 宿主接缝：`request_stop_with_signal` 将稳定的
+generation-tagged termination plan 交给平台 adapter，由 adapter 选择实际 signal/PTY
+操作并返回 `ProcessGroupSignalReport`。Rust 在 reaper 前校验 group、generation 以及
+bounded attempted/delivered 计数；拒绝或错报 fail-closed，组仍由 caller 持有在
+`Draining`。该片不硬编码信号、不扫描终端、不启动后台 reaper；下一步仍需真实平台
+adapter、权限/失败证据和生产 shutdown 评审。
+
+随后补齐首个可注入宿主 adapter：
+`host_process_group_signal::HostProcessGroupSignalPort` 在调用宿主 sender 前完整解析
+所有 generation-safe handle，保持 stop plan 顺序，并拒绝零值、重复目标、解析失败及
+超额 delivered。sender 可实现 Unix/Windows 进程组、PTY 控制或测试替身；L1 不保存
+signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/host_process_group_signal.rs`
+验证无部分派发与有界报告。这仍是候选宿主接缝，不等于真实平台 wiring 或生产 shutdown
+authority 已完成。
+
+随后补齐 ProcessTable 权威的分组执行路径：
+`process_table_group_runtime::ProcessTableGroupRuntime` 将 `ProcessGroupBook`
+与 `ProcessTableBridge` 组合，公开身份只保留 ProcessTable 的 generation-safe
+handle；host child 与 table row 必须在终态 sweep 中共同回收，分组准入失败也
+必须 joint cleanup。`bridge()` 只提供 PID/state 等有界元数据供宿主 adapter
+解析，不泄漏 `Child` 或 pipe 对象。独立 `tests/process/process_table_group_runtime.rs`
+覆盖自然退出、host signal report、容量回滚与双表收敛。这仍不授予 PTY、平台
+signal 或后台 reaper 权威。
+
+随后将 GateChain 与该 ProcessTable 权威路径合并：
+`ProcessTableGroupRuntime::spawn_gated_constrained` 复用 `process.spawn` capability、
+Agent identity correlation 与既有硬约束 evaluator；Gate/constraint 拒绝均在
+bridge spawn 前 fail-closed，ledger 保留准入证据，授权请求继续走 ProcessTable
+与 group joint reap。独立 process 测试覆盖空白名单阻断、授权执行和双表收敛。
+
+随后将统一审计旁路接入该执行路径：`new_with_audit` 接收调用方共享的有界
+`AuditLog`，记录 group create、GateChain/constraint、bridge、spawn 与 stop 的
+成功/拒绝结果。审计 detail 只保留稳定的 group/handle/count/decision 元数据，
+不记录 argv、环境值或宿主 PID；EventStore 持久化、保留策略与 production
+shutdown 仍由宿主配置。
 
 The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
 indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
@@ -793,7 +905,7 @@ M2  会话收尾 + 文档            — Phase 4–5；外围契约独立（l2-s
 M3  Rust-first R0/R1           — 完成语义地图、typed substrate、边界与基准 schema（前置包：`docs/design/rust-first-kernel-rewrite.md`）
 M4  Rust-first R2/R3           — 固定总量性能证据与机制闭环，选择 Rust-native 调度/锁/队列/存储方案
 M5  Rust-first R4/R5           — 独立入口、新状态布局、版本化协议和 clean cutover/recovery
-MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 语义修复 → D1 Rust 协议主机 → D2 缝合
+MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 语义修复 → D1 Rust 协议主机 → D2 缝合（首片已在 feature 分支完成，默认仍 Python）
                                   （计划表与风险册：`docs/roadmaps/l1-l2-docking.md`；衔接 §5.3 割接阶梯）
 ```
 
@@ -844,7 +956,12 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T1 | `terminal_probe`：宿主注入终端观测、能力过滤、显式优先级、argv 构造 | ✅ 候选完成 | 宿主适配器逐平台提供真实 probe observations；不能在 L1 扫描 PATH |
 | T2 | `process_constraints`：Agent/Cell/ring、终端、argv、cwd、环境、资源、进程组硬约束 | ✅ 候选完成 | 将唯一执行权威接入前先补 GateChain/ProcessTable/审计联动证据 |
 | T3 | `ProcessGroupRuntime::spawn_gated_constrained`：GateChain → 约束 → adapter spawn | ✅ 候选完成 | 真实 PTY/进程组信号与 reaper 仍由宿主适配器设计 |
+| T3b | `HostProcessGroupSignalPort`：显式 handle→host target 解析与整批 stop sender | ✅ 候选完成 | 真实平台 signal/PTY、权限失败证据与生产 shutdown wiring 仍待完成 |
+| T3c | `ProcessTableGroupRuntime`：ProcessTableBridge 与 ProcessGroupBook 统一子进程身份和 joint reap | ✅ 候选完成 | GateChain/审计统一 wiring、真实 PTY/signal 与生产 shutdown 仍待完成 |
+| T3d | `ProcessTableGroupRuntime::spawn_gated_constrained`：GateChain + 约束准入接入统一身份路径 | ✅ 候选完成 | 审计旁路与真实平台执行仍待完成 |
+| T3e | `ProcessTableGroupRuntime::new_with_audit`：准入/桥接/stop 共享有界审计旁路 | ✅ 候选完成 | 真实 EventStore wiring、PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
+| T4b1 | `HostInputActivityPort`：宿主权限/聚合采样接缝与 fail-closed 生命周期 | ✅ 候选完成 | 真实平台采集、权限 UX、旁路监测与 production wiring 仍待完成 |
 | T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
@@ -864,6 +981,13 @@ T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主
 这一步不扫描设备节点、不保留原始键值/坐标，也不启用真实硬件监测。T4b
 才负责平台 adapter、权限提示和旁路监控联动，必须另行提供跨平台隐私与失败
 证据后才能进入生产 wiring 评审。
+
+T4b1 先落地 Rust 侧 `HostInputActivityPort` 机制接缝：宿主通过
+`InputActivityHostAdapter` 提供 `Granted`/`Denied`/`Unavailable` 与调用方时间的
+聚合样本；Rust 复用 T4a reducer，在拒绝/不可用时返回显式 unknown，遇到非法
+样本则停止适配器并 fail-closed。该切片不访问设备节点、不读取系统时钟、不保留
+原始键值/坐标；运行期权限撤回同样停止适配器并保留 denied 快照。真实平台
+采集、权限 UX、旁路监测和 production wiring 仍待宿主提供证据。
 
 ---
 

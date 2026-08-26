@@ -102,3 +102,34 @@ fn unsupported_document_version_fails_closed() {
     assert!(SessionStore::open(&root).is_err());
     fs::remove_dir_all(root).expect("remove test root");
 }
+
+#[test]
+fn shared_ts_checkpoint_fixture_round_trips_through_rust_store() {
+    let root = temp_root("shared-fixture");
+    let store = SessionStore::open(&root).expect("open");
+    fs::create_dir_all(store.path().parent().expect("parent")).expect("parent");
+    fs::write(
+        store.path(),
+        include_str!("../../../../tests/fixtures/kernel_session_store_document.json"),
+    )
+    .expect("write shared fixture");
+
+    let reopened = SessionStore::open(&root).expect("reopen shared fixture");
+    let document = reopened.document().expect("read shared fixture");
+    assert_eq!(document.store_version, SESSION_STORE_VERSION);
+    assert_eq!(document.generation, 7);
+    assert!(!document.clean_shutdown);
+    assert_eq!(document.sessions.len(), 1);
+    assert_eq!(
+        document.sessions[0].snapshot.spec.session_id,
+        "session-golden"
+    );
+    assert_eq!(document.sessions[0].snapshot.state, SessionState::Crashed);
+
+    let book = reopened.load_book(2).expect("load shared fixture");
+    assert_eq!(
+        book.get("session-golden").expect("session").message_count(),
+        1
+    );
+    fs::remove_dir_all(root).expect("remove test root");
+}

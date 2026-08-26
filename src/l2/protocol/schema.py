@@ -21,7 +21,7 @@ ENVELOPE_JSON_SCHEMA: dict[str, Any] = {
     "properties": {
         "v": {"const": 1},
         "session_id": {"type": "string", "minLength": 1},
-        "seq": {"type": "integer", "minimum": 0},
+        "seq": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
         "ts": {"type": "number"},
         "trace_id": {"type": "string"},
         "kind": {
@@ -75,14 +75,14 @@ KIND_PAYLOAD_SCHEMAS: dict[str, dict[str, Any]] = {
         "properties": {
             "op": {"enum": ["attach", "detach", "resume", "recovery", "ack"]},
             "session_id": {"type": "string"},
-            "last_acked": {"type": "integer", "minimum": -1},
+            "last_acked": {"type": "integer", "minimum": -1, "maximum": 9007199254740991},
         },
     },
     "ack": {
         "$id": "praxis/l2/protocol/v1/payload/ack",
         "type": "object",
         "required": ["ack_seq"],
-        "properties": {"ack_seq": {"type": "integer", "minimum": 0}},
+        "properties": {"ack_seq": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}},
     },
 }
 

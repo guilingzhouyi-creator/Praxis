@@ -17,14 +17,19 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::agent_loop::AgentLoopBook;
 use crate::assembly::{AssemblyError, AssemblySpec, KernelAssembly};
 use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult};
+use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
 use crate::lifecycle::{LifecycleRegistry, LifecycleState};
+use crate::recovery::{RecoveryAction, RecoveryDecision, RecoveryTrigger};
 use crate::scheduler::{KernelScheduler, SchedulerConfig, SchedulerError};
+use crate::session::SessionBook;
 use crate::state_store::{StateStore, StateStoreError};
 use crate::substrate::ProcessHandle;
+use crate::terminal::TerminalBook;
 use crate::worker::{TaskFn, TaskHandle, TaskHandleError, WorkerConfig, WorkerPool};
 
 /// Runtime-owned task lifecycle, independent of worker implementation details.
@@ -125,6 +130,12 @@ pub enum RuntimeError {
     ProcessCapacity,
     /// The worker pool could not be created.
     WorkerConfig(&'static str),
+    /// The worker pool rejected a strict all-or-none batch.
+    WorkerRejected(String),
+    /// The Rust-owned session book could not be initialized or restored.
+    Session(String),
+    /// The combined execution checkpoint could not be opened or restored.
+    ExecutionStore(String),
     /// The scheduler candidate rejected its configuration or transition.
     Scheduler(SchedulerError),
     /// Scheduler deployment values were invalid.
@@ -143,6 +154,12 @@ pub enum RuntimeError {
     InvalidReapBudget,
     /// The runtime cannot accept new work after shutdown begins.
     ShuttingDown,
+    /// A persistent root requires an explicit recovery acknowledgement before boot.
+    RecoveryRequired(crate::recovery::RecoveryAction),
+    /// The supplied recovery decision does not match the current root.
+    RecoveryDecisionStale,
+    /// Recovery acknowledgement was supplied for a root that does not need it.
+    RecoveryNotRequired(crate::recovery::RecoveryAction),
 }
 
 /// Benchmark-only lock-wait evidence for runtime admission.
@@ -351,12 +368,17 @@ pub struct KernelRuntime {
     assembly: KernelAssembly,
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
+    execution_store: Option<StdMutex<ExecutionStore>>,
+    sessions: SessionBook,
+    terminals: TerminalBook,
+    agent_loops: AgentLoopBook,
     scheduler: Arc<KernelScheduler>,
     admission: RwLock<()>,
     gatechain: Arc<GateChain>,
     capability: Arc<CapabilityAuthority>,
     workers: WorkerPool,
     tasks: Arc<RuntimeTaskBook>,
+    recovery_action: StdMutex<Option<RecoveryAction>>,
 }
 
 impl KernelRuntime {
@@ -374,16 +396,24 @@ impl KernelRuntime {
         ))
         .map_err(RuntimeError::SchedulerConfig)?;
         let workers = WorkerPool::new(config.workers).map_err(RuntimeError::WorkerConfig)?;
+        let sessions = SessionBook::new(config.shard_count as usize).map_err(|error| {
+            RuntimeError::Session(format!("session book initialization failed: {error:?}"))
+        })?;
         Ok(Self {
             assembly,
             lifecycle: Arc::new(LifecycleRegistry::new()),
             state_store: None,
+            execution_store: None,
+            sessions,
+            terminals: TerminalBook::new(),
+            agent_loops: AgentLoopBook::new(),
             scheduler: Arc::new(scheduler),
             admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
             tasks: runtime_task_book(config.shard_count),
+            recovery_action: StdMutex::new(None),
         })
     }
 
@@ -414,6 +444,18 @@ impl KernelRuntime {
             state_store.recover().map_err(map_state_store_error)?;
         }
         let lifecycle = state_store.lifecycle_handle();
+        let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
+        let execution_document = execution_store
+            .document()
+            .map_err(map_execution_store_error)?;
+        let execution_state = execution_store
+            .load_state(config.shard_count as usize)
+            .map_err(map_execution_store_error)?;
+        let recovery_action =
+            match RecoveryTrigger::decide(lifecycle.state(), Some(&execution_document)).action {
+                RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,
+                action => Some(action),
+            };
         let scheduler = KernelScheduler::new(SchedulerConfig::new(
             config.max_processes,
             config.shard_count,
@@ -425,12 +467,17 @@ impl KernelRuntime {
             assembly,
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
+            execution_store: Some(StdMutex::new(execution_store)),
+            sessions: execution_state.sessions,
+            terminals: execution_state.terminals,
+            agent_loops: execution_state.loops,
             scheduler: Arc::new(scheduler),
             admission: RwLock::new(()),
             gatechain: Arc::new(GateChain::new()),
             capability: Arc::new(CapabilityAuthority::new()),
             workers,
             tasks: runtime_task_book(config.shard_count),
+            recovery_action: StdMutex::new(recovery_action),
         })
     }
 
@@ -447,6 +494,102 @@ impl KernelRuntime {
     /// Return the single capability authority used by gated submission.
     pub fn capability_authority(&self) -> Arc<CapabilityAuthority> {
         Arc::clone(&self.capability)
+    }
+
+    /// Return the Rust-owned session truth book used by this runtime.
+    pub const fn sessions(&self) -> &SessionBook {
+        &self.sessions
+    }
+
+    /// Return the Rust-owned terminal metadata and mailbox book.
+    pub const fn terminals(&self) -> &TerminalBook {
+        &self.terminals
+    }
+
+    /// Return the Rust-owned logical AgentLoop identity book.
+    pub const fn agent_loops(&self) -> &AgentLoopBook {
+        &self.agent_loops
+    }
+
+    /// Persist the three execution books through the Rust-owned checkpoint.
+    ///
+    /// This API is explicit for callers that need an unclean checkpoint before
+    /// a host restart. A clean checkpoint is also written automatically during
+    /// a successful persistent shutdown, before its lifecycle becomes halted.
+    pub fn checkpoint_execution(
+        &self,
+        clean_shutdown: bool,
+    ) -> Result<ExecutionStoreDocument, RuntimeError> {
+        let store = self
+            .execution_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ExecutionStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        let document = store
+            .save(
+                &self.sessions,
+                &self.terminals,
+                &self.agent_loops,
+                clean_shutdown,
+            )
+            .map_err(map_execution_store_error)?;
+        let action = RecoveryTrigger::decide(self.lifecycle.state(), Some(&document)).action;
+        let mut recovery_action = self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        *recovery_action = match action {
+            RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,
+            action => Some(action),
+        };
+        Ok(document)
+    }
+
+    /// Return a side-effect-free recovery decision for this persistent root.
+    ///
+    /// The trigger is intentionally separate from `boot`: callers must review
+    /// `RecoverUnclean` and perform session/terminal/loop rebind steps before
+    /// requesting any execution. Non-persistent runtimes cannot claim a
+    /// checkpoint decision.
+    pub fn recovery_decision(&self) -> Result<RecoveryDecision, RuntimeError> {
+        let store = self
+            .execution_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ExecutionStore("runtime is not persistent".to_owned()))?;
+        let store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        let document = store.document().map_err(map_execution_store_error)?;
+        Ok(RecoveryTrigger::decide(
+            self.lifecycle.state(),
+            Some(&document),
+        ))
+    }
+
+    /// Acknowledge an unclean recovery decision after caller-owned rebind work.
+    ///
+    /// This only clears the in-memory boot gate for this runtime instance. It
+    /// does not mutate the books, checkpoint, lifecycle, process handles, or
+    /// terminal bindings; those remain explicit adapter responsibilities.
+    pub fn acknowledge_recovery(&self, decision: &RecoveryDecision) -> Result<(), RuntimeError> {
+        let _admission = self
+            .admission
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        let current = self.recovery_decision()?;
+        if current != *decision {
+            return Err(RuntimeError::RecoveryDecisionStale);
+        }
+        if current.action != RecoveryAction::RecoverUnclean {
+            return Err(RuntimeError::RecoveryNotRequired(current.action));
+        }
+        let mut recovery_action = self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if *recovery_action != Some(RecoveryAction::RecoverUnclean) {
+            return Err(RuntimeError::RecoveryDecisionStale);
+        }
+        *recovery_action = None;
+        Ok(())
     }
 
     /// Submit a capability only after the Rust G1-G5 chain permits it.
@@ -485,6 +628,13 @@ impl KernelRuntime {
             .admission
             .write()
             .unwrap_or_else(PoisonError::into_inner);
+        if let Some(action) = *self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+        {
+            return Err(RuntimeError::RecoveryRequired(action));
+        }
         let bootable = self.lifecycle.state() == LifecycleState::Halted
             || (self.state_store.is_some() && self.lifecycle.state() == LifecycleState::Crashed);
         if !bootable {
@@ -536,7 +686,19 @@ impl KernelRuntime {
     ///
     /// Per-item gate/pool errors as above, positionally preserved.
     pub fn submit_batch(&self, actions: Vec<TaskFn>) -> Result<Vec<RuntimeTask>, RuntimeError> {
-        self.submit_batch_inner(actions, false)
+        self.submit_batch_inner(actions, false, false)
+    }
+
+    /// Submit a batch only when the worker queue can retain every item.
+    ///
+    /// Unlike [`Self::submit_batch`], this path never evicts older queued
+    /// work. A queue-capacity or shutdown rejection rolls back every reserved
+    /// scheduler/task handle before returning.
+    pub fn submit_batch_strict(
+        &self,
+        actions: Vec<TaskFn>,
+    ) -> Result<Vec<RuntimeTask>, RuntimeError> {
+        self.submit_batch_inner(actions, false, true)
     }
 
     /// Submit one benchmark task while recording only contended admission waits.
@@ -561,7 +723,7 @@ impl KernelRuntime {
         &self,
         actions: Vec<TaskFn>,
     ) -> Result<Vec<RuntimeTask>, RuntimeError> {
-        self.submit_batch_inner(actions, true)
+        self.submit_batch_inner(actions, true, false)
     }
 
     /// Reset benchmark-only runtime admission lock-wait counters.
@@ -600,6 +762,7 @@ impl KernelRuntime {
         &self,
         actions: Vec<TaskFn>,
         observed: bool,
+        strict: bool,
     ) -> Result<Vec<RuntimeTask>, RuntimeError> {
         if self.lifecycle.state() != LifecycleState::Active {
             return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
@@ -618,7 +781,17 @@ impl KernelRuntime {
             .zip(actions)
             .map(|(handle, action)| self.bind_action(handle, action))
             .collect::<Vec<_>>();
-        let results = self.workers.submit_result_batch(actions);
+        let results = if strict {
+            match self.workers.submit_result_batch_strict(actions) {
+                Ok(results) => results,
+                Err(error) => {
+                    self.rollback_reserved_tasks(&handles);
+                    return Err(RuntimeError::WorkerRejected(error));
+                }
+            }
+        } else {
+            self.workers.submit_result_batch(actions)
+        };
         Ok(handles
             .into_iter()
             .zip(results)
@@ -813,6 +986,19 @@ impl KernelRuntime {
             }
             return Err(RuntimeError::ShuttingDown);
         }
+        if self.execution_store.is_some()
+            && let Err(error) = self.checkpoint_execution(true)
+        {
+            // Preserve the current books as an unclean checkpoint before
+            // publishing the lifecycle failure, so recovery cannot reopen
+            // a stale clean document after a rejected clean shutdown.
+            let _ = self.checkpoint_execution(false);
+            if let Some(state_store) = &self.state_store {
+                let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
+                let _ = state_store.shutdown(false);
+            }
+            return Err(error);
+        }
         if let Some(state_store) = &self.state_store {
             let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
             state_store.shutdown(true).map_err(map_state_store_error)?;
@@ -822,6 +1008,10 @@ impl KernelRuntime {
             }
             self.lifecycle.record_shutdown_at(true, "runtime");
         }
+        *self
+            .recovery_action
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(self.snapshot())
     }
 
@@ -857,6 +1047,10 @@ fn runtime_task_book(shard_count: u32) -> Arc<RuntimeTaskBook> {
 
 fn map_state_store_error(error: StateStoreError) -> RuntimeError {
     RuntimeError::StateStore(error.to_string())
+}
+
+fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {
+    RuntimeError::ExecutionStore(error.to_string())
 }
 
 fn capability_value(result: CapabilityResult) -> Result<Value, String> {

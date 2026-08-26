@@ -13,6 +13,7 @@ import {
   decodeMessage, encodeMessage, makeMessage,
   type Message, type MessageKind,
 } from "../envelope.ts";
+import { MAX_SAFE_SEQUENCE } from "../types.ts";
 import type { JsonValue } from "../records.ts";
 
 export type Transport = (line: string) => Promise<string[]>;
@@ -28,7 +29,7 @@ export interface BridgeTelemetry {
 export interface BridgeOptions {
   sessionId: string;
   transport: Transport;
-  /** Optional seq wrap-around (e.g. 1<<30); unset = monotonic. */
+  /** Optional seq wrap-around (e.g. 1<<30); unset = the safe wire bound. */
   maxSeq?: number;
   /**
    * Optional round-trip telemetry sink. Invoked after every transport
@@ -37,6 +38,7 @@ export interface BridgeOptions {
   onTelemetry?: (event: BridgeTelemetry) => void;
 }
 
+/** Highest exact sequence value representable by the TS wire encoder. */
 export interface RoundTripResult {
   messages: Message[];
   elapsedMs: number;
@@ -53,8 +55,11 @@ export class ProtocolBridge {
   private seq = 1;
 
   constructor(private readonly opts: BridgeOptions) {
-    if (opts.maxSeq !== undefined && (!Number.isInteger(opts.maxSeq) || opts.maxSeq < 1)) {
-      throw new Error("maxSeq must be a positive integer");
+    if (
+      opts.maxSeq !== undefined
+      && (!Number.isSafeInteger(opts.maxSeq) || opts.maxSeq < 1)
+    ) {
+      throw new Error(`maxSeq must be a positive safe integer <= ${MAX_SAFE_SEQUENCE}`);
     }
   }
 
@@ -70,21 +75,21 @@ export class ProtocolBridge {
   async attach(sessionId: string, viewId?: string): Promise<Message[]> {
     const payload: Record<string, string> = { op: "attach", session_id: sessionId };
     if (viewId) payload.view_id = viewId;
-    return this.send("control", payload);
+    return this.send("control", payload, sessionId);
   }
 
-  /** Acknowledge outbound messages up to `ackSeq` for one view. */
-  async ack(ackSeq: number, viewId?: string): Promise<Message[]> {
+  /** Acknowledge outbound messages up to `ackSeq` for one view/session. */
+  async ack(ackSeq: number, viewId?: string, sessionId = this.opts.sessionId): Promise<Message[]> {
     const payload: Record<string, number | string> = { ack_seq: ackSeq };
     if (viewId) payload.view_id = viewId;
-    return this.send("ack", payload);
+    return this.send("ack", payload, sessionId);
   }
 
   /** Request replay from `lastAcked` for one view (recovery). */
   async replay(sessionId: string, viewId?: string, lastAcked = -1): Promise<Message[]> {
     const payload: Record<string, string | number> = { op: "recovery", session_id: sessionId, last_acked: lastAcked };
     if (viewId) payload.view_id = viewId;
-    return this.send("control", payload);
+    return this.send("control", payload, sessionId);
   }
 
   // ── Streaming pipeline ──
@@ -140,13 +145,19 @@ export class ProtocolBridge {
   // ── Internal ──
 
   private nextSeq(): number {
-    const cur = this.seq++;
-    if (this.opts.maxSeq !== undefined && this.seq > this.opts.maxSeq) this.seq = 1;
+    const cur = this.seq;
+    const maxSeq = this.opts.maxSeq ?? MAX_SAFE_SEQUENCE;
+    if (cur >= maxSeq) this.seq = 1;
+    else this.seq += 1;
     return cur;
   }
 
-  private send(kind: MessageKind, payload: Record<string, JsonValue>): Promise<Message[]> {
-    const message = makeMessage(this.opts.sessionId, this.nextSeq(), kind, payload);
+  private send(
+    kind: MessageKind,
+    payload: Record<string, JsonValue>,
+    sessionId = this.opts.sessionId,
+  ): Promise<Message[]> {
+    const message = makeMessage(sessionId, this.nextSeq(), kind, payload);
     return this.roundTrip(message).then((r) => r.messages);
   }
 
@@ -161,14 +172,14 @@ export class ProtocolBridge {
    * error (ruling R7's client twin): silently dropping them turns host
    * bugs into mysterious empty results.
    */
-  private decodeResponse(raw: string): Message {
+  private decodeResponse(raw: string, expectedSessions: readonly string[] = [this.opts.sessionId]): Message {
     const decoded = decodeMessage(raw);
     if (!decoded.message) {
       throw new Error(`bridge: undecodable response: ${decoded.error}: ${raw.slice(0, 200)}`);
     }
-    if (decoded.message.session_id !== this.opts.sessionId) {
+    if (!expectedSessions.includes(decoded.message.session_id)) {
       throw new Error(
-        `bridge: response session_id mismatch: expected ${this.opts.sessionId},`
+        `bridge: response session_id mismatch: expected ${expectedSessions.join(" or ")},`
           + ` got ${decoded.message.session_id}`,
       );
     }
@@ -180,7 +191,11 @@ export class ProtocolBridge {
     const line = encodeMessage(message);
     const responses = await this.opts.transport(line);
     const elapsedMs = performance.now() - start;
-    const messages = responses.map((raw) => this.decodeResponse(raw));
+    const expectedSessions = [message.session_id];
+    if (message.kind === "control" && typeof message.payload.session_id === "string") {
+      expectedSessions.push(message.payload.session_id);
+    }
+    const messages = responses.map((raw) => this.decodeResponse(raw, expectedSessions));
     this.opts.onTelemetry?.({
       label: this.telemetryLabel(message),
       elapsedMs,
@@ -203,4 +218,3 @@ export async function* streamResponses(
     }
   }
 }
-

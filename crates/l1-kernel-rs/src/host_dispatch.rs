@@ -24,7 +24,7 @@ use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use crate::gatechain::{GateChain, GatePolicy, GateRequest};
 use crate::outbox_registry::OutboxRegistry;
-use crate::protocol::{Message, MessageKind, ProtocolError, SessionCursor};
+use crate::protocol::{MAX_SAFE_SEQUENCE, Message, MessageKind, ProtocolError, SessionCursor};
 use crate::session_identity::SessionIdentity;
 use crate::session_lifecycle::{SessionLifecycle, SessionRegistry};
 
@@ -402,7 +402,30 @@ impl HostRouter {
             }
             self.lock_outboxes().attach(&session_id, view_id);
         }
-        Ok(Vec::new())
+        let identity = sessions
+            .get(&session_id)
+            .map(|record| record.identity.clone())
+            .ok_or_else(|| {
+                ProtocolError::InvalidContract(format!("attach: unknown session {session_id}"))
+            })?;
+        drop(sessions);
+        let data = serde_json::to_value(identity).map_err(|error| {
+            ProtocolError::Serialization(format!("session identity encoding failed: {error}"))
+        })?;
+        let event = self.envelope(
+            message,
+            MessageKind::Event,
+            BTreeMap::from([
+                (
+                    "name".to_owned(),
+                    Value::String("session.attached".to_owned()),
+                ),
+                ("data".to_owned(), data),
+            ]),
+        );
+        self.lock_outboxes()
+            .append(&message.session_id, event.clone());
+        Ok(vec![event])
     }
 
     fn control_detach(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
@@ -438,8 +461,33 @@ impl HostRouter {
             .get("last_acked")
             .and_then(Value::as_i64)
             .unwrap_or(-1);
-        let mut outboxes = self.lock_outboxes();
-        Ok(outboxes.get_or_create(&session_id).unacked_after(after))
+        let replay = self
+            .lock_outboxes()
+            .get_or_create(&session_id)
+            .unacked_after(after);
+        let replay_value = serde_json::to_value(replay).map_err(|error| {
+            ProtocolError::Serialization(format!("session replay encoding failed: {error}"))
+        })?;
+        let event = self.envelope_for_session(
+            message,
+            &session_id,
+            MessageKind::Event,
+            BTreeMap::from([
+                (
+                    "name".to_owned(),
+                    Value::String("session.recovered".to_owned()),
+                ),
+                (
+                    "data".to_owned(),
+                    Value::Object(serde_json::Map::from_iter([
+                        ("session_id".to_owned(), Value::String(session_id.clone())),
+                        ("replay".to_owned(), replay_value),
+                    ])),
+                ),
+            ]),
+        );
+        self.lock_outboxes().append(&session_id, event.clone());
+        Ok(vec![event])
     }
 
     fn apply_ack(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
@@ -608,9 +656,19 @@ impl HostRouter {
         kind: MessageKind,
         payload: BTreeMap<String, Value>,
     ) -> Message {
+        self.envelope_for_session(request, &request.session_id, kind, payload)
+    }
+
+    fn envelope_for_session(
+        &self,
+        request: &Message,
+        session_id: &str,
+        kind: MessageKind,
+        payload: BTreeMap<String, Value>,
+    ) -> Message {
         Message::new(
-            request.session_id.clone(),
-            self.next_response_seq(&request.session_id),
+            session_id,
+            self.next_response_seq(session_id),
             kind,
             payload,
             request.trace_id.clone().unwrap_or_default(),
@@ -622,7 +680,11 @@ impl HostRouter {
     fn next_response_seq(&self, session_id: &str) -> u64 {
         let mut seqs = self.lock_response_seqs();
         let counter = seqs.entry(session_id.to_owned()).or_insert(0);
-        *counter = counter.saturating_add(1);
+        *counter = if *counter >= MAX_SAFE_SEQUENCE {
+            1
+        } else {
+            counter.saturating_add(1)
+        };
         *counter
     }
 

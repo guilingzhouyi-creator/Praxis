@@ -23,7 +23,12 @@ export type { JsonObject, JsonValue } from "./records.ts";
 import type { JsonObject } from "./records.ts";
 import type { Message, MessageKind, DecodedMessage } from "./types.ts";
 import { canonicalJson } from "./records.ts";
-import { PROTOCOL_VERSION, OUTBOX_MAXLEN, HOST_DERIVED_FIELDS } from "./types.ts";
+import {
+  PROTOCOL_VERSION,
+  OUTBOX_MAXLEN,
+  HOST_DERIVED_FIELDS,
+  MAX_SAFE_SEQUENCE,
+} from "./types.ts";
 
 // ── Runtime helpers ────────────────────────────────────────────────────
 
@@ -32,7 +37,13 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function isInteger(value: unknown, minimum = 0): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= minimum;
+  // JSON.parse stores numbers as IEEE-754 doubles; unsafe integers would be
+  // silently rounded before the protocol validator could inspect them.
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum;
+}
+
+function isWireSequence(value: unknown, minimum = 0): value is number {
+  return isInteger(value, minimum) && value <= MAX_SAFE_SEQUENCE;
 }
 
 function nowSeconds(): number {
@@ -85,9 +96,9 @@ function validatePayload(kind: MessageKind, payload: JsonObject): string[] {
       errors.push(`control payload has unknown op: ${String(op)}`);
     if (payload.session_id !== undefined && (typeof payload.session_id !== "string" || (payload.session_id as string).length === 0))
       errors.push("control payload session_id must be a non-empty string");
-    if (payload.last_acked !== undefined && !isInteger(payload.last_acked, -1))
+    if (payload.last_acked !== undefined && !isWireSequence(payload.last_acked, -1))
       errors.push("control payload last_acked must be an integer >= -1");
-  } else if (kind === "ack" && !isInteger(payload.ack_seq)) {
+  } else if (kind === "ack" && !isWireSequence(payload.ack_seq)) {
     errors.push("ack payload requires a non-negative integer ack_seq");
   }
   return errors;
@@ -110,7 +121,7 @@ export function validateMessage(message: unknown): string[] {
   if (rec.v !== PROTOCOL_VERSION) errors.push(`unsupported version: ${String(rec.v)}`);
   if (typeof rec.session_id !== "string" || rec.session_id.length === 0)
     errors.push("session_id must be a non-empty string");
-  if (!isInteger(rec.seq)) errors.push("seq must be a non-negative integer");
+  if (!isWireSequence(rec.seq)) errors.push("seq must be a non-negative integer");
   if (typeof rec.kind !== "string" || !KINDS_SET.has(rec.kind))
     errors.push(`unknown kind: ${String(rec.kind)}`);
   if (typeof rec.ts !== "number" || !Number.isFinite(rec.ts))

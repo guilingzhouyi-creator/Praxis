@@ -16,12 +16,28 @@ sha2 = "0.10"
 name = "l1_kernel_rs"
 path = "src/lib.rs"
 
+[[bin]]
+name = "rust-session-store-probe"
+path = "src/bin/rust-session-store-probe.rs"
+
+[[bin]]
+name = "rust-kernel-preflight"
+path = "src/bin/rust-kernel-preflight.rs"
+
+[[bin]]
+name = "rust-kernel-entry"
+path = "src/bin/rust-kernel-entry.rs"
+
 # Keep the historical target names stable while making the test domain explicit.
 # Tests are grouped by boundary under tests/<domain>/; the Python infra gate
 # verifies that every target is registered here and that the root stays empty.
 [[test]]
 name = "agent_loop"
 path = "tests/session/agent_loop.rs"
+
+[[test]]
+name = "agent_loop_execution"
+path = "tests/runtime/agent_loop_execution.rs"
 
 [[test]]
 name = "allocator"
@@ -46,6 +62,10 @@ path = "tests/runtime/benchmark.rs"
 [[test]]
 name = "benchmark_runner"
 path = "tests/runtime/benchmark_runner.rs"
+
+[[test]]
+name = "entry"
+path = "tests/runtime/entry.rs"
 
 [[test]]
 name = "boot"
@@ -216,6 +236,10 @@ name = "ports"
 path = "tests/assembly/ports.rs"
 
 [[test]]
+name = "preflight"
+path = "tests/assembly/preflight.rs"
+
+[[test]]
 name = "process"
 path = "tests/process/process.rs"
 
@@ -240,6 +264,14 @@ name = "process_group_runtime"
 path = "tests/process/process_group_runtime.rs"
 
 [[test]]
+name = "host_process_group_signal"
+path = "tests/process/host_process_group_signal.rs"
+
+[[test]]
+name = "process_table_group_runtime"
+path = "tests/process/process_table_group_runtime.rs"
+
+[[test]]
 name = "process_vectors"
 path = "tests/process/process_vectors.rs"
 
@@ -262,6 +294,10 @@ path = "tests/registry/registry.rs"
 [[test]]
 name = "registry_base"
 path = "tests/registry/registry_base.rs"
+
+[[test]]
+name = "recovery"
+path = "tests/storage/recovery.rs"
 
 [[test]]
 name = "reputation"

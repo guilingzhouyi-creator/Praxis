@@ -1,8 +1,8 @@
 //! Independent protocol mechanism tests for the Rust kernel.
 
 use l1_kernel_rs::protocol::{
-    Message, MessageKind, Outbox, ProtocolError, ProtocolRecord, decode_message, decode_record,
-    encode_message, encode_record,
+    MAX_SAFE_SEQUENCE, Message, MessageKind, Outbox, ProtocolError, ProtocolRecord, decode_message,
+    decode_record, encode_message, encode_record,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -155,18 +155,23 @@ fn seq_bounds_fail_closed_and_clamp_safely() {
         ),
         Err(ProtocolError::InvalidContract(_))
     ));
-    // u64::MAX round-trips exactly (python int parity, no precision loss).
+    // The wire boundary accepts the highest exact JSON/TS integer.
     let max = Message::new(
         "s",
-        u64::MAX,
+        MAX_SAFE_SEQUENCE,
         MessageKind::Event,
         payload(&[("event_type", json!("edge"))]),
         "",
         100.0,
     );
     let line = encode_message(&max).expect("u64::MAX encodes");
-    assert!(line.contains(r#""seq":18446744073709551615"#));
+    assert!(line.contains(r#""seq":9007199254740991"#));
     assert_eq!(decode_message(&line).expect("decodes"), max);
+    let unsafe_line = line.replace("9007199254740991", "9007199254740992");
+    assert!(matches!(
+        decode_message(&unsafe_line),
+        Err(ProtocolError::InvalidContract(message)) if message.contains("safe range")
+    ));
 }
 
 #[test]

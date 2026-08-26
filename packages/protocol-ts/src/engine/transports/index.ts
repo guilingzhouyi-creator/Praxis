@@ -13,4 +13,20 @@ export { createStdioTransport } from "./stdio.ts";
 export { createHttpTransport } from "./http.ts";
 export { createWsTransport } from "./ws.ts";
 export { createSshTransport } from "./ssh.ts";
+export {
+  createHostTransport,
+  createRustHostTransport,
+  createConfiguredHostTransport,
+  defaultRustHostBinary,
+  isRustHostEnabled,
+  resolveHostImplementation,
+} from "./rust-host.ts";
+export type {
+  ChildProcessLike,
+  HostImplementation,
+  HostSpawnOptions,
+  HostTransportOptions,
+  ManagedHostTransport,
+  SpawnImplementation,
+} from "./rust-host.ts";
 export type { Transport } from "../bridge.ts";

@@ -103,6 +103,18 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   non-terminal sessions to explicit `crashed` state and require caller-driven
   recovery. It does not import Python state or execute AgentLoop/provider work.
   Its public behavior is isolated in `crates/l1-kernel-rs/tests/session/session_store.rs`.
+  The `rust-session-store-probe` binary is test-only (build with
+  `make rust-session-store-probe`): `emit` writes a
+  deterministic unclean checkpoint and `validate` reads and validates an
+  existing one. The TS `session-store.e2e.test.ts` suite invokes it only when
+  the candidate binary is built, so cross-process coverage never becomes a
+  hidden in-process substitute or a production entry point.
+- The Rust `execution_store` adapter persists SessionBook, TerminalBook, and
+  AgentLoopBook metadata as one versioned atomic document. Its TS counterpart
+  `execution-checkpoint.ts` is read-only: it validates the same cross-book
+  references, lifecycle restrictions, ordering, and JavaScript safe-integer
+  boundary, then exposes a defensive snapshot/refresh view. TS cannot recover
+  sessions, rebind processes, or write the Rust checkpoint through this seam.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report
@@ -222,6 +234,20 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   boot registry. `tests/fixtures/kernel_boot_plan_vectors.json` is consumed by
   Rust and Python tests; Python's missing-dependency omission is documented as
   an intentional reference-only difference.
+- A locked `BootPlan` also exposes `execute` with an exact caller-supplied
+  `BootAction` map. Handler shape is validated before the first callback;
+  failures and panics stop the dependency-ordered run with a completed-prefix
+  report. This remains a host-owned execution seam and does not grant provider,
+  lifecycle, or production boot authority.
+- `agent_loop_execution::AgentLoopExecutionBridge` is the bounded execution
+  seam above the routing state. It submits a caller-owned `AgentLoopAction` to
+  `KernelRuntime`; the worker admits input, invokes the action with its receipt,
+  and optionally admits one returned event. Versioned reports retain input/event
+  receipts, while structured failures identify admission, action, or
+  event-admission stage and any partial input. Pre-execution cancellation cannot
+  write session history. The bridge does not discover providers, prompts, tools,
+  PTYs, or production policy; `tests/runtime/agent_loop_execution.rs` is its
+  independent Rust target.
 - The Rust `state_layout` module is the first R4 state-ownership candidate. It
   validates a versioned manifest of canonical relative entries and declared
   parents, then maps explicit host probes to `initialize`, `resume`, `recover`,
@@ -245,10 +271,30 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   `ConfigLayoutManifest`, `ProtocolDescriptor`,
   `TerminalContractDescriptor`, `PortRegistry`, and the halted lifecycle into
   a validated `KernelAssembly` snapshot. The standalone `rust-kernel` binary
-  emits that complete snapshot without importing Python or performing
-  configuration/filesystem/provider side effects. Config, protocol, terminal,
+  requires an explicit state-root argument and emits that complete snapshot
+  without importing Python or performing configuration/filesystem/provider
+  side effects. Config, protocol, terminal,
   and assembly metadata mismatches fail closed; `state_store` supplies fresh
   state initialization and durable recovery.
+- The Rust `preflight` module is a read-only entry preparation seam. Its
+  `PreflightRequest` requires explicit assembly metadata and an injected
+  `StateProbe`; `inspect` returns the validated snapshot, state action, and
+  operator disposition without probing or mutating the host. The standalone
+  `rust-kernel-preflight` binary reads one JSON request from stdin and emits
+  one JSON report, and `make rust-kernel-preflight` builds it for automation.
+  Its tests live in `tests/assembly/preflight.rs`. It does not execute boot,
+  create state, rebind processes, or select a Python fallback, so it is
+  evidence for R4 assembly rather than an R5 production entrypoint.
+- The Rust `entry` module is an explicit one-shot coordinator for a persistent
+  Rust runtime. `EntryRequest` carries complete assembly, JSON-safe runtime
+  limits, an operation, and an optional exact recovery decision. `inspect`
+  reports the root decision without booting; `boot_once` requires a matching
+  `RecoverUnclean` acknowledgement, boots, captures the active snapshot, then
+  performs bounded clean shutdown. `rust-kernel-entry` and
+  `make rust-kernel-entry` provide a bounded JSON stdin/stdout smoke path.
+  Invalid limits or stale/missing recovery acknowledgements fail closed. This
+  remains an R4 candidate and does not grant production, Python, PTY, provider,
+  AgentLoop, or R5 cutover authority.
 - The Rust `runtime` candidate composes that locked assembly, lifecycle FSM,
   sharded scheduler state, and bounded WorkerPool into an explicit
   boot/submit/cancel/reap/shutdown host for already-bound Rust closures.
@@ -292,12 +338,20 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   consume `tests/fixtures/protocol_v1_records.json`; HTTP/WS framing, L2
   dispatch, clocks, and runtime session ownership remain adapters.
 - The Rust `protocol_host` module is the bounded R4 JSONL adapter seam. It
-  rejects oversized frames before protocol decode, canonicalizes accepted v1
+  rejects oversized frames before protocol decode, exposes a typed `decode_line`
+  path for routing without a redundant re-encode, canonicalizes accepted v1
   envelopes, and returns structured failures without dispatching or executing
   them. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint;
   rejected lines are diagnostics only. Its mechanism tests live in the
   independent `crates/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
   not own AgentLoop, provider, session, or runtime authority.
+- The TS L2 transport layer now exposes a managed child-process factory for
+  the Python reference and Rust `rust-protocol-host`. `PRAXIS_RUST_HOST` is
+  opt-in (`1/true/yes/on/rust`); unset or unknown values keep the Python
+  rollback path. The factory captures stderr separately, exposes idempotent
+  close, and applies the shared 1 MiB UTF-8 frame bound before writing. This
+  is a docking/e2e seam only: it does not wire Rust into production boot or
+  grant TS ownership of L1 policy.
 - The Rust `config_store` module is the clean-break R4 configuration owner. It
   creates a versioned JSON manifest plus separate `config.json` and
   `settings.json` documents, persists revisions through atomic rename and
@@ -446,6 +500,38 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   The independent `process.group.reaper` fixed-work runner and
   `rust-process-group-bench` binary keep this evidence separate from process
   spawn, queue, and session workloads; no runtime authority is promoted.
+- `ProcessTableBridge::stop_all_once` provides a one-shot stable-handle stop and
+  joint-reap report with explicit timeout and remaining ownership. A zero
+  budget fails before child access; the caller still owns repeat policy and
+  production shutdown authority.
+- `ProcessGroupRuntime::drain_once` adds a one-shot caller-owned stop-all plus
+  bounded sweep report, including remaining groups and members; empty groups
+  are closed as `Stopped` during the stop request. It does not select a repeat
+  policy, spawn a reaper thread, or grant shutdown authority.
+- `process_table_group_runtime::ProcessTableGroupRuntime` composes group
+  membership with `ProcessTableBridge`, making the ProcessTable handle the
+  only public child identity. Bridge snapshots expose only PID/state metadata
+  for host target resolution; terminal sweeps jointly reap the bridge binding
+  and group member, and admission rollback removes the table row. Its
+  independent target is `tests/process/process_table_group_runtime.rs`.
+  Its constrained variants run the same explicit Agent policy and GateChain
+  checks before bridge spawn, with denied requests leaving both the table and
+  host-child books untouched.
+  `new_with_audit` injects the shared bounded `AuditLog`; gate/constraint,
+  bridge, spawn, group-create, and stop outcomes are recorded without argv,
+  environment, or host PID data.
+- `ProcessGroupSignalPort` is the explicit host adapter seam for actual
+  process-group or PTY stop operations. `request_stop_with_signal` supplies a
+  generation-tagged termination plan and fail-closes unless the returned
+  `ProcessGroupSignalReport` echoes the same group/generation and bounded
+  attempted/delivered counts. Signal choice, OS calls, and subsequent reaping
+  remain caller-owned.
+- `host_process_group_signal::HostProcessGroupSignalPort` provides a concrete
+  closure-backed adapter for that seam. It resolves all generation-safe handles
+  before dispatch, preserves plan order, rejects zero/duplicate targets and
+  over-reported delivery, and leaves platform signal, PTY, permission, and
+  retry policy in the injected host sender. Its independent target is
+  `tests/process/host_process_group_signal.rs`.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name
@@ -551,6 +637,14 @@ key values or pointer coordinates, or reads a system clock. The shared
 independent Rust `tests/terminal/input_activity.rs` target and the TypeScript
 tests. T4b remains open for platform-specific keyboard/pointer adapters and
 permission UX; those effects stay outside the kernel value boundary.
+
+The T4b Rust seam is `HostInputActivityPort` plus the host-owned
+`InputActivityHostAdapter`. The adapter provides explicit permission state and
+caller-timed aggregate samples; the port reduces them with the same bounded
+probe, returns an unknown snapshot on permission failure, stops when permission
+is revoked, and stops on an invalid sample. No device node, system clock, key
+value, or pointer coordinate enters the crate. Real platform collection and
+permission UX remain a host responsibility.
 
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,

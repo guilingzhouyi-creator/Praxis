@@ -104,6 +104,9 @@ describe("ProtocolBridge domain helpers", () => {
     expect(payloads[2]).toEqual({ ack_seq: 7 });
     expect(payloads[3]).toEqual({ ack_seq: 7, view_id: "view-tui" });
     expect(payloads[5]).toMatchObject({ op: "recovery", session_id: "s2", last_acked: 4, view_id: "view-cli" });
+    expect(seen[0].session_id).toBe("s2");
+    expect(seen[2].session_id).toBe("sess");
+    expect(seen[4].session_id).toBe("s2");
   });
 
   it("batch preserves command order", async () => {
@@ -143,6 +146,7 @@ describe("ProtocolBridge domain helpers", () => {
     const { transport } = makeRecordingTransport();
     expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: 0 })).toThrow("maxSeq");
     expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: 1.5 })).toThrow("maxSeq");
+    expect(() => new ProtocolBridge({ sessionId: "s", transport, maxSeq: Number.MAX_SAFE_INTEGER + 1 })).toThrow("safe");
   });
 });
 
