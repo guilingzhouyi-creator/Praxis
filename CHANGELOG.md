@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Feat (scripts)**: classify telemetry runs and refuse empty judge records
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission
@@ -142,6 +143,9 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
+- **Docs**: rotate alignment change-log into monthly archive
+- **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (docs)**: register Phase 3 protocol v1 alignment in handoff log
