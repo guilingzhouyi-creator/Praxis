@@ -517,6 +517,9 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   Its constrained variants run the same explicit Agent policy and GateChain
   checks before bridge spawn, with denied requests leaving both the table and
   host-child books untouched.
+  `new_with_audit` injects the shared bounded `AuditLog`; gate/constraint,
+  bridge, spawn, group-create, and stop outcomes are recorded without argv,
+  environment, or host PID data.
 - `ProcessGroupSignalPort` is the explicit host adapter seam for actual
   process-group or PTY stop operations. `request_stop_with_signal` supplies a
   generation-tagged termination plan and fail-closes unless the returned

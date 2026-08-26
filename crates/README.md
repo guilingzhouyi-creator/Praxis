@@ -339,6 +339,13 @@ GateChain request run before ProcessTableBridge spawn. Rejected requests do
 not create a table row or host child; accepted requests retain the same joint
 bridge/group reap invariant.
 
+Process-group admission evidence is recorded through an injected `AuditLog`.
+`new_with_audit` lets a host share a bounded in-memory or journal-backed audit
+trail with the other L1 authorities; the default constructor remains self-
+contained. Gate mismatch, GateChain denial, constraint failure, bridge failure,
+successful spawn, group creation, and stop requests record only bounded group,
+handle, count, and decision metadata, never argv or environment values.
+
 `ProcessGroupSignalPort` is the host-owned signal seam. Its
 `request_stop_with_signal` adapter call receives a stable generation-tagged
 termination plan and must return matching attempted/delivered counts. Rust

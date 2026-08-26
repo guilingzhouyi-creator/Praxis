@@ -334,6 +334,13 @@ applies the existing hard process policy before invoking `ProcessTableBridge`.
 Gate or constraint denial therefore records only gate evidence and creates no
 ProcessTable row or host child; authorized work follows the joint reap path.
 
+The follow-on audit wiring accepts a caller-owned `AuditLog` through
+`ProcessTableGroupRuntime::new_with_audit`. Group creation, gate and constraint
+decisions, bridge failures, successful admissions, and stop requests share one
+bounded evidence path. Details contain only stable group/handle/count metadata;
+argv, environment values, host PIDs, journal durability, and retention policy
+remain outside the kernel candidate.
+
 The shutdown-preparation follow-on adds `ProcessGroupRuntime::drain_once`.
 It requests stop for all active groups, performs one bounded caller-supplied
 sweep, and returns deterministic reaper counters plus remaining group/member

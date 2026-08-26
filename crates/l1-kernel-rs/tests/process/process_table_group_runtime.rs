@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use l1_kernel_rs::audit::AuditLog;
 use l1_kernel_rs::gatechain::{GateIdentity, GateRequest};
 use l1_kernel_rs::process::{ProcessState, ProcessTable, ProcessTableConfig};
 use l1_kernel_rs::process_adapter::ProcessAdapterConfig;
@@ -46,6 +47,23 @@ fn runtime(table: Arc<ProcessTable>, max_members: usize) -> ProcessTableGroupRun
         4,
         Duration::from_millis(250),
         table,
+    )
+    .expect("runtime")
+}
+
+fn runtime_with_audit(
+    table: Arc<ProcessTable>,
+    max_members: usize,
+    audit: Arc<AuditLog>,
+) -> ProcessTableGroupRuntime {
+    ProcessTableGroupRuntime::new_with_audit(
+        ProcessAdapterConfig::new(256).expect("config"),
+        4,
+        max_members,
+        4,
+        Duration::from_millis(250),
+        table,
+        audit,
     )
     .expect("runtime")
 }
@@ -188,7 +206,8 @@ fn bridge_snapshot_supplies_host_mapping_without_exposing_child_objects() {
 #[test]
 fn host_signal_report_is_validated_before_table_reap() {
     let table = table();
-    let runtime = runtime(Arc::clone(&table), 1);
+    let audit = Arc::new(AuditLog::with_capacity(16));
+    let runtime = runtime_with_audit(Arc::clone(&table), 1, Arc::clone(&audit));
     let group = runtime.create_group("signal", None).expect("group");
     let handle = runtime
         .spawn_args(group, &shell_args("exit 0"), None)
@@ -201,6 +220,12 @@ fn host_signal_report_is_validated_before_table_reap() {
     assert_eq!(
         *port.targets.lock().expect("targets lock"),
         vec![handle.raw()]
+    );
+    assert!(
+        audit
+            .query(16, None)
+            .iter()
+            .any(|row| row.op == "process.group.signal" && row.success)
     );
     drain(&runtime, group);
     assert!(table.get_by_handle(handle).is_none());
@@ -278,4 +303,66 @@ fn gated_process_table_path_joins_and_reaps_after_authorization() {
     drain(&runtime, group);
     assert!(table.get_by_handle(handle).is_none());
     assert_eq!(gatechain.ledger().len(), 1);
+}
+
+#[test]
+fn process_table_group_admission_records_bounded_audit_evidence() {
+    let table = table();
+    let audit = Arc::new(AuditLog::with_capacity(16));
+    let runtime = runtime_with_audit(Arc::clone(&table), 1, Arc::clone(&audit));
+    let group = runtime.create_group("audited", None).expect("group");
+    let gatechain = l1_kernel_rs::gatechain::GateChain::new();
+    let spec = direct_spec();
+    let gate = process_gate();
+
+    let error = runtime
+        .spawn_gated_constrained(
+            group,
+            GatedProcessAdmission {
+                gatechain: &gatechain,
+                gate: &gate,
+                spec: &spec,
+                policy: direct_policy(spec.executable().expect("executable")),
+                terminal: None,
+                options: None,
+            },
+        )
+        .expect_err("unregistered capability must block");
+    assert!(matches!(
+        error,
+        ProcessTableGroupRuntimeError::GateBlocked(_)
+    ));
+
+    gatechain.register_tools([PROCESS_SPAWN_CAPABILITY]);
+    let mut denied_policy = direct_policy("/definitely/not-the-child");
+    denied_policy.allowed_executables =
+        Some(BTreeSet::from(["/definitely/not-the-child".to_owned()]));
+    let error = runtime
+        .spawn_gated_constrained(
+            group,
+            GatedProcessAdmission {
+                gatechain: &gatechain,
+                gate: &gate,
+                spec: &spec,
+                policy: denied_policy,
+                terminal: None,
+                options: None,
+            },
+        )
+        .expect_err("constraint mismatch must block");
+    assert!(matches!(
+        error,
+        ProcessTableGroupRuntimeError::Constraints(_)
+    ));
+    assert_eq!(runtime.bridge().active_count(), 0);
+
+    let rows = audit.query(16, Some("agent-1"));
+    assert!(rows.iter().any(|row| {
+        row.op == "process.group.spawn.gate" && !row.success && row.error.contains("decision")
+    }));
+    assert!(
+        rows.iter()
+            .any(|row| { row.op == "process.group.spawn.constrained" && !row.success })
+    );
+    assert!(rows.iter().all(|row| !row.detail.contains("printf gated")));
 }

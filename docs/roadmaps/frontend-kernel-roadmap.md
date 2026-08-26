@@ -798,6 +798,12 @@ Agent identity correlation 与既有硬约束 evaluator；Gate/constraint 拒绝
 bridge spawn 前 fail-closed，ledger 保留准入证据，授权请求继续走 ProcessTable
 与 group joint reap。独立 process 测试覆盖空白名单阻断、授权执行和双表收敛。
 
+随后将统一审计旁路接入该执行路径：`new_with_audit` 接收调用方共享的有界
+`AuditLog`，记录 group create、GateChain/constraint、bridge、spawn 与 stop 的
+成功/拒绝结果。审计 detail 只保留稳定的 group/handle/count/decision 元数据，
+不记录 argv、环境值或宿主 PID；EventStore 持久化、保留策略与 production
+shutdown 仍由宿主配置。
+
 The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
 indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
 `snapshot_page(after, limit)` keeps at most `limit + 1` record handles in a
@@ -944,6 +950,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T3b | `HostProcessGroupSignalPort`：显式 handle→host target 解析与整批 stop sender | ✅ 候选完成 | 真实平台 signal/PTY、权限失败证据与生产 shutdown wiring 仍待完成 |
 | T3c | `ProcessTableGroupRuntime`：ProcessTableBridge 与 ProcessGroupBook 统一子进程身份和 joint reap | ✅ 候选完成 | GateChain/审计统一 wiring、真实 PTY/signal 与生产 shutdown 仍待完成 |
 | T3d | `ProcessTableGroupRuntime::spawn_gated_constrained`：GateChain + 约束准入接入统一身份路径 | ✅ 候选完成 | 审计旁路与真实平台执行仍待完成 |
+| T3e | `ProcessTableGroupRuntime::new_with_audit`：准入/桥接/stop 共享有界审计旁路 | ✅ 候选完成 | 真实 EventStore wiring、PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
 | T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |

@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::audit::AuditLog;
 use crate::contract::{ProcessOptions, ProcessResult};
 use crate::gatechain::GateDecision;
 use crate::process::{ProcessTable, ProcessTableConfig};
@@ -86,12 +87,19 @@ impl From<ProcessBridgeError> for ProcessTableGroupRuntimeError {
     }
 }
 
+impl From<ProcessConstraintError> for ProcessTableGroupRuntimeError {
+    fn from(error: ProcessConstraintError) -> Self {
+        Self::Constraints(error)
+    }
+}
+
 /// Process-group coordinator whose child identity is owned by ProcessTable.
 pub struct ProcessTableGroupRuntime {
     groups: Arc<ProcessGroupBook>,
     reaper: ProcessReaper,
     bridge: ProcessTableBridge,
     termination_timeout: Duration,
+    audit: Arc<AuditLog>,
 }
 
 impl ProcessTableGroupRuntime {
@@ -104,6 +112,27 @@ impl ProcessTableGroupRuntime {
         termination_timeout: Duration,
         table: Arc<ProcessTable>,
     ) -> Result<Self, ProcessTableGroupRuntimeError> {
+        Self::new_with_audit(
+            process_config,
+            max_groups,
+            max_members,
+            max_processes,
+            termination_timeout,
+            table,
+            Arc::new(AuditLog::new()),
+        )
+    }
+
+    /// Construct a bounded runtime with a caller-owned audit trail.
+    pub fn new_with_audit(
+        process_config: ProcessAdapterConfig,
+        max_groups: usize,
+        max_members: usize,
+        max_processes: u32,
+        termination_timeout: Duration,
+        table: Arc<ProcessTable>,
+        audit: Arc<AuditLog>,
+    ) -> Result<Self, ProcessTableGroupRuntimeError> {
         let groups = Arc::new(ProcessGroupBook::new(max_groups, max_members)?);
         let bridge = ProcessTableBridge::new(process_config, max_processes, table)
             .map_err(|error| ProcessTableGroupRuntimeError::Bridge(error.into()))?;
@@ -113,6 +142,7 @@ impl ProcessTableGroupRuntime {
             reaper,
             bridge,
             termination_timeout,
+            audit,
         })
     }
 
@@ -151,7 +181,29 @@ impl ProcessTableGroupRuntime {
         name: impl Into<String>,
         member_limit: Option<usize>,
     ) -> Result<ProcessGroupId, ProcessTableGroupRuntimeError> {
-        Ok(self.groups.create(name, None, member_limit)?)
+        let name = name.into();
+        let result = self.groups.create(name.clone(), None, member_limit);
+        match &result {
+            Ok(group) => self.audit.record_fields(
+                "process.group.create",
+                "system",
+                true,
+                "",
+                format!(
+                    "group={} member_limit={}",
+                    group.raw(),
+                    member_limit.unwrap_or(0)
+                ),
+            ),
+            Err(_error) => self.audit.record_fields(
+                "process.group.create",
+                "system",
+                false,
+                "group creation rejected",
+                format!("member_limit={}", member_limit.unwrap_or(0)),
+            ),
+        }
+        Ok(result?)
     }
 
     /// Spawn direct arguments and admit the ProcessTable handle to a group.
@@ -161,13 +213,69 @@ impl ProcessTableGroupRuntime {
         args: &[String],
         options: Option<&ProcessOptions>,
     ) -> Result<ProcessHandle, ProcessTableGroupRuntimeError> {
-        self.ensure_active(group)?;
-        let handle = self.bridge.spawn_args(args, options)?;
-        if let Err(error) = self.groups.join(group, handle) {
-            self.bridge.terminate(handle, self.termination_timeout)?;
-            self.bridge.reap(handle)?;
-            return Err(ProcessTableGroupRuntimeError::Group(error));
+        self.spawn_args_for_agent(group, args, options, "system")
+    }
+
+    fn spawn_args_for_agent(
+        &self,
+        group: ProcessGroupId,
+        args: &[String],
+        options: Option<&ProcessOptions>,
+        agent_id: &str,
+    ) -> Result<ProcessHandle, ProcessTableGroupRuntimeError> {
+        if let Err(error) = self.ensure_active(group) {
+            self.audit.record_fields(
+                "process.group.spawn",
+                agent_id,
+                false,
+                "group is not active",
+                format!("group={} argc={}", group.raw(), args.len()),
+            );
+            return Err(error);
         }
+        let handle = match self.bridge.spawn_args(args, options) {
+            Ok(handle) => handle,
+            Err(error) => {
+                self.audit.record_fields(
+                    "process.group.spawn",
+                    agent_id,
+                    false,
+                    "bridge spawn failed",
+                    format!("group={} argc={}", group.raw(), args.len()),
+                );
+                return Err(error.into());
+            }
+        };
+        if let Err(error) = self.groups.join(group, handle) {
+            let cleanup = self
+                .bridge
+                .terminate(handle, self.termination_timeout)
+                .and_then(|_| self.bridge.reap(handle));
+            let runtime_error = match cleanup {
+                Ok(_) => ProcessTableGroupRuntimeError::Group(error),
+                Err(cleanup_error) => cleanup_error.into(),
+            };
+            self.audit.record_fields(
+                "process.group.spawn",
+                agent_id,
+                false,
+                "group membership or cleanup failed",
+                format!("group={} argc={}", group.raw(), args.len()),
+            );
+            return Err(runtime_error);
+        }
+        self.audit.record_fields(
+            "process.group.spawn",
+            agent_id,
+            true,
+            "",
+            format!(
+                "group={} handle={} argc={}",
+                group.raw(),
+                handle.raw(),
+                args.len()
+            ),
+        );
         Ok(handle)
     }
 
@@ -180,12 +288,44 @@ impl ProcessTableGroupRuntime {
         terminal: Option<&crate::terminal_probe::TerminalObservation>,
         options: Option<&ProcessOptions>,
     ) -> Result<ProcessHandle, ProcessTableGroupRuntimeError> {
-        self.ensure_active(group)?;
+        if let Err(error) = self.ensure_active(group) {
+            self.audit.record_fields(
+                "process.group.spawn.constrained",
+                &spec.agent_id,
+                false,
+                "group is not active",
+                format!("group={}", group.raw()),
+            );
+            return Err(error);
+        }
         let evaluator = ProcessConstraintEvaluator::new(policy)
-            .map_err(ProcessTableGroupRuntimeError::Constraints)?;
-        let admission = evaluator
-            .admit(spec, terminal)
-            .map_err(ProcessTableGroupRuntimeError::Constraints)?;
+            .map_err(ProcessTableGroupRuntimeError::Constraints);
+        let evaluator = match evaluator {
+            Ok(evaluator) => evaluator,
+            Err(error) => {
+                self.audit.record_fields(
+                    "process.group.spawn.constrained",
+                    &spec.agent_id,
+                    false,
+                    "constraint policy rejected",
+                    format!("group={}", group.raw()),
+                );
+                return Err(error);
+            }
+        };
+        let admission = match evaluator.admit(spec, terminal) {
+            Ok(admission) => admission,
+            Err(error) => {
+                self.audit.record_fields(
+                    "process.group.spawn.constrained",
+                    &spec.agent_id,
+                    false,
+                    "constraint admission rejected",
+                    format!("group={}", group.raw()),
+                );
+                return Err(error.into());
+            }
+        };
         let mut option_violations = Vec::new();
         let expected_executable = admission.argv.first().cloned().unwrap_or_default();
         let actual_executable = options.and_then(|value| value.executable.clone());
@@ -230,11 +370,19 @@ impl ProcessTableGroupRuntime {
             });
         }
         if !option_violations.is_empty() {
-            return Err(ProcessTableGroupRuntimeError::Constraints(
+            let error = ProcessTableGroupRuntimeError::Constraints(
                 ProcessConstraintError::Violations(option_violations),
-            ));
+            );
+            self.audit.record_fields(
+                "process.group.spawn.constrained",
+                &spec.agent_id,
+                false,
+                "adapter options mismatch",
+                format!("group={}", group.raw()),
+            );
+            return Err(error);
         }
-        self.spawn_args(group, &admission.argv, options)
+        self.spawn_args_for_agent(group, &admission.argv, options, &spec.agent_id)
     }
 
     /// Evaluate the capability gate and hard constraints before spawning.
@@ -246,16 +394,43 @@ impl ProcessTableGroupRuntime {
         if request.gate.tool != PROCESS_SPAWN_CAPABILITY
             || request.gate.agent_id != request.spec.agent_id
         {
+            self.audit.record_fields(
+                "process.group.spawn.gate",
+                &request.gate.agent_id,
+                false,
+                "capability or identity mismatch",
+                format!(
+                    "tool={} expected={PROCESS_SPAWN_CAPABILITY}",
+                    request.gate.tool
+                ),
+            );
             return Err(ProcessTableGroupRuntimeError::GateBlocked(
                 GateDecision::Block,
             ));
         }
         let decision = request.gatechain.check(request.gate);
         if !decision.allowed {
+            self.audit.record_fields(
+                "process.group.spawn.gate",
+                &request.gate.agent_id,
+                false,
+                format!("gate decision {}", decision.decision.as_str()),
+                format!("tool={PROCESS_SPAWN_CAPABILITY}"),
+            );
             return Err(ProcessTableGroupRuntimeError::GateBlocked(
                 decision.decision,
             ));
         }
+        self.audit.record_fields(
+            "process.group.spawn.gate",
+            &request.gate.agent_id,
+            true,
+            "",
+            format!(
+                "tool={PROCESS_SPAWN_CAPABILITY} decision={}",
+                decision.decision.as_str()
+            ),
+        );
         self.spawn_constrained(
             group,
             request.spec,
@@ -271,7 +446,29 @@ impl ProcessTableGroupRuntime {
         group: ProcessGroupId,
         reason: impl Into<String>,
     ) -> Result<ProcessGroupTerminationPlan, ProcessTableGroupRuntimeError> {
-        Ok(self.reaper.request_stop(group, reason)?)
+        let result = self.reaper.request_stop(group, reason);
+        match &result {
+            Ok(plan) => self.audit.record_fields(
+                "process.group.stop",
+                "system",
+                true,
+                "",
+                format!(
+                    "group={} generation={} members={}",
+                    plan.group_id,
+                    plan.generation,
+                    plan.handles.len()
+                ),
+            ),
+            Err(_error) => self.audit.record_fields(
+                "process.group.stop",
+                "system",
+                false,
+                "stop request rejected",
+                format!("group={}", group.raw()),
+            ),
+        }
+        Ok(result?)
     }
 
     /// Request a stop and validate the host adapter's signal report.
@@ -282,12 +479,41 @@ impl ProcessTableGroupRuntime {
         signal_port: &P,
     ) -> Result<ProcessGroupSignalReport, ProcessTableGroupRuntimeError> {
         let plan = self.request_stop(group, reason)?;
-        let report = signal_port.send_stop(&plan).map_err(|error| {
-            ProcessTableGroupRuntimeError::Signal(ProcessGroupSignalError::Adapter(error))
-        })?;
-        report
-            .validate_for(&plan)
-            .map_err(ProcessTableGroupRuntimeError::Signal)?;
+        let report = match signal_port.send_stop(&plan) {
+            Ok(report) => report,
+            Err(error) => {
+                self.audit.record_fields(
+                    "process.group.signal",
+                    "system",
+                    false,
+                    "host signal adapter rejected",
+                    format!("group={} generation={}", plan.group_id, plan.generation),
+                );
+                return Err(ProcessTableGroupRuntimeError::Signal(
+                    ProcessGroupSignalError::Adapter(error),
+                ));
+            }
+        };
+        if let Err(error) = report.validate_for(&plan) {
+            self.audit.record_fields(
+                "process.group.signal",
+                "system",
+                false,
+                "host signal report invalid",
+                format!("group={} generation={}", plan.group_id, plan.generation),
+            );
+            return Err(ProcessTableGroupRuntimeError::Signal(error));
+        }
+        self.audit.record_fields(
+            "process.group.signal",
+            "system",
+            true,
+            "",
+            format!(
+                "group={} generation={} attempted={} delivered={}",
+                report.group_id, report.generation, report.attempted, report.delivered
+            ),
+        );
         Ok(report)
     }
 
@@ -349,6 +575,11 @@ impl ProcessTableGroupRuntime {
         group: ProcessGroupId,
     ) -> Result<ProcessGroupSnapshot, ProcessTableGroupRuntimeError> {
         Ok(self.groups.snapshot(group)?)
+    }
+
+    /// Return the audit trail used for process-group admission evidence.
+    pub fn audit(&self) -> Arc<AuditLog> {
+        Arc::clone(&self.audit)
     }
 
     fn ensure_active(&self, group: ProcessGroupId) -> Result<(), ProcessTableGroupRuntimeError> {

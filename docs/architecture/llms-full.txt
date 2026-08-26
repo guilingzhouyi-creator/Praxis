@@ -1257,6 +1257,13 @@ gate or constraint rejection creates no host child and no table binding. The
 gate ledger remains the source of admission evidence; PTY discovery and
 platform signal policy remain host-owned.
 
+The runtime accepts a caller-owned `AuditLog` through `new_with_audit` and
+exposes it through `audit()`. Group creation, gate/constraint admission,
+bridge failures, successful spawn, and stop requests record bounded metadata
+for the same execution path. The audit detail excludes argv, environment
+values, and host process identifiers; journal durability and retention remain
+the host's explicit `AuditLog`/`EventStore` configuration.
+
 The group book keeps a terminal-member counter so repeated terminal
 observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
 separate mark-and-reap fast path that avoids cloning snapshots when the caller
