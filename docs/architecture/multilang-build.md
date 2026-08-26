@@ -486,6 +486,10 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   The independent `process.group.reaper` fixed-work runner and
   `rust-process-group-bench` binary keep this evidence separate from process
   spawn, queue, and session workloads; no runtime authority is promoted.
+- `ProcessGroupRuntime::drain_once` adds a one-shot caller-owned stop-all plus
+  bounded sweep report, including remaining groups and members; empty groups
+  are closed as `Stopped` during the stop request. It does not select a repeat
+  policy, spawn a reaper thread, or grant shutdown authority.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name

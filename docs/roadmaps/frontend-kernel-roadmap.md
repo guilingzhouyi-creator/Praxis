@@ -739,6 +739,14 @@ shutdown 或 R4/R5 cutover 权威；下一步仍需真实 host adapter 与可观
 吞吐、尾延迟和资源证据；它只测 caller-owned 机制回收，不改变 PTY、OS process-group signal、
 ProcessTable、AgentLoop 或 shutdown authority 的边界。
 
+随后补齐 process-group shutdown preparation：`ProcessGroupRuntime::drain_once`
+对全部 Active group 发出一次 stop 请求，再按调用方的 `ReaperBudget` 和 timeout
+执行单次 bounded sweep，报告 groups requested/already draining、reaper 计数和
+remaining group/member ownership。空组在 stop 请求时直接进入 `Stopped`，不会因没有
+member 而永久停在 `Draining`。该 API 不循环、不启动后台 reaper、不选默认 timeout，
+重复策略与生产 shutdown authority 仍由宿主适配器持有；PTY、OS process-group signal、
+AgentLoop 和 R4/R5 cutover 继续是开放硬门。
+
 The Rust read-boundary slice adds `snapshot::BookSnapshotPage` to the
 indexed `SessionBook`, `AgentLoopBook`, and `TerminalBook` registries.
 `snapshot_page(after, limit)` keeps at most `limit + 1` record handles in a

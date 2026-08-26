@@ -299,6 +299,14 @@ not-found execution. This remains an adapter seam, not production process
 supervision: PTY, OS process-group signaling, ProcessTable registration,
 AgentLoop execution, background reaping, and R4/R5 cutover remain open.
 
+The shutdown-preparation follow-on adds `ProcessGroupRuntime::drain_once`.
+It requests stop for all active groups, performs one bounded caller-supplied
+sweep, and returns deterministic reaper counters plus remaining group/member
+ownership. Empty groups enter `Stopped` when the stop request is accepted,
+preventing a zero-member group from staying in `Draining` forever. The API does
+not loop, start a background thread, choose a timeout, or claim production
+shutdown authority; hosts repeat it under their own lifecycle policy.
+
 `scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output

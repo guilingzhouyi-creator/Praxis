@@ -373,6 +373,9 @@ impl ProcessGroupBook {
                         member.state = GroupMemberState::Stopping;
                     }
                 }
+                if group.members.is_empty() {
+                    group.state = ProcessGroupState::Stopped;
+                }
             }
             ProcessGroupState::Draining => {}
             ProcessGroupState::Stopped | ProcessGroupState::Failed => {

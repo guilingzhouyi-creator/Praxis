@@ -1040,6 +1040,16 @@ forcing multi-sweep bounded progress separately from process spawn, queue, and
 session benchmarks; the candidate remains mechanism-only and does not grant
 runtime or shutdown authority.
 
+`ProcessGroupRuntime::drain_once` now supplies the corresponding one-shot
+coordination boundary: it requests stop for every active group, performs one
+caller-supplied bounded sweep, and reports requested/already-draining groups,
+reaper counters, and remaining ownership. Empty groups transition directly to
+`Stopped`, so a caller cannot leave an unobservable Draining group behind.
+The method does not loop, sleep, start a background reaper, or choose a timeout;
+the host owns repeat policy and production shutdown authority. This closes a
+bounded shutdown-preparation seam only; PTY/process-group signals, terminal
+rebind, and R4/R5 cutover remain open.
+
 ### Engineering-debug boundary
 
 The marker-gated engineering mode is an L3 policy owned by

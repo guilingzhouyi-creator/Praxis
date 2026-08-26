@@ -122,6 +122,15 @@ fn termination_plan_is_stable_and_blocks_new_members() {
 }
 
 #[test]
+fn empty_group_stop_reaches_stopped_without_a_member_sweep() {
+    let groups = book();
+    let group = groups.create("empty", None, None).expect("create");
+    let plan = groups.begin_termination(group, "empty stop").expect("stop");
+    assert!(plan.handles.is_empty());
+    assert_eq!(groups.state(group), Ok(ProcessGroupState::Stopped));
+}
+
+#[test]
 fn stale_and_duplicate_terminal_observations_fail_closed() {
     let groups = book();
     let process = handle(12, 4);

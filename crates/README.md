@@ -301,6 +301,13 @@ recovery without caller acknowledgement fail closed. This is an R4 entry
 coordination candidate and smoke harness only; it does not select a production
 default, execute Python/PTY/provider/AgentLoop work, or close the R5 cutover.
 
+`ProcessGroupRuntime::drain_once` is the bounded process-supervision handoff:
+it requests termination for active groups, runs exactly one caller-budgeted
+reaper sweep, and returns remaining group/member counts. Empty groups become
+`Stopped` immediately. The caller controls repeat policy and timeout; the
+candidate starts no background reaper and does not own PTY or OS process-group
+signals.
+
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
 applies optional-field defaults, strips unknown record fields, and supplies

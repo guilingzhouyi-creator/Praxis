@@ -282,3 +282,48 @@ fn gated_constraint_admission_rejects_capability_or_identity_mismatch() {
     assert_eq!(runtime.processes().active_count(), 0);
     assert!(gatechain.ledger().is_empty());
 }
+
+#[test]
+fn drain_once_requests_all_groups_and_respects_sweep_budget() {
+    let runtime = runtime(2);
+    let first = runtime
+        .create_group("drain-first", None)
+        .expect("first group");
+    let second = runtime
+        .create_group("drain-second", None)
+        .expect("second group");
+    runtime
+        .spawn_args(first, &shell_args("sleep 0.02"), None)
+        .expect("first child");
+    runtime
+        .spawn_args(second, &shell_args("sleep 0.02"), None)
+        .expect("second child");
+
+    let first_report = runtime
+        .drain_once(
+            "bounded shutdown",
+            ReaperBudget::new(1, 1).expect("budget"),
+            Duration::ZERO,
+        )
+        .expect("drain");
+    assert_eq!(first_report.groups_requested, 2);
+    assert!(first_report.members_inspected <= 1);
+    assert!(!first_report.complete);
+
+    let mut report = first_report;
+    for _ in 0..200 {
+        if report.complete {
+            break;
+        }
+        thread::sleep(Duration::from_millis(1));
+        report = runtime
+            .drain_once(
+                "bounded shutdown",
+                ReaperBudget::new(2, 2).expect("budget"),
+                Duration::from_millis(250),
+            )
+            .expect("drain");
+    }
+    assert!(report.complete, "groups did not drain: {report:?}");
+    assert_eq!(runtime.processes().active_count(), 0);
+}
