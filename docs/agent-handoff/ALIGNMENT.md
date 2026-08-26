@@ -24,15 +24,7 @@
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
 
-| 2026-08-22 | config/discovery/commits.yaml | OpenCode (l3-normalize) | registered `services` scope + scope_dirs entry (46-file dir had none; exposed by slice B1) | reconciled retro-registry |
-| 2026-08-22 | scripts/sh/verify-completion.sh + judge-stats.sh + verify-local-merge.sh | AtomCode | judge test-skip visibility (skipped_tests record + dashboard + merge notice) | in judge-tests-gate (this commit) |
-| 2026-08-22 | .githooks/commit-msg + Makefile + .githooks/commit-template.txt + .github/workflows/commit-lint.yml | OpenCode | strict commit-msg: enforce executable, absolute hooksPath, bypass audit, worktree CI gate | in hooks-strict (this commit) |
-| 2026-08-22 | scripts/sh/ensure-hooks.sh + scripts/py/commit_strict.py + tests/infra/*hook* | OpenCode | worktree inheritance enforcer and strict hook tests | in hooks-strict (this commit) |
-| 2026-08-22 | .githooks/commit-msg + scripts/sh/* + scripts/js/validate-commit.mjs + scripts/py/gen_commits_json.py + config/discovery/commits.json | AtomCode | test-suite hardening (must_include regression + judge/rotate tests) + set -euo + Node validator restore + commits.json regen | in opt-hardening (this commit) |
-| 2026-08-22 | config/discovery/commits.yaml + commits.json + scripts/py/commit_scan.py + gen_commits_json.py + scripts/js/validate-commit.mjs + scripts/sh/* | AtomCode | single-source type-content rules + set-flag cleanup | in opt-hardening (this commit) |
-| 2026-08-23 | scripts/py/audit_merge_hunks.py + tests/infra/test_merge_hunks.py + AGENTS.md + docs/workflow/* | GPT (root-kernel-next) | fail closed on sensitive-file deletions and multi-hunk full replacements; record incident regression | in feature/root-kernel-next |
-| 2026-08-23 | crates/l1-kernel-rs/src/process_group.rs + crates/l1-kernel-rs/tests/process_group.rs + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | bounded reaper plan selection copies at most max_members handles per sweep; independent regression covers multi-group budget accounting | in feature/root-kernel-next |
-| 2026-08-23 | crates/l1-kernel-rs/src/benchmark_runner.rs + crates/l1-kernel-rs/tests/benchmark_runner.rs + docs/architecture/l1-kernel.md + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | process.group.reaper benchmark now forces 64-member multi-sweep progress so the bounded-selection optimization is measured | in feature/root-kernel-next |
+
 | 2026-08-23 | crates/l1-kernel-rs/src/process_group.rs + benchmark_runner.rs + src/bin/rust-process-group-bench.rs + crates/l1-kernel-rs/tests/* + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | terminal-member counter, snapshot-free reaper fast path, isolated process.group.reaper v3 evidence | in feature/root-kernel-next |
 | 2026-08-23 | docs/workflow/commits.md + tests/infra/test_config_consistency.py | GPT (root-kernel-next) | remove stale absent-generator claim and lock the checked-in JSON mirror contract | in feature/root-kernel-next |
 | 2026-08-24 | scripts/sh/judge-stats.sh + docs/judge-stats.md | AtomCode | judge no-op filter: checks-all-zero runs excluded from runs/rate (dashboard no longer inflated by fully-skipped invocations) | in judge-stats-nop-filter (this commit) |
@@ -63,7 +55,6 @@
 | 2026-08-25 | crates/l1-kernel-rs/tests/** + crates/l1-kernel-rs/Cargo.toml + tests/infra/test_rust_test_domain.py + Makefile + docs/architecture/* + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md + tests/fixtures/protocol_v1_conformance.json | GPT (root-l1-runtime-perf) | normalize 88 Rust integration targets into 11 explicit test domains, preserve historical Cargo target names, add bounded domain runner and root-level test regression gate | in feature/root-l1-runtime-perf |
 | 2026-08-25 | crates/l1-kernel-rs/src/input_activity.rs + crates/l1-kernel-rs/tests/terminal/input_activity.rs + crates/l1-kernel-rs/Cargo.toml + packages/protocol-ts/src/input-activity.ts + packages/protocol-ts/tests/input-activity.test.ts + tests/fixtures/kernel_input_activity_vectors.json + docs/architecture/{l1-kernel,multilang-build,llms-full}.txt + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + crates/README.md | GPT (root-l1-runtime-perf) | freeze T4a aggregate input-activity value contract with Rust/TS shared vectors; keep hardware adapters, raw input, permission UX, and runtime authority host-owned | in feature/root-l1-runtime-perf |
 | 2026-08-26 | config/discovery/commits.yaml + config/discovery/commits.json + docs/agent-handoff/ALIGNMENT.md | Codex (GPT5.6Terra) | register the user-pinned Codex author identity and model for verified commit attribution | in feature/root-l1-runtime-perf |
-
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an
