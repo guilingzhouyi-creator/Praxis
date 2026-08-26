@@ -328,6 +328,12 @@ group member is released. Capacity rollback uses the same joint cleanup. This
 is still a caller-owned candidate and does not add PTY, signal, or background
 reaper authority.
 
+The same `ProcessTableGroupRuntime` now accepts `GatedProcessAdmission`: it
+checks the `process.spawn` capability and correlated Agent identity, then
+applies the existing hard process policy before invoking `ProcessTableBridge`.
+Gate or constraint denial therefore records only gate evidence and creates no
+ProcessTable row or host child; authorized work follows the joint reap path.
+
 The shutdown-preparation follow-on adds `ProcessGroupRuntime::drain_once`.
 It requests stop for all active groups, performs one bounded caller-supplied
 sweep, and returns deterministic reaper counters plus remaining group/member

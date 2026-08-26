@@ -333,6 +333,12 @@ group member, and failed membership admission removes the ProcessTable row;
 `bridge()` exposes only bounded metadata for host adapters. See
 `tests/process/process_table_group_runtime.rs`.
 
+The same runtime provides `spawn_constrained` and
+`spawn_gated_constrained`, so explicit process policy and the `process.spawn`
+GateChain request run before ProcessTableBridge spawn. Rejected requests do
+not create a table row or host child; accepted requests retain the same joint
+bridge/group reap invariant.
+
 `ProcessGroupSignalPort` is the host-owned signal seam. Its
 `request_stop_with_signal` adapter call receives a stable generation-tagged
 termination plan and must return matching attempted/delivered counts. Rust

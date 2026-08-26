@@ -6,20 +6,27 @@
 //! published to the group only after the bridge has jointly observed and
 //! reaped the child and table row.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{ProcessOptions, ProcessResult};
+use crate::gatechain::GateDecision;
 use crate::process::{ProcessTable, ProcessTableConfig};
 use crate::process_adapter::ProcessAdapterConfig;
 use crate::process_bridge::{ProcessBridgeError, ProcessTableBridge};
+use crate::process_constraints::{
+    AgentProcessPolicy, AgentProcessSpec, ProcessConstraintError, ProcessConstraintEvaluator,
+    ProcessConstraintViolation,
+};
 use crate::process_group::{
     MemberTerminal, ProcessGroupBook, ProcessGroupError, ProcessGroupId, ProcessGroupSignalError,
     ProcessGroupSignalPort, ProcessGroupSignalReport, ProcessGroupSnapshot, ProcessGroupState,
     ProcessGroupTerminationPlan, ProcessReaper, ReaperBudget, ReaperObservation, ReaperReport,
 };
+use crate::process_group_runtime::{GatedProcessAdmission, PROCESS_SPAWN_CAPABILITY};
 use crate::substrate::ProcessHandle;
 
 /// Version of the ProcessTable-authoritative group runtime contract.
@@ -59,6 +66,10 @@ pub enum ProcessTableGroupRuntimeError {
     Group(ProcessGroupError),
     /// The ProcessTable bridge rejected a host-child or table operation.
     Bridge(ProcessBridgeError),
+    /// The explicit process constraint evaluator rejected admission.
+    Constraints(ProcessConstraintError),
+    /// The capability or identity gate denied admission.
+    GateBlocked(GateDecision),
     /// The host signal adapter rejected or misreported a stop plan.
     Signal(ProcessGroupSignalError),
 }
@@ -158,6 +169,100 @@ impl ProcessTableGroupRuntime {
             return Err(ProcessTableGroupRuntimeError::Group(error));
         }
         Ok(handle)
+    }
+
+    /// Evaluate hard process constraints before admitting a child to a group.
+    pub fn spawn_constrained(
+        &self,
+        group: ProcessGroupId,
+        spec: &AgentProcessSpec,
+        policy: AgentProcessPolicy,
+        terminal: Option<&crate::terminal_probe::TerminalObservation>,
+        options: Option<&ProcessOptions>,
+    ) -> Result<ProcessHandle, ProcessTableGroupRuntimeError> {
+        self.ensure_active(group)?;
+        let evaluator = ProcessConstraintEvaluator::new(policy)
+            .map_err(ProcessTableGroupRuntimeError::Constraints)?;
+        let admission = evaluator
+            .admit(spec, terminal)
+            .map_err(ProcessTableGroupRuntimeError::Constraints)?;
+        let mut option_violations = Vec::new();
+        let expected_executable = admission.argv.first().cloned().unwrap_or_default();
+        let actual_executable = options.and_then(|value| value.executable.clone());
+        if actual_executable
+            .as_deref()
+            .is_some_and(|value| value != expected_executable)
+        {
+            option_violations.push(ProcessConstraintViolation::AdapterExecutableMismatch {
+                expected: expected_executable,
+                actual: actual_executable,
+            });
+        }
+        let actual_cwd = options.and_then(|value| value.cwd.clone());
+        if actual_cwd != spec.cwd {
+            option_violations.push(
+                ProcessConstraintViolation::AdapterWorkingDirectoryMismatch {
+                    expected: spec.cwd.clone(),
+                    actual: actual_cwd,
+                },
+            );
+        }
+        let expected_keys = spec
+            .environment_keys
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let actual_keys = options
+            .and_then(|value| value.env.as_ref())
+            .map(|env| env.keys().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        let environment_mismatch = if spec.replaces_environment {
+            options.is_none_or(|value| value.env.is_none()) || actual_keys != expected_keys
+        } else {
+            options.is_some_and(|value| value.env.is_some())
+        };
+        if environment_mismatch {
+            option_violations.push(ProcessConstraintViolation::AdapterEnvironmentMismatch {
+                expected: expected_keys,
+                actual: actual_keys,
+            });
+        }
+        if !option_violations.is_empty() {
+            return Err(ProcessTableGroupRuntimeError::Constraints(
+                ProcessConstraintError::Violations(option_violations),
+            ));
+        }
+        self.spawn_args(group, &admission.argv, options)
+    }
+
+    /// Evaluate the capability gate and hard constraints before spawning.
+    pub fn spawn_gated_constrained(
+        &self,
+        group: ProcessGroupId,
+        request: GatedProcessAdmission<'_>,
+    ) -> Result<ProcessHandle, ProcessTableGroupRuntimeError> {
+        if request.gate.tool != PROCESS_SPAWN_CAPABILITY
+            || request.gate.agent_id != request.spec.agent_id
+        {
+            return Err(ProcessTableGroupRuntimeError::GateBlocked(
+                GateDecision::Block,
+            ));
+        }
+        let decision = request.gatechain.check(request.gate);
+        if !decision.allowed {
+            return Err(ProcessTableGroupRuntimeError::GateBlocked(
+                decision.decision,
+            ));
+        }
+        self.spawn_constrained(
+            group,
+            request.spec,
+            request.policy,
+            request.terminal,
+            request.options,
+        )
     }
 
     /// Request a deterministic stop without touching host processes.

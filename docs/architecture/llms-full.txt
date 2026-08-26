@@ -1250,6 +1250,13 @@ group admission also reaps the ProcessTable row. The candidate exposes the
 bridge snapshot for host target resolution without leaking `Child` or pipe
 objects, and remains caller-driven rather than a production supervisor.
 
+The ProcessTable-authoritative path also exposes `spawn_constrained` and
+`spawn_gated_constrained`. It reuses the explicit Agent process policy and
+G1-G5 capability request before calling the bridge, preserving the rule that
+gate or constraint rejection creates no host child and no table binding. The
+gate ledger remains the source of admission evidence; PTY discovery and
+platform signal policy remain host-owned.
+
 The group book keeps a terminal-member counter so repeated terminal
 observations do not rescan the whole member map. `ProcessReaper::sweep` uses a
 separate mark-and-reap fast path that avoids cloning snapshots when the caller

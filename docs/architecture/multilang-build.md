@@ -514,6 +514,9 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   for host target resolution; terminal sweeps jointly reap the bridge binding
   and group member, and admission rollback removes the table row. Its
   independent target is `tests/process/process_table_group_runtime.rs`.
+  Its constrained variants run the same explicit Agent policy and GateChain
+  checks before bridge spawn, with denied requests leaving both the table and
+  host-child books untouched.
 - `ProcessGroupSignalPort` is the explicit host adapter seam for actual
   process-group or PTY stop operations. `request_stop_with_signal` supplies a
   generation-tagged termination plan and fail-closes unless the returned

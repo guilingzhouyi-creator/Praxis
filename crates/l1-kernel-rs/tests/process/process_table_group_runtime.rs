@@ -1,15 +1,21 @@
 //! Independent tests for ProcessTable-authoritative process groups.
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use l1_kernel_rs::gatechain::{GateIdentity, GateRequest};
 use l1_kernel_rs::process::{ProcessState, ProcessTable, ProcessTableConfig};
 use l1_kernel_rs::process_adapter::ProcessAdapterConfig;
+use l1_kernel_rs::process_constraints::{
+    AgentProcessMode, AgentProcessPolicy, AgentProcessSpec, AgentResourceRequest,
+};
 use l1_kernel_rs::process_group::{
     PROCESS_GROUP_SIGNAL_CONTRACT_VERSION, ProcessGroupSignalPort, ProcessGroupSignalReport,
     ProcessGroupState, ReaperBudget,
 };
+use l1_kernel_rs::process_group_runtime::{GatedProcessAdmission, PROCESS_SPAWN_CAPABILITY};
 use l1_kernel_rs::process_table_group_runtime::{
     PROCESS_TABLE_GROUP_RUNTIME_CONTRACT_VERSION, ProcessTableGroupRuntime,
     ProcessTableGroupRuntimeError,
@@ -42,6 +48,60 @@ fn runtime(table: Arc<ProcessTable>, max_members: usize) -> ProcessTableGroupRun
         table,
     )
     .expect("runtime")
+}
+
+fn direct_spec() -> AgentProcessSpec {
+    AgentProcessSpec {
+        process_id: "process-1".to_owned(),
+        agent_id: "agent-1".to_owned(),
+        cell_id: "cell-1".to_owned(),
+        ring: 1,
+        mode: AgentProcessMode::Direct,
+        argv: shell_args("printf gated"),
+        cwd: None,
+        environment_keys: Vec::new(),
+        replaces_environment: false,
+        process_group_id: Some("group-1".to_owned()),
+        timeout_ms: 100,
+        resources: AgentResourceRequest {
+            max_output_bytes: 256,
+            max_cpu_time_ms: None,
+            max_memory_bytes: None,
+        },
+    }
+}
+
+fn direct_policy(executable: &str) -> AgentProcessPolicy {
+    AgentProcessPolicy {
+        allowed_rings: BTreeSet::from([1]),
+        allowed_terminal_ids: None,
+        allowed_terminal_kinds: None,
+        allowed_executables: Some(BTreeSet::from([executable.to_owned()])),
+        allowed_cwd_prefixes: None,
+        allowed_environment_keys: BTreeSet::new(),
+        denied_environment_keys: BTreeSet::new(),
+        allow_environment_replacement: false,
+        max_argv_items: 8,
+        max_timeout_ms: 1_000,
+        max_output_bytes: 1_024,
+        max_cpu_time_ms: None,
+        max_memory_bytes: None,
+        allow_shell: false,
+        require_interactive_terminal: false,
+        require_pty: false,
+        require_process_group: true,
+    }
+}
+
+fn process_gate() -> GateRequest {
+    let mut gate = GateRequest::new(PROCESS_SPAWN_CAPABILITY, "agent-1");
+    gate.identity = Some(GateIdentity {
+        pid: 41,
+        ring: 1,
+        state: ProcessState::Running,
+        verified: true,
+    });
+    gate
 }
 
 fn drain(runtime: &ProcessTableGroupRuntime, group: l1_kernel_rs::process_group::ProcessGroupId) {
@@ -162,4 +222,60 @@ fn group_capacity_rollback_reaps_process_table_row() {
     runtime.request_stop(group, "cleanup").expect("stop");
     drain(&runtime, group);
     assert_eq!(table.list_processes(None).len(), 1);
+}
+
+#[test]
+fn gated_process_table_path_blocks_before_spawn_and_records_gate() {
+    let table = table();
+    let runtime = runtime(Arc::clone(&table), 1);
+    let group = runtime.create_group("gated-block", None).expect("group");
+    let gatechain = l1_kernel_rs::gatechain::GateChain::new();
+    let spec = direct_spec();
+    let error = runtime
+        .spawn_gated_constrained(
+            group,
+            GatedProcessAdmission {
+                gatechain: &gatechain,
+                gate: &process_gate(),
+                spec: &spec,
+                policy: direct_policy(spec.executable().expect("executable")),
+                terminal: None,
+                options: None,
+            },
+        )
+        .expect_err("empty whitelist must block");
+    assert!(matches!(
+        error,
+        ProcessTableGroupRuntimeError::GateBlocked(_)
+    ));
+    assert_eq!(runtime.bridge().active_count(), 0);
+    assert_eq!(table.list_processes(None).len(), 1);
+    assert_eq!(gatechain.ledger().len(), 1);
+}
+
+#[test]
+fn gated_process_table_path_joins_and_reaps_after_authorization() {
+    let table = table();
+    let runtime = runtime(Arc::clone(&table), 1);
+    let group = runtime.create_group("gated-pass", None).expect("group");
+    let gatechain = l1_kernel_rs::gatechain::GateChain::new();
+    gatechain.register_tools([PROCESS_SPAWN_CAPABILITY]);
+    let spec = direct_spec();
+    let handle = runtime
+        .spawn_gated_constrained(
+            group,
+            GatedProcessAdmission {
+                gatechain: &gatechain,
+                gate: &process_gate(),
+                spec: &spec,
+                policy: direct_policy(spec.executable().expect("executable")),
+                terminal: None,
+                options: None,
+            },
+        )
+        .expect("authorized spawn");
+    runtime.request_stop(group, "gated cleanup").expect("stop");
+    drain(&runtime, group);
+    assert!(table.get_by_handle(handle).is_none());
+    assert_eq!(gatechain.ledger().len(), 1);
 }
