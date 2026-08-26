@@ -271,6 +271,16 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   Its tests live in `tests/assembly/preflight.rs`. It does not execute boot,
   create state, rebind processes, or select a Python fallback, so it is
   evidence for R4 assembly rather than an R5 production entrypoint.
+- The Rust `entry` module is an explicit one-shot coordinator for a persistent
+  Rust runtime. `EntryRequest` carries complete assembly, JSON-safe runtime
+  limits, an operation, and an optional exact recovery decision. `inspect`
+  reports the root decision without booting; `boot_once` requires a matching
+  `RecoverUnclean` acknowledgement, boots, captures the active snapshot, then
+  performs bounded clean shutdown. `rust-kernel-entry` and
+  `make rust-kernel-entry` provide a bounded JSON stdin/stdout smoke path.
+  Invalid limits or stale/missing recovery acknowledgements fail closed. This
+  remains an R4 candidate and does not grant production, Python, PTY, provider,
+  AgentLoop, or R5 cutover authority.
 - The Rust `runtime` candidate composes that locked assembly, lifecycle FSM,
   sharded scheduler state, and bounded WorkerPool into an explicit
   boot/submit/cancel/reap/shutdown host for already-bound Rust closures.

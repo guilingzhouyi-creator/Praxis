@@ -377,6 +377,19 @@ not probe the filesystem, create state, execute boot callbacks, start workers,
 rebind processes, or select a Python fallback. This is operator and automation
 evidence for R4 assembly, not Rust production-entry or R5 cutover authority.
 
+The Rust `entry` candidate is the explicit coordinator above persistent
+runtime state. `EntryRequest` requires a version, complete assembly, JSON-safe
+runtime limits, and an operation. `inspect` reports the current recovery
+decision without booting; `boot_once` accepts only an exact current
+`RecoverUnclean` acknowledgement when recovery is required, then boots,
+captures the active snapshot, and cleanly shuts down within the caller's
+timeout. `rust-kernel-entry` is a bounded JSON stdin/stdout smoke entrypoint.
+It never chooses a Python fallback, scans host terminals, runs providers or
+AgentLoop work, fabricates process/PTY bindings, or changes the production
+default. The independent `tests/runtime/entry.rs` target covers fresh, clean,
+unclean, stale-acknowledgement, and invalid-config paths; R5 cutover remains
+open.
+
 The Rust `protocol` candidate now closes the retained R4 wire boundary without
 granting runtime authority. It validates v1 envelopes and TS-neutral record
 schemas, recursively canonicalizes JSON, removes unknown record fields for

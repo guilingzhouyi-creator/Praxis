@@ -289,6 +289,18 @@ The tool never probes or mutates the filesystem, executes boot callbacks,
 rebinds processes, or selects a Python fallback. Its tests are isolated in
 `tests/assembly/preflight.rs`, and the candidate does not imply R5 cutover.
 
+The `entry` module adds an explicit one-shot coordinator above the persistent
+runtime. `EntryRequest` requires the entry contract version, complete assembly,
+runtime limits, and an operation. `inspect` opens the Rust-owned root and
+returns the current recovery decision; `boot_once` requires an exact
+`RecoverUnclean` decision acknowledgement when needed, boots the runtime,
+captures the active snapshot, and performs a bounded clean shutdown before
+returning. `rust-kernel-entry` reads a bounded JSON request from stdin, while
+`make rust-kernel-entry` builds it. Invalid limits, stale acknowledgements, and
+recovery without caller acknowledgement fail closed. This is an R4 entry
+coordination candidate and smoke harness only; it does not select a production
+default, execute Python/PTY/provider/AgentLoop work, or close the R5 cutover.
+
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
 applies optional-field defaults, strips unknown record fields, and supplies

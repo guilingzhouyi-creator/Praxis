@@ -396,6 +396,19 @@ boot execution, process rebind, or Python fallback. This closes the read-only
 entry evidence seam but does not close R4 boot ownership or the R5 clean
 cutover/recovery procedure.
 
+The follow-on `entry` candidate makes the Rust-owned entry lifecycle explicit
+without promoting it to production authority. `EntryRequest` requires a
+versioned assembly, JSON-safe runtime limits, and an explicit `inspect` or
+`boot_once` operation. The coordinator opens only the fresh Rust state root,
+surfaces the current recovery decision, and refuses an unclean boot until the
+caller supplies the exact same generation/action/reason acknowledgement. A
+`boot_once` run captures the active runtime snapshot and then performs bounded
+clean shutdown before returning, so the one-shot binary cannot report success
+while leaving a live runtime behind. Invalid configuration, stale
+acknowledgements, and rejected roots fail closed. `rust-kernel-entry` is a
+bounded stdin/stdout smoke harness; it does not select defaults, probe shells,
+execute providers/AgentLoop work, rebind processes, or close R5 cutover.
+
 The `execution_store` adapter is the next R4/R5 recovery slice. It writes one
 versioned, atomically replaced document for the Rust-owned `SessionBook`,
 `TerminalBook`, and `AgentLoopBook`, with deterministic ordering and explicit

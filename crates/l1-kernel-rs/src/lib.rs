@@ -18,6 +18,7 @@ pub mod constitution;
 pub mod contract;
 pub mod device;
 pub mod discovery;
+pub mod entry;
 pub mod errors;
 pub mod event;
 pub mod execution_store;

@@ -597,6 +597,17 @@ checkpoint 写入。下一步仍是独立 cutover/recovery adapter 评审。
 ownership、真实 PTY/进程组、AgentLoop/provider/tool/DVG/R5 以及 clean cutover
 仍保持高优先级未完成。
 
+随后补齐独立 Rust entry coordinator：`entry::EntryRequest` 要求显式
+assembly、JSON-safe runtime limits 和 `inspect`/`boot_once` 操作，持久化入口
+只打开 Rust-owned state root；`inspect` 返回当前 recovery decision，
+`boot_once` 在 `RecoverUnclean` 时必须收到同代、同 action/reason 的显式确认，
+随后捕获 active snapshot 并在输出前执行 bounded clean shutdown。新增
+`rust-kernel-entry` 与 `make rust-kernel-entry`，请求大小有界，错误配置和 stale/
+missing recovery acknowledgement 均 fail-closed。该片闭合 R4 entry coordination
+和一次性 smoke 的状态卫生，但不扫描终端、不接管 PTY/process/provider/AgentLoop，
+不改变 Python 默认，也不等价于 R5 clean cutover；后续仍需真实 host adapter、
+生产 reaper 和独立 cutover/recovery 评审。
+
 随后针对会话热路径完成 Rust-native 性能切片：per-session message-id 去重与分片 registry
 改用 hash index，公开 snapshot 仍在输出边界按 `session_id` 排序以保持确定性。新增
 `benchmark_runner::run_session_book` 与 `rust-session-bench`，按统一 v3 schema 固定

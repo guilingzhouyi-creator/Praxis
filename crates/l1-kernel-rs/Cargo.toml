@@ -24,6 +24,10 @@ path = "src/bin/rust-session-store-probe.rs"
 name = "rust-kernel-preflight"
 path = "src/bin/rust-kernel-preflight.rs"
 
+[[bin]]
+name = "rust-kernel-entry"
+path = "src/bin/rust-kernel-entry.rs"
+
 # Keep the historical target names stable while making the test domain explicit.
 # Tests are grouped by boundary under tests/<domain>/; the Python infra gate
 # verifies that every target is registered here and that the root stays empty.
@@ -54,6 +58,10 @@ path = "tests/runtime/benchmark.rs"
 [[test]]
 name = "benchmark_runner"
 path = "tests/runtime/benchmark_runner.rs"
+
+[[test]]
+name = "entry"
+path = "tests/runtime/entry.rs"
 
 [[test]]
 name = "boot"
