@@ -147,7 +147,7 @@ printf '%s\n' "$CHANGED" | sed 's/^/     /'
 # Roadmaps and discovery registries are stateful. A branch that replaces an
 # entire existing file in one hunk needs explicit human review instead of
 # silently carrying an old snapshot into the merge.
-HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+HUNK_AUDIT="scripts/py/check_sensitive_paths.py"
 if [ ! -f "$HUNK_AUDIT" ]; then
   echo "[verify-pr-merge] ❌ $HUNK_AUDIT is missing; cannot audit sensitive paths." >&2
   exit 5

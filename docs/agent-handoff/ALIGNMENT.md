@@ -121,3 +121,5 @@
 > registration itself is valid history; the row is preserved here verbatim
 > and removed from the tail so the change-log table stays well-formed and
 > grep-count/rotate accounting agrees.
+
+| 2026-08-27 | docs/agent-handoff/ALIGNMENT.md + tests/infra/test_merge_hunks.py | GLM (glm-5.3) <noreply@z.ai> | batch 2a: add scripts/sh/gate-merge.sh unified dispatcher over the five merge/completion gates (stage+legacy aliases); rename audit_merge_hunks.py to check_sensitive_paths.py with both sh callers and tests switched | in feature/scripts-naming |

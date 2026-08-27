@@ -62,7 +62,7 @@ echo "[local-merge] branch: $BRANCH (target: local main)"
 # Roadmaps and discovery registries are stateful; a stale branch snapshot
 # must not replace either tree as one opaque hunk. Keep this before the
 # quantitative gate so an otherwise-qualifying branch cannot bypass review.
-HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+HUNK_AUDIT="scripts/py/check_sensitive_paths.py"
 if [ ! -f "$HUNK_AUDIT" ]; then
   echo "[local-merge] ERROR: $HUNK_AUDIT not found" >&2
   exit 3

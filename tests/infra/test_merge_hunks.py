@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "py" / "audit_merge_hunks.py"
+SCRIPT = ROOT / "scripts" / "py" / "check_sensitive_paths.py"
 
 
 def _load_script():
-    spec = importlib.util.spec_from_file_location("audit_merge_hunks", SCRIPT)
+    spec = importlib.util.spec_from_file_location("check_sensitive_paths", SCRIPT)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module

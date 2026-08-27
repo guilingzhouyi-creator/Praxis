@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit sensitive merge paths at unified-diff hunk granularity.
+"""Check sensitive merge paths at unified-diff hunk granularity.
 
 The roadmap and discovery registries are stateful documents/configuration, so
 an old branch snapshot must never replace them silently. This report lists
@@ -9,8 +9,8 @@ remain valid, but their hunk inventory is explicit for human review.
 
 Usage::
 
-    python scripts/py/audit_merge_hunks.py --base main --head feature/x --check
-    python scripts/py/audit_merge_hunks.py --base main --head feature/x --json
+    python scripts/py/check_sensitive_paths.py --base main --head feature/x --check
+    python scripts/py/check_sensitive_paths.py --base main --head feature/x --json
 """
 
 from __future__ import annotations
