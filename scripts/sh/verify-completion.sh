@@ -318,7 +318,7 @@ if [ "$RUN_LINT" = "1" ]; then
     ruff check systems/python-reference-runtime/ tests/ > /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     ruff format --check systems/python-reference-runtime/ tests/ >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     if command -v mypy >/dev/null 2>&1; then
-      mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
+      python scripts/py/run_mypy.py --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     else
       echo "mypy not installed — type check cannot run" >> /tmp/judge_ruff.log
       LINT_OK=0

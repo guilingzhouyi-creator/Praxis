@@ -89,6 +89,7 @@ python -m pytest tests/<domain>/ -x -q                       # domain tests
 python -m pytest tests/ -q                                   # full baseline (~3,473 tests)
 ruff check systems/python-reference-runtime/ tests/                                       # lint
 ruff format --check systems/python-reference-runtime/                                     # format (double quotes, 120)
+python scripts/py/run_mypy.py --no-namespace-packages                                    # typecheck (kebab-case path alias)
 ```
 
 Small-fix path (single-file bug/doc/test) may commit directly to main per

@@ -28,7 +28,7 @@ format-check:
 	ruff format --check systems/python-reference-runtime/ tests/
 
 typecheck:
-	mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
+	python scripts/py/run_mypy.py --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
 
 coverage:
 	python -m pytest tests/ -q --tb=short --cov=systems/python-reference-runtime --cov-report=term --cov-report=html --cov-fail-under=60 --ignore=tests/benchmarks/bench_card.py
