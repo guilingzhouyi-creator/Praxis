@@ -8,7 +8,7 @@ import { describe, it } from "vitest";
 import { bench } from "../src/engine/bench.ts";
 import { tokenize, parseLine } from "../src/engine/parser.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
-import { Outbox, makeMessage } from "../src/envelope.ts";
+import { Outbox, makeMessage } from "../src/wire-envelope.ts";
 
 describe("perf baselines", () => {
   it("tokenize: simple tokens", () => {

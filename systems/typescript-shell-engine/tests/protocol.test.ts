@@ -8,7 +8,7 @@ import {
   decodeRecord,
   encodeRecord,
   type AnyRecord,
-} from "../src/records.ts";
+} from "../src/wire-records.ts";
 import {
   KINDS,
   Outbox,
@@ -17,7 +17,7 @@ import {
   encodeMessage,
   makeMessage,
   validateMessage,
-} from "../src/envelope.ts";
+} from "../src/wire-envelope.ts";
 
 describe("TS-neutral records", () => {
   it("decodes every shared Python3 fixture and emits canonical JSON", () => {

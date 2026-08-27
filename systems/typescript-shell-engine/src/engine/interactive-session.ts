@@ -9,7 +9,7 @@
  * ack cursor — the TS side never owns the runtime outbox.
  */
 
-import type { Message } from "../envelope.ts";
+import type { Message } from "../wire-envelope.ts";
 import type { ProtocolBridge } from "./bridge.ts";
 
 export interface SessionState {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createL3Bridge } from "../src/engine/l3-bridge-interface.ts";
 import type { ProtocolBridge } from "../src/engine/bridge.ts";
 import { sanitizePayload, containsCoT, ALLOWED_PAYLOAD_KEYS } from "../src/engine/cot-guard.ts";
-import { OutputGuard } from "../src/engine/output-guard.ts";
+import { OutputGuard } from "../src/engine/output-policy.ts";
 import { parseLine } from "../src/engine/parser.ts";
 
 /** Recording fake bridge capturing (name, args) per call. */

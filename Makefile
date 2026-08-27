@@ -1,4 +1,4 @@
-.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage system-boundaries doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-test-domain rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-runtime-benchmark rust-runtime-batch-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate rust-session-store-probe rust-kernel-preflight rust-kernel-entry r2-baseline-bundle r2-baseline-analysis language-check
+.PHONY: install test test-fast test-extended test-all lint lint-fix format format-check typecheck coverage system-boundaries system-naming doc-index doc-stats changelog changelog-check clean dev hooks precommit push-both bump-version release-build automation-plan automation-run automation-report automation-doctor ts-install ts-test ts-typecheck rust-test rust-contract-test rust-test-domain rust-fmt-check rust-clippy rust-benchmark rust-benchmark-blocking rust-worker-benchmark rust-worker-batch-submit-benchmark rust-runtime-benchmark rust-runtime-batch-benchmark rust-session-benchmark rust-session-batch-benchmark rust-session-snapshot-page-benchmark rust-session-snapshot-page-contention-benchmark rust-registry-base-benchmark rust-agent-loop-benchmark rust-agent-loop-lookup-benchmark rust-agent-loop-batch-benchmark rust-agent-loop-snapshot-page-benchmark rust-terminal-benchmark rust-terminal-batch-benchmark rust-terminal-snapshot-page-benchmark rust-process-adapter-benchmark rust-managed-process-benchmark rust-process-bridge-benchmark rust-protocol-gate rust-session-store-probe rust-kernel-preflight rust-kernel-entry r2-baseline-bundle r2-baseline-analysis language-check
 
 install:
 	pip install -e ".[test]"
@@ -33,7 +33,10 @@ typecheck:
 coverage:
 	python -m pytest tests/ -q --tb=short --cov=systems/python-reference-runtime --cov-report=term --cov-report=html --cov-fail-under=60 --ignore=tests/benchmarks/bench_card.py
 
-system-boundaries:
+system-naming:
+	python scripts/py/check_system_naming.py
+
+system-boundaries: system-naming
 	python scripts/py/check_system_boundaries.py
 
 doc-index:

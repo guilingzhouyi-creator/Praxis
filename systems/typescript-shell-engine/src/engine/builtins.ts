@@ -5,7 +5,7 @@
  * else routes through the dispatcher's bridge fallback to the Python3 host.
  */
 
-import type { I18n } from "../i18n.ts";
+import type { I18n } from "../locale-catalog.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 
 export interface BuiltinOptions {

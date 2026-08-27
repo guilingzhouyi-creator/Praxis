@@ -36,6 +36,9 @@ systems:
     artifact_name: praxis-python-reference-runtime
     language: python
     role: prototype
+    naming:
+      filename_style: snake_case
+      basename_role: reference-baseline
     entrypoints:
       - systems/python-reference-runtime/main.py
     source_roots:
@@ -51,6 +54,10 @@ systems:
     artifact_name: praxis-rust-kernel-engine
     language: rust
     role: clean-break-candidate
+    naming:
+      filename_style: snake_case
+      basename_role: distinct-from-python
+      collision_prefix: kernel_
     entrypoints:
       - systems/rust-kernel-engine/Cargo.toml
       - systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml
@@ -68,6 +75,9 @@ systems:
     artifact_name: "@praxis/typescript-shell-engine"
     language: typescript
     role: clean-break-candidate
+    naming:
+      filename_style: kebab_case
+      basename_role: distinct-from-python
     entrypoints:
       - systems/typescript-shell-engine/package.json
       - systems/typescript-shell-engine/tsconfig.json

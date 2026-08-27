@@ -116,35 +116,35 @@ implemented and tested (62+ tests, tsc clean):
 
 | Module | Lines | Mirrors | Status |
 |---|---|---|---|
-| `envelope.ts` | 215 | `l2/protocol/envelope.py` | ✅ simple array Outbox (maxlen 1024, `ack` non-destructive) |
-| `records.ts` | 345 | `l2/protocol/records.py` | ✅ |
-| `types.ts` | 103 | (type-level only) | ✅ branded IDs + discriminated union |
+| `wire-envelope.ts` | 215 | `l2/protocol/envelope.py` | ✅ simple array Outbox (maxlen 1024, `ack` non-destructive) |
+| `wire-records.ts` | 345 | `l2/protocol/records.py` | ✅ |
+| `wire-types.ts` | 103 | (type-level only) | ✅ branded IDs + discriminated union |
 | `engine/bridge.ts` | 165 | `l2/protocol/host.py` (client side) | ✅ AsyncGenerator stream, batch, timing, `maxSeq` wrap |
 | `engine/parser.ts` | 36 | `l2/l2_shell/__init__.py` dispatch | ✅ fast path for unquoted |
 | `engine/dispatcher.ts` | 94 | `l2/commands.py` registry | ✅ wildcard + direct sort + middleware |
 | `engine/builtins.ts` | 40 | lang/help/clear builtins | ✅ |
 | `engine/session-manager.ts` | 136 | ProtocolHost multiplexing | ✅ non-destructive ack |
-| `engine/session.ts` | 129 | SessionView projection | ✅ |
+| `engine/interactive-session.ts` | 129 | SessionView projection | ✅ |
 | `engine/session-family.ts` | 115 | ShellFamily registry | ✅ |
 | `engine/route.ts` | 96 | Dialect routing classifier | ✅ pure parseRoute |
-| `engine/selector.ts` | 95 | Dict data API projection | ✅ zero object handles |
-| `engine/completer.ts` | 64 | Tab completion | ✅ |
-| `engine/output-guard.ts` | 55 | Display safety mirror | ✅ degrade-to-allow-through |
+| `engine/agent-selector.ts` | 95 | Dict data API projection | ✅ zero object handles |
+| `engine/command-completion.ts` | 64 | Tab completion | ✅ |
+| `engine/output-policy.ts` | 55 | Display safety mirror | ✅ degrade-to-allow-through |
 | `engine/command-groups.ts` | 73 | Command grouping | ✅ |
 | `engine/cot-guard.ts` | 70 | CoT privacy boundary | ✅ sanitize + detect (FIFO) |
-| `engine/middleware.ts` | 81 | Composable pre/post hooks | ✅ FIFO chain, async `runAfter` |
+| `engine/command-middleware.ts` | 81 | Composable pre/post hooks | ✅ FIFO chain, async `runAfter` |
 | `engine/message-pool.ts` | 93 | Message object pool | ✅ simple `Map` pool, single `pooled` stat |
 | `engine/l3-bridge-interface.ts` | 89 | Typed L3 command surface | ✅ expanded domains (memory/system/model/card/l3a/tool) |
-| `engine/errors.ts` | 66 | Structured errors with codes | ✅ ProtocolError + retry |
-| `engine/health.ts` | 67 | Bridge health probe | ✅ periodic latency check |
+| `engine/protocol-errors.ts` | 66 | Structured errors with codes | ✅ ProtocolError + retry |
+| `engine/engine-health.ts` | 67 | Bridge health probe | ✅ periodic latency check |
 | `engine/connection-manager.ts` | 113 | Transport lifecycle FSM | ✅ `withRetry` + validation + typed `on` |
 | `engine/projection-cache.ts` | 24 | Simple memoisation | ✅ `Map` (no `WeakRef`) |
 | `engine/config-reader.ts` | 66 | SettingsCenter read mirror | ✅ TTL cache, single shape `payload[key]??payload.value` |
 | `engine/broadcast.ts` | 55 | BroadcastChannel multi-tab | ✅ simple `BroadcastChannel` |
 | `engine/bench.ts` | 50 | Micro-benchmark harness | ✅ drift detection |
 | `engine/command-history.ts` | 85 | Command history ring | ✅ |
-| `engine/pipeline.ts` | 94 | Pipeline semantics | ✅ |
-| `i18n.ts` | 64 | Locale data consumption | ✅ |
+| `engine/command-pipeline.ts` | 94 | Pipeline semantics | ✅ |
+| `locale-catalog.ts` | 64 | Locale data consumption | ✅ |
 | `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
 
 **Not mirrored (Python3-only authority):**

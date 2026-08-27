@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
-import { I18n } from "../src/i18n.ts";
+import { I18n } from "../src/locale-catalog.ts";
 
 describe("I18n", () => {
   it("defaults to en with the standard available locales", async () => {

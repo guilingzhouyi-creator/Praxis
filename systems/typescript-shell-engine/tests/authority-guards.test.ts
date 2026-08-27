@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   makeMessage, validateMessage, encodeMessage, decodeMessage,
   Outbox, SessionCursor,
-} from "../src/envelope.ts";
-import { RecordValidationError, canonicalJson, decodeRecord, encodeRecord } from "../src/records.ts";
+} from "../src/wire-envelope.ts";
+import { RecordValidationError, canonicalJson, decodeRecord, encodeRecord } from "../src/wire-records.ts";
 
 const VALID = () => makeMessage("sess", 1, "event", { ok: true });
 

@@ -13,8 +13,8 @@
  * microtask. Use the regular makeMessage() for those.
  */
 
-import { PROTOCOL_VERSION, type MessageKind } from "../types.ts";
-import type { Message } from "../envelope.ts";
+import { PROTOCOL_VERSION, type MessageKind } from "../wire-types.ts";
+import type { Message } from "../wire-envelope.ts";
 
 /** Internal pooled shape — `_pooled` is stripped before crossing the wire. */
 interface PoolableMessage extends Message {

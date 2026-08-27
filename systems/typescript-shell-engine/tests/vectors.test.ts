@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { Outbox, decodeMessage, encodeMessage, makeMessage, validateMessage } from "../src/envelope.ts";
+import { Outbox, decodeMessage, encodeMessage, makeMessage, validateMessage } from "../src/wire-envelope.ts";
 import { parseRoute } from "../src/engine/route.ts";
-import type { Message, MessageKind } from "../src/types.ts";
+import type { Message, MessageKind } from "../src/wire-types.ts";
 
 const fixturePath = fileURLToPath(
   new URL("../../../tests/fixtures/protocol_v1_conformance.json", import.meta.url),

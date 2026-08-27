@@ -1,7 +1,7 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 
-import { decodeMessage, encodeMessage, makeMessage } from "../src/envelope.ts";
+import { decodeMessage, encodeMessage, makeMessage } from "../src/wire-envelope.ts";
 import {
   createConfiguredHostTransport,
   createRustHostTransport,

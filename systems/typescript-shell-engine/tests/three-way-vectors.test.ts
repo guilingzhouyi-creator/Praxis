@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { encodeMessage, makeMessage, type Message, type MessageKind } from "../src/envelope.ts";
+import { encodeMessage, makeMessage, type Message, type MessageKind } from "../src/wire-envelope.ts";
 
 const PACKAGE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = path.resolve(PACKAGE_DIR, "../..");

@@ -10,7 +10,7 @@
 import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { canonicalJson } from "../records.ts";
+import { canonicalJson } from "../wire-records.ts";
 
 /** Rust session-store document schema version. */
 export const SESSION_STORE_VERSION = 1 as const;

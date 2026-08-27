@@ -4,7 +4,7 @@
  *
  * This module declares ONLY the shape of commands the TS side may send.
  * It never re-implements domain logic. Each command maps to exactly one
- * Python3 handler; the return type is always `Message[]` from envelope.ts.
+ * Python3 handler; the return type is always `Message[]` from wire-envelope.ts.
  *
  * Design constraint (from agent-os-3x-closure.md §5):
  *   "TS owns no scheduler, AgentLoop, tool execution, memory promotion,
@@ -12,7 +12,7 @@
  */
 
 import type { ProtocolBridge } from "./bridge.ts";
-import type { Message } from "../envelope.ts";
+import type { Message } from "../wire-envelope.ts";
 
 /**
  * Domain-grouped command surface exposed to TS frontends.

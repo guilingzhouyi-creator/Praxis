@@ -8,9 +8,9 @@
 import { describe, expect, it } from "vitest";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
-import { encodeMessage, makeMessage } from "../src/envelope.ts";
-import { preselect, selectByAgentId, selectByRole, toRoster } from "../src/engine/selector.ts";
-import { BUILTIN_COMMANDS, Completer, DEFAULT_ALIASES } from "../src/engine/completer.ts";
+import { encodeMessage, makeMessage } from "../src/wire-envelope.ts";
+import { preselect, selectByAgentId, selectByRole, toRoster } from "../src/engine/agent-selector.ts";
+import { BUILTIN_COMMANDS, Completer, DEFAULT_ALIASES } from "../src/engine/command-completion.ts";
 import { registerCommandGroups } from "../src/engine/command-groups.ts";
 
 const LIVENESS_A = {
