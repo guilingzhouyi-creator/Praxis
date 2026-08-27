@@ -91,6 +91,14 @@ impl L3Upstream for RecordingUpstream {
     }
 }
 
+struct PanickingUpstream;
+
+impl L3Upstream for PanickingUpstream {
+    fn forward(&self, _message: Message) -> Result<(), ProtocolError> {
+        panic!("upstream panic");
+    }
+}
+
 #[test]
 fn command_with_wired_executor_dispatches_through_capability_gate() {
     let router = HostRouter::new(RouterConfig::default());
@@ -453,6 +461,23 @@ fn intent_without_upstream_buffers_and_overflow_fails_closed() {
         .expect_err("overflow fails closed");
     assert!(error.to_string().contains("intent buffer overflow"));
     assert_eq!(router.pending_intent_count(), 2);
+}
+
+#[test]
+fn intent_upstream_panic_is_contained_and_audited() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.set_upstream(Some(Arc::new(PanickingUpstream)));
+    let error = router
+        .route(intent("s-1", "panic", 1))
+        .expect_err("upstream panic");
+    assert!(error.to_string().contains("L3 upstream callback panicked"));
+    let denied = router
+        .audit()
+        .query(10, None)
+        .into_iter()
+        .find(|row| row.op == "dispatch.intent" && !row.success)
+        .expect("intent failure audit");
+    assert!(denied.error.contains("L3 upstream callback panicked"));
 }
 
 #[test]

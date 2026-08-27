@@ -15,6 +15,7 @@
 //! session and outbox registries.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
@@ -528,7 +529,11 @@ impl HostRouter {
     fn forward_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let upstream = self.lock_upstream().clone();
         match upstream {
-            Some(pipe) => pipe.forward(message).map(|_| Vec::new()),
+            Some(pipe) => catch_unwind(AssertUnwindSafe(|| pipe.forward(message)))
+                .map_err(|_| {
+                    ProtocolError::InvalidContract("L3 upstream callback panicked".to_owned())
+                })?
+                .map(|_| Vec::new()),
             None => {
                 let mut pending = self.lock_pending();
                 if pending.len() >= self.config.intent_buffer_cap {
