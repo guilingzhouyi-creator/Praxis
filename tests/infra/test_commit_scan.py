@@ -199,7 +199,7 @@ def test_rust_and_typescript_paths_are_code_for_type_checks():
         validate_type_content("test", ["systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/contract_vectors.rs"])
         == []
     )
-    assert validate_type_content("feat", ["systems/typescript-shell-engine/src/envelope.ts"]) == []
+    assert validate_type_content("feat", ["systems/typescript-shell-engine/src/wire-envelope.ts"]) == []
 
 
 def test_scan_range_skips_merge_and_clean():

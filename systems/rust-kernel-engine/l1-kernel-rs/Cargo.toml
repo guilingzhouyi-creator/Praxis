@@ -33,19 +33,19 @@ path = "src/bin/rust-kernel-entry.rs"
 # verifies that every target is registered here and that the root stays empty.
 [[test]]
 name = "agent_loop"
-path = "tests/session/agent_loop.rs"
+path = "tests/session/kernel_test_agent_loop.rs"
 
 [[test]]
 name = "agent_loop_execution"
-path = "tests/runtime/agent_loop_execution.rs"
+path = "tests/runtime/kernel_test_agent_loop_execution.rs"
 
 [[test]]
 name = "allocator"
-path = "tests/core/allocator.rs"
+path = "tests/core/kernel_test_allocator.rs"
 
 [[test]]
 name = "assembly"
-path = "tests/assembly/assembly.rs"
+path = "tests/assembly/kernel_test_assembly.rs"
 
 [[test]]
 name = "assembly_vectors"
@@ -53,23 +53,23 @@ path = "tests/assembly/assembly_vectors.rs"
 
 [[test]]
 name = "audit"
-path = "tests/policy/audit.rs"
+path = "tests/policy/kernel_test_audit.rs"
 
 [[test]]
 name = "benchmark"
-path = "tests/runtime/benchmark.rs"
+path = "tests/runtime/kernel_test_benchmark.rs"
 
 [[test]]
 name = "benchmark_runner"
-path = "tests/runtime/benchmark_runner.rs"
+path = "tests/runtime/kernel_test_benchmark_runner.rs"
 
 [[test]]
 name = "entry"
-path = "tests/runtime/entry.rs"
+path = "tests/runtime/kernel_test_entry.rs"
 
 [[test]]
 name = "boot"
-path = "tests/assembly/boot.rs"
+path = "tests/assembly/kernel_test_boot.rs"
 
 [[test]]
 name = "boot_vectors"
@@ -77,19 +77,19 @@ path = "tests/assembly/boot_vectors.rs"
 
 [[test]]
 name = "bus"
-path = "tests/network/bus.rs"
+path = "tests/network/kernel_test_bus.rs"
 
 [[test]]
 name = "cancellation"
-path = "tests/core/cancellation.rs"
+path = "tests/core/kernel_test_cancellation.rs"
 
 [[test]]
 name = "capability"
-path = "tests/policy/capability.rs"
+path = "tests/policy/kernel_test_capability.rs"
 
 [[test]]
 name = "channel"
-path = "tests/core/channel.rs"
+path = "tests/core/kernel_test_channel.rs"
 
 [[test]]
 name = "channel_vectors"
@@ -97,7 +97,7 @@ path = "tests/core/channel_vectors.rs"
 
 [[test]]
 name = "config_store"
-path = "tests/storage/config_store.rs"
+path = "tests/storage/kernel_test_config_store.rs"
 
 [[test]]
 name = "conformance_vectors"
@@ -105,7 +105,7 @@ path = "tests/protocol/conformance_vectors.rs"
 
 [[test]]
 name = "constitution"
-path = "tests/policy/constitution.rs"
+path = "tests/policy/kernel_test_constitution.rs"
 
 [[test]]
 name = "constitution_vectors"
@@ -113,7 +113,7 @@ path = "tests/policy/constitution_vectors.rs"
 
 [[test]]
 name = "contract"
-path = "tests/protocol/contract.rs"
+path = "tests/protocol/kernel_test_contract.rs"
 
 [[test]]
 name = "contract_vectors"
@@ -121,19 +121,19 @@ path = "tests/protocol/contract_vectors.rs"
 
 [[test]]
 name = "device"
-path = "tests/registry/device.rs"
+path = "tests/registry/kernel_test_device.rs"
 
 [[test]]
 name = "discovery"
-path = "tests/registry/discovery.rs"
+path = "tests/registry/kernel_test_discovery.rs"
 
 [[test]]
 name = "errors"
-path = "tests/core/errors.rs"
+path = "tests/core/kernel_test_errors.rs"
 
 [[test]]
 name = "event"
-path = "tests/core/event.rs"
+path = "tests/core/kernel_test_event.rs"
 
 [[test]]
 name = "event_vectors"
@@ -141,27 +141,27 @@ path = "tests/core/event_vectors.rs"
 
 [[test]]
 name = "execution_store"
-path = "tests/session/execution_store.rs"
+path = "tests/session/kernel_test_execution_store.rs"
 
 [[test]]
 name = "gatechain"
-path = "tests/policy/gatechain.rs"
+path = "tests/policy/kernel_test_gatechain.rs"
 
 [[test]]
 name = "health"
-path = "tests/network/health.rs"
+path = "tests/network/kernel_test_health.rs"
 
 [[test]]
 name = "host_dispatch"
-path = "tests/runtime/host_dispatch.rs"
+path = "tests/runtime/kernel_test_host_dispatch.rs"
 
 [[test]]
 name = "input_activity"
-path = "tests/terminal/input_activity.rs"
+path = "tests/terminal/kernel_test_input_activity.rs"
 
 [[test]]
 name = "identity_binding"
-path = "tests/policy/identity_binding.rs"
+path = "tests/policy/kernel_test_identity_binding.rs"
 
 [[test]]
 name = "identity_binding_vectors"
@@ -169,39 +169,39 @@ path = "tests/policy/identity_binding_vectors.rs"
 
 [[test]]
 name = "identity_uid"
-path = "tests/policy/identity_uid.rs"
+path = "tests/policy/kernel_test_identity_uid.rs"
 
 [[test]]
 name = "interrupt"
-path = "tests/core/interrupt.rs"
+path = "tests/core/kernel_test_interrupt.rs"
 
 [[test]]
 name = "ipc"
-path = "tests/core/ipc.rs"
+path = "tests/core/kernel_test_ipc.rs"
 
 [[test]]
 name = "lifecycle"
-path = "tests/core/lifecycle.rs"
+path = "tests/core/kernel_test_lifecycle.rs"
 
 [[test]]
 name = "load_adaptive"
-path = "tests/core/load_adaptive.rs"
+path = "tests/core/kernel_test_load_adaptive.rs"
 
 [[test]]
 name = "managed_process"
-path = "tests/process/managed_process.rs"
+path = "tests/process/kernel_test_managed_process.rs"
 
 [[test]]
 name = "migration"
-path = "tests/storage/migration.rs"
+path = "tests/storage/kernel_test_migration.rs"
 
 [[test]]
 name = "network"
-path = "tests/network/network.rs"
+path = "tests/network/kernel_test_network.rs"
 
 [[test]]
 name = "notify"
-path = "tests/network/notify.rs"
+path = "tests/network/kernel_test_notify.rs"
 
 [[test]]
 name = "notify_vectors"
@@ -209,11 +209,11 @@ path = "tests/network/notify_vectors.rs"
 
 [[test]]
 name = "outbox_registry"
-path = "tests/storage/outbox_registry.rs"
+path = "tests/storage/kernel_test_outbox_registry.rs"
 
 [[test]]
 name = "paths"
-path = "tests/storage/paths.rs"
+path = "tests/storage/kernel_test_paths.rs"
 
 [[test]]
 name = "peer_vectors"
@@ -221,11 +221,11 @@ path = "tests/network/peer_vectors.rs"
 
 [[test]]
 name = "persist"
-path = "tests/storage/persist.rs"
+path = "tests/storage/kernel_test_persist.rs"
 
 [[test]]
 name = "platform"
-path = "tests/terminal/platform.rs"
+path = "tests/terminal/kernel_test_platform.rs"
 
 [[test]]
 name = "port_vectors"
@@ -233,43 +233,43 @@ path = "tests/assembly/port_vectors.rs"
 
 [[test]]
 name = "ports"
-path = "tests/assembly/ports.rs"
+path = "tests/assembly/kernel_test_ports.rs"
 
 [[test]]
 name = "preflight"
-path = "tests/assembly/preflight.rs"
+path = "tests/assembly/kernel_test_preflight.rs"
 
 [[test]]
 name = "process"
-path = "tests/process/process.rs"
+path = "tests/process/kernel_test_process.rs"
 
 [[test]]
 name = "process_adapter"
-path = "tests/process/process_adapter.rs"
+path = "tests/process/kernel_test_process_adapter.rs"
 
 [[test]]
 name = "process_bridge"
-path = "tests/process/process_bridge.rs"
+path = "tests/process/kernel_test_process_bridge.rs"
 
 [[test]]
 name = "process_constraints"
-path = "tests/process/process_constraints.rs"
+path = "tests/process/kernel_test_process_constraints.rs"
 
 [[test]]
 name = "process_group"
-path = "tests/process/process_group.rs"
+path = "tests/process/kernel_test_process_group.rs"
 
 [[test]]
 name = "process_group_runtime"
-path = "tests/process/process_group_runtime.rs"
+path = "tests/process/kernel_test_process_group_runtime.rs"
 
 [[test]]
 name = "host_process_group_signal"
-path = "tests/process/host_process_group_signal.rs"
+path = "tests/process/kernel_test_host_process_group_signal.rs"
 
 [[test]]
 name = "process_table_group_runtime"
-path = "tests/process/process_table_group_runtime.rs"
+path = "tests/process/kernel_test_process_table_group_runtime.rs"
 
 [[test]]
 name = "process_vectors"
@@ -277,11 +277,11 @@ path = "tests/process/process_vectors.rs"
 
 [[test]]
 name = "protocol"
-path = "tests/protocol/protocol.rs"
+path = "tests/protocol/kernel_test_protocol.rs"
 
 [[test]]
 name = "protocol_host"
-path = "tests/protocol/protocol_host.rs"
+path = "tests/protocol/kernel_test_protocol_host.rs"
 
 [[test]]
 name = "protocol_vectors"
@@ -289,19 +289,19 @@ path = "tests/protocol/protocol_vectors.rs"
 
 [[test]]
 name = "registry"
-path = "tests/registry/registry.rs"
+path = "tests/registry/kernel_test_registry.rs"
 
 [[test]]
 name = "registry_base"
-path = "tests/registry/registry_base.rs"
+path = "tests/registry/kernel_test_registry_base.rs"
 
 [[test]]
 name = "recovery"
-path = "tests/storage/recovery.rs"
+path = "tests/storage/kernel_test_recovery.rs"
 
 [[test]]
 name = "reputation"
-path = "tests/policy/reputation.rs"
+path = "tests/policy/kernel_test_reputation.rs"
 
 [[test]]
 name = "reputation_vectors"
@@ -309,31 +309,31 @@ path = "tests/policy/reputation_vectors.rs"
 
 [[test]]
 name = "rule_descriptor"
-path = "tests/policy/rule_descriptor.rs"
+path = "tests/policy/kernel_test_rule_descriptor.rs"
 
 [[test]]
 name = "runtime"
-path = "tests/runtime/runtime.rs"
+path = "tests/runtime/kernel_test_runtime.rs"
 
 [[test]]
 name = "scheduler"
-path = "tests/core/scheduler.rs"
+path = "tests/core/kernel_test_scheduler.rs"
 
 [[test]]
 name = "schema"
-path = "tests/protocol/schema.rs"
+path = "tests/protocol/kernel_test_schema.rs"
 
 [[test]]
 name = "session"
-path = "tests/session/session.rs"
+path = "tests/session/kernel_test_session.rs"
 
 [[test]]
 name = "session_lifecycle"
-path = "tests/session/session_lifecycle.rs"
+path = "tests/session/kernel_test_session_lifecycle.rs"
 
 [[test]]
 name = "session_store"
-path = "tests/session/session_store.rs"
+path = "tests/session/kernel_test_session_store.rs"
 
 [[test]]
 name = "session_vectors"
@@ -345,7 +345,7 @@ path = "tests/session/snapshot_page.rs"
 
 [[test]]
 name = "state_layout"
-path = "tests/storage/state_layout.rs"
+path = "tests/storage/kernel_test_state_layout.rs"
 
 [[test]]
 name = "state_layout_vectors"
@@ -353,23 +353,23 @@ path = "tests/storage/state_layout_vectors.rs"
 
 [[test]]
 name = "state_queue"
-path = "tests/core/state_queue.rs"
+path = "tests/core/kernel_test_state_queue.rs"
 
 [[test]]
 name = "state_store"
-path = "tests/storage/state_store.rs"
+path = "tests/storage/kernel_test_state_store.rs"
 
 [[test]]
 name = "substrate"
-path = "tests/core/substrate.rs"
+path = "tests/core/kernel_test_substrate.rs"
 
 [[test]]
 name = "swapper"
-path = "tests/storage/swapper.rs"
+path = "tests/storage/kernel_test_swapper.rs"
 
 [[test]]
 name = "sync"
-path = "tests/core/sync.rs"
+path = "tests/core/kernel_test_sync.rs"
 
 [[test]]
 name = "sync_vectors"
@@ -377,11 +377,11 @@ path = "tests/core/sync_vectors.rs"
 
 [[test]]
 name = "terminal"
-path = "tests/terminal/terminal.rs"
+path = "tests/terminal/kernel_test_terminal.rs"
 
 [[test]]
 name = "terminal_probe"
-path = "tests/terminal/terminal_probe.rs"
+path = "tests/terminal/kernel_test_terminal_probe.rs"
 
 [[test]]
 name = "terminal_vectors"
@@ -389,11 +389,11 @@ path = "tests/terminal/terminal_vectors.rs"
 
 [[test]]
 name = "territory"
-path = "tests/policy/territory.rs"
+path = "tests/policy/kernel_test_territory.rs"
 
 [[test]]
 name = "tool_chain"
-path = "tests/policy/tool_chain.rs"
+path = "tests/policy/kernel_test_tool_chain.rs"
 
 [[test]]
 name = "tool_chain_vectors"
@@ -401,12 +401,12 @@ path = "tests/policy/tool_chain_vectors.rs"
 
 [[test]]
 name = "versioning"
-path = "tests/protocol/versioning.rs"
+path = "tests/protocol/kernel_test_versioning.rs"
 
 [[test]]
 name = "vfs"
-path = "tests/storage/vfs.rs"
+path = "tests/storage/kernel_test_vfs.rs"
 
 [[test]]
 name = "worker"
-path = "tests/core/worker.rs"
+path = "tests/core/kernel_test_worker.rs"

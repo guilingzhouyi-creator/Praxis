@@ -168,7 +168,7 @@ are **additive** - no existing engine behavior was changed.
 | JSON Schemas | `systems/python-reference-runtime/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
 | TS-neutral records | `systems/python-reference-runtime/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
-| TypeScript mirror | `systems/typescript-shell-engine/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
+| TypeScript mirror | `systems/typescript-shell-engine/src/{wire-records,wire-envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
 | Stdio host | `systems/python-reference-runtime/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
 | Rust host candidate | `systems/rust-kernel-engine/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `systems/typescript-shell-engine/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring, stderr capture, and immediate pending-request failure on child/input close, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
@@ -184,7 +184,7 @@ $ printf '%s\n' '{"v":1,"session_id":"s-1","seq":1,"ts":0.0,"kind":"command","pa
 ```
 
 TS mirror strategy: `systems/typescript-shell-engine` ports `envelope.py` and `records.py`
-semantics 1:1 into `envelope.ts` and `records.ts`, loads
+semantics 1:1 into `wire-envelope.ts` and `wire-records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
 Vitest. The Python tests and fixture double as the TS spec; this package is
 read-only until the P0 recovery gates are complete.
@@ -246,7 +246,7 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | Module (today) | Verdict | Target |
 |---|---|---|
 | `l2_shell/__init__.py` dispatch/alias | keep (A) | split: `parser.ts` + `dispatcher` |
-| `shells/{base,family,session}.py` | keep (A) | `session.ts` state machine |
+| `shells/{base,family,session}.py` | keep (A) | `interactive-session.ts` state machine |
 | `shells/terminal.py` dialect | keep (A) | adapter for terminal frontend |
 | `l2_shell/completer.py`, `shell_completer.py`, `i18n.py` | keep (A/F) | UX layer |
 | `l2_shell/commands/{common,system,connect}.py` | keep shell built-ins; move control commands | split per verdict |
@@ -277,12 +277,12 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | Today (Python) | TS module | Notes |
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
-| `ShellSession` / `ShellFamily` | `session.ts` (state machine) | JSON-serializable |
+| `ShellSession` / `ShellFamily` | `interactive-session.ts` (state machine) | JSON-serializable |
 | `shells/*` | `adapters/*.ts` | per frontend |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
 | execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |
-| `i18n.py` | `i18n.ts` | same locale data |
+| `i18n.py` | `locale-catalog.ts` | same locale data |
 
 The TS engine is a *host-agnostic frontend of L3*: it never re-implements
 AgentLoop/Tool Pipeline/Workflow/Scheduler/Memory/Planning. The L3 host remains

@@ -3,33 +3,33 @@
  * Python3 reference:
  * systems/python-reference-runtime/l2/protocol/envelope.py — keep in sync (§2.4).
  *
- * Re-exports from types.ts (branded IDs + discriminated payloads) plus the
+ * Re-exports from wire-types.ts (branded IDs + discriminated payloads) plus the
  * ring-buffer Outbox. Consumers import from this module as the entry point.
  */
 
-// ── Type re-exports from types.ts ──────────────────────────────────────
+// ── Type re-exports from wire-types.ts ──────────────────────────────────────
 export {
   PROTOCOL_VERSION, OUTBOX_MAXLEN, KINDS, CONTROL_OPS,
   asSessionId, asViewId,
-} from "./types.ts";
+} from "./wire-types.ts";
 export type {
   MessageKind, ControlOp,
   SessionId, ViewId,
   AckPayload, CommandPayload, ControlPayload,
   EventPayload, IntentPayload, ResultPayload, StreamChunkPayload,
   TypedMessage, DecodedMessage, Message,
-} from "./types.ts";
-export type { JsonObject, JsonValue } from "./records.ts";
+} from "./wire-types.ts";
+export type { JsonObject, JsonValue } from "./wire-records.ts";
 
-import type { JsonObject } from "./records.ts";
-import type { Message, MessageKind, DecodedMessage } from "./types.ts";
-import { canonicalJson } from "./records.ts";
+import type { JsonObject } from "./wire-records.ts";
+import type { Message, MessageKind, DecodedMessage } from "./wire-types.ts";
+import { canonicalJson } from "./wire-records.ts";
 import {
   PROTOCOL_VERSION,
   OUTBOX_MAXLEN,
   HOST_DERIVED_FIELDS,
   MAX_SAFE_SEQUENCE,
-} from "./types.ts";
+} from "./wire-types.ts";
 
 // ── Runtime helpers ────────────────────────────────────────────────────
 

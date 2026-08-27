@@ -24,7 +24,7 @@
 
 | # | 发现 | 严重度 | 位置 |
 |---|---|---|---|
-| F1 | ~~Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量~~ **✅ 已修复（落 main）**：`Outbox::ack` 改为 `last_acked` 单调推进的游标式非破坏 ack，per-view cursor 与共享水位=最落后视图已实现；多视图重放回归由独立测试域覆盖（`tests/outbox_registry.rs`、`tests/session_lifecycle.rs`） | ✅ 关闭 | `systems/rust-kernel-engine/l1-kernel-rs/src/protocol.rs` |
+| F1 | ~~Rust `Outbox::ack()` 破坏性弹出（pop_front），违反多视图非破坏性重放不变量~~ **✅ 已修复（落 main）**：`Outbox::ack` 改为 `last_acked` 单调推进的游标式非破坏 ack，per-view cursor 与共享水位=最落后视图已实现；多视图重放回归由独立测试域覆盖（`tests/storage/kernel_test_outbox_registry.rs`、`tests/session/kernel_test_session_lifecycle.rs`） | ✅ 关闭 | `systems/rust-kernel-engine/l1-kernel-rs/src/kernel_protocol.rs` |
 | F2 | ~~Rust 侧只有协议验证门；`rust-protocol-gate` bin 为回声器~~ **✅ 已补齐（机制级）**：`host_dispatch.rs` 提供 KIND 逐类路由 + gatechain/capability 裁决 + ring 门控 `__system` 命令（边界审计 B4 在新边界的关闭载体）+ 审计接线 + L3 上游透传管道；`bin/rust-protocol-host.rs` 镜像 Python host I/O 契约（行协议、1 MiB 帧上限、stderr 错误通道）。仍未接入生产 boot/Port | 🟢 机制闭合 | `systems/rust-kernel-engine/l1-kernel-rs/src/host_dispatch.rs`、`systems/rust-kernel-engine/l1-kernel-rs/src/bin/rust-protocol-host.rs` |
 | F3 | 地基成熟度超预期：约 68 个 Rust src 模块（session_store/gatechain/capability/audit/terminal/vfs/managed_process 全在），R4 assembly 有 bin 入口；TS transport 已可由环境选择 Python/Rust，且保留 child 生命周期与 stderr 隔离。协议 v1 跨语言 conformance 向量已从 TS 引擎冻结并由 Rust gate/Python reference 逐字节互验 | 🟢 利好 | `systems/rust-kernel-engine/l1-kernel-rs/src/`、`systems/typescript-shell-engine/src/engine/transports/rust-host.ts` |
 

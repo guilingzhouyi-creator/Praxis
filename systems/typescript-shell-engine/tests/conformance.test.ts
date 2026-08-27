@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   decodeMessage, validateMessage, makeMessage,
   Outbox,
-} from "../src/envelope.ts";
-import { HOST_DERIVED_FIELDS } from "../src/types.ts";
+} from "../src/wire-envelope.ts";
+import { HOST_DERIVED_FIELDS } from "../src/wire-types.ts";
 import { parseRoute, splitArgs } from "../src/engine/route.ts";
 import { ProtocolBridge } from "../src/engine/bridge.ts";
-import type { Message } from "../src/envelope.ts";
+import type { Message } from "../src/wire-envelope.ts";
 
 function baseEnvelope(kind: string, payload: Record<string, unknown>) {
   return { v: 1, session_id: "s-1", seq: 1, ts: 0.0, kind, payload };

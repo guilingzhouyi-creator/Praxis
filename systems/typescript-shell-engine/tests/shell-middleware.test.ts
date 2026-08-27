@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { MiddlewareChain } from "../src/engine/middleware.ts";
+import { MiddlewareChain } from "../src/engine/command-middleware.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 
 describe("MiddlewareChain", () => {

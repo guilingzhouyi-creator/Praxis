@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { encodeMessage, makeMessage, type Message } from "../src/envelope.ts";
+import { encodeMessage, makeMessage, type Message } from "../src/wire-envelope.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
 import { SessionManager, SessionMultiplexer } from "../src/engine/session-manager.ts";
 

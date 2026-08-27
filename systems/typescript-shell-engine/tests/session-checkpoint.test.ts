@@ -10,7 +10,7 @@ import {
   encodeSessionStoreDocument,
   validateSessionStoreDocument,
 } from "../src/engine/session-checkpoint.ts";
-import { canonicalJson } from "../src/records.ts";
+import { canonicalJson } from "../src/wire-records.ts";
 import type { RustSessionStoreDocument } from "../src/engine/session-checkpoint.ts";
 
 const fixturePath = new URL("../../../tests/fixtures/kernel_session_store_document.json", import.meta.url);

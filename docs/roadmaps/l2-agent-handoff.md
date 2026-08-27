@@ -73,21 +73,21 @@
 | `parser.ts` | ✅ 引号分词 `parseLine`/`tokenize`（正则模块级，热路径优化） |
 | `dispatcher.ts` | ✅ 注册表 + `listCommands`（缓存排序）+ 未注册回退桥标记 + **异步 handler 支持** |
 | `bridge.ts` | ✅ `ProtocolBridge`（command/attach/ack/replay）+ **域分组 helpers**（settingsGet/Set、memoryDigest、systemStatus、modelSpecs、cellLiveness） |
-| `session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop/Vscode`（VSCode 增量 diff 流 + watermark） |
+| `interactive-session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop/Vscode`（VSCode 增量 diff 流 + watermark） |
 | `builtins.ts` | ✅ `registerBuiltins`（lang 支持 locale 切换 / help / clear） |
 | `route.ts` | ✅ 方言路由：pipeline / `$` system / `/` engine / tool / L3A 回退（纯 parseRoute + async route） |
-| `selector.ts` | ✅ preselect / selectByAgentId / selectByRole（零对象句柄，dict 数据 API） |
-| `completer.ts` | ✅ 候选集（工具 + builtins + 别名）+ 前缀匹配 + 空格后文件路径部分 |
+| `agent-selector.ts` | ✅ preselect / selectByAgentId / selectByRole（零对象句柄，dict 数据 API） |
+| `command-completion.ts` | ✅ 候选集（工具 + builtins + 别名）+ 前缀匹配 + 空格后文件路径部分 |
 | `command-groups.ts` | ✅ settings / system / memory / model / selector 五域注册 |
-| `output-guard.ts` | ✅ 输出守卫镜像（允许 / 阻止替换 / 截断 100，降级放行） |
+| `output-policy.ts` | ✅ 输出守卫镜像（允许 / 阻止替换 / 截断 100，降级放行） |
 | `session-family.ts` | ✅ ShellFamily（register/bind/resolve/loadConfig/revision/snapshot，首注册默认） |
 | `session-manager.ts` | ✅ 一会话 N 视图 + 非破坏性 ack + 共享水位=落后视图 + recovery 重放 |
 | transport 适配器 | ✅ `transports/`——共享引擎 `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio / http / ws / ssh（**readiness handshake：连接前写排队 + attach flush**）；异步契约 `(line) => Promise<string[]>` |
 | 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost` 打通：command 往返 + attach/replay |
 | 测试 | ✅ 9 文件 62 例（protocol 6 + engine 8 + session 9 + transports 7 + i18n 7 + selector/completer 10 + session-family 6 + session-manager 7 + e2e 2），tsc 干净 |
 
-协议镜像：`systems/typescript-shell-engine/src/{envelope,records}.ts`（与 Python3 逐字段对齐，§2.4）。
-i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwargs 替换）。
+协议镜像：`systems/typescript-shell-engine/src/{wire-envelope,wire-records}.ts`（与 Python3 逐字段对齐，§2.4）。
+i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwargs 替换）。
 
 ### 1.6 Shell 命令域 — ✅ 完成
 
@@ -99,13 +99,13 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 
 | L2 模块 | 关键符号 | TS 对应 |
 |---|---|---|
-| `systems/python-reference-runtime/l2/protocol/`（envelope/host/records/projection） | `Outbox`/`SessionCursor`/`ProtocolHost`/`SessionIdentity` | `systems/typescript-shell-engine/src/{envelope,records}.ts` + `engine/bridge.ts` |
+| `systems/python-reference-runtime/l2/protocol/`（envelope/host/records/projection） | `Outbox`/`SessionCursor`/`ProtocolHost`/`SessionIdentity` | `systems/typescript-shell-engine/src/{wire-envelope,wire-records}.ts` + `engine/bridge.ts` |
 | `systems/python-reference-runtime/l2/bridge.py`（92 函数） | 域分组：error bus / memory / system / model / selector / injection / settings | `engine/bridge.ts`（1:1 转发，域分组同构） |
 | `systems/python-reference-runtime/l2/commands.py` | `CommandRegistry`（系统/用户命令分离） | `engine/dispatcher.ts`（register / has / listCommands / 未注册回退桥标记） |
 | `systems/python-reference-runtime/l2/selector.py` | dict 数据 API（cell_ids / cell_liveness / ...） | 本地投影（渲染选择结果，零对象句柄） |
 | `systems/python-reference-runtime/l2/i18n.py` | `t()` / `set_locale()` / `get_locale()` | locale 数据 + `lang` builtin |
 | `systems/python-reference-runtime/l2/shell_completer.py` / `l2_shell/completer.py` | Tab 补全 | 本地纯展示（桥数据渲染候选） |
-| `systems/python-reference-runtime/l2/shells/`（base / family / session / terminal） | 方言/家族/会话/终端 | `engine/session.ts`（SessionView 投影形状 + 前端矩阵） |
+| `systems/python-reference-runtime/l2/shells/`（base / family / session / terminal） | 方言/家族/会话/终端 | `engine/interactive-session.ts`（SessionView 投影形状 + 前端矩阵） |
 | `systems/python-reference-runtime/l2/l2_shell/__main__.py` | REPL 路由（/命令、\| 管道、纯文本→L3A） | `engine/parser.ts` + `dispatcher.ts` 路由模型 |
 | `systems/python-reference-runtime/l2/l2_shell/commands/*.py` | 20+ 命令模块（memory / connect / extra...） | dispatcher 注册组（未注册回退桥标记） |
 | `systems/python-reference-runtime/l2/l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） |
@@ -126,7 +126,7 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 | 优化 | 文件 | TS 重写对应 |
 |---|---|---|
 | `run()` 批量 flush（stdio I/O） | `host.py` | TS 无等价——直接批量写（天然继承） |
-| `_advance_shared_cursor` per-session 索引 | `host.py` | `session.ts` 视图索引同构（attach 即入索引） |
+| `_advance_shared_cursor` per-session 索引 | `host.py` | `interactive-session.ts` 视图索引同构（attach 即入索引） |
 | ws 桥 dict 直入（省 JSON 往返） | `host.py`/`ws_bridge.py` | TS 天然无 JSON 往返（对象直传） |
 | command args 直入（省 shlex.split） | `host.py`/`l2_shell/__init__.py` | TS 天然无 shlex——命令名/参数已结构化 |
 | `_get_session` 会话类缓存 | `host.py` | TS 类导入零成本（无需该模式） |
@@ -137,11 +137,11 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 | Python3 职责（host） | TS 模块 | 说明 |
 |---|---|---|
 | `handle(line)`（JSONL 行解析 + 路由） | `protocol.ts` 行解析 + `bridge.ts` 路由 | 行协议解析独立模块 |
-| `handle_message(dict)`（envelope 校验 + 分发） | `envelope.ts`（validate）+ `bridge.ts`（dispatch） | 校验与分发分离 |
+| `handle_message(dict)`（envelope 校验 + 分发） | `wire-envelope.ts`（validate）+ `bridge.ts`（dispatch） | 校验与分发分离 |
 | `_handle_validated`（KIND 分支） | `dispatcher.ts`（kind 路由） | command/control/intent/event 分支同构 |
-| `_handle_control`（会话流） | `session.ts`（attach/replay/ack/detach） | 会话流步骤注释见 §1.7 |
-| `_emit`（envelope 构造 + outbox 追加） | `envelope.ts`（Outbox——非破坏性 ack） | outbox 窗口 1024 来自 params |
-| `_get_session`/`_get_outbox`/`_cursors` | `session.ts` 状态容器 | per-session 状态单一容器 |
+| `_handle_control`（会话流） | `interactive-session.ts`（attach/replay/ack/detach） | 会话流步骤注释见 §1.7 |
+| `_emit`（envelope 构造 + outbox 追加） | `wire-envelope.ts`（Outbox——非破坏性 ack） | outbox 窗口 1024 来自 params |
+| `_get_session`/`_get_outbox`/`_cursors` | `interactive-session.ts` 状态容器 | per-session 状态单一容器 |
 
 架构预留要点：
 - **单一协议入口**：TS 只经 `bridge.ts`（零运行时状态）——一切命令经协议 v1 envelope 转发 Python3 宿主。
@@ -162,7 +162,7 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 
 - envelope 字段：`v / session_id / seq / ts / trace_id? / kind / payload`；七类 kind：`ack / command / control / event / intent / result / stream_chunk`。
 - 校验语义：command 需非空 `name` + 字符串数组 `args`；control 的 `op ∈ attach/detach/resume/recovery/ack`；ack 需非负 `ack_seq`。
-- **Python3 侧为参考实现**（`systems/python-reference-runtime/l2/protocol/envelope.py`），TS 侧为镜像（`systems/typescript-shell-engine/src/envelope.ts`）——任何契约改动两边同步（§2.4）。
+- **Python3 侧为参考实现**（`systems/python-reference-runtime/l2/protocol/envelope.py`），TS 侧为镜像（`systems/typescript-shell-engine/src/wire-envelope.ts`）——任何契约改动两边同步（§2.4）。
 
 ### 2.2 桥 API 对应表（Python3 bridge ↔ TS bridge.ts）
 
@@ -183,13 +183,13 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 
 ### 2.4 镜像同步要求（改动协议必做）
 
-1. Python3 `envelope.py` 改动 → 同步 `systems/typescript-shell-engine/src/envelope.ts`（逐字段/逐语义）。
-2. 同步补测试：Python3 `tests/l2/test_protocol_v1.py` 与 TS `tests/protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
+1. Python3 `envelope.py` 改动 → 同步 `systems/typescript-shell-engine/src/wire-envelope.ts`（逐字段/逐语义）。
+2. 同步补测试：Python3 `tests/l2/test_protocol_v1.py` 与 TS `tests/shell-protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
 3. 验收：`tsc --noEmit` + `vitest run` + Python3 契约钉全绿。
 
 ### 2.5 P3 验收清单
 
-- [x] `session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python3 `projection.py` 三形状一致（含未知前端回退 web）。
+- [x] `interactive-session.ts`：视图投影（身份 + unacked 事件 → 前端形状），`projectWeb/Tui/Desktop` 与 Python3 `projection.py` 三形状一致（含未知前端回退 web）。
 - [x] `builtins.ts`：`lang`/`help`/`clear` 纯展示命令本地实现（`registerBuiltins` + `dispatcher.listCommands`）。
 - [x] transport 适配器：**异步 Transport 契约**（`(line) => Promise<string[]>`）+ 共享 `line-transport.ts` 引擎；`stdio.ts`（Node readline）/ `http.ts`（fetch 双模式）/ `ws.ts`（原生 WebSocket）/ `ssh.ts`（ssh2 channel）**四适配器全落地**（fake/mock 测试覆盖，`tests/transports.test.ts` 6 例）。
 - [x] 端到端真实链路：TS 引擎 + 真实 Python3 ProtocolHost 打通（`tests/e2e.stdio.test.ts` spawn `python -m l2.protocol`；command 往返 + attach/replay）。

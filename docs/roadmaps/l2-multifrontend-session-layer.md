@@ -78,8 +78,8 @@
 | 现 Python3 模块 | TS 模块（已落地） | 说明 |
 |---|---|---|
 | `dispatch` + `shlex` | `engine/parser.ts` + `engine/dispatcher.ts` ✅ | 纯函数，无副作用 |
-| `ShellSession` / `ShellFamily` | `engine/session.ts`（SessionView + 三形状投影）✅ | JSON 可序列化 |
-| `shells/*` | `engine/transports/*`（stdio/http/ws/ssh）+ `session.ts` 投影形状 ✅ | 每前端一个适配器 |
+| `ShellSession` / `ShellFamily` | `engine/interactive-session.ts`（SessionView + 三形状投影）✅ | JSON 可序列化 |
+| `shells/*` | `engine/transports/*`（stdio/http/ws/ssh）+ `interactive-session.ts` 投影形状 ✅ | 每前端一个适配器 |
 | 内置命令 | `engine/builtins.ts`（lang/help/clear）✅ | 本地纯展示，其余回退桥 |
 | 执行调用 | `engine/bridge.ts`（单一客户端）+ `line-transport.ts` ✅ | 向 Python3 L3 宿主说协议 v1（stdio/WS/HTTP/SSH）；**L3 Agent 逻辑保持 Python3 不动** |
 | `i18n.py` | locale 数据 + `lang` builtin ✅ | 同 locale 数据（locales/*.yaml） |
@@ -148,7 +148,7 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 > 上文"main 上无 TS 引擎"为恢复期间的临时状态，保留作历史记录。P4 剩余：真实 SSH 端点与五前端矩阵真实接入。
 
 - **已落地（2026-08-21，恢复于 feature/l2-ts-rewrite）**：
-  - 引擎 6 模块：`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 回退桥标记）、`bridge.ts`（**异步 Transport 契约**）、`session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）、`line-transport.ts`（共享引擎：ack 边界 + 超时/上限 + 并发拒绝）。
+  - 引擎 6 模块：`parser.ts`（引号分词）、`dispatcher.ts`（注册表 + `listCommands` + 回退桥标记）、`bridge.ts`（**异步 Transport 契约**）、`interactive-session.ts`（`SessionView` + 三形状投影）、`builtins.ts`（lang/help/clear）、`line-transport.ts`（共享引擎：ack 边界 + 超时/上限 + 并发拒绝）。
   - 四 transport 适配器：`stdio.ts`（Node readline）/ `http.ts`（fetch `/api/v2/shell`）/ `ws.ts`（原生 WebSocket）/ `ssh.ts`（ssh2 channel）——五前端矩阵适配器全部就位。
   - 真实端到端：`tests/e2e.stdio.test.ts`（spawn Python3 host：command 往返 + attach/replay）+ `tests/transports.test.ts` 6 例（Vitest 29 passed，tsc 干净）。
   - WS 端点对接：`l4/ws/ws_bridge.py` 协议 v1 envelope 分支（与 RPC 双模式共存，`ws://host:8081`；`tests/l4/test_ws_bridge.py` 往返测试 2 例）。
@@ -164,9 +164,9 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 | 批次 | 内容 | 验证 |
 |---|---|---|
 | 性能 | `isAckLine` 快速路径 3.6x、`listCommands` 缓存、parser 正则模块级 + `bench/engine-bench.ts` | bench 证据 + Vitest |
-| 第一批 | `i18n.ts`（locale 注册表 + lang 切换 builtin）、`bridge.ts` 域分组（settings/memory/system/model/selector）、dispatcher 异步支持 | Vitest 48 |
-| 第二批 | `selector.ts`（preselect/selectBy* 零句柄）、`completer.ts`（候选集 + 前缀匹配）、`command-groups.ts`（五域注册） | Vitest 48 |
-| 第三批 | `route.ts`（方言路由：pipeline/`$`/`/`/tool/L3A）、`output-guard.ts`（允许/阻止/截断镜像）、ssh.ts readiness handshake（写排队 + attach flush） | Vitest 49 |
+| 第一批 | `locale-catalog.ts`（locale 注册表 + lang 切换 builtin）、`bridge.ts` 域分组（settings/memory/system/model/selector）、dispatcher 异步支持 | Vitest 48 |
+| 第二批 | `agent-selector.ts`（preselect/selectBy* 零句柄）、`command-completion.ts`（候选集 + 前缀匹配）、`command-groups.ts`（五域注册） | Vitest 48 |
+| 第三批 | `route.ts`（方言路由：pipeline/`$`/`/`/tool/L3A）、`output-policy.ts`（允许/阻止/截断镜像）、ssh.ts readiness handshake（写排队 + attach flush） | Vitest 49 |
 | P4 扩展 | `session-family.ts`（ShellFamily：bind/resolve/loadConfig/revision）、`session-manager.ts`（一会话 N 视图 + 共享水位=落后视图）、VSCode diff 流投影 `projectVscode` | **Vitest 62** + e2e stdio 真实 host 绿 |
 
 **合入状态（2026-08-25 更新）**：分支提交（恢复 + 三批 + P4 扩展）已合入本地 main；feature/l2-ts-rewrite 分支已清理。
@@ -197,9 +197,9 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 | 域 | Python3 | TS（已落地/预留） |
 |---|---|---|
-| 协议契约 | `systems/python-reference-runtime/l2/protocol/{envelope,records}.py` | `systems/typescript-shell-engine/src/{envelope,records}.ts` ✅ |
+| 协议契约 | `systems/python-reference-runtime/l2/protocol/{envelope,records}.py` | `systems/typescript-shell-engine/src/{wire-envelope,wire-records}.ts` ✅ |
 | 引擎 | `l2_shell` 路由语义 | `engine/{parser,dispatcher,builtins}.ts` ✅ |
-| 会话 | `shells/session.py` + host 状态容器 | `engine/session.ts`（SessionView）✅ |
+| 会话 | `shells/session.py` + host 状态容器 | `engine/interactive-session.ts`（SessionView）✅ |
 | 桥 | `bridge.py`（92 函数，域分组） | `engine/bridge.ts`（1:1 转发）✅ |
 | 传输 | `host.run()`（stdio）+ ws 桥 | `engine/transports/*`（stdio/http/ws/ssh）✅ |
 

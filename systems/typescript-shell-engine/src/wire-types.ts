@@ -4,7 +4,7 @@
  * systems/python-reference-runtime/l2/protocol/envelope.py).
  */
 
-import type { JsonObject } from "./records.ts";
+import type { JsonObject } from "./wire-records.ts";
 
 // Re-export for single-import convenience.
 export type { JsonObject };

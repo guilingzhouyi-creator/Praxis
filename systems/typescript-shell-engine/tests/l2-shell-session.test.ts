@@ -4,11 +4,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/envelope.ts";
+import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/wire-envelope.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
-import { project, projectDesktop, projectTui, projectVscode, projectWeb, SessionView } from "../src/engine/session.ts";
+import { project, projectDesktop, projectTui, projectVscode, projectWeb, SessionView } from "../src/engine/interactive-session.ts";
 
 const IDENTITY = { session_id: "s-1", terminal_id: "", process_id: "", role: "operator", cell_id: "cell-a" };
 const EVENTS: Message[] = [

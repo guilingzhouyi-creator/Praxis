@@ -56,7 +56,11 @@ vectors, but it is not a runtime dependency.
 
 ## 目录命名规则 (directory naming rules)
 
-- **All directories lowercase kebab-case** (module *files* keep snake_case).
+- **All directories lowercase kebab-case**. Python module files keep
+  snake_case; formal Rust leaves use snake_case with a `kernel_` prefix when
+  they would otherwise collide with the reference tree, Rust integration-test
+  leaves use `kernel_test_` in the same case, and TypeScript leaves use
+  domain-specific kebab-case names.
 - **`.` prefix = hidden runtime/tool config** (`.praxis/`, `.config/`, `.atomcode/`);
   no prefix = runtime or build-environment content. So `config/` builds Praxis
   itself, while `.config/` belongs to Praxis's runtime.
@@ -67,6 +71,12 @@ vectors, but it is not a runtime dependency.
 - **System names are explicit**: `python-reference-runtime`,
   `rust-kernel-engine`, and `typescript-shell-engine` are distinct identities;
   do not recreate `src/`, `crates/`, or `packages/protocol-ts/` aliases.
+- **Formal leaf basenames are explicit**: normalized Rust and TypeScript
+  source basenames must not reuse a Python reference basename. The check is
+  machine-enforced by `python scripts/py/check_system_naming.py`; Rust
+  integration-test source leaves and TypeScript `.test.ts` leaves are included
+  in the same check. TypeScript test names keep the `.test.ts` suffix and use a
+  domain prefix when their normalized stem would otherwise collide.
 - **Co-located pairs** (kept separate on purpose):
   | `config/` (runtime config) | vs | `.config/` (runtime keys) |
   |---|---|---|

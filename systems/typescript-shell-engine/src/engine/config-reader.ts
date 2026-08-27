@@ -4,7 +4,7 @@
  * The TS engine NEVER writes configuration (single write authority is the
  * Python3 host via settings_set bridge). This reader provides type-safe
  * access to config values that the TS frontend needs for local decisions:
- *   - locale preference (for i18n.ts)
+ *   - locale preference (for locale-catalog.ts)
  *   - theme / display preferences (for frontend rendering)
  *   - feature flags (for progressive rollout)
  *

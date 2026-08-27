@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
-import { canonicalJson } from "../src/records.ts";
+import { canonicalJson } from "../src/wire-records.ts";
 import {
   ExecutionCheckpointError,
   RustExecutionStoreReader,

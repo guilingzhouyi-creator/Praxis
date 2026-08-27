@@ -8,7 +8,7 @@
  */
 
 import { ProtocolBridge } from "./bridge.ts";
-import { ProtocolError } from "./errors.ts";
+import { ProtocolError } from "./protocol-errors.ts";
 
 export interface HealthResult {
   healthy: boolean;

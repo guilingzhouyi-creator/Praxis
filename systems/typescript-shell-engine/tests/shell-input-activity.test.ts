@@ -10,7 +10,7 @@ import {
   type InputActivityObservation,
   type InputActivityProbeConfig,
   type InputActivitySnapshot,
-} from "../src/input-activity.ts";
+} from "../src/terminal-input-telemetry.ts";
 
 const fixturePath = fileURLToPath(
   new URL("../../../tests/fixtures/kernel_input_activity_vectors.json", import.meta.url),

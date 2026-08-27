@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ConnectionManager, type TransportFactory } from "../src/engine/connection-manager.ts";
-import { makeMessage } from "../src/envelope.ts";
+import { makeMessage } from "../src/wire-envelope.ts";
 
 /** A fake transport that fails N times, then answers systemStatus. */
 function flakyFactory(failures: number, onAttempt: (n: number) => void): TransportFactory {

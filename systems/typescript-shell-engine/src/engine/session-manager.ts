@@ -9,7 +9,7 @@
  * emits ack/recovery control messages over the bridge.
  */
 
-import type { Message } from "../envelope.ts";
+import type { Message } from "../wire-envelope.ts";
 import type { ProtocolBridge } from "./bridge.ts";
 
 /** One frontend view bound to a session: its own ack cursor + replay window. */

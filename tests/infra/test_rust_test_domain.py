@@ -58,7 +58,17 @@ def test_rust_kernel_tests_live_outside_implementation_modules() -> None:
         relative = path.relative_to(RUST_TESTS)
         assert len(relative.parts) == 2, f"Rust test target must live directly under tests/<domain>/: {path_value}"
         assert relative.parts[0] in TEST_DOMAINS, f"Unknown Rust test domain: {relative.parts[0]}"
-        assert name == path.stem, f"Target name must preserve the historical file stem: {path_value}"
+        # Source leaves use an explicit `kernel_test_` namespace when they
+        # would collide with Python reference modules. Cargo target names are
+        # kept stable so existing `cargo test --test <name>` commands remain
+        # valid across the file-layout cleanup.
+        source_stem = path.stem
+        allowed_names = {source_stem}
+        if source_stem.startswith("kernel_test_"):
+            allowed_names.add(source_stem.removeprefix("kernel_test_"))
+        assert name in allowed_names, (
+            f"Cargo target name must match its normalized source identity: {name!r} vs {path_value}"
+        )
         registered_paths.append(path)
         registered_names.append(name)
 

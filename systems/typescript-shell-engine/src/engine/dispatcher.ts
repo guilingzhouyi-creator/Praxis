@@ -8,7 +8,7 @@
  */
 
 import type { ParsedCommand } from "./parser.ts";
-import type { MiddlewareChain } from "./middleware.ts";
+import type { MiddlewareChain } from "./command-middleware.ts";
 
 export interface DispatchContext {
   sessionId: string;

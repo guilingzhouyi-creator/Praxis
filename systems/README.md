@@ -52,13 +52,20 @@ boundary.
 - Use lowercase kebab-case for system directories.
 - Keep Python module files snake_case under `python-reference-runtime`.
 - Keep Rust crate/source names Rust-native under `rust-kernel-engine`.
+  Collision-prone kernel leaves use the `kernel_` filename prefix while
+  `src/lib.rs` preserves the stable public module identifiers.
+  Collision-prone integration-test leaves use `kernel_test_`; their Cargo
+  target names remain stable so existing bounded test commands keep working.
 - Keep TypeScript package/source names TypeScript-native under
-  `typescript-shell-engine`; do not recreate Python `l1`–`l5` package names as
-  TypeScript or Rust modules.
+  `typescript-shell-engine`; use explicit `wire-`, `interactive-`, `command-`,
+  `agent-`, and `engine-` domain prefixes. TypeScript test leaves stay under
+  `tests/` with the `.test.ts` suffix and use `shell-`/domain prefixes when
+  needed to avoid a Python basename collision. Do not recreate Python `l1`–`l5`
+  package names as TypeScript or Rust modules.
 - Treat the system directory and artifact identity as the namespace boundary:
-  leaf files may retain semantic names such as `event` or `session` when their
-  language-native package path is different. A Rust/TypeScript artifact must
-  never reuse the Python artifact name or a legacy package root.
+  formal source leaves must not reuse a normalized basename from the Python
+  reference tree. Run `make system-naming` after moving or adding a runtime
+  file.
 - Do not add compatibility aliases named `src/`, `crates/`, or
   `packages/protocol-ts/`. The boundary checker rejects those legacy roots.
 - Build manifests may describe their own artifact only; path dependencies to
