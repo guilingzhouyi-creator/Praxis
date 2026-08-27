@@ -46,14 +46,14 @@ BASELINE = ROOT / "config" / "quality" / "perf-baseline.yaml"
 # runtime on sys.path so
 # they resolve the worktree sources (never an installed praxis copy).
 sys.path.insert(0, str(ROOT / "systems/python-reference-runtime"))
-sys.path.insert(0, str(ROOT / "scripts" / "py"))
+sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))
 
-from perf_harness import (  # noqa: E402
+from perf_sampling import (  # noqa: E402
     PERF_HARNESS_WARMUP_ROUNDS,
     platform_fingerprint,
     run_benchmark,
 )
-from perf_harness import (  # noqa: E402
+from perf_sampling import (  # noqa: E402
     SCHEMA_VERSION as PERF_SCHEMA_VERSION,
 )
 

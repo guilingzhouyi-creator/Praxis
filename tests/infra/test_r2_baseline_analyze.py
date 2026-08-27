@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
 
-from r2_baseline_analyze import analyze_bundle  # noqa: E402
+from bench_r2_report import analyze_bundle  # noqa: E402
 
 
 def _bundle() -> dict:

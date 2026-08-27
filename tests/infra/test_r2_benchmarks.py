@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
 
-from r2_reference_bench import build_evidence  # noqa: E402
+from bench_r2_py_reference import build_evidence  # noqa: E402
 
 
 def test_python_reference_preserves_fixed_work_and_resource_units() -> None:

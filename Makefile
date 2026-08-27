@@ -240,10 +240,10 @@ rust-kernel-entry:
 	cargo build --manifest-path systems/rust-kernel-engine/Cargo.toml --bin rust-kernel-entry
 
 r2-baseline-bundle:
-	python scripts/py/r2_baseline_bundle.py --output .praxis/automation/r2-baseline-bundle.json
+	python scripts/py/bench_r2_bundle.py --output .praxis/automation/r2-baseline-bundle.json
 
 r2-baseline-analysis: r2-baseline-bundle
-	python scripts/py/r2_baseline_analyze.py \
+	python scripts/py/bench_r2_report.py \
 		--input .praxis/automation/r2-baseline-bundle.json \
 		--output .praxis/automation/r2-baseline-analysis.json
 

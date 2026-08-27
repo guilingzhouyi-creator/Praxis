@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from r2_baseline_bundle import (
+from bench_r2_bundle import (
     BUNDLE_SCHEMA_VERSION,
     EVIDENCE_SCHEMA_VERSION,
     EXPECTED_ROUNDS,

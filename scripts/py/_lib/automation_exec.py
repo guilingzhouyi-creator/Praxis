@@ -11,12 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "systems/python-reference-runtime"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from automation_manifest import AutomationStep, AutomationWorkflow  # noqa: E402
+from automation_plan import AutomationStep, AutomationWorkflow  # noqa: E402
 
 from l1.kernel.ports.process import ProcessOptions, ProcessResult, get_process_port  # noqa: E402
 

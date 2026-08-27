@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MANIFEST = ROOT / "config" / "discovery" / "automation.yaml"
 SRC = ROOT / "systems/python-reference-runtime"
 if str(SRC) not in sys.path:

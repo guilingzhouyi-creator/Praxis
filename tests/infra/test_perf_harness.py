@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py" / "_lib"))
 
-from perf_harness import (  # noqa: E402
+from perf_sampling import (  # noqa: E402
     PERF_HARNESS_MAD_WARN_PCT,
     PERF_HARNESS_SAMPLE_ROUNDS,
     PERF_HARNESS_WARMUP_ROUNDS,
