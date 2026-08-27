@@ -55,6 +55,19 @@ fn mutex_priority_callback_is_observable() {
 }
 
 #[test]
+fn mutex_priority_callback_panic_does_not_poison_lock() {
+    let mutex = Mutex::new("mutex-panic", Duration::from_millis(20))
+        .with_boost_callback(Arc::new(|_, _, _| panic!("telemetry failure")));
+    assert_eq!(mutex.acquire("owner", 5.0, true)["success"], true);
+    assert_eq!(
+        mutex.acquire("waiter", 1.0, false)["error"],
+        "lock contended"
+    );
+    assert_eq!(mutex.release("owner")["success"], true);
+    assert_eq!(mutex.acquire("next", 5.0, false)["success"], true);
+}
+
+#[test]
 fn semaphore_matches_capacity_and_timeout_shape() {
     let semaphore = Semaphore::new(
         "semaphore",

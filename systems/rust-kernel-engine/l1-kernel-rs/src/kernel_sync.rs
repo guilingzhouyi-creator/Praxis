@@ -1,6 +1,7 @@
 //! Rust synchronization mechanisms staged behind the Python L1 contract.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -123,7 +124,12 @@ impl Mutex {
             let old = state.effective_priority;
             state.effective_priority = priority;
             if let Some(callback) = &self.on_boost {
-                callback(&state.owner, old, priority);
+                // The callback is advisory and runs while the lock state is
+                // held. Contain host/observability failures so a panic cannot
+                // poison the synchronization primitive or cross L1.
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    callback(&state.owner, old, priority);
+                }));
             }
         }
 

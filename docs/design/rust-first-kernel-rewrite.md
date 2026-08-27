@@ -701,6 +701,9 @@ cloneable one-way token, first-reason retention, cooperative checks, and
 bounded waits; RWLock removes a cancelled writer ticket before waking
 successors. Task/queue cancellation, cross-process lock ownership, and runtime
 routing remain later mechanism work.
+The optional priority-inheritance callback is advisory and is invoked behind a
+panic boundary; a callback failure cannot poison the lock or cross the Rust L1
+boundary.
 
 ### 4.7 终端探测与 Agent 进程硬约束
 

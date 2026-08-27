@@ -489,6 +489,10 @@ TCP endpoint parsing. It never executes commands, creates directories, or
 opens sockets; those remain Python adapter responsibilities. Public behavior and
 shared vectors are isolated in `tests/terminal/kernel_test_platform.rs`.
 
+The synchronization candidate treats its optional priority-inheritance callback
+as advisory: callback panics are contained so lock ownership and poisoning
+semantics remain kernel-owned.
+
 The isolated `paths` module mirrors deployment-mode selection, `PraxisPaths`
 child-path derivation, explicit environment/config overrides, and a resettable
 in-memory path store. `PathInputs` are injected by the host; environment

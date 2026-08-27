@@ -961,7 +961,9 @@ zero-timeout writer failure, status snapshots, and missing-owner unlock errors;
 the Rust candidate additionally assigns FIFO writer tickets and removes timed
 out tickets before waking successors. This closes queued-writer fairness for
 the candidate without claiming task cancellation, cross-process ownership, or
-runtime lock routing. The separate `cancellation` candidate provides a
+runtime lock routing. The optional priority-inheritance callback is advisory;
+its panic is contained while the lock state remains authoritative. The separate
+`cancellation` candidate provides a
 cloneable one-way token with first-reason retention, cooperative checks, and
 bounded waits. RWLock observes that token and removes cancelled writer tickets
 before waking successors; queue/task cancellation remains an open mechanism
