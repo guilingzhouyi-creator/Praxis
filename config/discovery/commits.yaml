@@ -2,10 +2,11 @@
 #
 # Consumed by the commit scanners so the type/scope whitelist lives in ONE
 # place instead of drifting across scripts:
-#   - scripts/py/commit_scan.py   (policy engine, used by all gates below)
+#   - scripts/py/_lib/commit_policy.py   (policy engine, exposed via
+#     scripts/py/commit_gate.py policy; used by all gates below)
 #   - .githooks/commit-msg        (local commit gate)
-#   - scripts/sh/verify-pr-merge.sh (remote PR merge gate)
-#   - scripts/py/generate_changelog.py (CHANGELOG typing)
+#   - scripts/sh/gate-merge.sh pr (remote PR merge gate)
+#   - scripts/py/_lib/changelog_render.py (CHANGELOG typing, via gen_changelog.py)
 #   - .github/workflows/pr-review.yml (PR advisory comment)
 #
 # Three-layer config: params/*.py (compile-time) ← this file (structural)
@@ -29,7 +30,7 @@ types:
   - sync  # mirror sync commits (auto-generated, e.g. main -> github mirror)
 
 # Imperative-mood guard — single source of truth for BOTH scripts/py/
-# commit_scan.py and scripts/js/validate-commit.mjs (via the commits.json
+# _lib/commit_policy.py and scripts/js/validate-commit.mjs (via the commits.json
 # mirror). A summary whose FIRST word appears in this list (past tense or
 # gerund forms) is rejected: subjects must start with an imperative
 # present-tense verb (add, fix, update, refactor, ...). Edit here, then run
@@ -47,7 +48,7 @@ non_imperative_verbs:
    cleans, cleaned, cleaning]
 
 # Type-to-file content rules (must_include) — single source of truth for
-# BOTH scripts/py/commit_scan.py (Python) and scripts/js/validate-commit.mjs
+# BOTH scripts/py/_lib/commit_policy.py (Python) and scripts/js/validate-commit.mjs
 # (Node, via the commits.json mirror). Edit here, then run
 # `python scripts/py/gen_commits_json.py` to resync the Node side.
 type_content_rules:
@@ -86,7 +87,7 @@ scope_dirs:
 
 # Registered authoring agents for Co-Authored-By attribution. The commit-msg
 # gate compares the trailer the agent wrote against BOTH this registry and
-# the live runtime detection (scripts/py/detect_agent.py): the model name
+# the live runtime detection (scripts/py/check_attribution.py): the model name
 # must match what the detector reports (an OpenAI/Anthropic model can never
 # claim a deepseek run, and vice versa), and the agent name must be one of
 # these registered identities. Never attribute a run to a framework that did

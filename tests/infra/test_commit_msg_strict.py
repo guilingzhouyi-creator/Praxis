@@ -122,5 +122,5 @@ def test_ci_workflow_exists():
     wf = ROOT / ".github" / "workflows" / "commit-lint.yml"
     assert wf.exists()
     text = wf.read_text(encoding="utf-8")
-    assert "commit_scan" in text
+    assert "commit_gate" in text
     assert "Co-Authored-By" in text or "commit-lint" in text

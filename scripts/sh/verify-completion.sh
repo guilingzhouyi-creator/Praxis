@@ -17,7 +17,7 @@ set -euo pipefail
 #   6. Audit        — pip-audit dependency CVE scan clean
 #   7. Complexity   — at most 12 functions longer than 200 lines
 #   8. Import cycle — import_cycle_check.py clean
-#   9. Singleton    — scan_singletons.py vs conftest _RESETS in sync
+#   9. Singleton    — check_singletons.py vs conftest _RESETS in sync
 #  10. Changelog    — CHANGELOG [Unreleased] present and fresh
 #  11. Doc index    — check_doc_index.py clean
 #
@@ -81,7 +81,7 @@ RUN_LINT="${COMPLETION_LINT:-1}"
 RUN_AUDIT="${COMPLETION_AUDIT:-1}"        # pip-audit dependency CVEs
 RUN_COMPLEX="${COMPLETION_COMPLEX:-1}"    # long_functions >200 lines
 RUN_CYCLE="${COMPLETION_CYCLE:-1}"        # import-cycle-check
-RUN_SINGLETON="${COMPLETION_SINGLETON:-1}"  # scan_singletons drift
+RUN_SINGLETON="${COMPLETION_SINGLETON:-1}"  # check_singletons drift
 RUN_CHANGELOG="${COMPLETION_CHANGELOG:-1}"  # CHANGELOG [Unreleased] fresh
 RUN_INDEX="${COMPLETION_INDEX:-1}"          # doc-index consistency
 
@@ -139,7 +139,7 @@ if [ "$NEEDS_PYTHON" = "1" ] && ! command -v python >/dev/null 2>&1; then
   echo "  This measures YOUR SHELL, not the work; nothing was recorded to judge-runs.jsonl." >&2
   echo "  Agent-fix: run the judge from the repo venv first:" >&2
   echo "    export PATH=\"\$PWD/.venv/bin:\$PATH\"   # worktrees: use <main-tree>/.venv/bin" >&2
-  echo "    bash scripts/sh/verify-completion.sh [--skip=...]" >&2
+  echo "    bash scripts/sh/gate-merge.sh completion [--skip=...]" >&2
   exit 3
 fi
 
@@ -355,8 +355,8 @@ fi
 if [ "$RUN_COMPLEX" = "1" ]; then
   echo "[judge] ── 7. Complexity (long_functions >200 lines) ──"
   if python -c "
-import sys; sys.path.insert(0, 'scripts/py')
-from collect_stats import long_functions
+import sys; sys.path.insert(0, 'scripts/py/_lib')
+from codebase_stats import long_functions
 n = long_functions()
 print(n)
 sys.exit(1 if n > 12 else 0)
@@ -383,11 +383,11 @@ fi
 # ── 9. Singleton drift (test isolation) ──────────────────────────────────
 if [ "$RUN_SINGLETON" = "1" ]; then
   echo "[judge] ── 9. Singleton scan (conftest _RESETS sync) ──"
-  if python scripts/py/scan_singletons.py > /tmp/judge_singleton.log 2>&1; then
+  if python scripts/py/check_singletons.py > /tmp/judge_singleton.log 2>&1; then
     S_SINGLETON=1; pass "singletons registered in _RESETS"
   else
     S_SINGLETON=2; head -5 /tmp/judge_singleton.log >&2
-    fail "singleton drift — scan_singletons found unregistered module-level state"
+    fail "singleton drift — check_singletons found unregistered module-level state"
   fi
 fi
 
@@ -446,7 +446,7 @@ if [ "$VERDICT" = "COMPLETE" ]; then
 elif [ "$VERDICT" = "PARTIAL" ]; then
   echo "[judge] ⚠️  PARTIAL — fast mode (${MODE}); executed checks green but some skipped; NOT a 'done' verdict." >&2
   if [ "${SKIPPED_TESTS:-0}" = "1" ]; then
-    echo "[judge]    Tests were SKIPPED — this run is NOT test evidence; run verify-completion.sh (WSL slice-serial) before merging code." >&2
+    echo "[judge]    Tests were SKIPPED — this run is NOT test evidence; run gate-merge.sh completion (WSL slice-serial) before merging code." >&2
   fi
   echo "[judge] logged: $LOG_FILE" >&2
   exit 0

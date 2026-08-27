@@ -1,8 +1,9 @@
-"""Tests for scripts/py/generate_changelog.py and bump-version CHANGELOG migration.
+"""Tests for the changelog render library and bump-version CHANGELOG migration.
 
-Covers the Pure-functions of the changelog tooling: Conventional-Commits
+Covers the pure functions of the changelog tooling: Conventional-Commits
 grouping, the [Unreleased] render, and the bump-time [Unreleased] -> version
-migration. Scripts have hyphens, so they are loaded by path with importlib.
+migration. ``changelog_render.py`` lives under scripts/py/_lib/, loaded by
+path with importlib.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ def _load(name: str, fname: str):
     return mod
 
 
-generate_changelog = _load("generate_changelog", "generate_changelog.py")
+generate_changelog = _load("changelog_render", "_lib/changelog_render.py")
 bump_version = _load("bump_version", "bump_version.py")
 
 

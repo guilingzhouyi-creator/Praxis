@@ -78,7 +78,7 @@ else
   # sweeps — the merge gate itself already ran the delta check; tests were
   # gated by the worktree before merge. The verdict is PARTIAL in fast mode
   # (never COMPLETE) — the record's `mode` field keeps the dashboard honest.
-  if COMPLETION_CLASS=telemetry bash scripts/sh/verify-completion.sh --skip=tests,coverage >/tmp/pushboth_judge.log 2>&1; then
+  if COMPLETION_CLASS=telemetry bash scripts/sh/gate-merge.sh completion --skip=tests,coverage >/tmp/pushboth_judge.log 2>&1; then
     JV="$(grep -oE 'verdict: [A-Z]+' /tmp/pushboth_judge.log | head -1 | awk '{print $2}')"
     echo "[push-both] ✅ completion judge: ${JV:-PARTIAL} (fast mode — tests/coverage skipped; full-gate verdict comes from the worktree run)"
   else
@@ -107,7 +107,7 @@ else
 
   echo "[push-both] ── mainline merge gate (origin/main..main) ─────────────"
   if [ "${MERGE_GATE_SKIP:-0}" != "1" ] && \
-     ! MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main; then
+     ! MAIN_BASE=origin/main bash scripts/sh/gate-merge.sh mainline main; then
     echo "[push-both] ❌ mainline merge gate rejected — push aborted." >&2
     echo "[push-both]    Accumulate the net code delta on your worktree" >&2
     echo "[push-both]    branch (target: >= 1000 net lines) before pushing main." >&2
@@ -134,8 +134,8 @@ FAIL=0
 if [ "$BRANCH" = "main" ]; then
   echo "[push-both] ── commit audit (origin/main..main) ──────────────────────"
   AHEAD=$(git rev-list --count "origin/main..main" 2>/dev/null || echo 0)
-  if [ "$AHEAD" -gt 0 ] && [ -f scripts/py/commit_scan.py ]; then
-    if ! python scripts/py/commit_scan.py --git-range origin/main..main --check-content >/tmp/pushboth_commit_scan.log 2>&1; then
+  if [ "$AHEAD" -gt 0 ] && [ -f scripts/py/commit_gate.py ]; then
+    if ! python scripts/py/commit_gate.py policy --git-range origin/main..main --check-content >/tmp/pushboth_commit_scan.log 2>&1; then
       echo "[push-both] ❌ commit audit FAILED — push aborted." >&2
       cat /tmp/pushboth_commit_scan.log >&2
       echo "[push-both]    Fix violations before pushing, or use --no-verify locally" >&2

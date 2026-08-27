@@ -1,4 +1,4 @@
-"""Tests for scripts/py/commit_scan.py — the commit-scan policy engine.
+"""Tests for scripts/py/_lib/commit_policy.py — the commit-policy engine.
 
 Covers the single source of truth (config/discovery/commits.yaml) contract:
 type whitelist, registered scopes, placeholder guard, branch-type policy,
@@ -12,9 +12,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(ROOT / "scripts" / "py"))  # noqa: E402
+sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))  # noqa: E402
 
-from commit_scan import (  # noqa: E402
+from commit_policy import (  # noqa: E402
     _TYPE_CONTENT_RULES,
     body_advisories,
     load_policy,
@@ -88,7 +88,7 @@ def test_non_imperative_list_is_policy_driven():
     # an explicit policy without the key falls back, and a custom list
     # overrides the default — proving the gate reads the registry, not a
     # hardcoded set.
-    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+    from commit_policy import _FALLBACK_NON_IMPERATIVE_VERBS
 
     subject = "feat(kernel): added new allocator table"
     fallback_policy = {"types": ["feat"], "scopes": ["kernel"]}
@@ -127,7 +127,7 @@ def test_registry_type_content_rules_match_fallback():
 
 
 def _fallback_verbs():
-    from commit_scan import _FALLBACK_NON_IMPERATIVE_VERBS
+    from commit_policy import _FALLBACK_NON_IMPERATIVE_VERBS
 
     return _FALLBACK_NON_IMPERATIVE_VERBS
 

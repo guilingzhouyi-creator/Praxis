@@ -21,20 +21,20 @@ automation:
             - "7"
             - --json
             - .praxis/automation/l2-protocol.json
-        - id: perf_quality
+        - id: bench_layer_runtime
           depends_on: [l2_protocol]
           timeout_s: 300
           command:
             - python
-            - scripts/py/perf_quality.py
+            - scripts/py/bench_layer_runtime.py
             - --run-json
             - .praxis/automation/perf-quality.json
         - id: r2_baseline_bundle
-          depends_on: [perf_quality]
+          depends_on: [bench_layer_runtime]
           timeout_s: 600
           command:
             - python
-            - scripts/py/r2_baseline_bundle.py
+            - scripts/py/bench_r2_bundle.py
             - --output
             - .praxis/automation/r2-baseline-bundle.json
         - id: r2_baseline_analysis
@@ -42,7 +42,7 @@ automation:
           timeout_s: 60
           command:
             - python
-            - scripts/py/r2_baseline_analyze.py
+            - scripts/py/bench_r2_report.py
             - --input
             - .praxis/automation/r2-baseline-bundle.json
             - --output

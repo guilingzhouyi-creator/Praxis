@@ -59,7 +59,7 @@ jobs:
         run: |
           MAIN_BASE="${{ github.event.pull_request.base.sha }}" \
           PR_SKIP_SIGNATURE=1 \
-          bash scripts/sh/verify-pr-merge.sh HEAD
+          bash scripts/sh/gate-merge.sh pr HEAD
 
   audit:
     # Dependency vulnerability gate: pip-audit checks the installed tree

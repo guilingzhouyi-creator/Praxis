@@ -1,7 +1,7 @@
 # Performance Baseline — Per-Layer Throughput Gates
 
 Runtime complement to `quality-baseline.md` (structural quality): every layer's
-benchmark primitives are measured by `scripts/py/perf_quality.py` against a
+benchmark primitives are measured by `scripts/py/bench_layer_runtime.py` against a
 stored baseline in `config/quality/perf-baseline.yaml`.
 
 ## Layer mapping
@@ -25,7 +25,7 @@ Baseline lives in `config/quality/perf-baseline.yaml` (generated, never
 hand-edited). Regenerate with:
 
 ```bash
-python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
+python scripts/py/bench_layer_runtime.py --baseline > config/quality/perf-baseline.yaml
 ```
 
 ## Unified metric contract
@@ -48,20 +48,20 @@ The current namespaces are:
 - `security_evidence.*` for append, sidecar metadata, and fixity verification;
 - `attack_tool.*` for posture-gated tool latency and outcomes.
 
-`perf_quality.py` includes the security/toolchain driver in the L3 gate and
+`bench_layer_runtime.py` includes the security/toolchain driver in the L3 gate and
 applies the same 90% drift floor as every existing layer baseline.
 
 ## Sampling contract
 
 `config/quality/perf-schema.json` is the machine-readable result contract and
-`scripts/py/perf_harness.py` is the shared sampler for in-process benchmarks.
+`scripts/py/_lib/perf_sampling.py` is the shared sampler for in-process benchmarks.
 Sampling policy is declared in `config/quality/perf-harness.yaml` and validated
 at load time; it is no longer a runtime `l1.kernel.params` dependency. The
 shipped policy discards one warmup round and records seven samples by default.
 The sampler emits a versioned document containing platform metadata,
 per-sample throughput, average operation latency, p95 batch latency, median
 absolute deviation (MAD), and coefficient of variation (CV).
-`perf_quality.py --run-json` wraps the layer measurements in the same schema
+`bench_layer_runtime.py --run-json` wraps the layer measurements in the same schema
 with `schema_version`, `generated_at`, `platform`, and `layers` fields.
 
 The sampler treats variance as evidence, not as a reason to silently rewrite a
@@ -77,7 +77,7 @@ promoted without rewriting unrelated layers:
 ```bash
 python tests/benchmarks/bench_l2_protocol.py --iterations 5000 --warmups 3 --samples 31 \
   --json .praxis/l2-continuous.json
-python scripts/py/perf_quality.py --baseline --baseline-layer L2 > /tmp/praxis-perf-baseline.yaml
+python scripts/py/bench_layer_runtime.py --baseline --baseline-layer L2 > /tmp/praxis-perf-baseline.yaml
 mv /tmp/praxis-perf-baseline.yaml config/quality/perf-baseline.yaml
 ```
 
@@ -87,10 +87,10 @@ selected layer after the operator has reviewed the repeated-sample report.
 ## Usage
 
 ```bash
-python scripts/py/perf_quality.py                # scan + gate verdict (exit 0/1/2)
-python scripts/py/perf_quality.py --report       # measured table only
-python scripts/py/perf_quality.py --baseline     # emit baseline YAML to stdout
-python scripts/py/perf_quality.py --run-json <f> # dump measured JSON (debug)
+python scripts/py/bench_layer_runtime.py                # scan + gate verdict (exit 0/1/2)
+python scripts/py/bench_layer_runtime.py --report       # measured table only
+python scripts/py/bench_layer_runtime.py --baseline     # emit baseline YAML to stdout
+python scripts/py/bench_layer_runtime.py --run-json <f> # dump measured JSON (debug)
 make quality-all                                  # structural + performance gates in one run
 ```
 
@@ -103,7 +103,7 @@ local scans, regenerate the baseline on the same environment before judging.
 
 ## Integration
 
-- `perf_quality.py` mirrors the `layer_quality.py` gate shape (hard red lines +
+- `bench_layer_runtime.py` mirrors the `bench_layer_structure.py` gate shape (hard red lines +
   soft drift, identical report format), so both are consumed the same way.
 - `make quality-all` runs both scanners sequentially — structural quality then
   runtime performance — as the unified per-layer quality gate.

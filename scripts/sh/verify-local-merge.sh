@@ -41,7 +41,7 @@ if [ -z "$BRANCH" ]; then
 fi
 if [ -z "$BRANCH" ]; then
   echo "[local-merge] ERROR: cannot determine current branch (detached HEAD?)" >&2
-  echo "[local-merge] usage: bash scripts/sh/verify-local-merge.sh [branch]" >&2
+  echo "[local-merge] usage: bash scripts/sh/gate-merge.sh local [branch]" >&2
   exit 2
 fi
 if ! git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
@@ -62,7 +62,7 @@ echo "[local-merge] branch: $BRANCH (target: local main)"
 # Roadmaps and discovery registries are stateful; a stale branch snapshot
 # must not replace either tree as one opaque hunk. Keep this before the
 # quantitative gate so an otherwise-qualifying branch cannot bypass review.
-HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+HUNK_AUDIT="scripts/py/check_sensitive_paths.py"
 if [ ! -f "$HUNK_AUDIT" ]; then
   echo "[local-merge] ERROR: $HUNK_AUDIT not found" >&2
   exit 3
@@ -84,11 +84,11 @@ if [ "$HUNK_RC" -ne 0 ]; then
 fi
 echo "[local-merge] ✅ sensitive-path hunk audit passed"
 
-# ── Commit audit — every commit on the branch must pass commit_scan ──────
-SCAN="scripts/py/commit_scan.py"
+# ── Commit audit — every commit on the branch must pass the policy gate ──────
+SCAN="scripts/py/commit_gate.py"
 if [ -f "$SCAN" ]; then
   echo "[local-merge] ── commit audit (main..$BRANCH) ──"
-  if ! python "$SCAN" --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then
+  if ! python "$SCAN" policy --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then
     echo "[local-merge] ❌ commit audit FAILED — branch has violations." >&2
     cat /tmp/local_merge_scan.log >&2
     echo "[local-merge]    Fix the commits before merging, or use MERGE_GATE_SKIP=1 waiver." >&2
@@ -118,7 +118,7 @@ JUDGE_LOG="$(git rev-parse --git-common-dir 2>/dev/null)/../.praxis/judge-runs.j
 if [ -f "$JUDGE_LOG" ]; then
   LAST_SKIP_TESTS="$(tail -1 "$JUDGE_LOG" 2>/dev/null | grep -o '"skipped_tests":[01]' | grep -o '[01]$' || echo 0)"
   if [ "${LAST_SKIP_TESTS:-0}" = "1" ]; then
-    echo "[local-merge] ⚠️  Most recent judge run SKIPPED tests — this branch's tests are not evidenced; run bash scripts/sh/verify-completion.sh (WSL slice-serial) before merging code." >&2
+    echo "[local-merge] ⚠️  Most recent judge run SKIPPED tests — this branch's tests are not evidenced; run bash scripts/sh/gate-merge.sh completion (WSL slice-serial) before merging code." >&2
   fi
 fi
 
@@ -134,7 +134,7 @@ else
   echo "   HOW TO FIX (accumulate, do not force):"
   echo "     1. stay on this worktree branch — keep committing real code"
   echo "        (net delta target >= 1000; docs-only changes do not count)"
-  echo "     2. re-check: bash scripts/sh/verify-local-merge.sh"
+  echo "     2. re-check: bash scripts/sh/gate-merge.sh local"
   echo "     3. once ✅: git switch main && git merge --no-ff $BRANCH"
   echo "     4. then double-green + push: bash scripts/sh/push-both.sh main"
   echo "   Waiver (user-granted ONLY, never self-award): MERGE_GATE_SKIP=1"

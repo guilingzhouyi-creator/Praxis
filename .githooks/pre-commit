@@ -22,7 +22,7 @@ else
 fi
 
 echo "--- pre-commit: size check ---"
-python scripts/py/pre_commit_size_check.py
+python scripts/py/check_commit_size.py
 
 # ── Script naming guard (module files must be snake_case) ────────────────
 # AGENTS.md: directories are kebab-case, module *files* are snake_case.

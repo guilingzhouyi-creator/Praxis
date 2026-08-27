@@ -14,7 +14,7 @@
 - **What's in flight** (unmerged work on the branch):
   - ...
 - **Shared files touched** (MUST be registered in `ALIGNMENT.md` change log):
-  - e.g. `scripts/sh/verify-completion.sh` — coverage WSL serial (XDIST_ARGS)
+  - e.g. `scripts/sh/gate-merge.sh completion` — coverage WSL serial (XDIST_ARGS)
 - **Gotchas / conventions discovered** (for the next agent):
   - e.g. WSL worktree git resolves via Git Bash, not WSL; infra merges can
     clobber shared-script optimizations — check `git log --oneline <file>`

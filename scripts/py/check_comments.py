@@ -11,7 +11,7 @@ Exit codes:
   2  — usage / internal error
 
 Usage:
-  python scripts/py/comment_audit.py [path] [--strict]
+  python scripts/py/check_comments.py [path] [--strict]
 
 ``--strict`` turns all categories into hard failures (default: only CJK
 residue and missing module docstrings fail; missing class/function docstrings

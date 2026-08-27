@@ -18,7 +18,7 @@ Systematic debugging workflow for Praxis. The codebase is 5-layer (L1 kernel →
 - **Layer violation**: if an import fails with a cycle or an unexpected cross-layer import, check the import rules (L5→L4→L3→L2→L1 one-way). `python -m pytest tests/infra/test_layer_imports.py -x -q` flags new violations; pre-existing ones are allowlisted.
 - **Constants drift**: `tests/infra/test_params_compliance.py` (strict) catches hardcoded magic numbers that should live in `systems/python-reference-runtime/l1/kernel/params/`. Symmetric bug: params changed but references not regenerated (`make doc-stats`).
 - **Hook rejection**: a commit/merge rejected by git is usually the mainline whitelist or commit-msg rules — see the git-workflow skill.
-- **Gate rejection**: a push rejected by `push-both.sh main` is the mainline net-delta gate (`verify-main-merge-gate.sh`) — the change is below the ≥ 1000 net threshold (or comment/deletion locks tripped). Do NOT self-waive with `MERGE_GATE_SKIP=1`; accumulate on the worktree branch or ask the user (see the **net-delta-gate** skill).
+- **Gate rejection**: a push rejected by `push-both.sh main` is the mainline net-delta gate (`gate-merge.sh mainline`) — the change is below the ≥ 1000 net threshold (or comment/deletion locks tripped). Do NOT self-waive with `MERGE_GATE_SKIP=1`; accumulate on the worktree branch or ask the user (see the **net-delta-gate** skill).
 - **Contract mismatch**: API 4xx on valid calls — route not in the manifest (`python -m l4.api.api_endpoints`), or versioned path drifted (`_strip_version`).
 
 ## 3. Trace the Execution Path
@@ -43,4 +43,4 @@ Systematic debugging workflow for Praxis. The codebase is 5-layer (L1 kernel →
 - Log via module `logger = logging.getLogger(__name__)`, never `print()`.
 - Magic values (timeouts, truncation) come from params by name (`LOG_TRUNC_*`, `HASH_TRUNC_*`, `TOOL_*`).
 - After fixing, add a regression test; register new singletons in `_RESETS`; keep commits on a `feature/` branch per git-workflow.
-- When a task is declared done but the reviewer disagrees, check `.praxis/judge-runs.jsonl` (CompletionJudge records) and `bash scripts/sh/verify-completion.sh` for the INCOMPLETE evidence gap — that is the machine's answer.
+- When a task is declared done but the reviewer disagrees, check `.praxis/judge-runs.jsonl` (CompletionJudge records) and `bash scripts/sh/gate-merge.sh completion` for the INCOMPLETE evidence gap — that is the machine's answer.

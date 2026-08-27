@@ -66,9 +66,8 @@ def test_ensure_hooks_check_passes():
 
 
 def test_commit_lint_workflow_exists():
-    """commit-lint workflow exists and references commit_scan."""
+    """commit-lint workflow exists and references the commit policy gate."""
     wf = ROOT / ".github" / "workflows" / "commit-lint.yml"
     assert wf.exists()
     txt = wf.read_text(encoding="utf-8")
-    assert "commit_scan" in txt
-    assert "Co-Authored-By" in txt or "commit-lint" in txt
+    assert "commit_gate" in txt

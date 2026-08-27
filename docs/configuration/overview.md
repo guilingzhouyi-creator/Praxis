@@ -14,7 +14,7 @@ config/
     agent_configs.yaml     — Agent roles, clearance, priorities, event types, injection patterns
     build_detectors.yaml   — Build/test framework auto-detection commands
     commits.yaml           — Commit-scan policy (types/scopes/placeholder/branch rules);
-                             read directly by scripts/py/commit_scan.py — NOT registered
+                             read directly by scripts/py/_lib/commit_policy.py — NOT registered
                              as a boot section (its keys are intentionally unregistered,
                              so boot discovery ignores it with a warning)
     danger_levels.yaml     — Tool danger levels, gate mappings, ring maps

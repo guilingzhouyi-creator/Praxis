@@ -6,7 +6,7 @@ Run before updating docs/architecture/README.md (the numbers snapshot):
 
 Prints the stats table used by README.md. Never hand-edit the numbers —
 they drift; regenerate instead. The counting logic lives in ``collect_stats``
-(``scripts/py/collect_stats.py``) — the single source of truth shared by
+(``scripts/py/_lib/codebase_stats.py``) — the single source of truth shared by
 ``gen_llms_txt.py`` and ``check_doc_stats.py``.
 """
 
@@ -16,9 +16,9 @@ import sys
 from pathlib import Path
 
 _SCRIPTS = Path(__file__).resolve().parent
-sys.path.insert(0, str(_SCRIPTS))
+sys.path.insert(0, str(_SCRIPTS / "_lib"))
 
-from collect_stats import collect_stats, health_scores  # noqa: E402
+from codebase_stats import collect_stats, health_scores  # noqa: E402
 
 
 def format_stats(stats: dict) -> str:

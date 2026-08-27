@@ -12,11 +12,11 @@
 - [ ] 仅文档(docs/ 或根级文档,豁免)
 - [ ] 删除主导(净增量 ≤ 0,豁免)
 
-> 门禁规则: `bash scripts/sh/verify-main-merge-gate.sh main` — 见 AGENTS.md "Commit conventions"。
+> 门禁规则: `bash scripts/sh/gate-merge.sh mainline main` — 见 AGENTS.md "Commit conventions"。
 
 ## 测试 (Tests)
 
-- [ ] 新增/更新了测试(测试文件与用例数见 `collect_stats` 输出)
+- [ ] 新增/更新了测试(测试文件与用例数见 `codebase_stats` 输出)
 - [ ] 全量测试通过: `python -m pytest tests/ -q`
 - [ ] ruff / mypy 通过: `ruff check systems/python-reference-runtime/ tests/ && mypy systems/python-reference-runtime/ ...`
 
@@ -28,5 +28,5 @@
 
 ## 冲突与对齐 (Conflicts & alignment)
 
-- [ ] 已用 `bash scripts/sh/verify-pr-merge.sh <branch>` 预检(签名/英文/冲突)
+- [ ] 已用 `bash scripts/sh/gate-merge.sh pr <branch>` 预检(签名/英文/冲突)
 - [ ] 与同 merge-base 的 sibling 分支已对齐(如有)

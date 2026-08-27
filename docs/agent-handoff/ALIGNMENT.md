@@ -24,7 +24,7 @@
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
 
-| 2026-08-27 | systems/README.md + systems/system-boundaries.yaml + scripts/py/check_system_boundaries.py + Makefile + pyproject.toml + config/discovery/* + .githooks/pre-commit + scripts/sh/* + CI/build docs | Codex (GPT5.6Terra) | establish independent Python reference, Rust kernel, and TypeScript shell system boundaries; remove legacy runtime roots; update build/test entrypoints and enforce no cross-system source dependencies | in feature/system-layout |
+| 2026-08-27 | scripts/py/_lib/{perf_sampling(←perf_harness),automation_plan(←automation_manifest),automation_exec(←automation_runner)} + bench_r2_{bundle,report,py_reference}(←r2_*) + praxis_automation.py + bench_layer_runtime.py imports + Makefile + config/discovery/automation.yaml cmds + tests(perf_harness/automation_manifest/r2_benchmarks/r2_baseline_analyze/benchmarks/bench_l2_protocol) | GLM (glm-5.3) <noreply@z.ai> | batch 5: settle the three shared libraries under _lib and give the R2 trio bench_* names; perf_harness config-section key, perf_quality.in_process metric label and automation DAG ids kept as schema/trend identities; every importer and command switched | in feature/scripts-naming |
 
 | 2026-08-23 | systems/rust-kernel-engine/l1-kernel-rs/src/process_group.rs + benchmark_runner.rs + systems/rust-kernel-engine/l1-kernel-rs/src/bin/rust-process-group-bench.rs + systems/rust-kernel-engine/l1-kernel-rs/tests/* + docs/architecture/* + docs/roadmaps/frontend-kernel-roadmap.md | GPT (root-kernel-next) | terminal-member counter, snapshot-free reaper fast path, isolated process.group.reaper v3 evidence | in feature/root-kernel-next |
 | 2026-08-23 | docs/workflow/commits.md + tests/infra/test_config_consistency.py | GPT (root-kernel-next) | remove stale absent-generator claim and lock the checked-in JSON mirror contract | in feature/root-kernel-next |
@@ -121,3 +121,7 @@
 > registration itself is valid history; the row is preserved here verbatim
 > and removed from the tail so the change-log table stays well-formed and
 > grep-count/rotate accounting agrees.
+
+| 2026-08-27 | docs/agent-handoff/ALIGNMENT.md + tests/infra/test_merge_hunks.py | GLM (glm-5.3) <noreply@z.ai> | batch 2a: add scripts/sh/gate-merge.sh unified dispatcher over the five merge/completion gates (stage+legacy aliases); rename audit_merge_hunks.py to check_sensitive_paths.py with both sh callers and tests switched | in feature/scripts-naming |
+| 2026-08-27 | docs(workflow/architecture/design/roadmaps/skills×14/PULL_REQUEST_TEMPLATE/AGENTS/CLAUDE)+Makefile+nightly/ci/deps.yml+.githooks/commit-msg hints+sh self-usage texts+llms-full regen | GLM (glm-5.3) <noreply@z.ai> | batch 6: converge every runbook/doc on gate-merge.sh stages and renamed scripts; judge full skip-heavy rerun green; dispatcher exec table, truthful file headers, test anchors and "formerly" notes intentionally kept | in feature/scripts-naming |
+| 2026-08-27 | scripts/sh/verify-local-merge.sh | GLM (glm-5.3) <noreply@z.ai> | batch 7 (pre-merge seam): route the local-merge range audit through commit_gate.py policy verb after batch-1 rename | in feature/scripts-naming |

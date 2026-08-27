@@ -7,7 +7,7 @@ type(scope): summary (≤72, lowercase, no period, English)
 # Trailer (required, last line, blank line before):
 # Co-Authored-By: Agent (model) <noreply@domain>
 #   Agent ∈ {AtomCode,OpenCode,Claude,DeepSeek,GPT} per config/discovery/commits.yaml
-#   model must match live detection (scripts/py/detect_agent.py --json)
+#   model must match live detection (scripts/py/check_attribution.py --json)
 # Example:
 # feat(kernel): add token ring revocation
 #

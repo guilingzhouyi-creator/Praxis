@@ -94,7 +94,7 @@
 
 ### 2.5 与质量治理对齐
 
-- 切片名与 `layer_quality.py` L1-L5 层一一对应 → 「质量扫描报 L3 违规 → `runner --slice l3-fast` 快速重跑」闭环
+- 切片名与 `bench_layer_structure.py` L1-L5  层一一对应 → 「质量扫描报 L3 违规 → `runner --slice l3-fast` 快速重跑」闭环
 - CI 主流程：`quality-all`（结构+性能门禁）→ `runner --parallel`（测试回归）
 
 ## 3. 实施清单（多数已落地，剩余收口）

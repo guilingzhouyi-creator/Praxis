@@ -5,7 +5,7 @@ name: commit-lint (strict)
 #   - English only (no CJK)
 #   - Conventional Commits type(scope): summary (≤72, lowercase, no markdown)
 #   - Exactly one Co-Authored-By trailer matching config/discovery/commits.yaml
-#     + live detection (scripts/py/detect_agent.py)
+#     + live detection (scripts/py/check_attribution.py)
 # This enforces the same policy as .githooks/commit-msg, but on the server
 # side so --no-verify or PRAXIS_SKIP_AUTHOR_CHECK bypasses cannot slip to main.
 # Docs-only and merge commits are handled identically to the local hook.
@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deps for commit_scan
+      - name: Install deps for the commit policy engine
         run: pip install pyyaml
 
       - name: Lint commits vs origin/main (push) or base..head (PR)
@@ -58,7 +58,7 @@ jobs:
             echo "No commits in range — nothing to lint."
             exit 0
           fi
-          # Reuse the single source of truth: commit_scan.py
+          # Reuse the single source of truth: _lib/commit_policy.py via commit_gate.py policy
           FAIL=0
           while IFS= read -r sha; do
             subject="$(git log -1 --format=%s "$sha")"
@@ -66,13 +66,13 @@ jobs:
             branch="$(git branch --contains "$sha" --format='%(refname:short)' 2>/dev/null | head -n1 || echo "")"
             echo "— $sha $subject"
             # 1) subject + branch policy
-            if ! python scripts/py/commit_scan.py --subject "$subject" --branch "$branch" 2>&1 | tee /tmp/scan.log; then
+            if ! python scripts/py/commit_gate.py policy --subject "$subject" --branch "$branch" 2>&1 | tee /tmp/scan.log; then
               echo "::error::commit $sha subject violates policy"
               cat /tmp/scan.log
               FAIL=1
             fi
             # 2) full message: Co-Authored-By + English (commit-msg hook logic)
-            if ! python scripts/py/commit_scan.py --msg "$body" 2>&1 | tee /tmp/cab.log; then
+            if ! python scripts/py/commit_gate.py policy --msg "$body" 2>&1 | tee /tmp/cab.log; then
               echo "::error::commit $sha Co-Authored-By/English violates policy"
               cat /tmp/cab.log
               FAIL=1

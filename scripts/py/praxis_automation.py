@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
-from automation_manifest import DEFAULT_MANIFEST, AutomationManifest, ManifestError
-from automation_runner import AutomationRunner
+sys.path.insert(0, str(Path(__file__).resolve().parent / "_lib"))
+
+from automation_exec import AutomationRunner  # noqa: E402
+from automation_plan import DEFAULT_MANIFEST, AutomationManifest, ManifestError  # noqa: E402
 
 
 def _load(path: str) -> AutomationManifest:

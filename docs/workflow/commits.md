@@ -14,10 +14,10 @@ source of truth for the Conventional-Commits contract.
   The hook enforces: exactly one trailer (no multi-agent stacking), the
   `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
   Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
-- **Attribution is verified for TRUTH, not just shape** — `commit_scan.py`
+- **Attribution is verified for TRUTH, not just shape** — `commit_gate.py policy`
   compares the trailer against the agents registry (`config/discovery/
   commits.yaml` `agents:`) AND the live runtime detection
-  (`scripts/py/detect_agent.py`). The detector trusts EXECUTION EVIDENCE,
+  (`scripts/py/check_attribution.py`). The detector trusts EXECUTION EVIDENCE,
   never the agent's self-report and never a config file alone:
   - **DSH sessions**: the harness session log (`$DSH_SESSION_JSONL`)
     records the real `(provider, model)` route of every LLM call — written
@@ -32,7 +32,7 @@ source of truth for the Conventional-Commits contract.
   - An operator pin (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`) is a deliberate,
     trusted override, still not execution proof.
   - **Anti-Impersonation & Self-Introspection Rule**: Before authoring a trailer, the agent MUST run
-    `python scripts/py/detect_agent.py --json` to probe its live runtime identity. Agents MUST NEVER
+    `python scripts/py/check_attribution.py --json` to probe its live runtime identity. Agents MUST NEVER
     randomly grab registered names from `commits.yaml`. If the agent or model is unregistered in
     `commits.yaml` or unverifiable, the agent MUST stop and prompt the user for registry addition or
     explicit environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
@@ -52,10 +52,11 @@ source of truth for the Conventional-Commits contract.
 - **Commit-scan policy — single source of truth**: the Conventional-Commits
   contract (type whitelist, registered scopes, placeholder guard, branch-type
   policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
-  `scripts/py/commit_scan.py`. Python gates consume it directly; the Node hook
+  `scripts/py/_lib/commit_policy.py`. Python gates consume it via
+  `scripts/py/commit_gate.py policy`; the Node hook
   uses the generated `config/discovery/commits.json` mirror refreshed by
   `scripts/py/gen_commits_json.py`. All gates consume the same contract — `.githooks/commit-msg`,
-  `scripts/sh/verify-pr-merge.sh`, `scripts/py/generate_changelog.py`,
+  `scripts/sh/gate-merge.sh pr`, `scripts/py/gen_changelog.py`,
   `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
   script; add a type/scope to `commits.yaml` and every gate learns it.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
@@ -81,7 +82,7 @@ source of truth for the Conventional-Commits contract.
 ## CompletionJudge — "done" is a machine verdict
 
 Before declaring a task complete, run
-`bash scripts/sh/verify-completion.sh` — the machine checks 11
+`bash scripts/sh/gate-merge.sh completion` — the machine checks 11
 dimensions (tests / coverage / net delta / doc-stats / lint /
 dependency CVEs / complexity / import cycles / singleton drift /
 CHANGELOG freshness / doc-index consistency). Only a `COMPLETE`
@@ -91,10 +92,10 @@ reopens). Every run is logged to `.praxis/judge-runs.jsonl` and the
 aggregate dashboard to `docs/judge-stats.md` (see `judge-stats.sh`).
 Full breakdown: `docs/architecture/completion-judge.md`.
 
-## Remote PR merging (verify-pr-merge.sh)
+## Remote PR merging (gate-merge.sh pr)
 
 - **Remote PRs (GitHub mirror) usually carry unsigned / non-conventional
-  commits** — run `bash scripts/sh/verify-pr-merge.sh <branch>` BEFORE merging
+  commits** — run `bash scripts/sh/gate-merge.sh pr <branch>` BEFORE merging
   (signature + English Conventional-Commits subject + conflict pre-check). If
   it fails, **squash-merge** (`git merge --squash`) to one signed, English,
   conventional commit, or ask the author to rewrite the branch. Never merge
@@ -105,7 +106,7 @@ Full breakdown: `docs/architecture/completion-judge.md`.
   `docs/roadmaps/` or `config/discovery/` fail closed with exit code 5; review
   the JSON report and merge only after both branch intents are checked.
 
-## Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`, auto-run on `push-both.sh main`)
+## Mainline net-delta gate (enforced by `scripts/sh/gate-merge.sh mainline`, auto-run on `push-both.sh main`)
 
 Main must not be inflated by repeated tiny commits. The gate computes the NET
 code delta (added − deleted, code paths only; docs are exempt) of

@@ -28,7 +28,7 @@ See `docs/workflow/code-of-conduct.md` for full text. Key rules:
   and branch pre-merge (WHEN)
 - **Key conventions**: magic numbers → `params/`; prompts are data; English-only comments
 - **Commit / branch / merge**: Conventional Commits + Co-Authored-By; dual-remote push;
-  `verify-completion.sh` decides "done"
+  `gate-merge.sh completion` decides "done"
 - **Shared handoff area** (`docs/agent-handoff/`): read `ALIGNMENT.md` before committing; shared-file
   changes (`scripts/sh/`, `.githooks/`, `config/discovery/`) must register there in the SAME commit —
   `commit-msg` rejects otherwise (AGENTS.md "Shared-file gate (STRICT)")

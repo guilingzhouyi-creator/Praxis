@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
+sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))
 
 _spec = importlib.util.spec_from_file_location("check_doc_stats", ROOT / "scripts" / "py" / "check_doc_stats.py")
 check_doc_stats = importlib.util.module_from_spec(_spec)

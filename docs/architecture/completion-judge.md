@@ -1,6 +1,6 @@
 # CompletionJudge — the 11-dimension "done" gate
 
-Machine verdict on task completion: `scripts/sh/verify-completion.sh` decides
+Machine verdict on task completion: `scripts/sh/gate-merge.sh completion` decides
 "done", never the agent. Only a `COMPLETE` verdict authorizes declaring a task
 finished; the verdict, its per-check flags and numeric metrics are logged to a
 shared JSONL and aggregated by `scripts/sh/judge-stats.sh` into
@@ -35,13 +35,13 @@ conventions).
 |---|---|---|---|
 | 1 | Tests | `pytest tests/ -q --tb=short` | full suite green, no early exit |
 | 2 | Coverage | `pytest --cov --cov-fail-under` (60, from pyproject) | report ≥ threshold |
-| 3 | Net delta | `verify-main-merge-gate.sh main` (three locks) | net ≥ 1000 (or symmetric-deletion / docs-only exemption) |
+| 3 | Net delta | `gate-merge.sh mainline main` (three locks) | net ≥ 1000 (or symmetric-deletion / docs-only exemption) |
 | 4 | Docs sync | `scripts/py/check_doc_stats.py` | no snapshot drift |
 | 5 | Lint/type | `ruff check` + `ruff format --check` + `mypy` | clean |
 | 6 | Audit | `pip-audit` | no known dependency CVEs |
 | 7 | Complexity | `long_functions` scanner | at most 12 functions > 200 lines |
 | 8 | Import cycle | `scripts/py/import_cycle_check.py` | no cycles |
-| 9 | Singleton | `scripts/py/scan_singletons.py` | `conftest.py` `_RESETS` in sync |
+| 9 | Singleton | `scripts/py/check_singletons.py` | `conftest.py` `_RESETS` in sync |
 | 10 | Changelog | `scripts/py/check_changelog.py` | `[Unreleased]` present and fresh |
 | 11 | Doc index | `scripts/py/check_doc_index.py` | every architecture doc linked from README |
 
@@ -132,7 +132,7 @@ threshold / ratchet semantics. Candidate next steps (not yet implemented):
 - **Metric monotonicity** — turn each numeric series (coverage_pct,
   mega_funcs, net_delta, ...) into a ratchet check: a run whose metric moves
   against the soft-gate direction (coverage down, mega-functions up) is a
-  drift event worth surfacing, mirroring layer_quality.py soft gates.
+  drift event worth surfacing, mirroring bench_layer_structure.py soft gates.
 - **Skip distribution** — which checks are skipped most often in fast mode;
   a frequently-skipped dimension is a blind spot in the standard, i.e. a
   gate-integrity signal with a clear "should be near zero" reading.
@@ -145,6 +145,6 @@ meaning), duration and streak (no threshold), failure pairs (no threshold).
 ## Related
 
 - `docs/architecture/quality-baseline.md` — per-layer structural/perf gates
-  (`layer_quality.py`, `perf_quality.py`), CI-wired alongside this gate.
+  (`bench_layer_structure.py`, `bench_layer_runtime.py`), CI-wired alongside this gate.
 - `AGENTS.md` "CompletionJudge decides done" — load-bearing rules summary.
 - `docs/judge-stats.md` — live dashboard (auto-updated).

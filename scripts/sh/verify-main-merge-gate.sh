@@ -42,7 +42,7 @@ if [ -z "$BRANCH" ]; then
 fi
 if [ -z "$BRANCH" ] || ! git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
   echo "[merge-gate] ERROR: cannot resolve branch '$BRANCH'" >&2
-  echo "[merge-gate] usage: bash scripts/sh/verify-main-merge-gate.sh [branch]" >&2
+  echo "[merge-gate] usage: bash scripts/sh/gate-merge.sh mainline [branch]" >&2
   exit 2
 fi
 if ! git rev-parse --verify "$MAIN_BASE" >/dev/null 2>&1; then

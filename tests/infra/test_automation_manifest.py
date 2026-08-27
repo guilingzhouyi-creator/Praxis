@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py" / "_lib"))
 
-from automation_manifest import AutomationManifest, ManifestError  # noqa: E402
-from automation_runner import AutomationRunner  # noqa: E402
+from automation_exec import AutomationRunner  # noqa: E402
+from automation_plan import AutomationManifest, ManifestError  # noqa: E402
 
 from l1.kernel.ports.process import ProcessResult  # noqa: E402
 
@@ -42,7 +42,7 @@ def test_default_discovery_manifest_loads() -> None:
     assert manifest.schema_version == 1
     assert [step.step_id for step in manifest.workflow("performance").plan()] == [
         "l2_protocol",
-        "perf_quality",
+        "bench_layer_runtime",
         "r2_baseline_bundle",
         "r2_baseline_analysis",
     ]

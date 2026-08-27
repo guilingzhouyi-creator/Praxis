@@ -133,11 +133,11 @@ jobs:
         run: python scripts/py/import_cycle_check.py
 
   quality-baselines:
-    # Per-layer structural + performance baseline gates (layer_quality.py /
-    # perf_quality.py). Previously these only ran locally via make quality-all;
+    # Per-layer structural + performance baseline gates (bench_layer_structure.py /
+    # bench_layer_runtime.py). Previously these only ran locally via make quality-all;
     # wiring them into nightly closes the gap where a code change could drift
     # past the stored baselines (soft-gate ratchet + hard red lines) without
-    # any CI surface noticing. perf_quality runs its benchmarks against the
+    # any CI surface noticing. bench_layer_runtime runs its benchmarks against the
     # stored baseline with the 90% drift floor.
     runs-on: ubuntu-latest
     steps:
@@ -148,9 +148,9 @@ jobs:
           cache: "pip"
       - run: pip install -e ".[test]"
       - name: Layer quality baseline (structural hard/soft gates)
-        run: python scripts/py/layer_quality.py
+        run: python scripts/py/bench_layer_structure.py
       - name: Perf quality baseline (throughput drift floor)
-        run: python scripts/py/perf_quality.py
+        run: python scripts/py/bench_layer_runtime.py
         timeout-minutes: 15
 
   judge-stats:

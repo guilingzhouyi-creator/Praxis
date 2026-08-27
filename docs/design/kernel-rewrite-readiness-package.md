@@ -366,7 +366,7 @@ Rust mechanism implementation may begin only when every item is checked:
 - [x] G5 Rust/TS toolchain and packaging decisions are reproducible.
 - [ ] G6 one Rust-native cutover, semantic vectors, fresh-state recovery, and
       rollback point are written.
-- [ ] `verify-completion.sh` reports `COMPLETE` for the preflight branch.
+- [ ] `gate-merge.sh completion` reports `COMPLETE` for the preflight branch.
 
 Until this checklist is complete, work remains in the preparation phase. The
 permitted work includes contract/value mirroring and isolated mechanism

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Commit-msg validator (Node) — type/scope registration, subject format and
-// must_include (type-to-file matching). Mirrors scripts/py/commit_scan.py
+// must_include (type-to-file matching). Mirrors scripts/py/_lib/commit_policy.py
 // rules so the commit-time gate and the push-time audit stay in sync.
 //
 // Usage: node scripts/js/validate-commit.mjs <msg-file>
@@ -61,7 +61,7 @@ if (summary.endsWith(".")) {
 // `non_imperative_verbs` (single source, mirrored into commits.json by
 // gen_commits_json.py). A mirror missing the key is a drift failure, not a
 // fallback case: fail closed and ask for a resync so the Node validator can
-// never silently diverge from the Python engine (commit_scan.py).
+// never silently diverge from the Python engine (_lib/commit_policy.py).
 if (!Array.isArray(policy.non_imperative_verbs)) {
   console.error(
     '❌ commits.json is missing "non_imperative_verbs" — run `python scripts/py/gen_commits_json.py` to resync the mirror from commits.yaml'
@@ -77,7 +77,7 @@ if (NON_IMPERATIVE.has(firstWord)) {
 
 // ── 4. must_include — staged files must match the type's content rule ───
 // Rules come from commits.yaml via the commits.json mirror (single source of
-// truth shared with commit_scan.py). A mirror missing the key is a drift
+// truth shared with _lib/commit_policy.py). A mirror missing the key is a drift
 // failure, not a fallback case: fail closed and ask for a resync.
 if (!policy.type_content_rules || typeof policy.type_content_rules !== "object") {
   console.error(
@@ -101,7 +101,7 @@ if (prefixes.length) {
   }
   if (!staged.length) {
     // No staged files to match against (e.g. --allow-empty): nothing to
-    // verify here — the push-time audit (commit_scan.py --check-content)
+    // verify here — the push-time audit (commit_gate.py policy --check-content)
     // remains the backstop. Rejecting here would block legitimate commits.
     process.exit(0);
   }

@@ -5,12 +5,12 @@ on:
     branches: [main]
     paths:
       - "systems/python-reference-runtime/**"
-      - "scripts/py/comment_audit.py"
+      - "scripts/py/check_comments.py"
   pull_request:
     branches: [main]
     paths:
       - "systems/python-reference-runtime/**"
-      - "scripts/py/comment_audit.py"
+      - "scripts/py/check_comments.py"
   workflow_dispatch:
 
 jobs:
@@ -29,4 +29,4 @@ jobs:
           python-version: "3.12"
       - name: Run comment audit
         run: |
-          python scripts/py/comment_audit.py systems/python-reference-runtime --non-ascii
+          python scripts/py/check_comments.py systems/python-reference-runtime --non-ascii

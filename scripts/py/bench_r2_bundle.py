@@ -14,7 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 RUST_MANIFEST = ROOT / "systems" / "rust-kernel-engine" / "Cargo.toml"
-PYTHON_REFERENCE = ROOT / "scripts" / "py" / "r2_reference_bench.py"
+PYTHON_REFERENCE = ROOT / "scripts" / "py" / "bench_r2_py_reference.py"
 BUNDLE_SCHEMA_VERSION = 1
 EVIDENCE_SCHEMA_VERSION = 3
 EXPECTED_WORKLOAD = "substrate.queue.contention"

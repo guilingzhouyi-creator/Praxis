@@ -61,7 +61,7 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 
 - `docs/architecture/l3-memory.md`（Context isolation + 3.1 B1–B6 现状）
 - `docs/architecture/l3a-central.md`（History compression 五级管线）
-- `docs/architecture/perf-baseline.md`（`perf_quality.py` + `perf-baseline.yaml` 契约）
+- `docs/architecture/perf-baseline.md`（`bench_layer_runtime.py` + `perf-baseline.yaml` 契约）
 - `systems/python-reference-runtime/l1/kernel/params/system.py`（B1/B2/B6 默认常量）
 - `config/discovery/commits.yaml`（提交门禁）
 
@@ -105,16 +105,16 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 
 ### Phase 3 — 迁移切换
 - 配置门控翻转 + dual-run parity 对比（新旧路径同输入比对输出/压缩比/敏感命中）
-- 测：全量 `python tests/runner.py --batch 1` + `bash scripts/sh/verify-completion.sh`
+- 测：全量 `python tests/runner.py --batch 1` + `bash scripts/sh/gate-merge.sh completion`
 
 ### Phase 4 — 移除老路径
 - 删：`agent_loop.py` 内联 B1/B2 分支、`session_compress.py` 旧 mixin 分支（仅在新路径 parity 后，单独提交）
-- 测：全量回归 + `verify-completion.sh` COMPLETE
+- 测：全量回归 + `gate-merge.sh completion` COMPLETE
 
 ### Phase 5 — G7 压缩比基准
 - 加：`tests/benchmarks/bench_compression.py`（真实会话/工具结果规模压缩比采样）
-- 改：`config/quality/perf-baseline.yaml`（`perf_quality.py --baseline` 生成，不手改）
-- 测：`python tests/benchmarks/bench_compression.py --json` + `python scripts/py/perf_quality.py --baseline`
+- 改：`config/quality/perf-baseline.yaml`（`bench_layer_runtime.py --baseline` 生成，不手改）
+- 测：`python tests/benchmarks/bench_compression.py --json` + `python scripts/py/bench_layer_runtime.py --baseline`
 
 ## 8. Open decisions（已定默认值，均可反悔）
 

@@ -78,31 +78,31 @@ release-build:
 	python -m build
 
 changelog:
-	python scripts/py/generate_changelog.py
+	python scripts/py/gen_changelog.py
 
 changelog-check:
 	python scripts/py/check_changelog.py
 
 layer-quality:
-	python scripts/py/layer_quality.py
+	python scripts/py/bench_layer_structure.py
 
 layer-quality-report:
-	python scripts/py/layer_quality.py --report
+	python scripts/py/bench_layer_structure.py --report
 
 layer-quality-baseline:
-	python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml
+	python scripts/py/bench_layer_structure.py --baseline > config/quality/layer-baseline.yaml
 
 perf-quality:
-	python scripts/py/perf_quality.py
+	python scripts/py/bench_layer_runtime.py
 
 perf-quality-report:
-	python scripts/py/perf_quality.py --report
+	python scripts/py/bench_layer_runtime.py --report
 
 perf-quality-baseline:
-	python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
+	python scripts/py/bench_layer_runtime.py --baseline > config/quality/perf-baseline.yaml
 
 quality-all:
-	python scripts/py/layer_quality.py && python scripts/py/perf_quality.py
+	python scripts/py/bench_layer_structure.py && python scripts/py/bench_layer_runtime.py
 
 automation-plan:
 	python scripts/py/praxis_automation.py plan --workflow performance
@@ -240,10 +240,10 @@ rust-kernel-entry:
 	cargo build --manifest-path systems/rust-kernel-engine/Cargo.toml --bin rust-kernel-entry
 
 r2-baseline-bundle:
-	python scripts/py/r2_baseline_bundle.py --output .praxis/automation/r2-baseline-bundle.json
+	python scripts/py/bench_r2_bundle.py --output .praxis/automation/r2-baseline-bundle.json
 
 r2-baseline-analysis: r2-baseline-bundle
-	python scripts/py/r2_baseline_analyze.py \
+	python scripts/py/bench_r2_report.py \
 		--input .praxis/automation/r2-baseline-bundle.json \
 		--output .praxis/automation/r2-baseline-analysis.json
 

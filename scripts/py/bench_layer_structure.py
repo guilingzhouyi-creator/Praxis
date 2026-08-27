@@ -16,9 +16,9 @@ Gate semantics:
 Exit code 0 = pass, 1 = any gate violated, 2 = baseline file missing.
 
 Usage:
-    python scripts/py/layer_quality.py                # scan + gate verdict
-    python scripts/py/layer_quality.py --report       # scan, print table only
-    python scripts/py/layer_quality.py --baseline     # emit baseline YAML to stdout
+    python scripts/py/bench_layer_structure.py                # scan + gate verdict
+    python scripts/py/bench_layer_structure.py --report       # scan, print table only
+    python scripts/py/bench_layer_structure.py --baseline     # emit baseline YAML to stdout
 """
 
 from __future__ import annotations
@@ -131,12 +131,12 @@ def load_baseline(path: Path) -> dict[str, Any]:
 
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception as e:
-        print(f"layer_quality: baseline load failed: {e}", file=sys.stderr)
+        print(f"bench_layer_structure: baseline load failed: {e}", file=sys.stderr)
         return {}
 
 
 def singleton_gaps() -> int:
-    """Number of unhandled singleton modules (reuses scan_singletons.py).
+    """Number of unhandled singleton modules (reuses check_singletons.py).
 
     Matches the completeness-guard semantics in
     ``tests/infra/test_resets_completeness.py``: a singleton module is a gap
@@ -144,11 +144,11 @@ def singleton_gaps() -> int:
     test's explicit ``KNOWN_GAPS`` exemption set.
     """
     try:
-        spec_path = ROOT / "scripts" / "py" / "scan_singletons.py"
+        spec_path = ROOT / "scripts" / "py" / "check_singletons.py"
         import importlib.util
         import re
 
-        spec = importlib.util.spec_from_file_location("scan_singletons", spec_path)
+        spec = importlib.util.spec_from_file_location("check_singletons", spec_path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         data = mod.scan()
@@ -236,7 +236,7 @@ def emit_baseline(measured: dict[str, dict[str, Any]]) -> str:
     """Emit a baseline YAML document for the current measured values."""
     doc = [
         "# Per-layer quality baseline (generated — do not hand-edit).",
-        "# Regenerate: python scripts/py/layer_quality.py --baseline",
+        "# Regenerate: python scripts/py/bench_layer_structure.py --baseline",
         "layers:",
     ]
     for layer, values in sorted(measured.items()):
@@ -280,7 +280,7 @@ def main() -> int:
 
     baseline = load_baseline(BASELINE)
     if not baseline:
-        print(f"layer_quality: baseline missing — run --baseline to generate {BASELINE}", file=sys.stderr)
+        print(f"bench_layer_structure: baseline missing — run --baseline to generate {BASELINE}", file=sys.stderr)
         return 2
     findings = compare(measured, baseline)
     print(render_report(measured, findings))

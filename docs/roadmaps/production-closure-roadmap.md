@@ -146,7 +146,7 @@ P2 完成 ──► TS L2 默认运行时（l2-multifrontend P3）与科研泛�
 每个 P0/P1 切片合入前必须：
 
 1. 域内测试 + 相关基线：`python -m pytest tests/l3 tests/infra tests/l2 tests/l4 -x -q`，再跑全量。
-2. 门禁：`make lint`、层导入、params 合规、`bash scripts/sh/verify-completion.sh`（COMPLETE）。
+2. 门禁：`make lint`、层导入、params 合规、`bash scripts/sh/gate-merge.sh completion`（COMPLETE）。
 3. 证据保存：会话恢复、审计落盘、备份恢复、canary 回滚的 JSON/日志证据入档。
 4. 文档同步：相关 `docs/architecture/*.md` 与本文状态同 commit 更新。
 5. 双绿 + 双远端：分支与 main 双绿；`push-both.sh main` 推送双远端。

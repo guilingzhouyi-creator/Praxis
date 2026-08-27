@@ -1,7 +1,7 @@
 """CHANGELOG freshness gate — [Unreleased] must include the latest typed commits.
 
-Reuses generate_changelog's scan/group/render (loaded by path) to compute the
-expected [Unreleased] entries from git log, then verifies CHANGELOG.md's
+Reuses changelog_render's scan/group/render (loaded from ``_lib``) to compute
+the expected [Unreleased] entries from git log, then verifies CHANGELOG.md's
 [Unreleased] block contains every one of them. Like check-doc-stats vs README,
 this makes "run `make changelog` before release" a machine gate instead of a
 reminder.
@@ -11,7 +11,6 @@ reminder.
 
 from __future__ import annotations
 
-import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -19,10 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHANGELOG = ROOT / "CHANGELOG.md"
 
-# generate_changelog.py has a hyphen in its filename — load it by path.
-_spec = importlib.util.spec_from_file_location("generate_changelog", ROOT / "scripts" / "py" / "generate_changelog.py")
-generate_changelog = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(generate_changelog)
+sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))
+import changelog_render  # noqa: E402
 
 _UNRELEASED_RE = re.compile(r"^## \[Unreleased\](.*?)(?=^## \[|\Z)", re.MULTILINE | re.DOTALL)
 _ENTRY_RE = re.compile(r"^\s*- ", re.MULTILINE)
@@ -37,9 +34,9 @@ def current_unreleased_entries() -> list[str]:
 
 
 def expected_unreleased_entries() -> list[str]:
-    """Entry bullets generate-changelog would produce from the current git log."""
-    grouped = generate_changelog.group_subjects(generate_changelog.scan_subjects())
-    block = generate_changelog.render(grouped)
+    """Entry bullets gen-changelog would produce from the current git log."""
+    grouped = changelog_render.group_subjects(changelog_render.scan_subjects())
+    block = changelog_render.render(grouped)
     return [line.strip() for line in block.splitlines() if _ENTRY_RE.match(line)]
 
 
@@ -60,7 +57,7 @@ def main() -> int:
     print("DRIFT: CHANGELOG [Unreleased] missing generated entries:")
     for e in missing:
         print(f" - {e}")
-    print("Run `make changelog` (scripts/py/generate_changelog.py) then commit.")
+    print("Run `make changelog` (scripts/py/gen_changelog.py) then commit.")
     return 1
 
 

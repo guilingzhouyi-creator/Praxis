@@ -105,7 +105,7 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 ```bash
 cargo test --workspace && cargo clippy -- -D warnings   # Rust 分支
 npx tsc --noEmit && npx vitest run                      # D2 分支
-bash scripts/sh/verify-local-merge.sh                   # 合回集成前
+bash scripts/sh/gate-merge.sh local                     # 合回集成前
 ```
 
 ## 4. 合并节奏与批准门

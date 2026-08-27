@@ -32,7 +32,7 @@ Checklist for the Praxis git governance process. AGENTS.md (`## Remote strategy`
 - **Pre-commit** (`.githooks/pre-commit`) runs on STAGED `.py` files only:
   - `ruff check --fix` aborts with `--exit-non-zero-on-fix` when it auto-fixes — re-stage and retry.
   - `ruff format --check` rejects unformatted files — run `ruff format <files>` before staging.
-  - Size check (`scripts/py/pre_commit_size_check.py`): bulk commits >10k lines need `SKIP_SIZE_CHECK=1`.
+  - Size check (`scripts/py/check_commit_size.py`): bulk commits >10k lines need `SKIP_SIZE_CHECK=1`.
   - **Mainline whitelist gate**: only `docs/ config/ locales/ .githooks/ scripts/ README.md .pre-commit-config.yaml .praxis-rules.md` etc. may commit directly on main; in-progress merges are exempt (the sanctioned double-green path). Governance files (`AGENTS.md`, `.github/`, `.opencode/`, `.atomcode/`) are NOT whitelisted — land them via feature branch or `--no-verify`.
 - **Commit-msg** (`.githooks/commit-msg`):
   - Messages MUST be English (CJK rejected).
@@ -45,8 +45,8 @@ Checklist for the Praxis git governance process. AGENTS.md (`## Remote strategy`
 
 ## CompletionJudge & Net-Delta Gate
 
-- **Declaration of done**: run `bash scripts/sh/verify-completion.sh` before declaring any task complete — only a `COMPLETE` verdict authorizes "done". Full 11-dimension breakdown: see the **completion-judge** skill.
-- **Mainline merges**: `verify-main-merge-gate.sh` (auto-run by `push-both.sh main`) gates the net code delta with three locks (comment stripping / symmetric deletion / hygiene ceiling). Thresholds + mandatory post-rejection behavior: see the **net-delta-gate** skill.
+- **Declaration of done**: run `bash scripts/sh/gate-merge.sh completion` before declaring any task complete — only a `COMPLETE` verdict authorizes "done". Full 11-dimension breakdown: see the **completion-judge** skill.
+- **Mainline merges**: `gate-merge.sh mainline` (auto-run by `push-both.sh main`) gates the net code delta with three locks (comment stripping / symmetric deletion / hygiene ceiling). Thresholds + mandatory post-rejection behavior: see the **net-delta-gate** skill.
 
 ## Push Discipline
 
@@ -55,9 +55,9 @@ Checklist for the Praxis git governance process. AGENTS.md (`## Remote strategy`
 - GPG signing is OPTIONAL: the GitCode GPG-pre-receive hook is NOT enabled on this repository (commit `commit.gpgsign` off by default); signing is only required if that hook is later re-enabled. Keep signatures as normal hygiene when easy.
 - Never `git merge --no-verify` / `git commit --no-verify` or `PRAXIS_SKIP_AUTHOR_CHECK=1` except for broken-hook recovery; a `--no-verify` dependabot merge requires second-agent review before push.
 
-## Remote PR Merging (verify-pr-merge.sh)
+## Remote PR Merging (gate-merge.sh pr)
 
-- Before merging a remote PR branch (e.g. `refs/remotes/github/pr-16`): `bash scripts/sh/verify-pr-merge.sh <branch>` — checks per-commit GPG signatures, English Conventional-Commits subjects, and merge-tree conflicts BEFORE the merge (exit codes: 0 safe / 1 signature / 2 subject / 4 conflict).
+- Before merging a remote PR branch (e.g. `refs/remotes/github/pr-16`): `bash scripts/sh/gate-merge.sh pr <branch>` — checks per-commit GPG signatures, English Conventional-Commits subjects, and merge-tree conflicts BEFORE the merge (exit codes: 0 safe / 1 signature / 2 subject / 4 conflict).
 - If it fails: **squash-merge** (`git merge --squash`) to one signed, English, conventional commit — or ask the author to rewrite the branch. NEVER merge unsigned commits and re-sign afterwards — that rewrites history and force-pushes the mirror.
 - Local agent branches are signed by construction; remote PRs typically are not.
 

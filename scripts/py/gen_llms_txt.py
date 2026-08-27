@@ -20,9 +20,9 @@ import sys
 from pathlib import Path
 
 _SCRIPTS = Path(__file__).resolve().parent
-sys.path.insert(0, str(_SCRIPTS))
+sys.path.insert(0, str(_SCRIPTS / "_lib"))
 
-from collect_stats import (  # noqa: E402
+from codebase_stats import (  # noqa: E402
     code_registered_command_count,
     collect_stats,
     count_files,

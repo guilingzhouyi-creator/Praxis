@@ -1,4 +1,4 @@
-"""Tests for scripts/py/collect_stats.py — the unified doc-stats counter.
+"""Tests for scripts/py/_lib/codebase_stats.py — the unified doc-stats counter.
 
 These gate the single source of truth that feeds gen-doc-stats, gen-llms-txt
 and check-doc-stats. Assert structure + reasonable thresholds rather than
@@ -13,11 +13,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
-import collect_stats  # noqa: E402
+sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))
+
+import codebase_stats  # noqa: E402
 
 
 def test_layers_shape():
-    stats = collect_stats.collect_stats()
+    stats = codebase_stats.collect_stats()
     assert set(stats["layers"]) == {"L1 Kernel", "L2 Shell", "L3 Cell", "L4 Bridge", "L5 User"}
     assert len(stats["sub"]) >= 5
     for _label, (n, lines) in stats["layers"].items():
@@ -29,14 +31,14 @@ def test_layers_shape():
 
 
 def test_params_counts():
-    stats = collect_stats.collect_stats()
+    stats = codebase_stats.collect_stats()
     # Constant modules (excludes __init__.py) — the "8 params/ modules" convention.
     assert stats["params_modules"] >= 8
     assert stats["params_constants"] > 1000
 
 
 def test_routes_and_domains():
-    stats = collect_stats.collect_stats()
+    stats = codebase_stats.collect_stats()
     assert stats["routes"] > 300
     assert stats["domains"]
     top_name, top_count = next(iter(stats["domains"].items()))
@@ -44,29 +46,29 @@ def test_routes_and_domains():
 
 
 def test_command_counts():
-    stats = collect_stats.collect_stats()
+    stats = codebase_stats.collect_stats()
     assert stats["commands_yaml"] >= 40
     assert stats["commands_code"] >= 0
 
 
 def test_aux_counters():
-    assert collect_stats.count_files("l3/tools") > 0
-    assert collect_stats.count_files("l3/cell/components") > 0
-    assert collect_stats.yaml_command_count() >= 40
-    assert collect_stats.code_registered_command_count() >= 0
+    assert codebase_stats.count_files("l3/tools") > 0
+    assert codebase_stats.count_files("l3/cell/components") > 0
+    assert codebase_stats.yaml_command_count() >= 40
+    assert codebase_stats.code_registered_command_count() >= 0
 
 
 def test_py_files_excludes_pycache(tmp_path):
     (tmp_path / "__pycache__").mkdir()
     (tmp_path / "__pycache__" / "x.py").write_text("")
     (tmp_path / "real.py").write_text("")
-    found = {p.name for p in collect_stats.py_files(tmp_path)}
+    found = {p.name for p in codebase_stats.py_files(tmp_path)}
     assert found == {"real.py"}
 
 
 def test_health_scores_bounds_and_keys():
-    stats = collect_stats.collect_stats()
-    h = collect_stats.health_scores(stats)
+    stats = codebase_stats.collect_stats()
+    h = codebase_stats.health_scores(stats)
     assert set(h["scores"]) == {"test_density", "long_functions", "comment_ratio", "third_party"}
     for v in h["scores"].values():
         assert 0.0 <= v <= 1.0
@@ -83,7 +85,7 @@ def test_health_scores_extremes():
         "comment_ratio": 0.175,
         "third_party_imports": [],
     }
-    h = collect_stats.health_scores(good)
+    h = codebase_stats.health_scores(good)
     assert h["scores"]["test_density"] == 1.0
     assert h["scores"]["long_functions"] == 1.0
     assert h["scores"]["comment_ratio"] == 1.0
@@ -99,7 +101,7 @@ def test_health_scores_extremes():
         "comment_ratio": 1.0,
         "third_party_imports": [f"dep{i}" for i in range(20)],
     }
-    h = collect_stats.health_scores(bad)
+    h = codebase_stats.health_scores(bad)
     assert h["scores"]["long_functions"] == 0.0
     assert h["scores"]["comment_ratio"] == 0.0
     assert h["scores"]["third_party"] == 0.0
@@ -129,7 +131,7 @@ def test_health_scores_grade_thresholds():
         stats["comment_ratio"] = round(0.175 + 0.175 * (1.0 - v), 4)
         # third_party score = clamp(1 - n/20) → solve n.
         stats["third_party_imports"] = [f"dep{i}" for i in range(max(0, round(20.0 * (1.0 - v))))]
-        return collect_stats.health_scores(stats)["overall"]
+        return codebase_stats.health_scores(stats)["overall"]
 
     assert uniform(0.9) >= 0.8  # A band
     assert 0.6 <= uniform(0.7) < 0.8  # B band

@@ -1,5 +1,5 @@
 # Per-layer quality baseline (generated — do not hand-edit).
-# Regenerate: python scripts/py/layer_quality.py --baseline
+# Regenerate: python scripts/py/bench_layer_structure.py --baseline
 layers:
   L1:
     comment_ratio: 0.0385

@@ -36,8 +36,8 @@ while read -r oldrev newrev ref; do
   echo "[pre-receive-strict] checking $ref $range" >&2
 
   # Use the same single source of truth as the local hook
-  if [ -f "scripts/py/commit_scan.py" ]; then
-    if ! python scripts/py/commit_scan.py --git-range "$range" --check-content 2>&1 | tee /tmp/pre_receive_scan.log; then
+  if [ -f "scripts/py/commit_gate.py" ]; then
+    if ! python scripts/py/commit_gate.py policy --git-range "$range" --check-content 2>&1 | tee /tmp/pre_receive_scan.log; then
       echo "[pre-receive-strict] ❌ commit policy violation in $ref" >&2
       cat /tmp/pre_receive_scan.log >&2
       echo "[pre-receive-strict] Fix messages per AGENTS.md Commit conventions" >&2
@@ -46,14 +46,14 @@ while read -r oldrev newrev ref; do
     # Co-Authored-By is checked via --msg for each commit in the range
     while IFS= read -r sha; do
       msg="$(git log -1 --format=%B "$sha")"
-      if ! python scripts/py/commit_scan.py --msg "$msg" 2>&1 | tee /tmp/pre_receive_cab.log; then
+      if ! python scripts/py/commit_gate.py policy --msg "$msg" 2>&1 | tee /tmp/pre_receive_cab.log; then
         echo "[pre-receive-strict] ❌ Co-Authored-By violation in $sha" >&2
         cat /tmp/pre_receive_cab.log >&2
         exit 1
       fi
     done < <(git rev-list "$range" --no-merges 2>/dev/null)
   else
-    echo "[pre-receive-strict] ⚠️  commit_scan.py not found — skip" >&2
+    echo "[pre-receive-strict] ⚠️  commit_gate.py not found — skip" >&2
   fi
 done
 

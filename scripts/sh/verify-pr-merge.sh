@@ -36,7 +36,7 @@ if [ -z "$BRANCH" ]; then
 fi
 if [ -z "$BRANCH" ] || ! git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
   echo "[verify-pr-merge] ERROR: cannot resolve branch '$BRANCH'" >&2
-  echo "[verify-pr-merge] usage: bash scripts/sh/verify-pr-merge.sh <branch>" >&2
+  echo "[verify-pr-merge] usage: bash scripts/sh/gate-merge.sh pr <branch>" >&2
   exit 3
 fi
 if ! git rev-parse --verify "$MAIN_BASE" >/dev/null 2>&1; then
@@ -85,7 +85,7 @@ else
 fi
 
 # ── 2. Subject check: English + Conventional Commits ──────────────────────
-# Delegated to scripts/py/commit_scan.py (single source of truth:
+# Delegated to scripts/py/commit_gate.py policy (single source of truth:
 # config/discovery/commits.yaml — type whitelist, registered scopes,
 # placeholder guard, branch-type policy). Exit codes:
 #   0 = OK; 1 = violation; 2 = runtime unavailable (legacy regex fallback).
@@ -93,8 +93,8 @@ echo "[verify-pr-merge] ── 2. Subject check (English + Conventional Commits)
 SUBJECT_RE='^(feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert)(\([a-z0-9_.-]+\))?!?: '
 SCAN_RC=0
 SCAN_OUT=""
-if [ -f scripts/py/commit_scan.py ]; then
-  SCAN_OUT="$(python scripts/py/commit_scan.py --git-range "$RANGE" --branch "$BRANCH" 2>&1 || true)"
+if [ -f scripts/py/commit_gate.py ]; then
+  SCAN_OUT="$(python scripts/py/commit_gate.py policy --git-range "$RANGE" --branch "$BRANCH" 2>&1 || true)"
   case "$SCAN_OUT" in
     *VIOLATIONS*) SCAN_RC=1 ;;
   esac
@@ -147,7 +147,7 @@ printf '%s\n' "$CHANGED" | sed 's/^/     /'
 # Roadmaps and discovery registries are stateful. A branch that replaces an
 # entire existing file in one hunk needs explicit human review instead of
 # silently carrying an old snapshot into the merge.
-HUNK_AUDIT="scripts/py/audit_merge_hunks.py"
+HUNK_AUDIT="scripts/py/check_sensitive_paths.py"
 if [ ! -f "$HUNK_AUDIT" ]; then
   echo "[verify-pr-merge] ❌ $HUNK_AUDIT is missing; cannot audit sensitive paths." >&2
   exit 5

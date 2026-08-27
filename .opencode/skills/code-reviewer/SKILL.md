@@ -44,7 +44,7 @@ Identify files in the change set. Prioritize kernel (`systems/python-reference-r
 - Check `tests/infra/test_layer_imports.py` allowlist updated for any new cross-layer imports.
 
 ### 7. Gate & Compliance Review
-- **CompletionJudge alignment**: confirm the change set is satisfiable under `verify-completion.sh` (see the **completion-judge** skill for the 11 dimensions). Flag anything that would return INCOMPLETE.
+- **CompletionJudge alignment**: confirm the change set is satisfiable under `gate-merge.sh completion` (see the **completion-judge** skill for the 11 dimensions). Flag anything that would return INCOMPLETE.
 - **Mainline net-delta gate**: estimate the change's net code delta (added − deleted, after comment stripping) — small changes (< 1000 net) must accumulate on the worktree branch (see the **net-delta-gate** skill).
 - **Doc sync**: architecture-level changes (new module/service, changed contract, renamed subsystem, new params domain) MUST carry their `docs/architecture/` update in the same commit; generated numbers refreshed via `make doc-stats`, never hand-edited.
 - **Security posture / harness changes**: any posture (`security_mode.py`) or harness (`harness.py`) change MUST record evidence (`record_evidence`); a downgrade (e.g. `minimal` harness) must never be hardcoded silently.

@@ -4,8 +4,8 @@ Checks that every worktree has strict hooks, used by `ensure-hooks.sh --check`
 and the commit-lint workflow. Exit 0 when all worktrees are strict.
 
 Usage:
-  python scripts/py/verify_worktree_hooks.py
-  python scripts/py/verify_worktree_hooks.py --check
+  python scripts/py/check_worktree_hooks.py
+  python scripts/py/check_worktree_hooks.py --check
 """
 
 from __future__ import annotations

@@ -20,9 +20,9 @@ import sys
 from pathlib import Path
 
 _SCRIPTS = Path(__file__).resolve().parent
-sys.path.insert(0, str(_SCRIPTS))
+sys.path.insert(0, str(_SCRIPTS / "_lib"))
 
-from collect_stats import LAYERS, SUB_LAYERS, collect_stats, health_scores  # noqa: E402
+from codebase_stats import LAYERS, SUB_LAYERS, collect_stats, health_scores  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 README = ROOT / "docs" / "architecture" / "README.md"

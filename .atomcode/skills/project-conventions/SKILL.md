@@ -88,7 +88,7 @@ config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 - Infra gates (all in `tests/infra/`): `test_layer_imports.py` (import rules), `test_params_compliance.py` (`-k "not strict"` for soft mode), `test_hardcoded_fixes_regression.py` (regression: hardcoded fixes), `test_resets_completeness.py`, `test_skill_schema.py`.
 - Singleton pollution: `tests/conftest.py` resets known singletons via an `autouse` fixture (`_RESETS`); add new services there — `scripts/py/scan-singletons.py` lists module-level singletons to keep the list in sync.
 - New cross-layer imports must be allowlisted in `test_layer_imports.py`.
-- **CompletionJudge**: machine decides "done" — run `bash scripts/sh/verify-completion.sh` before declaring a task complete (11 dimensions: tests/coverage/net-delta/doc-stats/lint/audit/complexity/cycles/singletons/changelog/doc-index). Only `COMPLETE` authorizes done.
+- **CompletionJudge**: machine decides "done" — run `bash scripts/sh/gate-merge.sh completion` before declaring a task complete (11 dimensions: tests/coverage/net-delta/doc-stats/lint/audit/complexity/cycles/singletons/changelog/doc-index). Only `COMPLETE` authorizes done.
 
 ## Naming & Misc Gates
 

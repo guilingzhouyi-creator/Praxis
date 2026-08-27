@@ -104,21 +104,21 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 - **Exactly ONE `Co-Authored-By:` trailer** strictly last line, preceded by a blank line (no trailing notes):
   `Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>`
 - **Attribution verified for TRUTH (Anti-Impersonation Rule)**: cross-checked against agents registry + live execution evidence
-  (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected.
-  Agents MUST probe runtime first (`python scripts/py/detect_agent.py --json`) and MUST NEVER arbitrarily grab
+  (`check_attribution.py` reads the harness session log — unfakeable); model claims without proof are rejected.
+  Agents MUST probe runtime first (`python scripts/py/check_attribution.py --json`) and MUST NEVER arbitrarily grab
   registered identities from `commits.yaml`. If unregistered or unverifiable, the agent MUST notify the user
   for registry addition or environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
 - **Single source of truth**: `config/discovery/commits.yaml` is canonical;
   `scripts/py/gen_commits_json.py` refreshes the Node-only `config/discovery/commits.json` mirror used by
   the commit hook
-- **CompletionJudge decides "done"**: `bash scripts/sh/verify-completion.sh` (11 dimensions) — only
+- **CompletionJudge decides "done"**: `bash scripts/sh/gate-merge.sh completion` (11 dimensions) — only
   COMPLETE authorizes done
 - **Mainline net-delta gate**: ≥ 1000 net code, three locks (comment stripping / symmetric deletion / hygiene ceiling)
 
 ## Branching workflow (see `docs/workflow/branching.md`)
 
 - Feature branches only (`feature/*`); merge with `--no-ff` after double-green
-- **Local-merge gate**: `bash scripts/sh/verify-local-merge.sh` before merging into local main
+- **Local-merge gate**: `bash scripts/sh/gate-merge.sh local` before merging into local main
 - **Sensitive-path hunk gate**: merge gates audit `docs/roadmaps/` and `config/discovery/`; opaque
   full-file replacements and deletions fail closed for review
 - **Branch accumulation quality gate**: ≥ 5 unmerged commits AND ≥ 4000 net lines vs main → BLOCKED

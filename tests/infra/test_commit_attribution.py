@@ -1,6 +1,6 @@
 """Tests for Co-Authored-By truthfulness + subject format gates.
 
-Covers scripts/py/detect_agent.py (runtime identity detection) and the
+Covers scripts/py/check_attribution.py (runtime identity detection) and the
 commit-msg hook's strict attribution checks: a registered agent with the
 matching live model passes; an OpenAI/Anthropic model claiming a deepseek
 run is rejected (no cross-framework impersonation); an unregistered agent
@@ -22,8 +22,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SCAN = ROOT / "scripts" / "py" / "commit_scan.py"
-DETECT = ROOT / "scripts" / "py" / "detect_agent.py"
+SCAN = ROOT / "scripts" / "py" / "_lib" / "commit_policy.py"
+DETECT = ROOT / "scripts" / "py" / "check_attribution.py"
 HOOK = ROOT / ".githooks" / "commit-msg"
 
 DSH_DETECTED = json.dumps(
