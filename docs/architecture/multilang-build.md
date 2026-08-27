@@ -650,9 +650,11 @@ The T4b Rust seam is `HostInputActivityPort` plus the host-owned
 `InputActivityHostAdapter`. The adapter provides explicit permission state and
 caller-timed aggregate samples; the port reduces them with the same bounded
 probe, returns an unknown snapshot on permission failure, stops when permission
-is revoked, and stops on an invalid sample. No device node, system clock, key
-value, or pointer coordinate enters the crate. Real platform collection and
-permission UX remain a host responsibility.
+is revoked, and stops on an invalid sample. `CompositeInputActivityAdapter`
+coordinates independently injected keyboard/pointer sources and keeps other
+granted sources usable when one source is denied or unavailable. No device node,
+system clock, key value, or pointer coordinate enters the crate. Real platform
+collection, permission UX, and monitoring remain host responsibilities.
 
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,

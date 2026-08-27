@@ -604,10 +604,24 @@ impl KernelRuntime {
         request: CapabilityRequest,
     ) -> Result<RuntimeTask, RuntimeError> {
         if gate.tool != request.name || gate.agent_id != request.agent_id {
+            self.capability.audit().record_fields(
+                "capability.gate_mismatch",
+                request.agent_id.clone(),
+                false,
+                "gate/request identity mismatch",
+                "gate and capability identities must match",
+            );
             return Err(RuntimeError::GateBlocked(GateDecision::Block));
         }
         let check = self.gatechain.check(&gate);
         if !check.allowed {
+            self.capability.audit().record_fields(
+                "capability.gate",
+                gate.agent_id.clone(),
+                false,
+                format!("gatechain decision {}", check.decision.as_str()),
+                gate.tool.clone(),
+            );
             return Err(RuntimeError::GateBlocked(check.decision));
         }
         let authority = Arc::clone(&self.capability);

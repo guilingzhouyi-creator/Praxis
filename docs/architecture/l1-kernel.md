@@ -221,7 +221,9 @@ root into an explicit recovery boot; it never imports Python state.
 `submit_gated` is the only capability-shaped runtime submission helper: it
 requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
 the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
-fail-closed and audited.
+fail-closed and audited. Gate/request identity mismatches and GateChain
+denials are recorded in the same capability audit before the runtime returns
+the blocking result, so pre-execution rejects remain traceable.
 
 `KernelRuntime` now owns the Rust execution metadata books used by the future
 clean-break entry: `SessionBook`, `TerminalBook`, and `AgentLoopBook`. A
@@ -387,7 +389,20 @@ delegates reduction to `InputActivityProbe`, exposes permission failures as an
 unknown snapshot, stops the host adapter when permission is revoked, and stops
 it when a sample violates the value contract. It never opens device nodes,
 reads a system clock, or stores raw input; platform collection, permission UX,
-and monitoring policy remain host-owned.
+and monitoring policy remain host-owned. `start`, `stop`, and `snapshot` are
+serialized at the port boundary so concurrent lifecycle calls cannot
+overwrite permission state; a sample error reporting `Granted` is invalid and
+fails closed as unavailable.
+
+`CompositeInputActivityAdapter` provides the multi-source T4b mechanism seam
+without choosing a platform implementation. It coordinates independently
+owned keyboard and pointer adapters, aggregates their explicit permissions,
+merges only successful aggregate samples, and removes a source from subsequent
+sampling when that source reports `Denied` or `Unavailable`. A separately
+granted source remains usable, while an invalid granted-source failure is
+propagated so `HostInputActivityPort` can fail closed. The composite serializes
+its own lifecycle and never invents executable paths, device nodes, raw input,
+permission prompts, or monitoring policy.
 
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal

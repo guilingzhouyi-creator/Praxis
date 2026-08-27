@@ -301,6 +301,13 @@ unknown snapshot, and stops on invalid samples; it never opens device nodes,
 reads a system clock, or retains raw input. Platform event collection and
 permission UX remain outside this crate.
 
+`CompositeInputActivityAdapter` is the multi-source extension of that seam. It
+coordinates independently injected keyboard/pointer adapters, merges only
+aggregate samples from granted sources, and removes a source from subsequent
+sampling after a denied/unavailable result. The composite does not select
+platform binaries, scan hardware, retain raw input, or own monitoring policy;
+all platform effects remain in the injected adapters.
+
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The
 `rust-kernel` binary is an independent no-Python entrypoint that requires an

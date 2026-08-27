@@ -962,7 +962,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T3e | `ProcessTableGroupRuntime::new_with_audit`：准入/桥接/stop 共享有界审计旁路 | ✅ 候选完成 | 真实 EventStore wiring、PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
 | T4b1 | `HostInputActivityPort`：宿主权限/聚合采样接缝与 fail-closed 生命周期 | ✅ 候选完成 | 真实平台采集、权限 UX、旁路监测与 production wiring 仍待完成 |
-| T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
+| T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | 🟡 机制片已开始（`CompositeInputActivityAdapter`） | 由宿主注入 CMD/PowerShell/Bash 等平台观测；仍需真实平台 adapter、权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
 
@@ -988,6 +988,13 @@ T4b1 先落地 Rust 侧 `HostInputActivityPort` 机制接缝：宿主通过
 样本则停止适配器并 fail-closed。该切片不访问设备节点、不读取系统时钟、不保留
 原始键值/坐标；运行期权限撤回同样停止适配器并保留 denied 快照。真实平台
 采集、权限 UX、旁路监测和 production wiring 仍待宿主提供证据。
+
+T4b 机制片进一步增加 `CompositeInputActivityAdapter`：宿主可以分别注入键盘
+与指针（或其他聚合来源）adapter，由 Rust 统一串行化 start/stop/sample，
+合并已授权来源的聚合快照，并在单一来源撤权时保留其他来源的可用性。来源失效
+不会把原始设备数据带入 Rust；宿主仍负责平台探测、权限提示、旁路监测和
+生产 wiring。所有来源失效或出现矛盾的授权结果仍 fail-closed，后续必须补
+跨平台失败/隐私证据后才能推进 T4b production 评审。
 
 ---
 
