@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Refactor (scripts)**: add merge gate dispatcher and rename hunk auditor
 - **Refactor (scripts)**: unify commit governance under commit_gate cli
 - **Refactor (infra)**: separate runtime systems
 - **Test (infra)**: pin zero-check refusal and fast-mode contracts
