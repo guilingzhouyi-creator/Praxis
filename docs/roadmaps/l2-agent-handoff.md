@@ -184,7 +184,7 @@ i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册�
 ### 2.4 镜像同步要求（改动协议必做）
 
 1. Python3 `envelope.py` 改动 → 同步 `systems/typescript-shell-engine/src/wire-envelope.ts`（逐字段/逐语义）。
-2. 同步补测试：Python3 `tests/l2/test_protocol_v1.py` 与 TS `tests/protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
+2. 同步补测试：Python3 `tests/l2/test_protocol_v1.py` 与 TS `tests/shell-protocol.test.ts` 断言**行为等价**（例：非破坏性 ack 跨视图）。
 3. 验收：`tsc --noEmit` + `vitest run` + Python3 契约钉全绿。
 
 ### 2.5 P3 验收清单

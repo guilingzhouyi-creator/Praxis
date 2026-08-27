@@ -54,9 +54,13 @@ boundary.
 - Keep Rust crate/source names Rust-native under `rust-kernel-engine`.
   Collision-prone kernel leaves use the `kernel_` filename prefix while
   `src/lib.rs` preserves the stable public module identifiers.
+  Collision-prone integration-test leaves use `kernel_test_`; their Cargo
+  target names remain stable so existing bounded test commands keep working.
 - Keep TypeScript package/source names TypeScript-native under
   `typescript-shell-engine`; use explicit `wire-`, `interactive-`, `command-`,
-  `agent-`, and `engine-` domain prefixes. Do not recreate Python `l1`–`l5`
+  `agent-`, and `engine-` domain prefixes. TypeScript test leaves stay under
+  `tests/` with the `.test.ts` suffix and use `shell-`/domain prefixes when
+  needed to avoid a Python basename collision. Do not recreate Python `l1`–`l5`
   package names as TypeScript or Rust modules.
 - Treat the system directory and artifact identity as the namespace boundary:
   formal source leaves must not reuse a normalized basename from the Python

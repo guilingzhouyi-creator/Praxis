@@ -53,14 +53,14 @@ authoritative `input_seq`, cursor pages, explicit crash recovery, and a
 versioned checkpoint envelope. Admission uses per-shard locks and a per-session
 message-id index; no prompt, tool, PTY, provider, or runtime authority crosses
 this boundary. Its public behavior is tested only through the independent
-`tests/session/session.rs` and `tests/session/session_vectors.rs` targets.
+`tests/session/kernel_test_session.rs` and `tests/session/session_vectors.rs` targets.
 
 The `session_store` adapter persists the complete session book under the fresh
 Rust state root with a versioned JSON checkpoint and atomic rename. It rejects
 clean writes while sessions are active/closing, and loads unclean documents as
 explicitly crashed sessions that require caller-driven recovery. It never
 imports Python state or executes AgentLoop/provider work; its behavior is
-covered by the independent `tests/session/session_store.rs` target.
+covered by the independent `tests/session/kernel_test_session_store.rs` target.
 
 The `execution_store` adapter adds the combined R4/R5 checkpoint for session,
 terminal, and AgentLoop metadata at
@@ -69,7 +69,7 @@ cross-referenced records, rejects clean snapshots containing writable state,
 live process bindings, or queued terminal frames, and normalizes unclean
 sessions/loops/terminals to explicit recovery states. Process ownership,
 PTY/mailbox bytes, providers, and runtime authority are deliberately absent;
-`tests/session/execution_store.rs` is the independent integration target.
+`tests/session/kernel_test_execution_store.rs` is the independent integration target.
 
 The session hot path uses hash indexes for per-session message IDs and sharded
 session admission; deterministic snapshots still sort by session identity.
@@ -90,7 +90,7 @@ correlation, owns loop lifecycle, and admits input/events while serializing loop
 state with the SessionBook write. It does not execute providers, prompts, tools,
 PTYs, subprocesses, terminal mailbox I/O, or WorkerPool tasks; those remain
 adapter-owned. Its public behavior lives in the independent
-`systems/rust-kernel-engine/l1-kernel-rs/tests/session/agent_loop.rs` target. `run_agent_loop` and the
+`systems/rust-kernel-engine/l1-kernel-rs/tests/session/kernel_test_agent_loop.rs` target. `run_agent_loop` and the
 `rust-agent-loop-bench` binary measure fixed-total input admission with the
 same v3 schema and loop-mutex wait field; current release evidence shows the
 shared routing lock is a scaling bottleneck, so this remains candidate-only.
@@ -114,7 +114,7 @@ one returned event. `AgentLoopExecutionReport` and
 failure stage and any input receipt already committed. Cancellation before
 execution leaves the session unchanged. This bridge does not discover
 providers, prompts, tools, PTYs, or production policy; its public behavior is
-covered by the independent `tests/runtime/agent_loop_execution.rs` target.
+covered by the independent `tests/runtime/kernel_test_agent_loop_execution.rs` target.
 `AgentLoopExecutionBridge::submit_input_batch` adds a grouped admission path:
 runtime task reservations and strict worker-queue admission complete before any
 input is admitted, so process, queue, or shutdown capacity failure rolls the
@@ -126,7 +126,7 @@ The `process_adapter` module is a bounded one-shot `ProcessPort` candidate for
 the future Rust/TS adapter edge. It supports direct argument execution and an
 explicit shell path, optional cwd/input/environment/executable values, separate
 stdout/stderr drain threads with per-stream retention limits, timeout kill, and
-structured not-found/execution/timeout results. `tests/process/process_adapter.rs` is
+structured not-found/execution/timeout results. `tests/process/kernel_test_process_adapter.rs` is
 the independent public test target; `run_process_adapter` and
 `rust-process-adapter-bench` measure `process.adapter.oneshot` separately from
 ProcessTable and WorkerPool workloads. A current release smoke measured roughly
@@ -139,7 +139,7 @@ mechanism and cutover work.
 The `managed_process` module is the next bounded lifecycle candidate. It owns
 generation-safe child slots, direct-args/shell spawn, bounded stdout/stderr
 draining, caller-controlled stdin, observer `Pending` waits, explicit
-terminate, terminal snapshots, and reap. `tests/process/managed_process.rs` keeps all
+terminate, terminal snapshots, and reap. `tests/process/kernel_test_managed_process.rs` keeps all
 public lifecycle tests outside the implementation; `run_managed_process` and
 `rust-managed-process-bench` measure `process.managed.lifecycle` separately
 from one-shot execution. The current release smoke measured roughly
@@ -201,9 +201,9 @@ tests plus the protocol-host gate tests live in independent files under
 target and implementation modules retain no private fixture dependency for
 those slices. The public contract-version check is also part of
 `tests/protocol/contract_vectors.rs`, so the crate root has no inline test module. Value
-contract behavior is isolated in `tests/protocol/contract.rs`.
+contract behavior is isolated in `tests/protocol/kernel_test_contract.rs`.
 
-Synchronization behavior is split between the public `tests/core/sync.rs` target
+Synchronization behavior is split between the public `tests/core/kernel_test_sync.rs` target
 and the shared-vector `tests/core/sync_vectors.rs` target. The source module has no
 inline tests; this keeps the Rust API boundary explicit for the later
 clean-break runtime and TS-facing adapters.
@@ -230,7 +230,7 @@ client replacement on rebind.
 integration/Python adapter tests freeze only authorization and mutation
 lifecycle; prompt text, random UID bodies, and persistence bytes are
 intentionally excluded. Mechanism tests are isolated in
-`tests/policy/identity_binding.rs`.
+`tests/policy/kernel_test_identity_binding.rs`.
 
 The `network` module supplies a clock-injected `PeerBook` for transport-neutral
 peer bookkeeping: endpoint validation, self-announce rejection, bounded
@@ -263,7 +263,7 @@ migrations. `tests/fixtures/kernel_state_layout_vectors.json` is consumed by
 the Rust integration test and a Python adapter-side reference test; the
 future R4 owner will supply filesystem probes and side effects.
 Manifest and decision invariants are also covered by the independent
-`tests/storage/state_layout.rs` target.
+`tests/storage/kernel_test_state_layout.rs` target.
 
 The `state_store` module is the first filesystem-bearing R4 adapter. It creates
 only the fresh Rust root described by `state_layout`, persists manifest and
@@ -271,7 +271,7 @@ lifecycle/checkpoint documents using per-file atomic rename plus `sync_all`,
 and exposes clean-resume and unclean-recovery actions. It rejects divergent
 or migration-required roots and never imports Python state.
 The durable lifecycle/recovery behavior is exercised through the public
-`tests/storage/state_store.rs` target.
+`tests/storage/kernel_test_state_store.rs` target.
 
 The `ports` module now translates the mechanism-port value surface and
 declarative registration boundary: `PortResult`, `Endpoint`, `Message`, and
@@ -309,7 +309,7 @@ deliberately declarative: it does not read config,
 create the state root, execute boot callbacks, or instantiate providers. This
 is the R4 assembly seam; `state_store` now owns fresh-root initialization and
 durable recovery. Mechanism and shared-vector coverage live in
-`tests/assembly/assembly.rs` and `tests/assembly/assembly_vectors.rs`.
+`tests/assembly/kernel_test_assembly.rs` and `tests/assembly/assembly_vectors.rs`.
 
 The `preflight` module adds a read-only entry check above assembly. It requires
 explicit `AssemblySpec` and host `StateProbe` values, then emits a versioned
@@ -318,7 +318,7 @@ disposition. `rust-kernel-preflight` consumes one JSON request from stdin and
 prints one JSON report; `make rust-kernel-preflight` builds it for automation.
 The tool never probes or mutates the filesystem, executes boot callbacks,
 rebinds processes, or selects a Python fallback. Its tests are isolated in
-`tests/assembly/preflight.rs`, and the candidate does not imply R5 cutover.
+`tests/assembly/kernel_test_preflight.rs`, and the candidate does not imply R5 cutover.
 
 The `entry` module adds an explicit one-shot coordinator above the persistent
 runtime. `EntryRequest` requires the entry contract version, complete assembly,
@@ -345,7 +345,7 @@ child ownership and public handles, while `ProcessGroupBook` retains only
 membership and stop generations. Sweeps jointly reap the bridge binding and
 group member, and failed membership admission removes the ProcessTable row;
 `bridge()` exposes only bounded metadata for host adapters. See
-`tests/process/process_table_group_runtime.rs`.
+`tests/process/kernel_test_process_table_group_runtime.rs`.
 
 The same runtime provides `spawn_constrained` and
 `spawn_gated_constrained`, so explicit process policy and the `process.spawn`
@@ -372,7 +372,7 @@ host adapter for that seam. It resolves all handles before dispatch, keeps
 plan order, and fails closed on missing/duplicate/zero targets or an
 over-reported delivery count. The injected sender owns platform signal, PTY,
 permission, and retry behavior; see
-`tests/process/host_process_group_signal.rs`.
+`tests/process/kernel_test_host_process_group_signal.rs`.
 
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
 it validates v1 envelopes and TS-neutral records, canonicalizes nested JSON,
@@ -381,7 +381,7 @@ bounded outbox/cursor values. `tests/fixtures/protocol_v1_records.json` is
 consumed by `tests/protocol/protocol_vectors.rs`; HTTP/WS framing, L2 dispatch, clocks,
 and runtime session ownership remain adapter responsibilities. Mechanism tests
 for canonical envelopes, record filtering, and outbox replay live in
-`tests/protocol/protocol.rs`.
+`tests/protocol/kernel_test_protocol.rs`.
 
 The `protocol_host` candidate is a bounded JSONL canonicalization gate over
 that protocol. `ProtocolHost` rejects frames above its explicit byte limit
@@ -398,7 +398,7 @@ documents, tracks monotonic revisions, and uses per-document atomic rename plus
 `sync_all`. It resumes only a matching Rust root and rejects foreign/future
 layouts; Python YAML/settings import, migration callbacks, provider wiring, and
 engineering-debug policy remain outside the store.
-`tests/storage/config_store.rs` covers manifest ordering, fresh-root revisions, foreign
+`tests/storage/kernel_test_config_store.rs` covers manifest ordering, fresh-root revisions, foreign
 roots, invalid keys, and future-document rejection through the public API.
 
 The `terminal` module supplies the lower-layer substrate for future
@@ -472,31 +472,31 @@ deterministic export and failed replacement leaves the prior snapshot intact.
 Markdown parsing, posture providers, and runtime policy routing remain outside
 the Rust candidate. `tests/fixtures/kernel_constitution_vectors.json` covers
 the custom-rule boundary; public mechanism tests are isolated in
-`tests/policy/constitution.rs` and the vector target.
+`tests/policy/kernel_test_constitution.rs` and the vector target.
 
 The isolated `platform` module mirrors provider-neutral OS values, shell and
 grep command descriptions, URL joining, temporary-directory derivation, and
 TCP endpoint parsing. It never executes commands, creates directories, or
 opens sockets; those remain Python adapter responsibilities. Public behavior and
-shared vectors are isolated in `tests/terminal/platform.rs`.
+shared vectors are isolated in `tests/terminal/kernel_test_platform.rs`.
 
 The isolated `paths` module mirrors deployment-mode selection, `PraxisPaths`
 child-path derivation, explicit environment/config overrides, and a resettable
 in-memory path store. `PathInputs` are injected by the host; environment
 discovery, home-directory probing, and layout creation remain outside the
-candidate. Public behavior and shared vectors are isolated in `tests/storage/paths.rs`.
+candidate. Public behavior and shared vectors are isolated in `tests/storage/kernel_test_paths.rs`.
 
 The isolated `network` module provides caller-clocked `PeerBook` bookkeeping:
 endpoint validation, self-announcement filtering, one-shot loss reporting,
 grace-period eviction, and deterministic health/list views. Socket discovery,
 TCP/UDP/TLS, EventBus delivery, card sync, and message envelopes remain
-transport adapters. Its mechanism tests are split between `tests/network/network.rs`
+transport adapters. Its mechanism tests are split between `tests/network/kernel_test_network.rs`
 and the shared `tests/network/peer_vectors.rs` target.
 
 The isolated `boot` module provides declarative `BootPlan` metadata with
 explicit replacement, pre-wiring lock, and deterministic dependency-first
 ordering. It never executes callbacks or starts runtime services. Its
-mechanism tests live in `tests/assembly/boot.rs`, alongside the shared vector target.
+mechanism tests live in `tests/assembly/kernel_test_boot.rs`, alongside the shared vector target.
 
 The isolated `discovery` module mirrors the three-tier configuration registry:
 registered defaults and source snapshots, already parsed section overrides,
@@ -505,7 +505,7 @@ unknown-section ignore behavior, runtime key updates, and tool/service fallback
 queries. `tests/fixtures/kernel_discovery_vectors.json` is consumed by both
 languages. YAML parsing, discovery-directory scans, logging, boot registration,
 and Python registry mutation remain adapter-owned; public behavior and shared
-vectors are isolated in `tests/registry/discovery.rs`.
+vectors are isolated in `tests/registry/kernel_test_discovery.rs`.
 
 The isolated `load_adaptive` module mirrors the pure worker-sizing control law:
 EWMA smoothing, hysteresis, target-band HOLD, bounded GROW/SHRINK and
@@ -514,7 +514,7 @@ GROW_FAST decisions, cooldown, reset, and explicit caller-supplied time.
 languages. Sampling, WorkerPort mutation, adaptive enablement, and worker
 threads remain Python-owned.
 
-Its mechanism tests live in `tests/core/load_adaptive.rs` as an independent
+Its mechanism tests live in `tests/core/kernel_test_load_adaptive.rs` as an independent
 integration target; the source module exposes no inline test block.
 
 The isolated `schema` module mirrors the string-event schema registry with
@@ -528,11 +528,11 @@ layer: MUST/SHOULD/MAY severity, PASS/WARN/BLOCK results, metadata and sorted
 tags, explicit timestamps, and an injected checker context. The shared
 `tests/fixtures/kernel_rule_descriptor_vectors.json` covers value fields;
 Markdown, SettingsCenter, rule catalogs, and policy providers remain outside.
-Its public behavior tests live in `tests/policy/rule_descriptor.rs`.
+Its public behavior tests live in `tests/policy/kernel_test_rule_descriptor.rs`.
 
 The isolated `ports` module owns validated port values and deterministic
 registration metadata for future adapters. It does not instantiate providers
-or perform I/O; `tests/assembly/ports.rs` and `tests/assembly/port_vectors.rs` cover the public
+or perform I/O; `tests/assembly/kernel_test_ports.rs` and `tests/assembly/port_vectors.rs` cover the public
 value and registry boundary.
 
 The isolated `registry_base` module mirrors the declarative metadata portion of
@@ -624,7 +624,7 @@ resource-limiter candidates for allocation/free accounting, expired/observe
 reclamation, bounded OOM victim reclaim, pressure, swap accounting, profiles,
 and cleanup. Interrupt delivery, process termination, and durable persistence
 remain Python adapter responsibilities. Public mechanism and resource-vector
-coverage are isolated in `tests/core/allocator.rs`.
+coverage are isolated in `tests/core/kernel_test_allocator.rs`.
 
 The `ResourceLimiter` portion additionally consumes
 `tests/fixtures/kernel_resource_vectors.json`, freezing injected profiles,
@@ -675,14 +675,14 @@ The isolated `ipc` module mirrors the lock IPC value and registry shape:
 request/response wakeups with timeout cleanup, and resettable `LockBus`
 registration. It is an in-process candidate; socket transport and cross-process
 ownership remain outside the boundary. Public mechanism coverage lives in
-`tests/core/ipc.rs`.
+`tests/core/kernel_test_ipc.rs`.
 
 The isolated `persist` module mirrors the append-only event-journal record and
 query shape (`seq`, `event`, `payload`, `ts`), batch append, type filtering,
 sequence checks, reopen recovery, and durable flush. It uses JSONL for the
 candidate backend within one process; Python SQLite storage, multi-process
 coordination, and replay policy remain adapter-owned. Filesystem-backed
-mechanism coverage lives in `tests/storage/persist.rs` and uses temporary roots only.
+mechanism coverage lives in `tests/storage/kernel_test_persist.rs` and uses temporary roots only.
 
 The isolated `audit` module provides a bounded chronological `AuditLog` with
 identity filtering, bounded detail fields, and optional `EventStore` journal
@@ -700,7 +700,7 @@ frequency scoring, explicit G4 authorization inputs, reputation/history G5
 decisions, structured steps, and a bounded history ledger. Posture, reputation,
 approval, event, and boot providers remain adapter-owned; no Rust gate result
 authorizes a production call. Public mechanism and shared policy coverage live
-in `tests/policy/gatechain.rs` and the policy vector target.
+in `tests/policy/kernel_test_gatechain.rs` and the policy vector target.
 
 The isolated `constitution` module mirrors the pure rule layer: serialized
 MUST/SHOULD/MAY descriptors, PASS/WARN/BLOCK results, action-category
@@ -716,7 +716,7 @@ structured `resolve_mount` metadata. Real files, `/proc`, `/sys`, `/skills`,
 `/dev`, symlink policy, and provider writes remain outside Rust; non-virtual
 operations return `EADAPTER` until a versioned adapter contract and rollback
 pilot exist. Mount, virtual-file, cache, and shared-vector coverage are
-isolated in `tests/storage/vfs.rs`.
+isolated in `tests/storage/kernel_test_vfs.rs`.
 
 The isolated `lifecycle` module mirrors the provider-neutral lifecycle FSM and
 checkpoint record: halted/installing/booting/active/draining/crashed states,
@@ -734,7 +734,7 @@ including duplicate target registrations in registration order, bounded target
 selection, first-error stop, and panic-to-error conversion. Settings, provider
 migrations, and runtime install authority stay Python-owned.
 
-The versioning mechanism tests live in `tests/protocol/versioning.rs` as an independent
+The versioning mechanism tests live in `tests/protocol/kernel_test_versioning.rs` as an independent
 integration target; global registry reset is exercised only through its public
 API.
 
@@ -752,7 +752,7 @@ relative-path, root, ring, and read-only fields; provider I/O remains excluded.
 the lifecycle and schema candidates. They freeze only deterministic state,
 JSON, and error fields; timestamp generation, filesystem persistence, and
 migration side effects remain adapter-owned. Lifecycle mechanism tests are
-isolated in `tests/core/lifecycle.rs`.
+isolated in `tests/core/kernel_test_lifecycle.rs`.
 
 ```bash
 cargo test --workspace --manifest-path systems/rust-kernel-engine/Cargo.toml

@@ -104,13 +104,13 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   values. It is a mechanism-only session truth seam for a future AgentLoop and
   TS bridge; it does not execute prompts/tools, own PTY processes, or replace
   Python session/runtime authority. Its public tests live in
-  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/session.rs` and `session_vectors.rs`.
+  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/kernel_test_session.rs` and `session_vectors.rs`.
 - The Rust `session_store` adapter persists the complete `SessionBook` as an
   atomically replaced, versioned document under the fresh Rust state root.
   Clean writes reject active/closing sessions; unclean documents normalize
   non-terminal sessions to explicit `crashed` state and require caller-driven
   recovery. It does not import Python state or execute AgentLoop/provider work.
-  Its public behavior is isolated in `systems/rust-kernel-engine/l1-kernel-rs/tests/session/session_store.rs`.
+  Its public behavior is isolated in `systems/rust-kernel-engine/l1-kernel-rs/tests/session/kernel_test_session_store.rs`.
   The `rust-session-store-probe` binary is test-only (build with
   `make rust-session-store-probe`): `emit` writes a
   deterministic unclean checkpoint and `validate` reads and validates an
@@ -202,7 +202,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   linearized under one loop lock. Provider/model/tool execution, prompt policy,
   PTY/subprocess ownership, terminal mailbox mutation, and runtime scheduling
   remain outside this candidate; its independent tests live in
-  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/agent_loop.rs`. `run_agent_loop` and the
+  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/kernel_test_agent_loop.rs`. `run_agent_loop` and the
   `rust-agent-loop-bench` binary emit separate v3 fixed-work evidence with
   loop-mutex wait accounting; the current 4096-item smoke shows decreasing
   throughput and rising wait at 2/4 workers, so no scaling policy is promoted.
@@ -254,7 +254,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   receipts, while structured failures identify admission, action, or
   event-admission stage and any partial input. Pre-execution cancellation cannot
   write session history. The bridge does not discover providers, prompts, tools,
-  PTYs, or production policy; `tests/runtime/agent_loop_execution.rs` is its
+  PTYs, or production policy; `tests/runtime/kernel_test_agent_loop_execution.rs` is its
   independent Rust target.
 - The Rust `state_layout` module is the first R4 state-ownership candidate. It
   validates a versioned manifest of canonical relative entries and declared
@@ -290,7 +290,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   operator disposition without probing or mutating the host. The standalone
   `rust-kernel-preflight` binary reads one JSON request from stdin and emits
   one JSON report, and `make rust-kernel-preflight` builds it for automation.
-  Its tests live in `tests/assembly/preflight.rs`. It does not execute boot,
+  Its tests live in `tests/assembly/kernel_test_preflight.rs`. It does not execute boot,
   create state, rebind processes, or select a Python fallback, so it is
   evidence for R4 assembly rather than an R5 production entrypoint.
 - The Rust `entry` module is an explicit one-shot coordinator for a persistent
@@ -351,7 +351,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   envelopes, and returns structured failures without dispatching or executing
   them. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint;
   rejected lines are diagnostics only. Its mechanism tests live in the
-  independent `systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
+  independent `systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/kernel_test_protocol_host.rs` target, and it does
   not own AgentLoop, provider, session, or runtime authority.
 - The TS L2 transport layer now exposes a managed child-process factory for
   the Python reference and Rust `rust-protocol-host`. `PRAXIS_RUST_HOST` is
@@ -365,7 +365,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   `settings.json` documents, persists revisions through atomic rename and
   `sync_all`, and resumes only a matching Rust root. It never parses Python
   YAML, imports Python settings, executes migrations, or decides engineering
-  debug policy; independent tests live in `tests/storage/config_store.rs`.
+  debug policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
 - The Rust `terminal` module is the lower-layer AgentLoop terminal substrate.
   `TerminalBook` owns unique terminal/session/process bindings, terminal
   lifecycle terminality, and bounded opaque input/output mailboxes with
@@ -377,7 +377,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   report per-frame versus per-batch latency separately through
   `rust-terminal-bench` and `rust-terminal-batch-bench`. It does not create
   PTYs, spawn subprocesses, execute AgentLoops, render output, or own L2/L3
-  policy. Its contract tests are `tests/terminal/terminal.rs` and
+  policy. Its contract tests are `tests/terminal/kernel_test_terminal.rs` and
   `tests/terminal/terminal_vectors.rs`, backed by `tests/fixtures/kernel_terminal_vectors.json`.
 - The Rust `state_queue` module is the first Rust-owned state/queue prototype:
   each shard owns its slot map and lifecycle transitions, while
@@ -474,7 +474,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   terminal-observation execution path; the host probe supplies the executable
   and invocation prefix. Cwd/input/environment options, bounded stdout/stderr
   draining, timeout kill, and structured not-found/execution
-  results. Its independent public target is `tests/process/process_adapter.rs`, and
+  results. Its independent public target is `tests/process/kernel_test_process_adapter.rs`, and
   `run_process_adapter`/`rust-process-adapter-bench` emit a separate
   `process.adapter.oneshot` fixed-work report. The current release smoke is
   about 707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms
@@ -492,7 +492,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   that value adapter. It owns generation-safe child slots, direct-argv and
   terminal-derived-argv spawn, bounded output drain, caller-controlled stdin, observer `Pending`
   waits, explicit terminate, terminal snapshots, and reap. Its independent
-  target is `tests/process/managed_process.rs`; `run_managed_process` and
+  target is `tests/process/kernel_test_managed_process.rs`; `run_managed_process` and
   `rust-managed-process-bench` emit `process.managed.lifecycle` evidence. A
   current release smoke measured about 707/1391/2761 ops/s at 1/2/4 workers,
   p95 about 1.52/1.55/1.58 ms, and zero errors/rejections. Capacity is
@@ -521,7 +521,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   only public child identity. Bridge snapshots expose only PID/state metadata
   for host target resolution; terminal sweeps jointly reap the bridge binding
   and group member, and admission rollback removes the table row. Its
-  independent target is `tests/process/process_table_group_runtime.rs`.
+  independent target is `tests/process/kernel_test_process_table_group_runtime.rs`.
   Its constrained variants run the same explicit Agent policy and GateChain
   checks before bridge spawn, with denied requests leaving both the table and
   host-child books untouched.
@@ -539,7 +539,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   before dispatch, preserves plan order, rejects zero/duplicate targets and
   over-reported delivery, and leaves platform signal, PTY, permission, and
   retry policy in the injected host sender. Its independent target is
-  `tests/process/host_process_group_signal.rs`.
+  `tests/process/kernel_test_host_process_group_signal.rs`.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
   explicit overload counters, shutdown draining, and bounded signal-name
@@ -642,7 +642,7 @@ activity asserted without granted permission, and reduce the records to the
 existing `InputActivitySnapshot`. Neither side reads device nodes, parses raw
 key values or pointer coordinates, or reads a system clock. The shared
 `tests/fixtures/kernel_input_activity_vectors.json` fixture is consumed by the
-independent Rust `tests/terminal/input_activity.rs` target and the TypeScript
+independent Rust `tests/terminal/kernel_test_input_activity.rs` target and the TypeScript
 tests. T4b remains open for platform-specific keyboard/pointer adapters and
 permission UX; those effects stay outside the kernel value boundary.
 
@@ -665,5 +665,5 @@ adds the GateChain-before-constraints boundary, and rejects a gate/process
 identity mismatch before the adapter; the low-level `spawn_args` methods remain mechanism helpers, and implicit shell
 compatibility entry points have been removed.
 The independent Rust test targets are
-`tests/terminal/terminal_probe.rs` and `tests/process/process_constraints.rs`; no TS/L2/provider/
+`tests/terminal/kernel_test_terminal_probe.rs` and `tests/process/kernel_test_process_constraints.rs`; no TS/L2/provider/
 runtime authority is added.

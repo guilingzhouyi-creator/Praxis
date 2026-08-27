@@ -63,6 +63,8 @@ systems:
       - systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml
     source_roots:
       - systems/rust-kernel-engine/l1-kernel-rs/src/
+    test_roots:
+      - systems/rust-kernel-engine/l1-kernel-rs/tests/
     build_manifests:
       - systems/rust-kernel-engine/Cargo.toml
       - systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml
@@ -83,6 +85,8 @@ systems:
       - systems/typescript-shell-engine/tsconfig.json
     source_roots:
       - systems/typescript-shell-engine/src/
+    test_roots:
+      - systems/typescript-shell-engine/tests/
     build_manifests:
       - systems/typescript-shell-engine/package.json
     forbidden_runtime_paths:

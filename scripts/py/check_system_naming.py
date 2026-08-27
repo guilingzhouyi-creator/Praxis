@@ -3,7 +3,9 @@
 The Python tree is the semantic reference, so formal Rust and TypeScript
 leaves must not reuse its normalized basename. This keeps source navigation,
 tooling output, and future clean-break rewrites unambiguous without changing
-the public Rust module API.
+the public Rust module API. Rust integration-test leaves are checked too:
+collision-prone targets use the ``kernel_test_`` source prefix while Cargo
+target names remain stable.
 
     python scripts/py/check_system_naming.py
 """
@@ -60,9 +62,21 @@ def _source_files(root: Path, language: str) -> list[Path]:
     )
 
 
-def _normalise_stem(path: Path, language: str) -> str:
-    """Normalize a source stem for cross-language collision checks."""
+def _leaf_stem(path: Path, language: str, *, test: bool = False) -> str | None:
+    """Return the language-native logical stem for a source leaf."""
     stem = path.stem
+    if language == "typescript" and test:
+        if not stem.endswith(".test"):
+            return None
+        # Vitest keeps the `.test.ts` suffix; dots in the logical test name
+        # are treated as domain separators before kebab-case validation.
+        stem = stem[: -len(".test")].replace(".", "-")
+    return stem
+
+
+def _normalise_stem(path: Path, language: str, *, test: bool = False) -> str:
+    """Normalize a source stem for cross-language collision checks."""
+    stem = _leaf_stem(path, language, test=test) or path.stem
     return stem.replace("-", "_") if language == "typescript" else stem
 
 
@@ -112,7 +126,11 @@ def check_system_naming(
         by_language[language] = (entry, system_root)
 
     source_stems: dict[str, set[str]] = defaultdict(set)
-    source_paths: dict[str, dict[str, Path]] = defaultdict(dict)
+    # Source and test leaves share a language namespace but may intentionally
+    # mirror one another (for example, `engine.ts` and `engine.test.ts`).
+    # Track duplicate leaves within each boundary kind while still checking
+    # both kinds against the Python reference namespace below.
+    formal_paths: dict[tuple[str, str], dict[str, Path]] = defaultdict(dict)
     for language, (entry, _system_root) in by_language.items():
         style = _STYLES[language]
         source_roots = entry.get("source_roots")
@@ -132,26 +150,73 @@ def check_system_naming(
                     continue
                 if language == "python" and path.stem in _IGNORED_PYTHON_STEMS:
                     continue
-                if not style.fullmatch(path.stem):
+                leaf_stem = _leaf_stem(path, language)
+                if leaf_stem is None or not style.fullmatch(leaf_stem):
                     violations.append(
                         f"{path.relative_to(root)} does not use {language} {_EXPECTED_NAMING[language][0]} naming"
                     )
                     continue
                 normalized = _normalise_stem(path, language)
                 if language != "python":
-                    previous = source_paths[language].get(normalized)
+                    previous = formal_paths[(language, "source")].get(normalized)
                     if previous is not None:
                         violations.append(
                             f"{language} normalized basename collision: "
                             f"{previous.relative_to(root)} and {path.relative_to(root)}"
                         )
-                    source_paths[language][normalized] = path
+                    formal_paths[(language, "source")][normalized] = path
+                source_stems[language].add(normalized)
+
+        # Rust integration tests are part of the formal system's public
+        # boundary. Keep their source leaves explicit as well, while Cargo
+        # target names remain a separately governed command-level API.
+        test_roots = entry.get("test_roots")
+        if language == "rust":
+            if not isinstance(test_roots, list) or not test_roots:
+                violations.append("rust: naming test_roots must be a non-empty list")
+                continue
+        elif test_roots is None:
+            continue
+        if not isinstance(test_roots, list):
+            violations.append(f"{language}: naming test_roots must be a list")
+            continue
+        for raw_test_root in test_roots:
+            if not isinstance(raw_test_root, str):
+                violations.append(f"{language}: naming test_roots entries must be strings")
+                continue
+            test_root = root / raw_test_root
+            if not test_root.is_dir():
+                violations.append(f"{language}: missing naming test root {raw_test_root}")
+                continue
+            for path in _source_files(test_root, language):
+                leaf_stem = _leaf_stem(path, language, test=True)
+                if leaf_stem is None:
+                    violations.append(f"{path.relative_to(root)} must use the {language} '.test' test-leaf suffix")
+                    continue
+                if not style.fullmatch(leaf_stem):
+                    violations.append(
+                        f"{path.relative_to(root)} does not use {language} {_EXPECTED_NAMING[language][0]} naming"
+                    )
+                    continue
+                normalized = _normalise_stem(path, language, test=True)
+                if language != "python":
+                    previous = formal_paths[(language, "test")].get(normalized)
+                    if previous is not None:
+                        violations.append(
+                            f"{language} normalized basename collision: "
+                            f"{previous.relative_to(root)} and {path.relative_to(root)}"
+                        )
+                    formal_paths[(language, "test")][normalized] = path
                 source_stems[language].add(normalized)
 
     python_stems = source_stems.get("python", set())
     for language in ("rust", "typescript"):
         for normalized in sorted(source_stems.get(language, set()) & python_stems):
-            path = source_paths[language][normalized]
+            path = formal_paths[(language, "source")].get(normalized) or formal_paths[(language, "test")].get(
+                normalized
+            )
+            if path is None:
+                continue
             violations.append(
                 f"{path.relative_to(root)} reuses Python reference basename {normalized!r}; "
                 "formal leaves must use a distinct normalized basename"

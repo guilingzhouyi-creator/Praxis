@@ -23,6 +23,12 @@ exercises:
 `cargo test --test process_group_runtime` stable while making accidental root
 level test files fail the Python infrastructure gate.
 
+When a test source basename would collide with a Python reference module, the
+source file uses the `kernel_test_` prefix (for example,
+`tests/core/kernel_test_event.rs`). The explicit Cargo target keeps its
+historical name (`event`) so callers do not need to change their bounded test
+commands.
+
 Run a bounded domain slice with:
 
 ```bash
