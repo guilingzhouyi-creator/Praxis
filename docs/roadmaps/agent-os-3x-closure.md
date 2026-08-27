@@ -165,7 +165,7 @@ Every P0/P1 slice must include focused tests plus the relevant baseline:
 <main-tree>/.venv/bin/python -m pytest tests/l3/ tests/infra/ -x -q
 <main-tree>/.venv/bin/python -m pytest tests/ -x -q
 make lint
-bash scripts/sh/verify-completion.sh
+bash scripts/sh/gate-merge.sh completion
 ```
 
 The full slice is ready to merge only when the worktree is clean, the

@@ -872,7 +872,7 @@ integration-test domain。
 
 ### 4.6 自动化与性能外围的重写边界
 
-当前的 `automation_runner.py`、`perf_harness.py`、`perf_quality.py` 和
+当前的 `automation_exec.py`、`perf_sampling.py`、`bench_layer_runtime.py` 和
 `config/discovery/automation.yaml` 属于构建/质量外围，不是 L1、L2 或 L3
 的业务权威。它们不得被复制进 TS Shell 或 `l1_kernel_rs`。
 

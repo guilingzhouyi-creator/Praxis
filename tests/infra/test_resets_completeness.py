@@ -177,7 +177,7 @@ class TestLeakProneModulesStayRegistered:
 
 
 class TestScannerBacklogGuard:
-    """scan_singletons.py discoveries must be registered or explicitly exempt."""
+    """check_singletons.py discoveries must be registered or explicitly exempt."""
 
     def test_new_singletons_registered_or_exempt(self):
         scanner = _load_scanner()

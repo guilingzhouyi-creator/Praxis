@@ -31,8 +31,8 @@ Run `python scripts/py/bump_version.py <ver>` (or `make bump-version`; `--dry-ru
 
 1. Bump version atomically on a `feature/` branch (mainline whitelist covers CHANGELOG; `systems/python-reference-runtime/` + `pyproject.toml` changes need the branch flow).
 2. Validate endpoints: `python -m l4.api.api_endpoints`.
-3. Double-green: full suite on the branch and on main (`source .venv/bin/activate && python -m pytest tests/`), then `bash scripts/sh/verify-completion.sh` COMPLETE (11-dimension judge, including net-delta).
-4. Merge with `--no-ff`, keep the branch for traceability. The mainline net-delta gate (`verify-main-merge-gate.sh`, auto-run by `push-both.sh main`) applies — an API bump with real code qualifies; accumulate on the branch if rejected (never self-waive; ask the user when genuinely stalled below threshold).
+3. Double-green: full suite on the branch and on main (`source .venv/bin/activate && python -m pytest tests/`), then `bash scripts/sh/gate-merge.sh completion` COMPLETE (11-dimension judge, including net-delta).
+4. Merge with `--no-ff`, keep the branch for traceability. The mainline net-delta gate (`gate-merge.sh mainline`, auto-run by `push-both.sh main`) applies — an API bump with real code qualifies; accumulate on the branch if rejected (never self-waive; ask the user when genuinely stalled below threshold).
 5. Push BOTH remotes via `bash scripts/sh/push-both.sh main` (origin/GitCode FIRST, then github mirror; auto-refreshes doc-stats + judge record + dashboard) — pushing only to GitCode silently skips GitHub CI.
 6. GPG signing is optional on this repo (GitCode GPG pre-receive hook NOT enabled; `commit.gpgsign` off by default) — signing required only if the hook is re-enabled.
 

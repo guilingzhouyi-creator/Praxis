@@ -41,7 +41,7 @@ if [ -z "$BRANCH" ]; then
 fi
 if [ -z "$BRANCH" ]; then
   echo "[local-merge] ERROR: cannot determine current branch (detached HEAD?)" >&2
-  echo "[local-merge] usage: bash scripts/sh/verify-local-merge.sh [branch]" >&2
+  echo "[local-merge] usage: bash scripts/sh/gate-merge.sh local [branch]" >&2
   exit 2
 fi
 if ! git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
@@ -118,7 +118,7 @@ JUDGE_LOG="$(git rev-parse --git-common-dir 2>/dev/null)/../.praxis/judge-runs.j
 if [ -f "$JUDGE_LOG" ]; then
   LAST_SKIP_TESTS="$(tail -1 "$JUDGE_LOG" 2>/dev/null | grep -o '"skipped_tests":[01]' | grep -o '[01]$' || echo 0)"
   if [ "${LAST_SKIP_TESTS:-0}" = "1" ]; then
-    echo "[local-merge] ⚠️  Most recent judge run SKIPPED tests — this branch's tests are not evidenced; run bash scripts/sh/verify-completion.sh (WSL slice-serial) before merging code." >&2
+    echo "[local-merge] ⚠️  Most recent judge run SKIPPED tests — this branch's tests are not evidenced; run bash scripts/sh/gate-merge.sh completion (WSL slice-serial) before merging code." >&2
   fi
 fi
 
@@ -134,7 +134,7 @@ else
   echo "   HOW TO FIX (accumulate, do not force):"
   echo "     1. stay on this worktree branch — keep committing real code"
   echo "        (net delta target >= 1000; docs-only changes do not count)"
-  echo "     2. re-check: bash scripts/sh/verify-local-merge.sh"
+  echo "     2. re-check: bash scripts/sh/gate-merge.sh local"
   echo "     3. once ✅: git switch main && git merge --no-ff $BRANCH"
   echo "     4. then double-green + push: bash scripts/sh/push-both.sh main"
   echo "   Waiver (user-granted ONLY, never self-award): MERGE_GATE_SKIP=1"

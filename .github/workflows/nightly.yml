@@ -148,7 +148,7 @@ jobs:
           cache: "pip"
       - run: pip install -e ".[test]"
       - name: Layer quality baseline (structural hard/soft gates)
-        run: python scripts/py/layer_quality.py
+        run: python scripts/py/bench_layer_structure.py
       - name: Perf quality baseline (throughput drift floor)
         run: python scripts/py/bench_layer_runtime.py
         timeout-minutes: 15

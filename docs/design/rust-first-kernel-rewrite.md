@@ -100,7 +100,7 @@ EventBus or transport authority. The repeatable report export slice now
 includes a v3 resource contract: CPU nanoseconds, RSS bytes, queue/lock waits,
 p95/p99, rejection counts, and explicit source/unavailable markers.
 `BenchmarkEvidence` validates the units and sample availability, while
-`scripts/py/r2_baseline_bundle.py` runs the independent Python reference under
+`scripts/py/bench_r2_bundle.py` runs the independent Python reference under
 the same fixed-work specification and stores both reports in one comparison
 artifact. This closes the measurement scaffolding portion of R2 but does not
 make a performance cutover decision or grant runtime authority.
@@ -371,7 +371,7 @@ host operation, and validates non-zero unique targets plus bounded delivery.
 This is a host-injection seam rather than a platform implementation: Linux,
 Windows, PTY, permission, and retry behavior remain outside the Rust crate.
 
-`scripts/py/r2_baseline_analyze.py` now summarizes that artifact by worker and
+`scripts/py/bench_r2_report.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
 ratios, queue/lock wait summaries, and available resource medians. Its output
 is descriptive evidence only; thresholds and cutover decisions remain an

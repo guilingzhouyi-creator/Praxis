@@ -1,17 +1,17 @@
 ---
 name: net-delta-gate
-description: Use when merging to main, when a merge is rejected, or when deciding whether work can land — apply the mainline net-delta gate (verify-main-merge-gate.sh, three locks) and the mandatory post-rejection behavior (verify-main-merge-gate.sh, three locks) and follow the mandatory post-rejection behavior. Use before merging to main, when a merge is rejected, or when deciding whether work can land.
+description: Use when merging to main, when a merge is rejected, or when deciding whether work can land — apply the mainline net-delta gate (gate-merge.sh mainline, three locks) and the mandatory post-rejection behavior (gate-merge.sh mainline, three locks) and follow the mandatory post-rejection behavior. Use before merging to main, when a merge is rejected, or when deciding whether work can land.
 disable-model-invocation: true
 ---
 
 ## The gate
 
-`verify-main-merge-gate.sh` computes the NET code delta (added − deleted,
+`gate-merge.sh mainline` computes the NET code delta (added − deleted,
 code paths only; docs exempt) of `origin/main..main`. Run it before any
 main merge:
 
 ```bash
-MAIN_BASE=origin/main bash scripts/sh/verify-main-merge-gate.sh main
+MAIN_BASE=origin/main bash scripts/sh/gate-merge.sh mainline main
 ```
 
 ## Three locks

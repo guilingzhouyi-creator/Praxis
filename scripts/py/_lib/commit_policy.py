@@ -9,7 +9,7 @@ policy (``fix*`` branches are fix-only).
 
 Consumed by the gates so the type/scope whitelist lives in ONE place:
 - ``.githooks/commit-msg``            (local commit gate)
-- ``scripts/sh/verify-pr-merge.sh``   (remote PR merge gate)
+- ``scripts/sh/gate-merge.sh pr``   (remote PR merge gate)
 - ``scripts/py/_lib/changelog_render.py`` (CHANGELOG typing)
 - ``.github/workflows/pr-review.yml`` (PR advisory comment)
 

@@ -59,7 +59,7 @@ for a in "$@"; do
 done
 
 if [ ! -f "$LOG" ]; then
-  echo "[judge-stats] no data yet — run verify-completion.sh first ($LOG)" >&2
+  echo "[judge-stats] no data yet — run gate-merge.sh completion first ($LOG)" >&2
   exit 0
 fi
 
@@ -384,6 +384,6 @@ if metrics_summary:
     for k, v in sorted(metrics_summary.items()):
         print(f"    {k:<14} {v['latest']:>8} {v['avg']:>8} {v['min']:>8} {v['max']:>8}")
 if skipped_tests_count:
-    print(f"  ⚠️  tests skipped in {skipped_tests_count} judge run(s) — run verify-completion.sh (WSL slice-serial) before merging code")
+    print(f"  ⚠️  tests skipped in {skipped_tests_count} judge run(s) — run gate-merge.sh completion (WSL slice-serial) before merging code")
 print("=" * 52)
 PY

@@ -60,14 +60,14 @@ A feature branch may merge to main only when:
 3. commits carry English messages + `Co-Authored-By` (commit-msg hook).
 
 **Local-merge gate (before merging into local main):** run
-`bash scripts/sh/verify-local-merge.sh` — it delegates to the mainline
+`bash scripts/sh/gate-merge.sh local` — it delegates to the mainline
 merge gate with `MAIN_BASE=main` and rejects the branch until its net code
 delta reaches the threshold (≥ 1000). The push-time gate (push-both.sh)
 only guards pushing main to the remotes; the local-merge gate guards the
 EARLIER step — the feature branch entering local main at all.
 
 The local gate also runs
-`python scripts/py/audit_merge_hunks.py --base main --head <branch> --check`.
+`python scripts/py/check_sensitive_paths.py --base main --head <branch> --check`.
 Changes under `docs/roadmaps/` and `config/discovery/` are printed at unified
 hunk granularity; opaque full-file replacements (including multi-hunk rewrites)
 and deletions are rejected for manual review. Use `--json` when attaching the

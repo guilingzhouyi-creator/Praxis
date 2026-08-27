@@ -84,25 +84,25 @@ changelog-check:
 	python scripts/py/check_changelog.py
 
 layer-quality:
-	python scripts/py/layer_quality.py
+	python scripts/py/bench_layer_structure.py
 
 layer-quality-report:
-	python scripts/py/layer_quality.py --report
+	python scripts/py/bench_layer_structure.py --report
 
 layer-quality-baseline:
-	python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml
+	python scripts/py/bench_layer_structure.py --baseline > config/quality/layer-baseline.yaml
 
 perf-quality:
-	python scripts/py/perf_quality.py
+	python scripts/py/bench_layer_runtime.py
 
 perf-quality-report:
-	python scripts/py/perf_quality.py --report
+	python scripts/py/bench_layer_runtime.py --report
 
 perf-quality-baseline:
-	python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
+	python scripts/py/bench_layer_runtime.py --baseline > config/quality/perf-baseline.yaml
 
 quality-all:
-	python scripts/py/layer_quality.py && python scripts/py/perf_quality.py
+	python scripts/py/bench_layer_structure.py && python scripts/py/bench_layer_runtime.py
 
 automation-plan:
 	python scripts/py/praxis_automation.py plan --workflow performance

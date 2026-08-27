@@ -64,11 +64,11 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
         echo "   Non-dependency files brought in by this merge:" >&2
         printf '%s\n' "$VIOLATIONS" | sed 's/^/     ✗ /' >&2
         echo "   Fix: split the code changes into a feature branch, or" >&2
-        echo "        run bash scripts/sh/verify-deps-merge.sh <branch> first." >&2
+        echo "        run bash scripts/sh/gate-merge.sh deps <branch> first." >&2
         exit 1
       fi
       echo "--- commit-msg: dependabot merge (dependency-only diff) ---" >&2
-      echo "   Reminder: run bash scripts/sh/verify-deps-merge.sh <branch>," >&2
+      echo "   Reminder: run bash scripts/sh/gate-merge.sh deps <branch>," >&2
       echo "   then push BOTH remotes via bash scripts/sh/push-both.sh main." >&2
     fi
   fi

@@ -49,7 +49,7 @@ worktree MUST target the main tree's venv: activate it first
 absolute path (e.g. `<main-tree>/.venv/bin/python -m pytest ...`). Never call
 a bare `python` or a worktree-local `.venv/bin/python` from inside a worktree
 — `python: command not found` (pre-commit/commit-msg hooks,
-`verify-completion.sh`) and `.venv/bin/python: No such file or directory`
+`gate-merge.sh completion`) and `.venv/bin/python: No such file or directory`
 (pytest) are the two symptoms of this exact mistake.
 
 ## Architecture doc sync — mandatory with architecture-level changes
@@ -82,7 +82,7 @@ names) MUST follow the conventions registered in `AGENTS.md`
 
 A change is merge-ready only when ALL hold:
 
-- **Machine verdict first**: `bash scripts/sh/verify-completion.sh` reports
+- **Machine verdict first**: `bash scripts/sh/gate-merge.sh completion` reports
   `COMPLETE` (11-dimension gate; `INCOMPLETE` → keep working, do NOT declare
   done). This is the machine's answer to "is it really finished?".
 - **Worktree clean**: branch committed, no in-flight edits on main

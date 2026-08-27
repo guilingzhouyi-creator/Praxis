@@ -136,7 +136,7 @@ def load_baseline(path: Path) -> dict[str, Any]:
 
 
 def singleton_gaps() -> int:
-    """Number of unhandled singleton modules (reuses scan_singletons.py).
+    """Number of unhandled singleton modules (reuses check_singletons.py).
 
     Matches the completeness-guard semantics in
     ``tests/infra/test_resets_completeness.py``: a singleton module is a gap

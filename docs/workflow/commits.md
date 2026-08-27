@@ -56,7 +56,7 @@ source of truth for the Conventional-Commits contract.
   `scripts/py/commit_gate.py policy`; the Node hook
   uses the generated `config/discovery/commits.json` mirror refreshed by
   `scripts/py/gen_commits_json.py`. All gates consume the same contract — `.githooks/commit-msg`,
-  `scripts/sh/verify-pr-merge.sh`, `scripts/py/gen_changelog.py`,
+  `scripts/sh/gate-merge.sh pr`, `scripts/py/gen_changelog.py`,
   `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
   script; add a type/scope to `commits.yaml` and every gate learns it.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;
@@ -82,7 +82,7 @@ source of truth for the Conventional-Commits contract.
 ## CompletionJudge — "done" is a machine verdict
 
 Before declaring a task complete, run
-`bash scripts/sh/verify-completion.sh` — the machine checks 11
+`bash scripts/sh/gate-merge.sh completion` — the machine checks 11
 dimensions (tests / coverage / net delta / doc-stats / lint /
 dependency CVEs / complexity / import cycles / singleton drift /
 CHANGELOG freshness / doc-index consistency). Only a `COMPLETE`
@@ -92,10 +92,10 @@ reopens). Every run is logged to `.praxis/judge-runs.jsonl` and the
 aggregate dashboard to `docs/judge-stats.md` (see `judge-stats.sh`).
 Full breakdown: `docs/architecture/completion-judge.md`.
 
-## Remote PR merging (verify-pr-merge.sh)
+## Remote PR merging (gate-merge.sh pr)
 
 - **Remote PRs (GitHub mirror) usually carry unsigned / non-conventional
-  commits** — run `bash scripts/sh/verify-pr-merge.sh <branch>` BEFORE merging
+  commits** — run `bash scripts/sh/gate-merge.sh pr <branch>` BEFORE merging
   (signature + English Conventional-Commits subject + conflict pre-check). If
   it fails, **squash-merge** (`git merge --squash`) to one signed, English,
   conventional commit, or ask the author to rewrite the branch. Never merge
@@ -106,7 +106,7 @@ Full breakdown: `docs/architecture/completion-judge.md`.
   `docs/roadmaps/` or `config/discovery/` fail closed with exit code 5; review
   the JSON report and merge only after both branch intents are checked.
 
-## Mainline net-delta gate (enforced by `scripts/sh/verify-main-merge-gate.sh`, auto-run on `push-both.sh main`)
+## Mainline net-delta gate (enforced by `scripts/sh/gate-merge.sh mainline`, auto-run on `push-both.sh main`)
 
 Main must not be inflated by repeated tiny commits. The gate computes the NET
 code delta (added − deleted, code paths only; docs are exempt) of

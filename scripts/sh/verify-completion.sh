@@ -139,7 +139,7 @@ if [ "$NEEDS_PYTHON" = "1" ] && ! command -v python >/dev/null 2>&1; then
   echo "  This measures YOUR SHELL, not the work; nothing was recorded to judge-runs.jsonl." >&2
   echo "  Agent-fix: run the judge from the repo venv first:" >&2
   echo "    export PATH=\"\$PWD/.venv/bin:\$PATH\"   # worktrees: use <main-tree>/.venv/bin" >&2
-  echo "    bash scripts/sh/verify-completion.sh [--skip=...]" >&2
+  echo "    bash scripts/sh/gate-merge.sh completion [--skip=...]" >&2
   exit 3
 fi
 
@@ -446,7 +446,7 @@ if [ "$VERDICT" = "COMPLETE" ]; then
 elif [ "$VERDICT" = "PARTIAL" ]; then
   echo "[judge] ⚠️  PARTIAL — fast mode (${MODE}); executed checks green but some skipped; NOT a 'done' verdict." >&2
   if [ "${SKIPPED_TESTS:-0}" = "1" ]; then
-    echo "[judge]    Tests were SKIPPED — this run is NOT test evidence; run verify-completion.sh (WSL slice-serial) before merging code." >&2
+    echo "[judge]    Tests were SKIPPED — this run is NOT test evidence; run gate-merge.sh completion (WSL slice-serial) before merging code." >&2
   fi
   echo "[judge] logged: $LOG_FILE" >&2
   exit 0

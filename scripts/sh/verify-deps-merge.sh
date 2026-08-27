@@ -37,7 +37,7 @@ if [ -z "$BRANCH" ]; then
 fi
 if [ -z "$BRANCH" ] || ! git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
   echo "[verify-deps-merge] ERROR: cannot resolve branch '$BRANCH'" >&2
-  echo "[verify-deps-merge] usage: bash scripts/sh/verify-deps-merge.sh <branch>" >&2
+  echo "[verify-deps-merge] usage: bash scripts/sh/gate-merge.sh deps <branch>" >&2
   exit 3
 fi
 

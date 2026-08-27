@@ -9,7 +9,7 @@
 
 Parallel agents (k/m/s/t/c/b/a + tool/infra agents) share one repo. Without a
 shared exchange area, merges clobber each other's work — e.g. 2026-08-22 the
-judge `verify-completion.sh` WSL-slice optimization was silently overwritten by
+judge `gate-merge.sh completion` WSL-slice optimization was silently overwritten by
 an unrelated infra merge (see `ALIGNMENT.md` "Clobber warnings").
 
 ## Rules

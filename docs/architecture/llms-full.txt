@@ -99,8 +99,8 @@ flowchart TB
 | L2 | [l2-multifrontend-session-layer.md](../roadmaps/l2-multifrontend-session-layer.md) | L2 boundary audit baseline (36/100) + multi-frontend session-layer roadmap (P0–P4) |
 | L1 | [l1-kernel.md](l1-kernel.md) | Process table, sync, event bus, constitution, GateChain, ports, params |
 | — | [cross-cutting.md](cross-cutting.md) | Governance, events, injection switches, testing/QA, skills, collaboration |
-| — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (layer_quality.py), hard/soft gate model |
-| — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (perf_quality.py), drift floor |
+| — | [quality-baseline.md](quality-baseline.md) | Per-layer quality gates: measured vs baseline scan (bench_layer_structure.py), hard/soft gate model |
+| — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (bench_layer_runtime.py), drift floor |
 | — | [automation.md](automation.md) | Declarative automation manifest, DAG planning, ProcessPort execution, and evidence hooks |
 | — | [multilang-build.md](multilang-build.md) | Rust workspace and TypeScript protocol build boundary for the staged rewrite |
 | — | [`systems/README.md`](../../systems/README.md) | Physical three-system layout and build-perimeter boundary (machine check: `make system-boundaries`) |

@@ -1,7 +1,7 @@
 # Quality Baseline — Per-Layer Metrics
 
 Per-layer quality gates for the five-layer kernel: every layer (L1–L5) is
-measured against a stored baseline by `scripts/py/layer_quality.py`, and the
+measured against a stored baseline by `scripts/py/bench_layer_structure.py`, and the
 scan fails the build when any hard gate is crossed or a soft gate drifts.
 
 ## Gate model
@@ -19,7 +19,7 @@ Baseline lives in `config/quality/layer-baseline.yaml` (generated, never
 hand-edited). Regenerate with:
 
 ```bash
-python scripts/py/layer_quality.py --baseline > config/quality/layer-baseline.yaml
+python scripts/py/bench_layer_structure.py --baseline > config/quality/layer-baseline.yaml
 ```
 
 ## Current baseline (2026-08-18)
@@ -37,12 +37,12 @@ Numbers are snapshots — refresh with the scanner, never hand-edit.
 ## Usage
 
 ```bash
-python scripts/py/layer_quality.py                # scan + gate verdict (exit 0/1/2)
-python scripts/py/layer_quality.py --report       # measured table only
-python scripts/py/layer_quality.py --baseline     # emit baseline YAML to stdout
+python scripts/py/bench_layer_structure.py                # scan + gate verdict (exit 0/1/2)
+python scripts/py/bench_layer_structure.py --report       # measured table only
+python scripts/py/bench_layer_structure.py --baseline     # emit baseline YAML to stdout
 ```
 
-`singleton_gaps` reuses `scripts/py/scan_singletons.py` and mirrors the
+`singleton_gaps` reuses `scripts/py/check_singletons.py` and mirrors the
 completeness-guard semantics in `tests/infra/test_resets_completeness.py`
 (scanned − `_RESETS` − `KNOWN_GAPS`), so the two gates can never disagree.
 
@@ -52,7 +52,7 @@ completeness-guard semantics in `tests/infra/test_resets_completeness.py`
   --strict` (CJK) and `test_resets_completeness.py` (singletons).
 - Soft gates ratchet: a baseline is a floor, not a target — metrics may only
   improve (monotonic) or stay within the drift band.
-- CI wiring: `nightly.yml` runs `layer_quality.py` + `perf_quality.py`
+- CI wiring: `nightly.yml` runs `bench_layer_structure.py` + `bench_layer_runtime.py`
   (quality-baselines job) so drift from the stored baselines fails CI.
-  `verify-completion.sh` does NOT re-scan layers (it delegates to the
+  `gate-merge.sh completion` does NOT re-scan layers (it delegates to the
   dedicated checkers); local runs use the repo venv.

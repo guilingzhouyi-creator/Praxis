@@ -8,11 +8,11 @@ checks into validated workflows without bypassing Praxis execution controls.
 | Component | Responsibility |
 |---|---|
 | `config/discovery/automation.yaml` | Versioned workflow and step declarations |
-| `scripts/py/automation_manifest.py` | YAML validation and dependency-graph-port-backed deterministic DAG planning |
-| `scripts/py/automation_runner.py` | Serial execution through `ProcessPort` and optional side-channel ports |
+| `scripts/py/_lib/automation_plan.py` | YAML validation and dependency-graph-port-backed deterministic DAG planning |
+| `scripts/py/_lib/automation_exec.py` | Serial execution through `ProcessPort` and optional side-channel ports |
 | `scripts/py/praxis_automation.py` | `plan`, `run`, `report`, and `doctor` CLI |
-| `scripts/py/r2_baseline_bundle.py` | Independent Rust/Python fixed-work evidence composition and validation |
-| `scripts/py/r2_baseline_analyze.py` | Descriptive scaling, tail-latency, drop, and resource aggregation |
+| `scripts/py/bench_r2_bundle.py` | Independent Rust/Python fixed-work evidence composition and validation |
+| `scripts/py/bench_r2_report.py` | Descriptive scaling, tail-latency, drop, and resource aggregation |
 
 ## Contract
 

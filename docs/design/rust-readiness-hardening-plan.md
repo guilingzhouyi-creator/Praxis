@@ -86,7 +86,7 @@
 | Phase 1 | ✅ WS2.2 / 2.4 + W6.1 + WS3 + W4.1/4.2/4.3（进程 FSM、持久审计、事件收敛） | 已完成 |
 | Phase 2 | ✅ WS5 + WS6（kernel 表面收缩、能力接口、调度 port、契约快照） | 已完成（WS5 在 `feature/kernel-boundary-hardening`） |
 
-每阶段完成标准：ruff / layer-import / params-compliance / 全量测试绿；新增测试覆盖；文档随代码同 commit（含本计划更新）；`verify-completion.sh` 出 COMPLETE 才收口。
+每阶段完成标准：ruff / layer-import / params-compliance / 全量测试绿；新增测试覆盖；文档随代码同 commit（含本计 划更新）；`gate-merge.sh completion` 出 COMPLETE 才收口。
 
 ## 8. 验收标准（全部达成即视为 Rust-ready）
 

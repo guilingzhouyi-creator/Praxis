@@ -85,7 +85,7 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   candidate: it drains a bounded typed queue after running a fixed total for
   every worker/round pair, samples process resources, and returns a complete v3
   report. It does not own scheduling, boot, or runtime routing. `make
-  rust-benchmark` emits Rust evidence; `scripts/py/r2_baseline_bundle.py`
+  rust-benchmark` emits Rust evidence; `scripts/py/bench_r2_bundle.py`
   independently runs the Python reference and validates both reports into one
   comparison artifact.
 - The WorkerPool exposes a separate `submit_result_batch` admission boundary.

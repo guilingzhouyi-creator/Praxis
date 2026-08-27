@@ -1,6 +1,6 @@
 ---
 name: dependabot-merge
-description: Use when a Dependabot PR/branch needs merging in the Praxis repo — dependency-bump validation, dependency-only diff scope, verify-deps-merge.sh, local GPG-signed merge, and dual-remote push. Do NOT auto-approve dependency PRs.
+description: Use when a Dependabot PR/branch needs merging in the Praxis repo — dependency-bump validation, dependency-only diff scope, gate-merge.sh deps, local GPG-signed merge, and dual-remote push. Do NOT auto-approve dependency PRs.
 ---
 
 ## Overview
@@ -10,11 +10,11 @@ Dependabot opens dependency PRs automatically (`.github/dependabot.yml`: weekly 
 ## Merge Gate (Do This, In Order)
 
 1. **Confirm scope**: the branch must touch ONLY the allowed dependency files (repo root only): `pyproject.toml`, `requirements*.txt`, `uv.lock`, `poetry.lock`. Anything else in the branch is a violation.
-2. **Run the verify script**: `bash scripts/sh/verify-deps-merge.sh <branch>` — diff-scope check + full-suite run when dependency files changed.
+2. **Run the verify script**: `bash scripts/sh/gate-merge.sh deps <branch>` — diff-scope check + full-suite run when dependency files changed.
 3. **Validate the bump locally**: after touching `pyproject.toml` run `pip install -e ".[test]"` then the FULL suite (`python -m pytest tests/`). A green PR CI is not sufficient — the merge commit itself must pass locally.
 4. **Merge locally, never on GitHub**: dependabot bot commits are unsigned and GitHub-side merges break the flow. `git merge <branch>` locally (signing is optional on this repo — the GitCode GPG hook is NOT enabled — but keep the convention), then push.
 5. **Push BOTH remotes**: `bash scripts/sh/push-both.sh main` (origin/GitCode FIRST, github=GitHub CI carrier; auto-refreshes doc-stats + judge record + dashboard).
-6. **Machine verdict on the merged result**: `bash scripts/sh/verify-completion.sh` should report COMPLETE before the push is considered final.
+6. **Machine verdict on the merged result**: `bash scripts/sh/gate-merge.sh completion` should report COMPLETE before the push is considered final.
 
 ## Hook Mechanics (Understand the Gate)
 

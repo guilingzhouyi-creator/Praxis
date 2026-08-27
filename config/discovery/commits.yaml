@@ -5,7 +5,7 @@
 #   - scripts/py/_lib/commit_policy.py   (policy engine, exposed via
 #     scripts/py/commit_gate.py policy; used by all gates below)
 #   - .githooks/commit-msg        (local commit gate)
-#   - scripts/sh/verify-pr-merge.sh (remote PR merge gate)
+#   - scripts/sh/gate-merge.sh pr (remote PR merge gate)
 #   - scripts/py/_lib/changelog_render.py (CHANGELOG typing, via gen_changelog.py)
 #   - .github/workflows/pr-review.yml (PR advisory comment)
 #
