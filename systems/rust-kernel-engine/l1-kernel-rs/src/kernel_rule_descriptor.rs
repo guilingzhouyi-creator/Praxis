@@ -1,6 +1,7 @@
 //! Language-neutral Constitution rule descriptor candidate.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -138,6 +139,9 @@ impl RuleDescriptor {
     }
 
     /// Evaluate the optional checker, defaulting to PASS.
+    ///
+    /// A checker panic is contained and treated as BLOCK so an adapter
+    /// failure cannot cross the policy boundary as an implicit allow.
     pub fn evaluate(
         &self,
         action: &str,
@@ -145,20 +149,23 @@ impl RuleDescriptor {
         target: &str,
         territory: &[String],
     ) -> CheckResult {
-        self.check_fn
-            .as_ref()
-            .and_then(|checker| {
-                checker(
-                    self,
-                    RuleContext {
-                        action,
-                        agent_id,
-                        target,
-                        territory,
-                    },
-                )
-            })
-            .unwrap_or(CheckResult::Pass)
+        let Some(checker) = self.check_fn.as_ref() else {
+            return CheckResult::Pass;
+        };
+        catch_unwind(AssertUnwindSafe(|| {
+            checker(
+                self,
+                RuleContext {
+                    action,
+                    agent_id,
+                    target,
+                    territory,
+                },
+            )
+        }))
+        .ok()
+        .flatten()
+        .unwrap_or(CheckResult::Block)
     }
 
     /// Serialize descriptor metadata without the callback or timestamp.

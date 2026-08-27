@@ -294,6 +294,9 @@ HOLD、GROW/SHRINK 限幅、慢任务 `GROW_FAST`、cooldown、reset 和稳定 r
 `kernel_rule_descriptor_vectors.json` 在 Python/Rust 两侧通过，Rust workspace
 测试总数达到 124 项。规则 catalog、Markdown/SettingsCenter、Constitution provider
 和 runtime policy 仍由 Python 持有，候选不接入 boot、EventBus 或 Port，也不解除 G3/G6。
+规则描述器的 checker 返回 `None` 仍按 PASS 处理，但 callback panic 会被捕获并
+转换为 BLOCK，避免策略异常穿透 L1 或意外放行；该值层保护不接管
+Constitution provider、Markdown/SettingsCenter 或生产 policy routing。
 
 随后完成 `registry_base` 声明式注册基座候选：Rust 镜像 descriptor 默认值、重复
 拒绝与显式覆盖、注册顺序、分类过滤、公开序列化和 register/unregister 统计；共享

@@ -837,8 +837,9 @@ The rule-descriptor candidate uses
 `tests/fixtures/kernel_rule_descriptor_vectors.json` to freeze MUST/SHOULD/MAY
 severity conversion, PASS/WARN/BLOCK results, descriptor metadata, sorted tags,
 and explicit checker context. Callback closures are injected at the adapter
-boundary; rule content, Markdown/SettingsCenter I/O, and Constitution policy
-remain outside the candidate.
+boundary; a checker that returns no result defaults to PASS, while a checker
+panic is caught and fails closed as BLOCK. Rule content, Markdown/SettingsCenter
+I/O, and Constitution policy remain outside the candidate.
 
 The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative

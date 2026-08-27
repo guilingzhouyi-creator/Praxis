@@ -538,6 +538,8 @@ tags, explicit timestamps, and an injected checker context. The shared
 `tests/fixtures/kernel_rule_descriptor_vectors.json` covers value fields;
 Markdown, SettingsCenter, rule catalogs, and policy providers remain outside.
 Its public behavior tests live in `tests/policy/kernel_test_rule_descriptor.rs`.
+An absent checker result remains PASS, while a checker panic is contained and
+returned as BLOCK so policy failures cannot unwind through the kernel boundary.
 
 The isolated `ports` module owns validated port values and deterministic
 registration metadata for future adapters. It does not instantiate providers

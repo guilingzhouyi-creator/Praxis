@@ -661,6 +661,12 @@ remains in `lib.rs`. The worker scaling test uses only public submission and
 shutdown behavior, so the clean-break public boundary remains explicit for
 later TS and Rust runtime rebuilds.
 
+The `rule_descriptor` checker seam is fail-closed: an absent checker result
+continues to mean PASS, but a panic from an injected checker is caught and
+converted to BLOCK. This protects the policy value boundary without moving
+Constitution providers, Markdown/SettingsCenter I/O, or runtime authority into
+the Rust candidate.
+
 The `sync` mechanism follows the same split: `tests/core/kernel_test_sync.rs` contains the
 eleven public Mutex/Semaphore/Barrier/Condition/RWLock behavior tests, while
 `tests/core/sync_vectors.rs` keeps the cross-language RWLock vectors. No private
