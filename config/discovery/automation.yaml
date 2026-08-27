@@ -47,3 +47,11 @@ automation:
             - .praxis/automation/r2-baseline-bundle.json
             - --output
             - .praxis/automation/r2-baseline-analysis.json
+        - id: bench_layer_runtime
+          depends_on: [r2_baseline_analysis]
+          timeout_s: 60
+          command:
+            - python
+            - scripts/py/bench_layer_runtime.py
+            - --input
+            - .praxis/automation/r2-baseline-analysis.json

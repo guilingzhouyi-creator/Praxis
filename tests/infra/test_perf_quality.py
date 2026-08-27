@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "py"))
 
-from perf_quality import compare, emit_baseline, render_report  # noqa: E402
+from bench_layer_runtime import compare, emit_baseline, render_report  # noqa: E402
 
 
 def test_missing_baseline_is_blocking_by_default() -> None:

@@ -17,7 +17,7 @@ set -euo pipefail
 #   6. Audit        — pip-audit dependency CVE scan clean
 #   7. Complexity   — at most 12 functions longer than 200 lines
 #   8. Import cycle — import_cycle_check.py clean
-#   9. Singleton    — scan_singletons.py vs conftest _RESETS in sync
+#   9. Singleton    — check_singletons.py vs conftest _RESETS in sync
 #  10. Changelog    — CHANGELOG [Unreleased] present and fresh
 #  11. Doc index    — check_doc_index.py clean
 #
@@ -81,7 +81,7 @@ RUN_LINT="${COMPLETION_LINT:-1}"
 RUN_AUDIT="${COMPLETION_AUDIT:-1}"        # pip-audit dependency CVEs
 RUN_COMPLEX="${COMPLETION_COMPLEX:-1}"    # long_functions >200 lines
 RUN_CYCLE="${COMPLETION_CYCLE:-1}"        # import-cycle-check
-RUN_SINGLETON="${COMPLETION_SINGLETON:-1}"  # scan_singletons drift
+RUN_SINGLETON="${COMPLETION_SINGLETON:-1}"  # check_singletons drift
 RUN_CHANGELOG="${COMPLETION_CHANGELOG:-1}"  # CHANGELOG [Unreleased] fresh
 RUN_INDEX="${COMPLETION_INDEX:-1}"          # doc-index consistency
 
@@ -383,11 +383,11 @@ fi
 # ── 9. Singleton drift (test isolation) ──────────────────────────────────
 if [ "$RUN_SINGLETON" = "1" ]; then
   echo "[judge] ── 9. Singleton scan (conftest _RESETS sync) ──"
-  if python scripts/py/scan_singletons.py > /tmp/judge_singleton.log 2>&1; then
+  if python scripts/py/check_singletons.py > /tmp/judge_singleton.log 2>&1; then
     S_SINGLETON=1; pass "singletons registered in _RESETS"
   else
     S_SINGLETON=2; head -5 /tmp/judge_singleton.log >&2
-    fail "singleton drift — scan_singletons found unregistered module-level state"
+    fail "singleton drift — check_singletons found unregistered module-level state"
   fi
 fi
 

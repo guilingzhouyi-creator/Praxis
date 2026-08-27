@@ -1,6 +1,6 @@
 """Per-layer performance baseline scanner — measures runtime throughput per layer.
 
-Complements ``layer_quality.py`` (structural quality) with a runtime
+Complements ``bench_layer_structure.py`` (structural quality) with a runtime
 dimension: every layer's benchmark primitives are measured against a stored
 baseline in ``config/quality/perf-baseline.yaml``.
 
@@ -13,7 +13,7 @@ Layer mapping (benchmark -> layer):
         microbenchmarks from ``bench_security_toolchain.py``
   - L5: end-to-end card throughput from ``bench_card.py`` (steps/sec)
 
-Gate semantics (mirrors layer_quality.py):
+Gate semantics (mirrors bench_layer_structure.py):
   - hard: a benchmark that errors or is unavailable fails the run.
   - soft (drift): ``ops_per_sec`` must stay above ``PERF_DRIFT_FLOOR``
     (90%) of its baseline — the same 10% regression line used by
@@ -22,11 +22,11 @@ Gate semantics (mirrors layer_quality.py):
 Exit code 0 = pass, 1 = any gate violated, 2 = baseline missing.
 
 Usage:
-    python scripts/py/perf_quality.py                # scan + gate verdict
-    python scripts/py/perf_quality.py --report       # measured table only
-    python scripts/py/perf_quality.py --baseline     # emit baseline YAML to stdout
-    python scripts/py/perf_quality.py --baseline-layer L2 # update one layer in the baseline
-    python scripts/py/perf_quality.py --run-json <f> # dump measured JSON (debug)
+    python scripts/py/bench_layer_runtime.py                # scan + gate verdict
+    python scripts/py/bench_layer_runtime.py --report       # measured table only
+    python scripts/py/bench_layer_runtime.py --baseline     # emit baseline YAML to stdout
+    python scripts/py/bench_layer_runtime.py --baseline-layer L2 # update one layer in the baseline
+    python scripts/py/bench_layer_runtime.py --run-json <f> # dump measured JSON (debug)
 """
 
 from __future__ import annotations
@@ -313,7 +313,7 @@ def measure_l3_dept(diagnostics: list[dict[str, Any]] | None = None) -> dict[str
         if tmp_state.exists():
             tmp_state.unlink()
     except OSError as e:
-        print(f"perf_quality: temp identity state cleanup failed: {e}", file=sys.stderr)
+        print(f"bench_layer_runtime: temp identity state cleanup failed: {e}", file=sys.stderr)
     return result
 
 
@@ -350,7 +350,7 @@ def load_baseline(path: Path) -> dict[str, Any]:
 
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception as e:
-        print(f"perf_quality: baseline load failed: {e}", file=sys.stderr)
+        print(f"bench_layer_runtime: baseline load failed: {e}", file=sys.stderr)
         return {}
 
 
@@ -442,7 +442,7 @@ def emit_baseline(
     layers.update(measured)
     doc = [
         "# Per-layer performance baseline (generated — do not hand-edit).",
-        "# Regenerate: python scripts/py/perf_quality.py --baseline",
+        "# Regenerate: python scripts/py/bench_layer_runtime.py --baseline",
         "# Optional score metrics (names ending in _score, e.g. amdahl_parallel_score)",
         "# are emitted only where the underlying fit is meaningful; a missing",
         "# baseline entry for them is a soft notice, not a hard gate failure.",
@@ -508,7 +508,7 @@ def main() -> int:
 
     baseline = load_baseline(BASELINE)
     if not baseline:
-        print(f"perf_quality: baseline missing — run --baseline to generate {BASELINE}", file=sys.stderr)
+        print(f"bench_layer_runtime: baseline missing — run --baseline to generate {BASELINE}", file=sys.stderr)
         return 2
     findings = compare(measured, baseline, allow_missing_baseline=args.allow_missing_baseline)
     print(render_report(measured, findings, diagnostics))

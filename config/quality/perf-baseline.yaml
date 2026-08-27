@@ -1,5 +1,5 @@
 # Per-layer performance baseline (generated — do not hand-edit).
-# Regenerate: python scripts/py/perf_quality.py --baseline
+# Regenerate: python scripts/py/bench_layer_runtime.py --baseline
 # Optional score metrics (names ending in _score, e.g. amdahl_parallel_score)
 # are emitted only where the underlying fit is meaningful; a missing
 # baseline entry for them is a soft notice, not a hard gate failure.
