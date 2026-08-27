@@ -7,6 +7,8 @@
 
 ### 变更
 
+- **Build (infra)**: make mypy honor runtime naming
+- **Refactor (rust)**: namespace formal test leaves
 - **Refactor (rust)**: differentiate formal leaf names
 - **Refactor (infra)**: separate runtime systems
 - **Test (infra)**: pin zero-check refusal and fast-mode contracts
@@ -129,6 +131,7 @@
 
 ### 文档
 
+- **Docs (rust)**: align docking test paths
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh architecture counts
