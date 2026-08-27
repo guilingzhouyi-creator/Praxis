@@ -379,7 +379,8 @@ the candidate.
 host adapter for that seam. It resolves all handles before dispatch, keeps
 plan order, and fails closed on missing/duplicate/zero targets or an
 over-reported delivery count. The injected sender owns platform signal, PTY,
-permission, and retry behavior; see
+permission, and retry behavior; resolver/sender panics are converted to
+fail-closed adapter errors before they can unwind. See
 `tests/process/kernel_test_host_process_group_signal.rs`.
 
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:

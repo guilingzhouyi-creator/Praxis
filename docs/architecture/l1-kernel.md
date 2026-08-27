@@ -1150,7 +1150,8 @@ duplicate mappings, and bounds the sender's delivered count. The sender may
 implement a platform process-group signal, a PTY control operation, or a test
 double; no signal number, PID lookup, terminal scan, or retry policy is stored
 in L1. Resolver failure prevents sender dispatch, so a missing host mapping
-cannot produce a partial batch.
+cannot produce a partial batch. Resolver and sender panics are converted to
+fail-closed adapter errors before they can unwind into the kernel.
 
 ### Engineering-debug boundary
 

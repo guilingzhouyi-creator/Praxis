@@ -538,7 +538,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   closure-backed adapter for that seam. It resolves all generation-safe handles
   before dispatch, preserves plan order, rejects zero/duplicate targets and
   over-reported delivery, and leaves platform signal, PTY, permission, and
-  retry policy in the injected host sender. Its independent target is
+  retry policy in the injected host sender. Resolver and sender panics are
+  converted to fail-closed adapter errors. Its independent target is
   `tests/process/kernel_test_host_process_group_signal.rs`.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,

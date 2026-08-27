@@ -787,8 +787,8 @@ adapter、权限/失败证据和生产 shutdown 评审。
 随后补齐首个可注入宿主 adapter：
 `host_process_group_signal::HostProcessGroupSignalPort` 在调用宿主 sender 前完整解析
 所有 generation-safe handle，保持 stop plan 顺序，并拒绝零值、重复目标、解析失败及
-超额 delivered。sender 可实现 Unix/Windows 进程组、PTY 控制或测试替身；L1 不保存
-signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/kernel_test_host_process_group_signal.rs`
+超额 delivered；resolver/sender panic 转为 fail-closed 错误。sender 可实现
+Unix/Windows 进程组、PTY 控制或测试替身；L1 不保存 signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/kernel_test_host_process_group_signal.rs`
 验证无部分派发与有界报告。这仍是候选宿主接缝，不等于真实平台 wiring 或生产 shutdown
 authority 已完成。
 

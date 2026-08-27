@@ -103,3 +103,18 @@ fn empty_plan_is_a_valid_noop_batch() {
         }
     );
 }
+
+#[test]
+fn host_callback_panics_are_reported_without_unwinding() {
+    let resolver_panic = HostProcessGroupSignalPort::new(|_| panic!("resolver panic"), |_| Ok(1));
+    let error = resolver_panic
+        .send_stop(&plan(vec![4]))
+        .expect_err("resolver panic");
+    assert!(error.contains("resolution panicked"));
+
+    let sender_panic = HostProcessGroupSignalPort::new(Ok, |_| panic!("sender panic"));
+    let error = sender_panic
+        .send_stop(&plan(vec![4]))
+        .expect_err("sender panic");
+    assert!(error.contains("sender panicked"));
+}

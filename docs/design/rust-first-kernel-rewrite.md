@@ -368,8 +368,10 @@ The first adapter implementation is
 `host_process_group_signal::HostProcessGroupSignalPort`. It accepts explicit
 resolver and sender closures, resolves the complete handle batch before any
 host operation, and validates non-zero unique targets plus bounded delivery.
-This is a host-injection seam rather than a platform implementation: Linux,
-Windows, PTY, permission, and retry behavior remain outside the Rust crate.
+Callback panics are converted to structured adapter errors before they can
+unwind the kernel boundary. This is a host-injection seam rather than a
+platform implementation: Linux, Windows, PTY, permission, and retry behavior
+remain outside the Rust crate.
 
 `scripts/py/bench_r2_report.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
