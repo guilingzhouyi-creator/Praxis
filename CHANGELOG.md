@@ -7,6 +7,10 @@
 
 ### 文档
 
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh architecture counts
+- **Docs (stats)**: refresh judge dashboard
+- **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (rust)**: complete field docs and error contracts crate-wide
 - **Docs (rust)**: annotate module map, error contracts, and invariants
 - **Docs (stats)**: refresh judge dashboard
@@ -247,6 +251,7 @@
 
 ### 变更
 
+- **Refactor (infra)**: separate runtime systems
 - **Test (infra)**: pin zero-check refusal and fast-mode contracts
 - **Test (tests)**: update prompts import paths and commanddef type in tests
 - **Refactor (l2)**: eliminate shell direct l4 imports and decouple layers
@@ -367,20 +372,26 @@
 
 ### 新增
 
-- **Feat (scripts)**: classify telemetry runs and refuse empty judge records
-- **Feat (l2)**: add opt-in Rust protocol host transport and three-way envelope docking tests
-- **Fix (l2)**: fail pending TS bridge requests immediately on host disconnect
-- **Fix (l2)**: close protocol requests on synthetic host fault frames
-- **Fix (l2)**: bound bridge sequence wraparound to safe integers
-- **Fix (l2)**: reject unsafe wire sequence numbers before rounding
-- **Fix (l2/rust)**: align target-session control routing and recovery events
-- **Feat (rust)**: add explicit host process-group signal adapter
-- **Feat (rust)**: unify process-table group ownership path
-- **Feat (rust)**: gate unified process-table group admission
-- **Feat (rust)**: wire bounded audit evidence for process groups
+- **Feat (rust)**: add strict grouped agent loop execution
 - **Feat (rust)**: add host input activity adapter seam
-- **Feat (rust)**: add grouped AgentLoop execution admission
-- **Fix (protocol)**: bound wire sequence cursors to the exact cross-language safe range
+- **Feat (rust)**: wire bounded audit evidence for process groups
+- **Feat (rust)**: gate unified process-table group admission
+- **Feat (rust)**: unify process-table group ownership path
+- **Feat (rust)**: add host process-group signal adapter
+- **Feat (rust)**: add process-group signal seam
+- **Feat (rust)**: add AgentLoop execution bridge
+- **Feat (rust)**: add explicit boot execution seam
+- **Feat (rust)**: add bounded process bridge stop
+- **Feat (rust)**: add bounded process group drain
+- **Feat (rust)**: add explicit kernel entry coordinator
+- **Feat (rust)**: require explicit kernel state root
+- **Feat (rust)**: add read-only kernel preflight
+- **Feat (rust)**: add recovery decision boundary
+- **Feat (rust)**: persist execution books in runtime
+- **Feat (l2)**: verify session store across rust and ts
+- **Feat (scripts)**: classify telemetry runs and refuse empty judge records
+- **Feat (l2)**: add rust session checkpoint codec
+- **Feat (l2)**: dock ts bridge to opt-in rust host
 - **Feat (rust)**: add aggregate input activity contract
 - **Feat (l2)**: align protocol v1 conformance across ts, rust, and python
 - **Feat (rust)**: gate process admission
@@ -516,6 +527,11 @@
 
 ### 修复
 
+- **Fix (rust)**: gate persistent recovery boot
+- **Fix (l2)**: close safe wire and target session boundaries
+- **Fix (l2)**: reject unsafe wire sequence numbers
+- **Fix (l2)**: bound bridge sequence wraparound
+- **Fix (l2)**: harden rust host transport recovery
 - **Fix (services)**: add i18n keys for model reasoning caps errors
 - **Fix (scripts)**: align complexity doc and single-source node validator
 - **Fix (audit)**: bypass detection cache in gate context
