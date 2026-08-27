@@ -5,134 +5,9 @@
 
 ## [Unreleased]
 
-### 变更
-
-- **Refactor (scripts)**: settle perimeter libraries under _lib
-- **Refactor (scripts)**: rename quality gates to verbs-lexicon names
-- **Refactor (scripts)**: promote stats library and rename comment gate
-- **Refactor (scripts)**: add merge gate dispatcher and rename hunk auditor
-- **Refactor (scripts)**: unify commit governance under commit_gate cli
-- **Refactor (infra)**: separate runtime systems
-- **Test (infra)**: pin zero-check refusal and fast-mode contracts
-- **Test (tests)**: update prompts import paths and commanddef type in tests
-- **Refactor (l2)**: eliminate shell direct l4 imports and decouple layers
-- **Refactor (l3)**: standardize directory layout and organize fixtures
-- **Refactor (kernel)**: remove L1 transition shims and clean boundaries
-- **Test (rust)**: normalize integration test domains
-- **Test (tests)**: derive mirror key list from the generator
-- **Refactor (rust)**: inject benchmark process argv
-- **Refactor (rust)**: route terminal argv through probe
-- **Test (l2)**: freeze cross-language golden vectors with three runners
-- **Refactor (l2)**: align legacy python protocol with conformance rulings
-- **Test (rust)**: pin dispatch matrix and rejection audit vectors
-- **Test (rust)**: add concurrent attach ack replay stress
-- **Test (rust)**: pin session lifecycle golden vectors
-- **Refactor (rust)**: use entry api for multiplexer attach
-- **Chore (rust)**: unify seq bounds and wraparound edges
-- **Test (rust)**: pin canonical json golden vectors vs python host
-- **Test (rust)**: add multi-view replay regression vectors
-- **Chore (config)**: register rust scope for crates tree
-- **Chore (config)**: refresh commits.json mirror after legacy scope addition
-- **Chore (config)**: register l2-ts legacy scopes for merged history
-- **Test (shell)**: pin l3 interface routing and cot privacy guards
-- **Test (shell)**: cover connection lifecycle and family binding edges
-- **Test (l2)**: close authority-surface coverage gaps
-- **Refactor**: polish envelope outbox documentation
-- **Test (infra)**: fix pre-existing hook test drift after type-content gate
-- **Test (l2-ts)**: align tests with simplified modules
-- **Refactor (l2-ts)**: simplify cot-guard and health checks
-- **Refactor (l2-ts)**: simplify envelope outbox to array
-- **Refactor (l2-ts)**: simplify dispatcher, broadcast and cache
-- **Refactor (l2-ts)**: simplify bridge and engine modules to reduce complexity
-- **Test (infra)**: cover custom merge subject length gate
-- **Test (tests)**: fix merge-skip breakdown test for empty ranges
-- **Test (hooks)**: stage qualifying probe for type-to-content gate
-- **Test (hooks)**: add strict enforcer and worktree coverage
-- **Chore (config)**: register services scope for l3 services dir
-- **Chore (hooks)**: enforce strict commit-msg and worktree sync
-- **Refactor (services)**: subpackage the file editor family
-- **Test (l3)**: add extra edge cases for unicode and journal
-- **Style (tests)**: format hardening tests
-- **Test (l3a)**: cover recovery truncation and daemon wiring
-- **Test (l3)**: harden durability with atomic and concurrent coverage
-- **Refactor (bus)**: rename l3b composite module for disambiguation
-- **Refactor (l3)**: complete durability and recovery hardening
-- **Refactor (l3)**: harden durable store and session lifecycle
-- **Refactor (scripts)**: single-source content rules and clean set flags
-- **Test (tests)**: harden test suite and gate scripts
-- **Test (tests)**: cover journal recovery when main file is lost
-- **Chore (infra)**: lint types and fold changelog for slices B-D
-- **Chore (config)**: restore agent registry clobbered by preflight merge
-- **Chore (infra)**: refresh build and quality scaffolding
-- **Test (infra)**: synchronize cross-language harness
-- **Refactor (kernel)**: align python boundary adapters
-- **Refactor (l2)**: align language protocol boundary
-- **Test (kernel)**: isolate rust kernel test domain
-- **Refactor (scripts)**: dedupe judge test config and slice list
-- **Chore (config)**: register open-weight vendors in agent registry
-- **Chore (config)**: refresh agent registry to aug 2026 model lineups
-- **Chore (scripts)**: normalize scaffold glue and prune junk residue
-- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
-- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
-- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
-- **Refactor (l2)**: converge settings writes on the l3 bridge
-- **Refactor (l2)**: move injection policy into l3 injection guard
-- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
-- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
-- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
-- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
-- **Refactor (l2)**: funnel model commands through the l3 bridge
-- **Refactor (l2)**: funnel system commands through the l3 bridge
-- **Refactor (l2)**: funnel memory commands through the l3 bridge
-- **Refactor (l2)**: pass explicit session to command handlers
-- **Refactor (l2)**: remove dead shell_session terminal manager
-- **Chore (docs)**: sync kernel contract golden for InputSourcePort
-- **Refactor (judge)**: trim committed dashboard to quantitative standards
-- **Test (skill)**: cover scope/priority round-trip and layer imports
-- **Style (l2)**: fold scout permission guard to one line
-- **Refactor (l2)**: unify bang commands into /intent and /scout
-- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
-- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
-- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
-- **Chore**: format fs_adapter_vfs test and refresh changelog
-- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
-- **Test (infra)**: split runner into per-layer slices
-- **Chore**: ignore atomcode runtime config
-- **Test (infra)**: isolate durable capability fixtures
-- **Test (memory)**: document candidate rewrite seam and boundaries
-- **Test (infra)**: register ports.storage singleton reset
-- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
-- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
-- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
-- **Refactor (l3)**: split evolve_skill into pipeline helpers
-- **Refactor (l3)**: split session prompt() into stage helpers
-- **Refactor (l3)**: split session compress() into stage helpers
-- **Refactor (l3)**: split dispatch into per-subcommand handlers
-- **Refactor (l3)**: split _init_discovery into per-section registrars
-- **Refactor (l3)**: split boot() into phased helpers
-- **Refactor (l3)**: split _build_run_context into gated injector methods
-- **Refactor (l3)**: split handle_think into cohesive helpers
-- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
-- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
-- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
-- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
-- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
-- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
-- **Ci (push-both)**: push-safety pre-check + three-way verification
-- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
-- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
-- **Ci (nightly)**: add judge-stats effectiveness report job
-- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
-- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
-- **Refactor (tool-presentation)**: simplify cache internals and hot path
-- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
-- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
-- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
-- **Chore (reset)**: update repo references after remote reset to Praxis
-
 ### 文档
 
+- **Docs (scripts)**: converge runbooks on unified gate and library names
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh architecture counts
@@ -375,6 +250,132 @@
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
 - **Docs (agents)**: document direct local push to github mirror
+
+### 变更
+
+- **Refactor (scripts)**: settle perimeter libraries under _lib
+- **Refactor (scripts)**: rename quality gates to verbs-lexicon names
+- **Refactor (scripts)**: promote stats library and rename comment gate
+- **Refactor (scripts)**: add merge gate dispatcher and rename hunk auditor
+- **Refactor (scripts)**: unify commit governance under commit_gate cli
+- **Refactor (infra)**: separate runtime systems
+- **Test (infra)**: pin zero-check refusal and fast-mode contracts
+- **Test (tests)**: update prompts import paths and commanddef type in tests
+- **Refactor (l2)**: eliminate shell direct l4 imports and decouple layers
+- **Refactor (l3)**: standardize directory layout and organize fixtures
+- **Refactor (kernel)**: remove L1 transition shims and clean boundaries
+- **Test (rust)**: normalize integration test domains
+- **Test (tests)**: derive mirror key list from the generator
+- **Refactor (rust)**: inject benchmark process argv
+- **Refactor (rust)**: route terminal argv through probe
+- **Test (l2)**: freeze cross-language golden vectors with three runners
+- **Refactor (l2)**: align legacy python protocol with conformance rulings
+- **Test (rust)**: pin dispatch matrix and rejection audit vectors
+- **Test (rust)**: add concurrent attach ack replay stress
+- **Test (rust)**: pin session lifecycle golden vectors
+- **Refactor (rust)**: use entry api for multiplexer attach
+- **Chore (rust)**: unify seq bounds and wraparound edges
+- **Test (rust)**: pin canonical json golden vectors vs python host
+- **Test (rust)**: add multi-view replay regression vectors
+- **Chore (config)**: register rust scope for crates tree
+- **Chore (config)**: refresh commits.json mirror after legacy scope addition
+- **Chore (config)**: register l2-ts legacy scopes for merged history
+- **Test (shell)**: pin l3 interface routing and cot privacy guards
+- **Test (shell)**: cover connection lifecycle and family binding edges
+- **Test (l2)**: close authority-surface coverage gaps
+- **Refactor**: polish envelope outbox documentation
+- **Test (infra)**: fix pre-existing hook test drift after type-content gate
+- **Test (l2-ts)**: align tests with simplified modules
+- **Refactor (l2-ts)**: simplify cot-guard and health checks
+- **Refactor (l2-ts)**: simplify envelope outbox to array
+- **Refactor (l2-ts)**: simplify dispatcher, broadcast and cache
+- **Refactor (l2-ts)**: simplify bridge and engine modules to reduce complexity
+- **Test (infra)**: cover custom merge subject length gate
+- **Test (tests)**: fix merge-skip breakdown test for empty ranges
+- **Test (hooks)**: stage qualifying probe for type-to-content gate
+- **Test (hooks)**: add strict enforcer and worktree coverage
+- **Chore (config)**: register services scope for l3 services dir
+- **Chore (hooks)**: enforce strict commit-msg and worktree sync
+- **Refactor (services)**: subpackage the file editor family
+- **Test (l3)**: add extra edge cases for unicode and journal
+- **Style (tests)**: format hardening tests
+- **Test (l3a)**: cover recovery truncation and daemon wiring
+- **Test (l3)**: harden durability with atomic and concurrent coverage
+- **Refactor (bus)**: rename l3b composite module for disambiguation
+- **Refactor (l3)**: complete durability and recovery hardening
+- **Refactor (l3)**: harden durable store and session lifecycle
+- **Refactor (scripts)**: single-source content rules and clean set flags
+- **Test (tests)**: harden test suite and gate scripts
+- **Test (tests)**: cover journal recovery when main file is lost
+- **Chore (infra)**: lint types and fold changelog for slices B-D
+- **Chore (config)**: restore agent registry clobbered by preflight merge
+- **Chore (infra)**: refresh build and quality scaffolding
+- **Test (infra)**: synchronize cross-language harness
+- **Refactor (kernel)**: align python boundary adapters
+- **Refactor (l2)**: align language protocol boundary
+- **Test (kernel)**: isolate rust kernel test domain
+- **Refactor (scripts)**: dedupe judge test config and slice list
+- **Chore (config)**: register open-weight vendors in agent registry
+- **Chore (config)**: refresh agent registry to aug 2026 model lineups
+- **Chore (scripts)**: normalize scaffold glue and prune junk residue
+- **Test (l2)**: lift coverage to 75 percent and clear protocol type errors
+- **Refactor (l2)**: single help source, bridge-only reach-ins, honest modes
+- **Refactor (l2)**: move outbox maxlen to params; config-drive ws port
+- **Refactor (l2)**: converge settings writes on the l3 bridge
+- **Refactor (l2)**: move injection policy into l3 injection guard
+- **Refactor (l2)**: upgrade selector to dict-data cell bridge api
+- **Refactor (l2)**: funnel tool-system and l3a session through the l3 bridge
+- **Refactor (l2)**: funnel remaining getter commands through the l3 bridge
+- **Refactor (l2)**: funnel settings and stats commands through the l3 bridge
+- **Refactor (l2)**: funnel model commands through the l3 bridge
+- **Refactor (l2)**: funnel system commands through the l3 bridge
+- **Refactor (l2)**: funnel memory commands through the l3 bridge
+- **Refactor (l2)**: pass explicit session to command handlers
+- **Refactor (l2)**: remove dead shell_session terminal manager
+- **Chore (docs)**: sync kernel contract golden for InputSourcePort
+- **Refactor (judge)**: trim committed dashboard to quantitative standards
+- **Test (skill)**: cover scope/priority round-trip and layer imports
+- **Style (l2)**: fold scout permission guard to one line
+- **Refactor (l2)**: unify bang commands into /intent and /scout
+- **Ci (bench)**: smoke-gate the four unowned benchmark scripts
+- **Style (kernel)**: use contextlib.suppress in reset_persist, refresh changelog
+- **Chore (style)**: fix ruff trailing newline, refresh doc-stats and changelog
+- **Chore**: format fs_adapter_vfs test and refresh changelog
+- **Refactor (kernel)**: shrink kernel surface — ports, params, moves (WS5)
+- **Test (infra)**: split runner into per-layer slices
+- **Chore**: ignore atomcode runtime config
+- **Test (infra)**: isolate durable capability fixtures
+- **Test (memory)**: document candidate rewrite seam and boundaries
+- **Test (infra)**: register ports.storage singleton reset
+- **Refactor (infra)**: clear PLR0911 exemptions across 27 modules
+- **Refactor (l3)**: convert l3a dispatch to dict dispatch table
+- **Refactor (l2)**: split _cmd_memory into global-op dispatch table
+- **Refactor (l3)**: split evolve_skill into pipeline helpers
+- **Refactor (l3)**: split session prompt() into stage helpers
+- **Refactor (l3)**: split session compress() into stage helpers
+- **Refactor (l3)**: split dispatch into per-subcommand handlers
+- **Refactor (l3)**: split _init_discovery into per-section registrars
+- **Refactor (l3)**: split boot() into phased helpers
+- **Refactor (l3)**: split _build_run_context into gated injector methods
+- **Refactor (l3)**: split handle_think into cohesive helpers
+- **Refactor (l2)**: split _cmd_skills into per-subcommand helpers
+- **Chore**: remove Qwen2.5 defaults, align CLAUDE.md with AGENTS.md
+- **Test (infra)**: cover commit-scan engine and judge-stats aggregator
+- **Test (memory)**: cover compression sensitive-scan hits and guard-blocked fold
+- **Test (memory)**: cover L2 memory command extensions (corpus/digest/offload/sensitive/guard)
+- **Test (memory)**: cover memory-upgrade API handlers (corpus/digest/offload/sensitive/guard)
+- **Ci (push-both)**: push-safety pre-check + three-way verification
+- **Refactor (scripts)**: normalize module names to snake_case (AGENTS.md rule)
+- **Ci (push-both)**: auto-refresh doc-stats + record judge run before main push
+- **Ci (nightly)**: add judge-stats effectiveness report job
+- **Refactor (tool-presentation)**: make the run_code framework language-agnostic
+- **Ci (push-both)**: drop sync-PR fallback — local branches push directly
+- **Refactor (tool-presentation)**: simplify cache internals and hot path
+- **Ci (commit-msg)**: enforce exactly one well-formed Co-Authored-By trailer
+- **Ci (opt)**: fix failing evaluate/pr-commit-lint, trim CodeQL to push-only
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark (#9)
+- **Ci (slim)**: drop redundant full-suite job and PR-triggered benchmark
+- **Chore (reset)**: update repo references after remote reset to Praxis
 
 ### 新增
 
