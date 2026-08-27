@@ -85,7 +85,7 @@ else
 fi
 
 # ── 2. Subject check: English + Conventional Commits ──────────────────────
-# Delegated to scripts/py/commit_scan.py (single source of truth:
+# Delegated to scripts/py/commit_gate.py policy (single source of truth:
 # config/discovery/commits.yaml — type whitelist, registered scopes,
 # placeholder guard, branch-type policy). Exit codes:
 #   0 = OK; 1 = violation; 2 = runtime unavailable (legacy regex fallback).
@@ -93,8 +93,8 @@ echo "[verify-pr-merge] ── 2. Subject check (English + Conventional Commits)
 SUBJECT_RE='^(feat|fix|perf|docs|refactor|style|test|chore|build|ci|revert)(\([a-z0-9_.-]+\))?!?: '
 SCAN_RC=0
 SCAN_OUT=""
-if [ -f scripts/py/commit_scan.py ]; then
-  SCAN_OUT="$(python scripts/py/commit_scan.py --git-range "$RANGE" --branch "$BRANCH" 2>&1 || true)"
+if [ -f scripts/py/commit_gate.py ]; then
+  SCAN_OUT="$(python scripts/py/commit_gate.py policy --git-range "$RANGE" --branch "$BRANCH" 2>&1 || true)"
   case "$SCAN_OUT" in
     *VIOLATIONS*) SCAN_RC=1 ;;
   esac

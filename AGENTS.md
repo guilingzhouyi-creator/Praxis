@@ -104,8 +104,8 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 - **Exactly ONE `Co-Authored-By:` trailer** strictly last line, preceded by a blank line (no trailing notes):
   `Co-Authored-By: <registered-agent> (<detected-model>) <noreply@domain>`
 - **Attribution verified for TRUTH (Anti-Impersonation Rule)**: cross-checked against agents registry + live execution evidence
-  (`detect_agent.py` reads the harness session log — unfakeable); model claims without proof are rejected.
-  Agents MUST probe runtime first (`python scripts/py/detect_agent.py --json`) and MUST NEVER arbitrarily grab
+  (`check_attribution.py` reads the harness session log — unfakeable); model claims without proof are rejected.
+  Agents MUST probe runtime first (`python scripts/py/check_attribution.py --json`) and MUST NEVER arbitrarily grab
   registered identities from `commits.yaml`. If unregistered or unverifiable, the agent MUST notify the user
   for registry addition or environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
 - **Single source of truth**: `config/discovery/commits.yaml` is canonical;

@@ -32,7 +32,7 @@ Checklist for the Praxis git governance process. AGENTS.md (`## Remote strategy`
 - **Pre-commit** (`.githooks/pre-commit`) runs on STAGED `.py` files only:
   - `ruff check --fix` aborts with `--exit-non-zero-on-fix` when it auto-fixes — re-stage and retry.
   - `ruff format --check` rejects unformatted files — run `ruff format <files>` before staging.
-  - Size check (`scripts/py/pre_commit_size_check.py`): bulk commits >10k lines need `SKIP_SIZE_CHECK=1`.
+  - Size check (`scripts/py/check_commit_size.py`): bulk commits >10k lines need `SKIP_SIZE_CHECK=1`.
   - **Mainline whitelist gate**: only `docs/ config/ locales/ .githooks/ scripts/ README.md .pre-commit-config.yaml .praxis-rules.md` etc. may commit directly on main; in-progress merges are exempt (the sanctioned double-green path). Governance files (`AGENTS.md`, `.github/`, `.opencode/`, `.atomcode/`) are NOT whitelisted — land them via feature branch or `--no-verify`.
 - **Commit-msg** (`.githooks/commit-msg`):
   - Messages MUST be English (CJK rejected).

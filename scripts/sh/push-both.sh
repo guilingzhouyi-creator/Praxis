@@ -134,8 +134,8 @@ FAIL=0
 if [ "$BRANCH" = "main" ]; then
   echo "[push-both] ── commit audit (origin/main..main) ──────────────────────"
   AHEAD=$(git rev-list --count "origin/main..main" 2>/dev/null || echo 0)
-  if [ "$AHEAD" -gt 0 ] && [ -f scripts/py/commit_scan.py ]; then
-    if ! python scripts/py/commit_scan.py --git-range origin/main..main --check-content >/tmp/pushboth_commit_scan.log 2>&1; then
+  if [ "$AHEAD" -gt 0 ] && [ -f scripts/py/commit_gate.py ]; then
+    if ! python scripts/py/commit_gate.py policy --git-range origin/main..main --check-content >/tmp/pushboth_commit_scan.log 2>&1; then
       echo "[push-both] ❌ commit audit FAILED — push aborted." >&2
       cat /tmp/pushboth_commit_scan.log >&2
       echo "[push-both]    Fix violations before pushing, or use --no-verify locally" >&2

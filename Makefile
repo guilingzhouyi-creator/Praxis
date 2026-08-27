@@ -78,7 +78,7 @@ release-build:
 	python -m build
 
 changelog:
-	python scripts/py/generate_changelog.py
+	python scripts/py/gen_changelog.py
 
 changelog-check:
 	python scripts/py/check_changelog.py

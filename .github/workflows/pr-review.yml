@@ -62,10 +62,10 @@ jobs:
             case "$subj" in
               Merge*|Revert*) msg_ok="conventional" ;;  # git-generated exempt
               *)
-                # Policy verdict from commit_scan.py (single source of truth:
+                # Policy verdict from commit_gate.py policy (single source of truth:
                 # config/discovery/commits.yaml — type whitelist, registered
                 # scopes, placeholder guard, branch-type policy).
-                if python scripts/py/commit_scan.py --subject "$subj" --branch "${{ github.head_ref }}" >/dev/null 2>&1; then
+                if python scripts/py/commit_gate.py policy --subject "$subj" --branch "${{ github.head_ref }}" >/dev/null 2>&1; then
                   msg_ok="conventional"
                 else
                   msg_ok="POLICY-VIOLATION"; BAD=1

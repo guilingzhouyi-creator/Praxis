@@ -333,7 +333,7 @@ def cached_detect(use_cache: bool = True) -> dict:
     The cache file (.praxis/detect_agent_cache.json) is written inside the
     workspace and is therefore WRITABLE by the very process being detected —
     a forged cache entry could spoof high-confidence attribution for one
-    TTL window. Gate-context callers (commit_scan.py) MUST pass
+    TTL window. Gate-context callers (_lib/commit_policy.py) MUST pass
     use_cache=False so attribution is always computed from live evidence.
     """
     if not use_cache:

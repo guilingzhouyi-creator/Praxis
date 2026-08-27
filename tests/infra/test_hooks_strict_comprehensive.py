@@ -17,7 +17,7 @@ HOOK = ROOT / ".githooks" / "commit-msg"
 TEMPLATE = ROOT / ".githooks" / "commit-template.txt"
 WORKFLOW = ROOT / ".github" / "workflows" / "commit-lint.yml"
 ENSURE = ROOT / "scripts" / "sh" / "ensure-hooks.sh"
-STRICT = ROOT / "scripts" / "py" / "commit_strict.py"
+STRICT = ROOT / "scripts" / "py" / "commit_gate.py"
 
 
 def _hook_ok(msg: str) -> bool:
@@ -51,7 +51,7 @@ def test_workflow_is_strict():
     """commit-lint workflow lints both subject and Co-Authored-By."""
     assert WORKFLOW.exists()
     txt = WORKFLOW.read_text(encoding="utf-8")
-    assert "commit_scan" in txt
+    assert "commit_gate" in txt
     assert "--msg" in txt
     assert "--subject" in txt
     assert "Co-Authored-By" in txt or "commit-lint" in txt
@@ -68,7 +68,7 @@ def test_ensure_hooks_script_is_executable():
 
 
 def test_commit_strict_script_exists():
-    """commit_strict.py is executable as a module."""
+    """commit_gate.py is executable as a module (strict lint surface)."""
     assert STRICT.exists()
     assert "worktree" in STRICT.read_text(encoding="utf-8").lower()
 

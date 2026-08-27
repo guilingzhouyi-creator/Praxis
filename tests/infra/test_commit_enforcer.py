@@ -1,4 +1,4 @@
-"""Tests for scripts/py/commit_strict.py — worktree-aware enforcer."""
+"""Tests for scripts/py/commit_gate.py — worktree-aware enforcer."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = ROOT / "scripts" / "py" / "commit_strict.py"
+SCRIPT = ROOT / "scripts" / "py" / "commit_gate.py"
 COAUTH = "Co-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>"
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
-    """Run commit_strict.py with args."""
+    """Run commit_gate.py with args."""
     import os
 
     env = os.environ.copy()
@@ -69,7 +69,7 @@ def test_lint_msg_fails_with_cjk():
     import sys
 
     r = sp.run(
-        [sys.executable, str(ROOT / "scripts" / "py" / "commit_scan.py"), "--subject", "feat: 中文"],
+        [sys.executable, str(SCRIPT), "policy", "--subject", "feat: 中文"],
         capture_output=True,
         text=True,
         cwd=ROOT,
@@ -102,7 +102,8 @@ def test_lint_msg_branch_policy():
     r1 = sp.run(
         [
             sys.executable,
-            str(ROOT / "scripts" / "py" / "commit_scan.py"),
+            str(SCRIPT),
+            "policy",
             "--subject",
             "fix(hooks): patch hook",
             "--branch",
@@ -116,7 +117,8 @@ def test_lint_msg_branch_policy():
     r2 = sp.run(
         [
             sys.executable,
-            str(ROOT / "scripts" / "py" / "commit_scan.py"),
+            str(SCRIPT),
+            "policy",
             "--subject",
             "feat(hooks): add feature",
             "--branch",

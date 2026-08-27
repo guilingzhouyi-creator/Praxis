@@ -84,8 +84,8 @@ if [ "$HUNK_RC" -ne 0 ]; then
 fi
 echo "[local-merge] ✅ sensitive-path hunk audit passed"
 
-# ── Commit audit — every commit on the branch must pass commit_scan ──────
-SCAN="scripts/py/commit_scan.py"
+# ── Commit audit — every commit on the branch must pass the policy gate ──────
+SCAN="scripts/py/commit_gate.py"
 if [ -f "$SCAN" ]; then
   echo "[local-merge] ── commit audit (main..$BRANCH) ──"
   if ! python "$SCAN" --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then

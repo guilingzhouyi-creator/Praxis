@@ -1,19 +1,21 @@
-"""Commit-scan policy engine — single source of truth for commit gates.
+"""Commit-policy engine — single source of truth for commit gates.
 
-Loads the commit contract from ``config/discovery/commits.yaml`` and
-validates Conventional-Commits subjects against it: type whitelist,
-registered scopes, placeholder guard (empty / CJK / too-short summaries),
-and branch-type policy (``fix*`` branches are fix-only).
+Library module (``_lib/commit_policy.py``); executed through
+``scripts/py/commit_gate.py policy`` (see Usage below). Loads the commit
+contract from ``config/discovery/commits.yaml`` and validates
+Conventional-Commits subjects against it: type whitelist, registered scopes,
+placeholder guard (empty / CJK / too-short summaries), and branch-type
+policy (``fix*`` branches are fix-only).
 
 Consumed by the gates so the type/scope whitelist lives in ONE place:
 - ``.githooks/commit-msg``            (local commit gate)
 - ``scripts/sh/verify-pr-merge.sh``   (remote PR merge gate)
-- ``scripts/py/generate_changelog.py`` (CHANGELOG typing)
+- ``scripts/py/_lib/changelog_render.py`` (CHANGELOG typing)
 - ``.github/workflows/pr-review.yml`` (PR advisory comment)
 
 Usage (CLI):
-    python scripts/py/commit_scan.py --subject "feat(kernel): add x"
-    python scripts/py/commit_scan.py --subject "fix: y" --branch fix/foo
+    python scripts/py/commit_gate.py policy --subject "feat(kernel): add x"
+    python scripts/py/commit_gate.py policy --subject "fix: y" --branch fix/foo
 Exit: 0 = OK; 1 = violation(s) found (details on stderr).
 """
 
@@ -26,7 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _POLICY_PATH = ROOT / "config" / "discovery" / "commits.yaml"
 
 _SUBJECT_RE = re.compile(r"^([a-z]+)(?:\(([^)]+)\))?!?:[ \t]*(.*)$", re.DOTALL)
@@ -285,7 +287,7 @@ def validate_coauthored_by(msg: str, policy: dict | None = None, detected: dict 
       2. match `Co-Authored-By: <Agent> (<model>) <noreply@domain>`;
       3. use a registered agent name (commits.yaml `agents`);
       4. use a model the registered agent is allowed to run;
-      5. match the live runtime detection (detect_agent.py) when it reports
+      5. match the live runtime detection (check_attribution.py) when it reports
          high confidence — an OpenAI/Anthropic run can never claim a deepseek
          model, and a deepseek run can never claim gpt-4o. The detector reads
          env + process-chain signals, not the agent's self-report.
@@ -525,7 +527,9 @@ def main() -> int:
         "--msg",
         help="full commit message: validate Co-Authored-By against the agents registry + live runtime detection",
     )
-    parser.add_argument("--detected", help="optional JSON from scripts/py/detect_agent.py (defaults to live detection)")
+    parser.add_argument(
+        "--detected", help="optional JSON from scripts/py/check_attribution.py (defaults to live detection)"
+    )
     parser.add_argument(
         "--check-content",
         action="store_true",
@@ -571,7 +575,7 @@ def main() -> int:
             if detected is None:
                 try:
                     out = subprocess.run(
-                        [sys.executable, str(ROOT / "scripts" / "py" / "detect_agent.py"), "--json", "--no-cache"],
+                        [sys.executable, str(ROOT / "scripts" / "py" / "check_attribution.py"), "--json", "--no-cache"],
                         capture_output=True,
                         text=True,
                         timeout=10,

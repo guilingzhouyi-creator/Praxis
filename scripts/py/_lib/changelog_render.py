@@ -1,12 +1,14 @@
-"""Generate the [Unreleased] section of CHANGELOG.md from Conventional Commits.
+"""Changelog render library — scan/group/render the [Unreleased] block.
 
 Scans git log subjects (from the most recent release tag, or all history) and
 groups them by Conventional-Commits type into Keep-a-Changelog sections. Only
 subjects that match the commit-msg type gate are recorded — a non-conventional
 subject is silently dropped, so "detected type = update, else skip".
 
-    python scripts/py/generate_changelog.py           # update [Unreleased]
-    python scripts/py/generate_changelog.py --dry-run # preview, write nothing
+Library module — executed via the thin CLI wrapper:
+
+    python scripts/py/gen_changelog.py            # update [Unreleased]
+    python scripts/py/gen_changelog.py --dry-run  # preview, write nothing
 
 Called before a release (or by `make changelog`); bump_version.py then moves
 [Unreleased] into the versioned section.
@@ -20,14 +22,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 # Commit-type whitelist comes from the SINGLE source of truth
-# (config/discovery/commits.yaml) via commit_scan.py — never hardcode the
-# type list here. The section mapping below is render-only.
+# (config/discovery/commits.yaml) via _lib/commit_policy.py — never hardcode
+# the type list here. The section mapping below is render-only.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from commit_scan import load_policy  # noqa: E402
+from commit_policy import load_policy  # noqa: E402
 
 _TYPES = load_policy().get("types", [])
 _TYPE_SET = frozenset(_TYPES)

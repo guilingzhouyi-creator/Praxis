@@ -90,8 +90,8 @@ if printf '%s' "$first_line" | grep -qE '^(Merge|Revert) '; then
   if printf '%s' "$msg" | grep -qE '^[A-Za-z]+\('; then
     # Custom merge message — validate subject format.
     MERGE_SUBJECT=$(printf '%s' "$msg" | head -n 1)
-    if [ -f scripts/py/commit_scan.py ]; then
-      python scripts/py/commit_scan.py --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
+    if [ -f scripts/py/commit_gate.py ]; then
+      python scripts/py/commit_gate.py policy --subject "$MERGE_SUBJECT" >/tmp/merge_scan.log 2>&1 || true
       if grep -q 'VIOLATIONS' /tmp/merge_scan.log; then
         echo "⚠️  Merge subject should follow Conventional Commits: type(scope): description" >&2
         grep '  ✗' /tmp/merge_scan.log >&2
@@ -135,31 +135,31 @@ fi
 
 # 2. Co-Authored-By attribution — exactly one, well-formed, and TRUE.
 #    The trailer must match BOTH the agents registry (commits.yaml) and the
-#    live runtime detection (detect_agent.py reads env + process-chain, NOT
+#    live runtime detection (check_attribution.py reads env + process-chain, NOT
 #    the agent's self-report). A GPT run can never claim deepseek-v4-flash,
 #    and vice versa — attribution reflects who ACTUALLY executed the work.
-if [ -f scripts/py/commit_scan.py ]; then
-  python scripts/py/commit_scan.py --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
+if [ -f scripts/py/commit_gate.py ]; then
+  python scripts/py/commit_gate.py policy --msg "$msg" >/tmp/commit_cab.log 2>&1 || true
   if grep -q 'VIOLATIONS' /tmp/commit_cab.log; then
     echo "❌ Co-Authored-By rejected (registry + runtime cross-check):" >&2
     grep '  ✗' /tmp/commit_cab.log >&2
     echo "" >&2
     echo "   HOW TO FIX (DO NOT guess or pick arbitrary models from commits.yaml):" >&2
-    echo "     1. Run: python scripts/py/detect_agent.py --json" >&2
+    echo "     1. Run: python scripts/py/check_attribution.py --json" >&2
     echo "        → inspect what framework and model actually run this session" >&2
     echo "     2. If your runtime is unregistered in config/discovery/commits.yaml" >&2
     echo "        or has confidence=low/none:" >&2
     echo "        STOP and notify the human user to register your identity or export" >&2
     echo "        PRAXIS_AUTHOR=<Agent> PRAXIS_MODEL=<model>." >&2
     echo "     3. NEVER forge or pick another agent's identity to bypass this gate." >&2
-    DETECTED="$(python scripts/py/detect_agent.py --json 2>/dev/null || echo '')"
+    DETECTED="$(python scripts/py/check_attribution.py --json 2>/dev/null || echo '')"
     echo "     4. (this session detects:) ${DETECTED:-<detection unavailable>}" >&2
     echo "   Only if you are deliberately overriding attribution (manual/" >&2
     echo "   historical commits): PRAXIS_SKIP_AUTHOR_CHECK=1." >&2
     exit 1
   fi
 else
-  # No commit_scan.py (scratch repo) — legacy inline format guard.
+  # No commit_gate.py (scratch repo) — legacy inline format guard.
   CAB_COUNT=$(printf '%s' "$msg" | grep -c "Co-Authored-By:")
   if [ "$CAB_COUNT" -lt 1 ]; then
     echo "❌ Commit must include a Co-Authored-By trailer for attribution." >&2
@@ -178,15 +178,14 @@ fi
 # 3. Conventional-commits type(scope): summary — also the CHANGELOG
 #    signal: generate-changelog.py only records subjects that match here, so a
 #    non-conventional subject would be silently dropped from the changelog.
-#    Full policy scan delegates to scripts/py/commit_scan.py (single source
-#    of truth: config/discovery/commits.yaml — type whitelist, registered
-#    scopes, placeholder guard, branch-type policy). Exit codes:
+#    Full policy scan delegates to scripts/py/commit_gate.py policy (single source of truth:
+#    config/discovery/commits.yaml — type whitelist, registered scopes, placeholder guard, branch-type policy). Exit codes:
 #      0 = OK; 1 = violation; 2 = runtime unavailable (fall back to the
 #      legacy regex so a missing python/yaml never blocks commits).
 first_line=$(printf '%s' "$msg" | head -n 1)
 SCAN_RC=0
-if [ -f scripts/py/commit_scan.py ]; then
-  python scripts/py/commit_scan.py --subject "$first_line" \
+if [ -f scripts/py/commit_gate.py ]; then
+  python scripts/py/commit_gate.py policy --subject "$first_line" \
     --branch "$(git branch --show-current 2>/dev/null || true)" \
     >/tmp/commit_scan.log 2>&1 || SCAN_RC=$?
 fi
@@ -209,7 +208,7 @@ fi
 
 # ── 3b. Validator (type/scope registration + must_include) ───────────────
 # Primary: validate-commit.mjs (node). Fallback when node is absent (WSL
-# side): scripts/py/commit_scan.py enforces the SAME commits.yaml contract
+# side): scripts/py/_lib/commit_policy.py enforces the SAME commits.yaml contract
 # (scope registration + type-to-content consistency) so the gate never
 # silently degrades to pass-through.
 if command -v node >/dev/null 2>&1; then
@@ -218,7 +217,7 @@ else
   PY="$(command -v python3 || command -v python || true)"
   if [ -n "$PY" ] && "$PY" -c "import yaml" >/dev/null 2>&1; then
     BR="$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"
-    "$PY" scripts/py/commit_scan.py --branch "$BR" --msg "$(cat "$msg_file")" --check-content >&2 || exit 1
+    "$PY" scripts/py/commit_gate.py policy --branch "$BR" --msg "$(cat "$msg_file")" --check-content >&2 || exit 1
   else
     echo "⚠️  node and python+yaml both unavailable — type/scope/must_include validation SKIPPED" >&2
   fi

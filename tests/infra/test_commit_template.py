@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 TEMPLATE = ROOT / ".githooks" / "commit-template.txt"
-SCRIPT = ROOT / "scripts" / "py" / "commit_template_check.py"
+SCRIPT = ROOT / "scripts" / "py" / "commit_gate.py"
 
 
 def test_template_exists_and_strict():
@@ -23,8 +23,8 @@ def test_template_exists_and_strict():
 
 
 def test_template_check_passes():
-    """commit_template_check.py --check passes on strict repo."""
-    r = subprocess.run(["python", str(SCRIPT), "--check"], capture_output=True, text=True, cwd=ROOT)
+    """commit_gate.py template --check passes on strict repo."""
+    r = subprocess.run(["python", str(SCRIPT), "template", "--check"], capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0
     assert "OK" in r.stdout
 

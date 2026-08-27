@@ -14,10 +14,10 @@ source of truth for the Conventional-Commits contract.
   The hook enforces: exactly one trailer (no multi-agent stacking), the
   `<Agent> (<model>) <noreply@domain>` shape, and a noreply email.
   Historical commits also used `OpenCode (deepseek-v4-flash) <noreply@opencode.ai>`.
-- **Attribution is verified for TRUTH, not just shape** — `commit_scan.py`
+- **Attribution is verified for TRUTH, not just shape** — `commit_gate.py policy`
   compares the trailer against the agents registry (`config/discovery/
   commits.yaml` `agents:`) AND the live runtime detection
-  (`scripts/py/detect_agent.py`). The detector trusts EXECUTION EVIDENCE,
+  (`scripts/py/check_attribution.py`). The detector trusts EXECUTION EVIDENCE,
   never the agent's self-report and never a config file alone:
   - **DSH sessions**: the harness session log (`$DSH_SESSION_JSONL`)
     records the real `(provider, model)` route of every LLM call — written
@@ -32,7 +32,7 @@ source of truth for the Conventional-Commits contract.
   - An operator pin (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`) is a deliberate,
     trusted override, still not execution proof.
   - **Anti-Impersonation & Self-Introspection Rule**: Before authoring a trailer, the agent MUST run
-    `python scripts/py/detect_agent.py --json` to probe its live runtime identity. Agents MUST NEVER
+    `python scripts/py/check_attribution.py --json` to probe its live runtime identity. Agents MUST NEVER
     randomly grab registered names from `commits.yaml`. If the agent or model is unregistered in
     `commits.yaml` or unverifiable, the agent MUST stop and prompt the user for registry addition or
     explicit environment pinning (`PRAXIS_AUTHOR`/`PRAXIS_MODEL`).
@@ -52,10 +52,11 @@ source of truth for the Conventional-Commits contract.
 - **Commit-scan policy — single source of truth**: the Conventional-Commits
   contract (type whitelist, registered scopes, placeholder guard, branch-type
   policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
-  `scripts/py/commit_scan.py`. Python gates consume it directly; the Node hook
+  `scripts/py/_lib/commit_policy.py`. Python gates consume it via
+  `scripts/py/commit_gate.py policy`; the Node hook
   uses the generated `config/discovery/commits.json` mirror refreshed by
   `scripts/py/gen_commits_json.py`. All gates consume the same contract — `.githooks/commit-msg`,
-  `scripts/sh/verify-pr-merge.sh`, `scripts/py/generate_changelog.py`,
+  `scripts/sh/verify-pr-merge.sh`, `scripts/py/gen_changelog.py`,
   `.github/workflows/pr-review.yml`. Never hardcode the type/scope list in a
   script; add a type/scope to `commits.yaml` and every gate learns it.
   `strict` mode rejects unknown scopes and CJK/empty placeholder subjects;

@@ -226,7 +226,7 @@ i18n：`systems/typescript-shell-engine/src/i18n.ts`（locale 注册表 en/ja/ko
 
 - commit-scan：`type(scope):` 的 scope **必须在 `config/discovery/commits.yaml` 注册**（`l2`/`shell`/`i18n` 已注册；`ts` 未注册——用 `l2`）。
 - pre-commit：ruff → ruff format → size → script naming guard。
-- attribution 真值政策：先跑 `python scripts/py/detect_agent.py --json` 取执行证据身份；
+- attribution 真值政策：先跑 `python scripts/py/check_attribution.py --json` 取执行证据身份；
   无会话证据时**禁止自授 pin**——须由操作者显式授权 `PRAXIS_AUTHOR`/`PRAXIS_MODEL`，
   且身份必须在 `config/discovery/commits.yaml` 注册表内
   （现 8 身份：AtomCode/OpenCode/Claude/DeepSeek/GPT/Kimi/Qwen/GLM）。
