@@ -88,7 +88,7 @@ echo "[local-merge] ✅ sensitive-path hunk audit passed"
 SCAN="scripts/py/commit_gate.py"
 if [ -f "$SCAN" ]; then
   echo "[local-merge] ── commit audit (main..$BRANCH) ──"
-  if ! python "$SCAN" --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then
+  if ! python "$SCAN" policy --git-range "main..$BRANCH" --check-content >/tmp/local_merge_scan.log 2>&1; then
     echo "[local-merge] ❌ commit audit FAILED — branch has violations." >&2
     cat /tmp/local_merge_scan.log >&2
     echo "[local-merge]    Fix the commits before merging, or use MERGE_GATE_SKIP=1 waiver." >&2
