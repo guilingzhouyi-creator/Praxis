@@ -464,8 +464,8 @@ The T4b mechanism now also includes `CompositeInputActivityAdapter`. It
 coordinates independently owned keyboard, pointer, or other aggregate-only
 sources, keeps separately granted sources usable when one source is denied or
 unavailable, and serializes source lifecycle calls. Invalid granted-source
-failures remain fail-closed through the outer port; platform discovery,
-permission UX, and monitoring policy stay outside Rust.
+failures and host callback panics remain fail-closed through the outer port;
+platform discovery, permission UX, and monitoring policy stay outside Rust.
 
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, config-manifest, protocol,

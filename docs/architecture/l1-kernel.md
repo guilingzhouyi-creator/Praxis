@@ -392,7 +392,10 @@ reads a system clock, or stores raw input; platform collection, permission UX,
 and monitoring policy remain host-owned. `start`, `stop`, and `snapshot` are
 serialized at the port boundary so concurrent lifecycle calls cannot
 overwrite permission state; a sample error reporting `Granted` is invalid and
-fails closed as unavailable.
+fails closed as unavailable. Panics from host adapter lifecycle or sampling
+callbacks are caught at the same boundary, converted to an unavailable
+snapshot or structured invalid-observation error, and never unwind into the
+kernel runtime.
 
 `CompositeInputActivityAdapter` provides the multi-source T4b mechanism seam
 without choosing a platform implementation. It coordinates independently
@@ -401,8 +404,9 @@ merges only successful aggregate samples, and removes a source from subsequent
 sampling when that source reports `Denied` or `Unavailable`. A separately
 granted source remains usable, while an invalid granted-source failure is
 propagated so `HostInputActivityPort` can fail closed. The composite serializes
-its own lifecycle and never invents executable paths, device nodes, raw input,
-permission prompts, or monitoring policy.
+its own lifecycle, catches source callback panics as a fail-closed composite
+failure, and never invents executable paths, device nodes, raw input, permission
+prompts, or monitoring policy.
 
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal

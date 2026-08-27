@@ -164,6 +164,32 @@ impl InputActivityHostAdapter for FakeHostAdapter {
     }
 }
 
+struct PanickingHostAdapter {
+    panic_on_start: bool,
+    panic_on_sample: bool,
+}
+
+impl InputActivityHostAdapter for PanickingHostAdapter {
+    fn start(&self) -> InputActivityPermission {
+        if self.panic_on_start {
+            panic!("start failure");
+        }
+        InputActivityPermission::Granted
+    }
+
+    fn stop(&self) {}
+
+    fn sample(&self) -> Result<InputActivityHostSample, InputActivityPermission> {
+        if self.panic_on_sample {
+            panic!("sample failure");
+        }
+        Ok(InputActivityHostSample {
+            now: 1.0,
+            observations: Vec::new(),
+        })
+    }
+}
+
 #[test]
 fn host_input_port_models_permission_and_aggregate_lifecycle() {
     let adapter = Arc::new(FakeHostAdapter {
@@ -403,4 +429,38 @@ fn composite_host_adapter_drops_a_revoked_source_without_losing_others() {
 #[test]
 fn composite_host_adapter_rejects_empty_source_sets() {
     assert!(CompositeInputActivityAdapter::new(Vec::new()).is_err());
+}
+
+#[test]
+fn host_input_port_contains_adapter_panics_and_fails_closed() {
+    let start_panic = Arc::new(PanickingHostAdapter {
+        panic_on_start: true,
+        panic_on_sample: false,
+    });
+    let start_port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), start_panic).expect("port");
+    assert!(!start_port.start());
+    assert_eq!(
+        start_port.snapshot().expect("stopped snapshot").permission,
+        "unavailable"
+    );
+
+    let sample_panic = Arc::new(PanickingHostAdapter {
+        panic_on_start: false,
+        panic_on_sample: true,
+    });
+    let sample_port = HostInputActivityPort::new(InputActivityProbeConfig::default(), sample_panic)
+        .expect("port");
+    assert!(sample_port.start());
+    assert_eq!(
+        sample_port.snapshot().expect_err("sample panic"),
+        l1_kernel_rs::input_activity::InputActivityProbeError::InvalidObservation {
+            source: "host-adapter".to_owned(),
+            reason: "sample panicked".to_owned(),
+        }
+    );
+    assert_eq!(
+        sample_port.snapshot().expect("stopped snapshot").permission,
+        "unavailable"
+    );
 }

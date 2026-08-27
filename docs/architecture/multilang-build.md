@@ -654,7 +654,8 @@ is revoked, and stops on an invalid sample. `CompositeInputActivityAdapter`
 coordinates independently injected keyboard/pointer sources and keeps other
 granted sources usable when one source is denied or unavailable. No device node,
 system clock, key value, or pointer coordinate enters the crate. Real platform
-collection, permission UX, and monitoring remain host responsibilities.
+collection, permission UX, and monitoring remain host responsibilities. Host
+callback panics are converted to fail-closed unavailable results.
 
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,

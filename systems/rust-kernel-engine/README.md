@@ -306,7 +306,8 @@ coordinates independently injected keyboard/pointer adapters, merges only
 aggregate samples from granted sources, and removes a source from subsequent
 sampling after a denied/unavailable result. The composite does not select
 platform binaries, scan hardware, retain raw input, or own monitoring policy;
-all platform effects remain in the injected adapters.
+all platform effects remain in the injected adapters. Panics from an injected
+adapter are caught and converted into an unavailable/fail-closed result.
 
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The

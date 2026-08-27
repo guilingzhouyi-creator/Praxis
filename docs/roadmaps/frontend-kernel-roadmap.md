@@ -985,7 +985,8 @@ T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主
 T4b1 先落地 Rust 侧 `HostInputActivityPort` 机制接缝：宿主通过
 `InputActivityHostAdapter` 提供 `Granted`/`Denied`/`Unavailable` 与调用方时间的
 聚合样本；Rust 复用 T4a reducer，在拒绝/不可用时返回显式 unknown，遇到非法
-样本则停止适配器并 fail-closed。该切片不访问设备节点、不读取系统时钟、不保留
+样本则停止适配器并 fail-closed；宿主 callback panic 也会被捕获为结构化
+不可用/invalid-observation 结果。该切片不访问设备节点、不读取系统时钟、不保留
 原始键值/坐标；运行期权限撤回同样停止适配器并保留 denied 快照。真实平台
 采集、权限 UX、旁路监测和 production wiring 仍待宿主提供证据。
 
@@ -994,7 +995,8 @@ T4b 机制片进一步增加 `CompositeInputActivityAdapter`：宿主可以分�
 合并已授权来源的聚合快照，并在单一来源撤权时保留其他来源的可用性。来源失效
 不会把原始设备数据带入 Rust；宿主仍负责平台探测、权限提示、旁路监测和
 生产 wiring。所有来源失效或出现矛盾的授权结果仍 fail-closed，后续必须补
-跨平台失败/隐私证据后才能推进 T4b production 评审。
+跨平台失败/隐私证据后才能推进 T4b production 评审；任何来源 callback panic
+均按整体组合失败处理，不允许以部分结果冒充健康状态。
 
 ---
 
