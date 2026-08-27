@@ -1,13 +1,13 @@
-"""Unified codebase statistics collector — single source of truth.
+"""Unified codebase statistics library — single source of truth.
 
 All counting that feeds generated docs (the architecture stats snapshot and
 the llms indexes) lives here so ``gen_doc_stats.py``, ``gen_llms_txt.py`` and
 ``check_doc_stats.py`` share ONE implementation instead of duplicating
-counters. Import as a normal module from ``scripts/py`` (add ``scripts/py`` to
-``sys.path``) or load by path with ``importlib``:
+counters. Library module (``_lib/codebase_stats.py``); import from the
+``_lib`` dir on ``sys.path`` or load by path with ``importlib``:
 
-    sys.path.insert(0, str(ROOT / "scripts" / "py"))
-    from collect_stats import collect_stats, count_files
+    sys.path.insert(0, str(ROOT / "scripts" / "py" / "_lib"))
+    from codebase_stats import collect_stats, count_files
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SRC = ROOT / "systems/python-reference-runtime"
 
 LAYERS = {

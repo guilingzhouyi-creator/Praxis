@@ -16,7 +16,7 @@
 
 ## 测试 (Tests)
 
-- [ ] 新增/更新了测试(测试文件与用例数见 `collect_stats` 输出)
+- [ ] 新增/更新了测试(测试文件与用例数见 `codebase_stats` 输出)
 - [ ] 全量测试通过: `python -m pytest tests/ -q`
 - [ ] ruff / mypy 通过: `ruff check systems/python-reference-runtime/ tests/ && mypy systems/python-reference-runtime/ ...`
 

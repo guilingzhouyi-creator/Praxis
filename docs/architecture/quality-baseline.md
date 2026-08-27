@@ -48,7 +48,7 @@ completeness-guard semantics in `tests/infra/test_resets_completeness.py`
 
 ## Integration
 
-- Hard gates align with existing absolute red lines: `comment_audit.py
+- Hard gates align with existing absolute red lines: `check_comments.py
   --strict` (CJK) and `test_resets_completeness.py` (singletons).
 - Soft gates ratchet: a baseline is a floor, not a target — metrics may only
   improve (monotonic) or stay within the drift band.

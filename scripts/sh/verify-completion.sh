@@ -355,8 +355,8 @@ fi
 if [ "$RUN_COMPLEX" = "1" ]; then
   echo "[judge] ── 7. Complexity (long_functions >200 lines) ──"
   if python -c "
-import sys; sys.path.insert(0, 'scripts/py')
-from collect_stats import long_functions
+import sys; sys.path.insert(0, 'scripts/py/_lib')
+from codebase_stats import long_functions
 n = long_functions()
 print(n)
 sys.exit(1 if n > 12 else 0)
