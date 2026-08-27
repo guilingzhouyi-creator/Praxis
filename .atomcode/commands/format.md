@@ -3,6 +3,6 @@ description: Format and lint-fix the Praxis codebase (ruff format + ruff check -
 ---
 Format and fix the codebase:
 
-- Format: `ruff format src/ tests/` (or `make format`)
-- Auto-fix lint: `ruff check --fix src/ tests/` (or `make lint-fix`)
+- Format: `ruff format systems/python-reference-runtime/ tests/` (or `make format`)
+- Auto-fix lint: `ruff check --fix systems/python-reference-runtime/ tests/` (or `make lint-fix`)
 - Verify: `make format-check` / `make lint`

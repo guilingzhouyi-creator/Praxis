@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-L3_ROOT = Path("src/l3")
+L3_ROOT = Path("systems/python-reference-runtime/l3")
 
 # Modules whose error/message payloads surface to the user via shell/API renders.
 # Tool result content (_tools/*) and diagnostics are intentionally excluded —

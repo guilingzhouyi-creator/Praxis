@@ -93,31 +93,35 @@ class TestCore:
 class TestGates:
     def test_build_steps_ruff_mypy_only_py(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
-        steps = svc._build_steps(["src/a.py", "README.md"])
+        steps = svc._build_steps(["systems/python-reference-runtime/a.py", "README.md"])
         actions = [s["action"] for s in steps]
         assert "ruff" in actions and "mypy" in actions
-        assert "src/a.py" in steps[0]["cmd"]
+        assert "systems/python-reference-runtime/a.py" in steps[0]["cmd"]
         assert "README.md" not in steps[0]["cmd"]
 
     def test_build_steps_pytest_skipped_without_tests(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
-        steps = svc._build_steps(["src/a.py"])
+        steps = svc._build_steps(["systems/python-reference-runtime/a.py"])
         assert all(s["action"] != "pytest" for s in steps)  # no test_ module match
 
     def test_path_quoting(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
-        steps = svc._build_steps(["src/weird name.py", "src/a;b.py"])
+        steps = svc._build_steps(
+            ["systems/python-reference-runtime/weird name.py", "systems/python-reference-runtime/a;b.py"]
+        )
         cmd = steps[0]["cmd"]
         # shlex.quote wraps every path in single quotes so shell metachars
         # cannot be spliced raw into the command line.
-        assert "'src/weird name.py'" in cmd
-        assert "'src/a;b.py'" in cmd
-        assert "src/a;b.py'" not in cmd.replace("'src/a;b.py'", "")  # no unquoted occurrence
+        assert "'systems/python-reference-runtime/weird name.py'" in cmd
+        assert "'systems/python-reference-runtime/a;b.py'" in cmd
+        assert "systems/python-reference-runtime/a;b.py'" not in cmd.replace(
+            "'systems/python-reference-runtime/a;b.py'", ""
+        )  # no unquoted occurrence
 
     def test_gates_config_subset(self, tmp_path, monkeypatch):
         svc, fake = _make_service(tmp_path, monkeypatch)
         fake["ci.review.gates"] = ["ruff"]
-        steps = svc._build_steps(["src/a.py"])
+        steps = svc._build_steps(["systems/python-reference-runtime/a.py"])
         assert [s["action"] for s in steps] == ["ruff"]
 
     def test_no_files_returns_empty_steps(self, tmp_path, monkeypatch):
@@ -129,7 +133,7 @@ class TestReport:
     def test_report_pass_verdict(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
         captured = {}
-        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["src/a.py"])
+        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["systems/python-reference-runtime/a.py"])
         monkeypatch.setattr(
             svc,
             "_run_and_wait",
@@ -143,7 +147,7 @@ class TestReport:
 
     def test_report_failed_verdict(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
-        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["src/a.py"])
+        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["systems/python-reference-runtime/a.py"])
         monkeypatch.setattr(
             svc,
             "_run_and_wait",
@@ -169,7 +173,7 @@ class TestReport:
         svc, fake = _make_service(tmp_path, monkeypatch)
         fake["ci.review.llm_review"] = True
         called = []
-        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["src/a.py"])
+        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["systems/python-reference-runtime/a.py"])
         monkeypatch.setattr(
             svc,
             "_run_and_wait",
@@ -186,7 +190,7 @@ class TestReport:
     def test_llm_review_disabled(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)  # llm_review default False
         called = []
-        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["src/a.py"])
+        monkeypatch.setattr(svc, "_collect_changes", lambda cid, r: ["systems/python-reference-runtime/a.py"])
         monkeypatch.setattr(
             svc,
             "_run_and_wait",
@@ -653,32 +657,49 @@ class TestV4Matcher:
 
     def test_matcher_no_config_backward_compat(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
-        steps = svc._build_steps(["src/a.py", "src/l1/kernel/params/b.py"])
+        steps = svc._build_steps(
+            ["systems/python-reference-runtime/a.py", "systems/python-reference-runtime/l1/kernel/params/b.py"]
+        )
         actions = [s["action"] for s in steps]
         assert actions == ["ruff", "mypy"]
         assert "params/b.py" in steps[0]["cmd"]  # no matcher = all py files
 
     def test_matcher_include_only(self, tmp_path, monkeypatch):
         svc, fake = _make_service(tmp_path, monkeypatch)
-        fake["ci.review.matchers"] = {"ruff": {"include": ["src/**"], "exclude": []}}
-        steps = svc._build_steps(["src/a.py", "src/l1/kernel/params/b.py", "tools/c.py"])
+        fake["ci.review.matchers"] = {"ruff": {"include": ["systems/python-reference-runtime/**"], "exclude": []}}
+        steps = svc._build_steps(
+            [
+                "systems/python-reference-runtime/a.py",
+                "systems/python-reference-runtime/l1/kernel/params/b.py",
+                "tools/c.py",
+            ]
+        )
         ruff = [s for s in steps if s["action"] == "ruff"][0]["cmd"]
-        assert "src/a.py" in ruff and "params/b.py" in ruff  # src/** recursive
+        assert (
+            "systems/python-reference-runtime/a.py" in ruff and "params/b.py" in ruff
+        )  # systems/python-reference-runtime/** recursive
         assert "tools/c.py" not in ruff
 
     def test_matcher_exclude_wins(self, tmp_path, monkeypatch):
         svc, fake = _make_service(tmp_path, monkeypatch)
-        fake["ci.review.matchers"] = {"mypy": {"include": ["src/**"], "exclude": ["src/l1/**"]}}
-        steps = svc._build_steps(["src/a.py", "src/l1/kernel/params/b.py"])
+        fake["ci.review.matchers"] = {
+            "mypy": {
+                "include": ["systems/python-reference-runtime/**"],
+                "exclude": ["systems/python-reference-runtime/l1/**"],
+            }
+        }
+        steps = svc._build_steps(
+            ["systems/python-reference-runtime/a.py", "systems/python-reference-runtime/l1/kernel/params/b.py"]
+        )
         mypy = [s for s in steps if s["action"] == "mypy"]
-        assert mypy, "mypy step should exist (src/a.py matches include)"
-        assert "src/a.py" in mypy[0]["cmd"]
+        assert mypy, "mypy step should exist (systems/python-reference-runtime/a.py matches include)"
+        assert "systems/python-reference-runtime/a.py" in mypy[0]["cmd"]
         assert "params/b.py" not in mypy[0]["cmd"]  # excluded
 
     def test_matcher_no_match_skips_gate(self, tmp_path, monkeypatch):
         svc, fake = _make_service(tmp_path, monkeypatch)
         fake["ci.review.matchers"] = {"ruff": {"include": ["docs/**"], "exclude": []}}
-        steps = svc._build_steps(["src/a.py"])
+        steps = svc._build_steps(["systems/python-reference-runtime/a.py"])
         assert all(s["action"] != "ruff" for s in steps)
 
 
@@ -735,7 +756,7 @@ class TestV4Rerun:
     def test_rerun_with_history(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
         report = _make_report("card-1", "NEEDS_CHANGES", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         monkeypatch.setattr(svc, "_emit_events", lambda r: None)
         svc._persist_report(report)
         processed = []
@@ -744,7 +765,7 @@ class TestV4Rerun:
         assert r["success"] is True and r["queued"] is True
         time.sleep(0.3)
         assert processed and processed[0][0] == "card-1"
-        assert processed[0][1]["changes"] == ["src/a.py"]  # reuses changed files
+        assert processed[0][1]["changes"] == ["systems/python-reference-runtime/a.py"]  # reuses changed files
 
     def test_rerun_without_history(self, tmp_path, monkeypatch):
         svc, _ = _make_service(tmp_path, monkeypatch)
@@ -963,12 +984,12 @@ class TestReviewDisposition:
         monkeypatch.setattr(rp_mod, "get_review_pipeline", self._fake_pipeline)
         svc = CiReviewService(persist_path=str(tmp_path / "x.jsonl"))
         report = _make_report("card-disp", "PASS", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         svc._run_review_disposition(report, {"cell_id": "cell-1"})
         ctx = report.context.get("review_pipeline") or {}
         dispositions = ctx.get("dispositions") or []
         assert len(dispositions) == 1
-        assert dispositions[0]["path"] == "src/a.py"
+        assert dispositions[0]["path"] == "systems/python-reference-runtime/a.py"
         assert dispositions[0]["disposition"] == "large"
         assert dispositions[0]["rework"] is True
 
@@ -985,7 +1006,7 @@ class TestReviewDisposition:
         monkeypatch.setattr(rp_mod, "get_review_pipeline", lambda: _DisabledPipe())
         svc = CiReviewService(persist_path=str(tmp_path / "x.jsonl"))
         report = _make_report("card-off", "PASS", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         svc._run_review_disposition(report, {"cell_id": "cell-1"})
         assert "review_pipeline" not in report.context
 
@@ -1009,7 +1030,7 @@ class TestReviewDisposition:
         monkeypatch.setattr(rp_mod, "get_review_pipeline", self._fake_pipeline)
         svc = CiReviewService(persist_path=str(tmp_path / "x.jsonl"))
         report = _make_report("card-nohunk", "PASS", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         svc._run_review_disposition(report, {"cell_id": "cell-1"})
         assert "review_pipeline" not in report.context
 
@@ -1025,7 +1046,7 @@ class TestReviewDisposition:
         monkeypatch.setattr(rp_mod, "get_review_pipeline", _boom)
         svc = CiReviewService(persist_path=str(tmp_path / "x.jsonl"))
         report = _make_report("card-err", "PASS", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         svc._run_review_disposition(report, {"cell_id": "cell-1"})  # must not raise
         assert "review_pipeline" not in report.context
 
@@ -1040,7 +1061,7 @@ class TestCIReviewFeedback:
 
         svc = CiReviewService(persist_path=str(tmp_path / "x.jsonl"))
         report = _make_report("card-fb", "PASS", agent_id="agent-writer")
-        report.changed_files = ["src/a.py"]
+        report.changed_files = ["systems/python-reference-runtime/a.py"]
         svc._queue_review_feedback(report, {"cell_id": "cell-1"})
 
         fb = pop_feedback("agent-writer")

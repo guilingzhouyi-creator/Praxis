@@ -8,7 +8,7 @@ import sys
 from l1.kernel.params.kernel import PROCESS_RETURN_EXECUTION_ERROR
 from l1.kernel.ports import ProcessOptions, ProcessPort, ProcessResult, register_port, reset_ports
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 
 class _FakeProcessPort(ProcessPort):

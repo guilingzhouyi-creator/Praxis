@@ -34,13 +34,46 @@ _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 
 # Type-content consistency rules: a commit type must match the actual diff.
 # These are heuristic checks (not absolute) — a `feat` that only touches docs
-# is suspicious; a `docs` that touches src/ may be legitimate (docstrings).
+# is suspicious; a `docs` that touches systems/python-reference-runtime/ may be legitimate (docstrings).
 _TYPE_CONTENT_RULES: dict[str, dict[str, list[str]]] = {
-    "feat": {"must_include": ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"]},
-    "fix": {"must_include": ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"]},
-    "refactor": {"must_include": ["src/", "crates/", "packages/", "scripts/", ".githooks/", "config/"]},
-    "perf": {"must_include": ["src/", "crates/", "packages/"]},
-    "test": {"must_include": ["tests/", "crates/", "packages/"]},
+    "feat": {
+        "must_include": [
+            "systems/python-reference-runtime/",
+            "systems/rust-kernel-engine/",
+            "systems/typescript-shell-engine/",
+            "scripts/",
+            ".githooks/",
+            "config/",
+        ]
+    },
+    "fix": {
+        "must_include": [
+            "systems/python-reference-runtime/",
+            "systems/rust-kernel-engine/",
+            "systems/typescript-shell-engine/",
+            "scripts/",
+            ".githooks/",
+            "config/",
+        ]
+    },
+    "refactor": {
+        "must_include": [
+            "systems/python-reference-runtime/",
+            "systems/rust-kernel-engine/",
+            "systems/typescript-shell-engine/",
+            "scripts/",
+            ".githooks/",
+            "config/",
+        ]
+    },
+    "perf": {
+        "must_include": [
+            "systems/python-reference-runtime/",
+            "systems/rust-kernel-engine/",
+            "systems/typescript-shell-engine/",
+        ]
+    },
+    "test": {"must_include": ["tests/", "systems/rust-kernel-engine/", "systems/typescript-shell-engine/"]},
     "ci": {"must_include": [".github/"]},
 }
 
@@ -202,8 +235,8 @@ def validate_subject(subject: str, branch: str = "", policy: dict | None = None)
 def validate_type_content(commit_type: str, changed_files: list[str]) -> list[str]:
     """Validate that the commit type is consistent with the changed files.
 
-    A `feat` that does not touch `src/` is suspicious (new features should
-    add code). A `fix` that does not touch `src/` is suspicious (bug fixes
+    A `feat` that does not touch `systems/python-reference-runtime/` is suspicious (new features should
+    add code). A `fix` that does not touch `systems/python-reference-runtime/` is suspicious (bug fixes
     touch code). These are heuristic checks, not absolute — they surface
     inconsistencies that the agent should explain, not block the gate.
     """
@@ -224,7 +257,7 @@ def validate_type_content(commit_type: str, changed_files: list[str]) -> list[st
 def validate_scope_content(commit_scope: str, changed_files: list[str], policy: dict | None = None) -> list[str]:
     """Validate that the commit scope is consistent with the changed files.
 
-    A `feat(kernel)` that does not touch `src/l1/kernel/` is suspicious.
+    A `feat(kernel)` that does not touch `systems/python-reference-runtime/l1/kernel/` is suspicious.
     The scope-to-directory mapping lives in commits.yaml `scope_dirs`.
     This is a heuristic advisory, not a hard gate — cross-cutting changes
     may legitimately span directories.
@@ -376,7 +409,7 @@ def scan_range(
     """Validate every non-merge subject in a git range.
 
     When check_content=True, also validates that each commit's type matches
-    its changed files (e.g. feat must touch src/, test must touch tests/).
+    its changed files (e.g. feat must touch systems/python-reference-runtime/, test must touch tests/).
 
     Returns a list of (commit_short_sha, violation) for every violating
     commit; empty list = the whole range is clean. Merge/Revert subjects
@@ -496,7 +529,7 @@ def main() -> int:
     parser.add_argument(
         "--check-content",
         action="store_true",
-        help="validate type-diff consistency (feat must touch src/, test must touch tests/, etc.)",
+        help="validate type-diff consistency (feat must touch systems/python-reference-runtime/, test must touch tests/, etc.)",
     )
     args = parser.parse_args()
 

@@ -14,7 +14,7 @@ SAMPLE = """ok let me check that
 the build failed with exit code 1
 Running: pip install requests
 Error: ModuleNotFoundError: No module named 'xyz'
-source file /home/guiling/dev/praxis/src/main.py has a syntax error
+source file /home/guiling/dev/praxis/systems/python-reference-runtime/main.py has a syntax error
 yes sure
 version pin: numpy==1.26.4
 decision: keep the reader agent on ring 1

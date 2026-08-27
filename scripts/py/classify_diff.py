@@ -25,7 +25,16 @@ import json
 import subprocess
 import sys
 
-CODE_PREFIXES = ("src/", "tests/", "config/", "scripts/", ".github/", ".githooks/", "locales/", ".gitcode/")
+CODE_PREFIXES = (
+    "systems/python-reference-runtime/",
+    "tests/",
+    "config/",
+    "scripts/",
+    ".github/",
+    ".githooks/",
+    "locales/",
+    ".gitcode/",
+)
 CODE_FILES = {
     "pyproject.toml",
     "Makefile",

@@ -12,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / "config" / "discovery" / "automation.yaml"
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 

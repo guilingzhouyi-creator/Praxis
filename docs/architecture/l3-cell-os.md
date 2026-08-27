@@ -1,7 +1,7 @@
 # L3 — Cell Runtime (SoC components + boot + lifecycle)
 
 A Cell is an agent's "system on a chip": 26 components in
-`src/l3/cell/components/` map classic OS hardware onto the agent domain.
+`systems/python-reference-runtime/l3/cell/components/` map classic OS hardware onto the agent domain.
 Boot brings the machine up; lifecycle takes it down cleanly. The Cell also
 hosts the marker-gated engineering-debug control plane, which links
 observability and developer prompt controls without changing production card

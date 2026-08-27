@@ -10,7 +10,7 @@ import os
 import sys
 import threading
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 from l1.kernel.ports import Endpoint, TransportPort
 from l1.kernel.ports import Result as PortResult

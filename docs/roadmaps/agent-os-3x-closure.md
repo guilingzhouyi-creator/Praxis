@@ -118,7 +118,7 @@ Implementation is sliced into independently reviewable worktrees:
    (`feature/s-session-identity` a7998e7d — additive terminal bindings,
    detach/close lifecycle, loud auto_reload with worker rebuild)
 3. **Slice C:** P0.4-P0.6 durable store, sequence, and recovery. **Complete**
-   (`src/l3/durable_store.py` DurableJsonStore + durable input-seq cursor +
+   (`systems/python-reference-runtime/l3/durable_store.py` DurableJsonStore + durable input-seq cursor +
    per-session snapshots joined to idempotent `SessionManager.recover_from_store`)
 4. **Slice D:** P1.1-P1.2 cache and prompt telemetry. **Complete**
    (`TieredCache.save/load` durable mirror + eviction/expiry/hit metrics;

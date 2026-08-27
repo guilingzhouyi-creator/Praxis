@@ -6,7 +6,11 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_DIRS = (ROOT / "src" / "l2", ROOT / "src" / "l3", ROOT / "src" / "l4")
+RUNTIME_DIRS = (
+    ROOT / "systems/python-reference-runtime" / "l2",
+    ROOT / "systems/python-reference-runtime" / "l3",
+    ROOT / "systems/python-reference-runtime" / "l4",
+)
 PLATFORM_EXEC_HELPERS = frozenset({"run_shell", "run_args"})
 SUBPROCESS_ONE_SHOT_HELPERS = frozenset({"run", "call", "check_output", "check_call"})
 

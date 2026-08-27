@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestTimeScheduler:
@@ -54,14 +54,14 @@ class TestL3Router:
         from l3.scheduler.scheduler_router import L3Router
 
         router = L3Router()
-        router.register("test-agent", ["src", "docs"])
+        router.register("test-agent", ["systems/python-reference-runtime", "docs"])
 
     def test_route(self):
         from l3.scheduler.scheduler_router import L3Router
 
         router = L3Router()
-        router.register("route-agent", ["src/auth"])
-        result = router.route(domain="src/auth", intent_tags=["fix"])
+        router.register("route-agent", ["systems/python-reference-runtime/auth"])
+        result = router.route(domain="systems/python-reference-runtime/auth", intent_tags=["fix"])
         assert result is not None or isinstance(result, (str, dict))
 
     def test_agents(self):

@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 
 class TestRCExportLimit:
@@ -114,7 +114,9 @@ class TestErrorBusEnglish:
         """Verify error_bus.py has no remaining Chinese text."""
         import re
 
-        path = os.path.join(os.path.dirname(__file__), "..", "..", "src", "l3", "error_bus", "__init__.py")
+        path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l3", "error_bus", "__init__.py"
+        )
         with open(path, encoding="utf-8") as f:
             content = f.read()
         chinese = re.findall(r"[\u4e00-\u9fff]{2,}", content)

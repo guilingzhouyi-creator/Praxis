@@ -37,9 +37,9 @@ def test_build_line_records_one_per_hunk():
         {"added_lines": ["a", "b"], "removed_lines": [], "modified_start": 10, "modified_end": 12},
         {"added_lines": [], "removed_lines": ["c"], "original_start": 3, "original_end": 4},
     ]
-    records = build_line_records("src/foo.py", hunks, reviewed=True)
+    records = build_line_records("systems/python-reference-runtime/foo.py", hunks, reviewed=True)
     assert len(records) == 2
-    assert records[0]["path"] == "src/foo.py"
+    assert records[0]["path"] == "systems/python-reference-runtime/foo.py"
     assert records[0]["line_start"] == 10
     assert records[0]["added_lines"] == 2
     assert records[1]["reviewed"] is True

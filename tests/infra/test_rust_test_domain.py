@@ -4,8 +4,9 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RUST_SRC = ROOT / "crates" / "l1-kernel-rs" / "src"
-RUST_TESTS = ROOT / "crates" / "l1-kernel-rs" / "tests"
+RUST_CRATE = ROOT / "systems" / "rust-kernel-engine" / "l1-kernel-rs"
+RUST_SRC = RUST_CRATE / "src"
+RUST_TESTS = RUST_CRATE / "tests"
 RUST_MANIFEST = RUST_TESTS.parent / "Cargo.toml"
 TEST_DOMAINS = {
     "assembly",

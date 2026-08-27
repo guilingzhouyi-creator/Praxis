@@ -2,7 +2,7 @@
 
 Date: 2026-08-11 · Scope: 主树性能审查（performance-analyzer 工作流）· 结论：1 个 P2 已修复 + 2 个 P3 观察项 · 修复分支：`feature/fix-rwlock-fairness`
 
-## 1. P2 已修复 — RWLock 读者优先饥饿（`src/l1/kernel/sync.py`）
+## 1. P2 已修复 — RWLock 读者优先饥饿（`systems/python-reference-runtime/l1/kernel/sync.py`）
 
 | 项 | 详情 | 状态 |
 |---|---|---|
@@ -13,13 +13,13 @@ Date: 2026-08-11 · Scope: 主树性能审查（performance-analyzer 工作流�
 
 ## 2. P3 观察项（未修复，供后续工作参考）
 
-### 2.1 MemoryManager 单一锁（`src/l3/memory/memory.py:53`）— 观察项保留
+### 2.1 MemoryManager 单一锁（`systems/python-reference-runtime/l3/memory/memory.py:53`）— 观察项保留
 
 | 位置 | 发现 | 说明 |
 |---|---|---|
 | `self._lock = threading.Lock()` | 共享锁保护 persist/ingest mixin 写路径（`memory_persist.py`/`memory_ingest.py` 的 `with self._lock`）；ring 热路径由 `RingLayer` 各自持锁 | 曾误判为死锁并尝试移除，核验 mixin 后还原（`feature/fix-perf-p3`）。无实测竞争证据，观察项保留，规模化时按 ring/agent 细化 |
 
-### 2.2 gatechain 单锁每次工具调用（`src/l1/kernel/gatechain.py:128,192`）
+### 2.2 gatechain 单锁每次工具调用（`systems/python-reference-runtime/l1/kernel/gatechain.py:128,192`）
 
 | 位置 | 发现 | 主流标准 | 预期收益 |
 |---|---|---|---|

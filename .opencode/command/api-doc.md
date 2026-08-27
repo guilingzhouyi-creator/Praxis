@@ -8,7 +8,7 @@ Generate and update API documentation for the Praxis API Gateway, focusing on `$
 
 ### 1. Scan API Routes
 
-Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all registered routes (all under `/api/v2/`):
+Read `systems/python-reference-runtime/l4/api/api_routes.py` and `systems/python-reference-runtime/l4/api/api_gateway.py` to find all registered routes (all under `/api/v2/`):
 
 ```python
 # Key structures:
@@ -18,14 +18,14 @@ Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all regi
 
 ### 2. Read Handler Signatures
 
-Read handler files from `src/l4/api/api_handlers_cards.py`, `src/l4/api/api_handlers_diff.py`, and related modules to extract:
+Read handler files from `systems/python-reference-runtime/l4/api/api_handlers_cards.py`, `systems/python-reference-runtime/l4/api/api_handlers_diff.py`, and related modules to extract:
 - Function signatures (parameters, return types).
 - Docstrings describing behavior.
 - Error response patterns.
 
 ### 3. Validate the Manifest
 
-The endpoint manifest (`src/l4/api/api_endpoints.py`) is the single source of truth for route classification. Validate before documenting:
+The endpoint manifest (`systems/python-reference-runtime/l4/api/api_endpoints.py`) is the single source of truth for route classification. Validate before documenting:
 - Run `python -m l4.api.api_endpoints` — it rejects kebab-case violations and placeholder mismatches.
 - New endpoints must be registered via `register_endpoint()` / `register_domain()` / `register_group()` — never hand-edit `API_ROUTES`.
 - Breaking path changes require a new version segment (`/api/v3/`) plus a manifest entry.

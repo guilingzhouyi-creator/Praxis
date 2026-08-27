@@ -3,7 +3,7 @@
 # Only `skill_dirs` (skill.py) and `shell_aliases` (shell_completer.py) are
 # consumed at runtime. All other agent defaults (roles, clearance, priority,
 # reputation, injection patterns, resource paths, etc.) live in
-# src/l1/kernel/params/agent.py / params/system.py — do not duplicate them here.
+# systems/python-reference-runtime/l1/kernel/params/agent.py / params/system.py — do not duplicate them here.
 
 # ── Skill discovery directories ──
 skill_dirs:

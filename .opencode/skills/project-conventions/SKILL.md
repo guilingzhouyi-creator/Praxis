@@ -18,10 +18,10 @@ Background knowledge skill for the Praxis Agent OS. Applies these conventions au
 
 ## Architecture Patterns
 
-- **Kernel syscall dispatch**: All kernel operations go through `syscall(op, *args, **kwargs) -> dict` (defined in `src/l1/kernel/__init__.py`). Every call is audited, structured error codes returned.
+- **Kernel syscall dispatch**: All kernel operations go through `syscall(op, *args, **kwargs) -> dict` (defined in `systems/python-reference-runtime/l1/kernel/__init__.py`). Every call is audited, structured error codes returned.
 - **Singleton accessors**: Kernel primitives use `get_*()` factory functions (e.g. `get_mutex()`, `get_semaphore()`, `get_allocator()`).
 - **Process architecture**: Each `AgentTerminal` registers as a `PCB` (Process Control Block) in the kernel process table.
-- **Service layer**: Organized in `src/l3/` and `src/l4/` — each service is a self-contained module with clear boundaries.
+- **Service layer**: Organized in `systems/python-reference-runtime/l3/` and `systems/python-reference-runtime/l4/` — each service is a self-contained module with clear boundaries.
 - **Card-based execution**: Work is packaged as "cards" dispatched through the cell system.
 - **Layer import rules**: L5 → L4/L3/L2/L1; L4 → L3/L2/L1; L3 → L2/L1; L2 → L1 only; L1 cannot import upper layers. Enforced by `tests/infra/test_layer_imports.py` (95 pre-existing cross-layer imports allowlisted; new ones must be allowlisted there).
 
@@ -41,19 +41,19 @@ Background knowledge skill for the Praxis Agent OS. Applies these conventions au
 ## File Organization
 
 ```
-src/l5/       — User layer: CLI, agent runtime
-src/l4/       — Bridge: API gateway, LLM engine, sandbox, MCP, vault
-src/l3/       — Cell layer: agents, memory, cards, scheduler, tool pipeline
-src/l2/       — Shell: 49 YAML commands + code-registered _cmd_* handlers, i18n, agent selector
-src/l1/kernel/ — Kernel primitives: sync, event, allocator, gatechain, VFS, IPC
-src/l1/kernel/params/ — ~1,000 constants across 8 sub-modules
+systems/python-reference-runtime/l5/       — User layer: CLI, agent runtime
+systems/python-reference-runtime/l4/       — Bridge: API gateway, LLM engine, sandbox, MCP, vault
+systems/python-reference-runtime/l3/       — Cell layer: agents, memory, cards, scheduler, tool pipeline
+systems/python-reference-runtime/l2/       — Shell: 49 YAML commands + code-registered _cmd_* handlers, i18n, agent selector
+systems/python-reference-runtime/l1/kernel/ — Kernel primitives: sync, event, allocator, gatechain, VFS, IPC
+systems/python-reference-runtime/l1/kernel/params/ — ~1,000 constants across 8 sub-modules
 tests/        — pytest tests: test_*.py files
 config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 ```
 
 ## Config Constants
 
-- **All magic numbers go in `src/l1/kernel/params/`** — never hardcode in implementation files.
+- **All magic numbers go in `systems/python-reference-runtime/l1/kernel/params/`** — never hardcode in implementation files.
 - **New kernel modules** must be exported in `kernel/__init__.py` `__all__`.
 - **New config items** register defaults in `kernel/settings.py` `DEFAULTS`.
 - **Three-layer config**: `params/*.py` (compile-time defaults) ← `config/discovery/*.yaml` (structural overrides) ← `config/praxis.yaml` (deployment config).
@@ -82,7 +82,7 @@ config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 
 ## Testing
 
-- Use pytest with `pyproject.toml` config section `[tool.pytest.ini_options]` (`addopts = "-n auto --dist loadfile"`, `pythonpath = ["src"]`).
+- Use pytest with `pyproject.toml` config section `[tool.pytest.ini_options]` (`addopts = "-n auto --dist loadfile"`, `pythonpath = ["systems/python-reference-runtime"]`).
 - Tests in `tests/` matching `test_*.py` (subdirs `l1`–`l5`, `infra`, `integration`, `benchmarks`).
 - Runner batches: `python tests/runner.py` runs Batch 1 (fast) + Batch 2 (slow, ~75s); `--batch 1|2` selects (runner takes `--batch` ONLY, no test-name arg). `make test` / `make test-extended` / `make test-all` map onto the batches.
 - Infra gates (all in `tests/infra/`): `test_layer_imports.py` (import rules), `test_params_compliance.py` (`-k "not strict"` for soft mode), `test_hardcoded_fixes_regression.py` (regression: hardcoded fixes), `test_resets_completeness.py`, `test_skill_schema.py`.
@@ -93,6 +93,6 @@ config/       — praxis.yaml, commands.yaml, tools.yaml, discovery/, skills/
 ## Naming & Misc Gates
 
 - Scripts: `scripts/sh/*.sh` + `scripts/py/*.py` module files are snake_case (`.githooks/pre-commit` script-naming guard rejects hyphenated staged files — directories stay kebab-case).
-- All magic numbers go in `src/l1/kernel/params/` — never hardcode in implementation files (`test_params_compliance.py` strict mode catches it).
+- All magic numbers go in `systems/python-reference-runtime/l1/kernel/params/` — never hardcode in implementation files (`test_params_compliance.py` strict mode catches it).
 - Generated numbers: doc-stats snapshots in AGENTS.md refreshed by `make doc-stats` (`scripts/py/gen_doc_stats.py`), drift-gated by `scripts/py/check_doc_stats.py` — never hand-edit.
 - New kernel modules exported in `kernel/__init__.py` `__all__`; new config items registered in `kernel/settings.py` `DEFAULTS`.

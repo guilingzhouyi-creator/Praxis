@@ -12,7 +12,11 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_DIRS = (ROOT / "src" / "l2", ROOT / "src" / "l3", ROOT / "src" / "l4")
+RUNTIME_DIRS = (
+    ROOT / "systems/python-reference-runtime" / "l2",
+    ROOT / "systems/python-reference-runtime" / "l3",
+    ROOT / "systems/python-reference-runtime" / "l4",
+)
 
 # Modules allowed to call the registry-level executor directly.
 EXECUTOR_ALLOWLIST = frozenset(

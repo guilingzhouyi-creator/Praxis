@@ -1,6 +1,6 @@
 """Guard: params library hygiene — name uniqueness, alias alignment, orphan baseline.
 
-Scans src/l1/kernel/params/ for:
+Scans systems/python-reference-runtime/l1/kernel/params/ for:
   - constant names defined in more than one module (hard gate)
   - known duplicate pairs staying aligned (alias regression gate)
   - defined-but-never-referenced constants staying within the known-debt
@@ -16,9 +16,11 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
-PARAMS_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "l1" / "kernel" / "params"
+PARAMS_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "systems/python-reference-runtime" / "l1" / "kernel" / "params"
+)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # ── Known-dead orphan ledger (2026-08-07 audit) ──
@@ -160,14 +162,14 @@ def _module_names() -> dict[str, set[str]]:
 
 @functools.lru_cache(maxsize=1)
 def _corpus() -> str:
-    """Concatenated source of src/ + tests/ + scripts/ (params included —
+    """Concatenated source of systems/python-reference-runtime/ + tests/ + scripts/ (params included —
     alias roots alive; scripts count as legitimate references).
 
     Excludes this guard file itself — its ledger would otherwise count as a
     reference for every listed name.
     """
     parts: list[str] = []
-    for root in (REPO_ROOT / "src", REPO_ROOT / "tests", REPO_ROOT / "scripts"):
+    for root in (REPO_ROOT / "systems/python-reference-runtime", REPO_ROOT / "tests", REPO_ROOT / "scripts"):
         for path in root.rglob("*.py"):
             if path == Path(__file__).resolve():
                 continue

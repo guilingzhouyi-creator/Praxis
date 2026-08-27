@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestFileCache:
@@ -143,7 +143,7 @@ class TestCardBuilder:
     def test_build_card(self):
         from l3.card.card_builder import build_card
 
-        card = build_card("c-001", "build the project", "src/core", priority=5)
+        card = build_card("c-001", "build the project", "systems/python-reference-runtime/core", priority=5)
         assert card is not None
         assert len(card.phases) >= 1
         # CardUnified: count tasks across all phases
@@ -153,7 +153,7 @@ class TestCardBuilder:
     def test_fix_card_detected(self):
         from l3.card.card_builder import build_card
 
-        card = build_card("c-002", "fix bug in login", "src/api")
+        card = build_card("c-002", "fix bug in login", "systems/python-reference-runtime/api")
         assert "investigate" in [p.name for p in card.phases]
 
 

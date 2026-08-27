@@ -55,7 +55,7 @@ Structural configuration discovered at boot by `l1.kernel.discovery`.
 
 **Registration**: `_init_discovery()` boot step registers a fixed set of
 params-derived default sections; `config/discovery/*.yaml` overrides them.
-Current registered sections (defaults live in `src/l1/kernel/params/` unless
+Current registered sections (defaults live in `systems/python-reference-runtime/l1/kernel/params/` unless
 noted):
 
 `build_detectors`, `test_detectors`, `provider_urls`, `ring_gates`,
@@ -194,7 +194,7 @@ Notes:
   user-defined thinking budget (Anthropic `budget_tokens`, Gemini
   `thinkingBudget`); OpenAI/DeepSeek ignore it via capability filtering.
 
-## Kernel settings facade (`src/l1/kernel/settings.py`)
+## Kernel settings facade (`systems/python-reference-runtime/l1/kernel/settings.py`)
 
 Kernel code reads settings through this module — it never imports L3. The
 facade is dependency-inverted: the authoritative `Settings` instance lives
@@ -203,7 +203,7 @@ in `l3.config.settings_adapter` and is **injected at boot** via
 tests) a pure kernel fallback backed by `DEFAULTS` answers.
 
 ```python
-# src/l1/kernel/settings.py
+# systems/python-reference-runtime/l1/kernel/settings.py
 DEFAULTS                      # dict of ~50 dotted keys (see below)
 set_settings_provider(s)      # inject the authoritative Settings (L3) at boot
 get_settings()                # current Settings (fallback or injected)
@@ -248,7 +248,7 @@ from l1.kernel.params.tool import TOOL_BUILD_TIMEOUT
 ## Prompt Template Overrides (`prompts`)
 
 Prompt templates are registry-driven: built-in defaults live in
-`src/l1/kernel/prompts.py` (`_DEFAULTS`), and `config/praxis.yaml`'s
+`systems/python-reference-runtime/l1/kernel/prompts.py` (`_DEFAULTS`), and `config/praxis.yaml`'s
 `prompts:` section overrides them at boot. Each override replaces the
 built-in template of the same dot-notation key (priority:
 override > built-in > caller-passed default).
@@ -345,7 +345,7 @@ agent flow.
 ## ConfigDiscovery Architecture
 
 ```python
-src/l1/kernel/discovery.py
+systems/python-reference-runtime/l1/kernel/discovery.py
   register(name, defaults)       # Register a config section with Python-side defaults
   register_discovery_dir(path)   # Add a directory to scan for YAML snippets
   discover()                     # Scan YAML files and merge into registry

@@ -244,8 +244,10 @@ def empty_cell():
 @pytest.fixture
 def cell_with_agents(empty_cell):
     """Cell with reader + writer agents pre-registered."""
-    empty_cell.add_agent("agent-reader", role="reader", territory=["src/", "docs/"], ring=1)
-    empty_cell.add_agent("agent-writer", role="writer", territory=["src/"], ring=2)
+    empty_cell.add_agent(
+        "agent-reader", role="reader", territory=["systems/python-reference-runtime/", "docs/"], ring=1
+    )
+    empty_cell.add_agent("agent-writer", role="writer", territory=["systems/python-reference-runtime/"], ring=2)
     return empty_cell
 
 

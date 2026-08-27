@@ -1,0 +1,80 @@
+schema_version: 1
+name: praxis-three-system-layout
+description: >
+  Physical and runtime dependency boundaries for the Python reference,
+  Rust kernel, and TypeScript shell systems.
+
+build_environment:
+  id: praxis-build-environment
+  role: observer-and-driver
+  paths:
+    - scripts/
+    - tests/
+    - config/
+    - docs/
+    - locales/
+    - .githooks/
+    - .github/
+    - .gitcode/
+    - .atomcode/
+    - .opencode/
+    - Makefile
+    - pyproject.toml
+    - rust-toolchain.toml
+  shared_test_inputs:
+    - tests/fixtures/
+
+legacy_roots:
+  - src/
+  - crates/
+  - packages/
+  - packages/protocol-ts/
+
+systems:
+  - id: python-reference-runtime
+    path: systems/python-reference-runtime/
+    artifact_name: praxis-python-reference-runtime
+    language: python
+    role: prototype
+    entrypoints:
+      - systems/python-reference-runtime/main.py
+    source_roots:
+      - systems/python-reference-runtime/
+    build_manifests:
+      - pyproject.toml
+    forbidden_runtime_paths:
+      - systems/rust-kernel-engine/
+      - systems/typescript-shell-engine/
+
+  - id: rust-kernel-engine
+    path: systems/rust-kernel-engine/
+    artifact_name: praxis-rust-kernel-engine
+    language: rust
+    role: clean-break-candidate
+    entrypoints:
+      - systems/rust-kernel-engine/Cargo.toml
+      - systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml
+    source_roots:
+      - systems/rust-kernel-engine/l1-kernel-rs/src/
+    build_manifests:
+      - systems/rust-kernel-engine/Cargo.toml
+      - systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml
+    forbidden_runtime_paths:
+      - systems/python-reference-runtime/
+      - systems/typescript-shell-engine/
+
+  - id: typescript-shell-engine
+    path: systems/typescript-shell-engine/
+    artifact_name: "@praxis/typescript-shell-engine"
+    language: typescript
+    role: clean-break-candidate
+    entrypoints:
+      - systems/typescript-shell-engine/package.json
+      - systems/typescript-shell-engine/tsconfig.json
+    source_roots:
+      - systems/typescript-shell-engine/src/
+    build_manifests:
+      - systems/typescript-shell-engine/package.json
+    forbidden_runtime_paths:
+      - systems/python-reference-runtime/
+      - systems/rust-kernel-engine/

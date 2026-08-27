@@ -60,8 +60,8 @@ def test_shared_summary_cross_cell():
 def test_archive_index_l3():
     """L3 archive index round-trips meta entries."""
     tc = get_tiered_cache()
-    tc.index_archive("diff:src/a.py", {"lines": 10})
-    assert tc.get_archive_index("diff:src/a.py") == {"lines": 10}
+    tc.index_archive("diff:systems/python-reference-runtime/a.py", {"lines": 10})
+    assert tc.get_archive_index("diff:systems/python-reference-runtime/a.py") == {"lines": 10}
 
 
 def test_stats_shape():

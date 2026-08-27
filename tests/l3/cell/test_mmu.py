@@ -49,23 +49,23 @@ class TestTlbInit:
 class TestTlbFill:
     def test_fill_and_lookup(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a", ring=1)
-        entry = t.lookup("src/")
+        t.fill("systems/python-reference-runtime/", "agent-a", ring=1)
+        entry = t.lookup("systems/python-reference-runtime/")
         assert entry is not None
         assert entry.agent_id == "agent-a"
         assert entry.ring == 1
 
     def test_fill_many(self, tlb):
         t, _ = tlb
-        t.fill_many({"src/": ("agent-a", 1), "docs/": ("agent-b", 2)})
-        assert t.lookup("src/").agent_id == "agent-a"
+        t.fill_many({"systems/python-reference-runtime/": ("agent-a", 1), "docs/": ("agent-b", 2)})
+        assert t.lookup("systems/python-reference-runtime/").agent_id == "agent-a"
         assert t.lookup("docs/").agent_id == "agent-b"
 
     def test_fill_overwrites_existing(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
-        t.fill("src/", "agent-b", ring=2)
-        entry = t.lookup("src/")
+        t.fill("systems/python-reference-runtime/", "agent-a")
+        t.fill("systems/python-reference-runtime/", "agent-b", ring=2)
+        entry = t.lookup("systems/python-reference-runtime/")
         assert entry.agent_id == "agent-b"
         assert entry.ring == 2
 
@@ -77,9 +77,9 @@ class TestTlbLookup:
 
     def test_hit_increments_counter(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
-        t.lookup("src/")
-        entry = t.lookup("src/")
+        t.fill("systems/python-reference-runtime/", "agent-a")
+        t.lookup("systems/python-reference-runtime/")
+        entry = t.lookup("systems/python-reference-runtime/")
         assert entry.hit_count >= 1
 
     def test_miss_pmu_increment(self, tlb):
@@ -89,32 +89,32 @@ class TestTlbLookup:
 
     def test_hit_pmu_increment(self, tlb):
         t, pmu = tlb
-        t.fill("src/", "agent-a")
-        t.lookup("src/")
+        t.fill("systems/python-reference-runtime/", "agent-a")
+        t.lookup("systems/python-reference-runtime/")
         assert pmu.counts.get("tlb.hits", 0) >= 1
 
     def test_invalid_entry_returns_none(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
+        t.fill("systems/python-reference-runtime/", "agent-a")
         t.flush_agent("agent-a")
-        assert t.lookup("src/") is None
+        assert t.lookup("systems/python-reference-runtime/") is None
 
 
 class TestTlbFlush:
     def test_flush_agent(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
+        t.fill("systems/python-reference-runtime/", "agent-a")
         t.fill("docs/", "agent-a")
         count = t.flush_agent("agent-a")
         assert count == 2
-        assert t.lookup("src/") is None
+        assert t.lookup("systems/python-reference-runtime/") is None
         assert t.lookup("docs/") is None
 
     def test_flush_territory(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
-        assert t.flush_territory("src/") is True
-        assert t.lookup("src/") is None
+        t.fill("systems/python-reference-runtime/", "agent-a")
+        assert t.flush_territory("systems/python-reference-runtime/") is True
+        assert t.lookup("systems/python-reference-runtime/") is None
 
     def test_flush_territory_missing(self, tlb):
         t, _ = tlb
@@ -130,7 +130,7 @@ class TestTlbFlush:
 
     def test_flush_pmu_increment(self, tlb):
         t, pmu = tlb
-        t.fill("src/", "agent-a")
+        t.fill("systems/python-reference-runtime/", "agent-a")
         t.flush_agent("agent-a")
         assert pmu.counts.get("tlb.flushes", 0) >= 1
 
@@ -164,7 +164,7 @@ class TestTlbStats:
 
     def test_stats_lists_agents(self, tlb):
         t, _ = tlb
-        t.fill("src/", "agent-a")
+        t.fill("systems/python-reference-runtime/", "agent-a")
         t.fill("docs/", "agent-b")
         assert "agent-a" in t.stats()["agents"]
         assert "agent-b" in t.stats()["agents"]
@@ -177,8 +177,8 @@ class TestTlbStats:
 
 class TestMmuResolve:
     def test_resolve_tlb_hit(self, mmu):
-        mmu._tlb.fill("src/", "agent-a", ring=1)
-        r = mmu.resolve("src/")
+        mmu._tlb.fill("systems/python-reference-runtime/", "agent-a", ring=1)
+        r = mmu.resolve("systems/python-reference-runtime/")
         assert r["agent_id"] == "agent-a"
         assert r["ring"] == 1
 
@@ -191,30 +191,30 @@ class TestMmuResolve:
         from l3.cell.components.cell_types import AgentInfo
 
         agents = {
-            "agent-a": AgentInfo(role="reader", ring=1, territory=["src/"]),
+            "agent-a": AgentInfo(role="reader", ring=1, territory=["systems/python-reference-runtime/"]),
             "agent-b": AgentInfo(role="writer", ring=2, territory=["docs/"]),
         }
-        r = mmu.resolve("src/", agents)
+        r = mmu.resolve("systems/python-reference-runtime/", agents)
         assert r["agent_id"] == "agent-a"
         assert r["ring"] == 1
 
     def test_resolve_fallback_caches_result(self, mmu):
         from l3.cell.components.cell_types import AgentInfo
 
-        agents = {"agent-a": AgentInfo(ring=1, territory=["src/"])}
-        mmu.resolve("src/", agents)
+        agents = {"agent-a": AgentInfo(ring=1, territory=["systems/python-reference-runtime/"])}
+        mmu.resolve("systems/python-reference-runtime/", agents)
         # Second call should hit TLB
-        r = mmu.resolve("src/")
+        r = mmu.resolve("systems/python-reference-runtime/")
         assert r["agent_id"] == "agent-a"
 
     def test_resolve_best_match_longest_prefix(self, mmu):
         from l3.cell.components.cell_types import AgentInfo
 
         agents = {
-            "agent-a": AgentInfo(ring=1, territory=["src/"]),
-            "agent-b": AgentInfo(ring=2, territory=["src/sub/"]),
+            "agent-a": AgentInfo(ring=1, territory=["systems/python-reference-runtime/"]),
+            "agent-b": AgentInfo(ring=2, territory=["systems/python-reference-runtime/sub/"]),
         }
-        r = mmu.resolve("src/sub/deep/", agents)
+        r = mmu.resolve("systems/python-reference-runtime/sub/deep/", agents)
         # Should prefer agent-b (longer prefix match)
         assert r["agent_id"] == "agent-b"
 
@@ -222,19 +222,19 @@ class TestMmuResolve:
         from l3.cell.components.cell_types import AgentInfo
 
         agents = {
-            "agent-a": AgentInfo(ring=1, territory=["src/"]),
+            "agent-a": AgentInfo(ring=1, territory=["systems/python-reference-runtime/"]),
             "agent-b": AgentInfo(ring=2, territory=["docs/"]),
         }
-        results = mmu.resolve_many(["src/", "docs/"], agents)
-        assert results["src/"]["agent_id"] == "agent-a"
+        results = mmu.resolve_many(["systems/python-reference-runtime/", "docs/"], agents)
+        assert results["systems/python-reference-runtime/"]["agent_id"] == "agent-a"
         assert results["docs/"]["agent_id"] == "agent-b"
 
     def test_resolve_many_mixed(self, mmu):
         from l3.cell.components.cell_types import AgentInfo
 
-        agents = {"agent-a": AgentInfo(ring=1, territory=["src/"])}
-        results = mmu.resolve_many(["src/", "unknown/"], agents)
-        assert results["src/"]["agent_id"] == "agent-a"
+        agents = {"agent-a": AgentInfo(ring=1, territory=["systems/python-reference-runtime/"])}
+        results = mmu.resolve_many(["systems/python-reference-runtime/", "unknown/"], agents)
+        assert results["systems/python-reference-runtime/"]["agent_id"] == "agent-a"
         assert results["unknown/"]["agent_id"] == ""
 
 
@@ -243,11 +243,11 @@ class TestMmuCacheWarming:
         from l3.cell.components.cell_types import AgentInfo
 
         agents = {
-            "agent-a": AgentInfo(ring=1, territory=["src/", "docs/"]),
+            "agent-a": AgentInfo(ring=1, territory=["systems/python-reference-runtime/", "docs/"]),
             "agent-b": AgentInfo(ring=2, territory=["api/"]),
         }
         mmu.warm_from_agents(agents)
-        assert mmu._tlb.lookup("src/") is not None
+        assert mmu._tlb.lookup("systems/python-reference-runtime/") is not None
         assert mmu._tlb.lookup("docs/") is not None
         assert mmu._tlb.lookup("api/") is not None
 
@@ -258,13 +258,13 @@ class TestMmuCacheWarming:
 
 class TestMmuFlush:
     def test_flush_agent_delegates_to_tlb(self, mmu):
-        mmu._tlb.fill("src/", "agent-a")
+        mmu._tlb.fill("systems/python-reference-runtime/", "agent-a")
         count = mmu.flush_agent("agent-a")
         assert count == 1
-        assert mmu._tlb.lookup("src/") is None
+        assert mmu._tlb.lookup("systems/python-reference-runtime/") is None
 
     def test_flush_all_delegates_to_tlb(self, mmu):
-        mmu._tlb.fill("src/", "agent-a")
+        mmu._tlb.fill("systems/python-reference-runtime/", "agent-a")
         mmu._tlb.fill("docs/", "agent-b")
         count = mmu.flush_all()
         assert count == 2

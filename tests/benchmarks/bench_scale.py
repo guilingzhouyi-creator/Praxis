@@ -41,7 +41,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from l4.params import (
     EVAL_ALLOC_SHARD_WORKERS,

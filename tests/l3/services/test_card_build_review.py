@@ -25,7 +25,7 @@ def test_card_completion_aggregates_build_and_review():
     tc = get_tiered_cache()
     tc.set_shared_summary("card-1", "build_summary", {"changed_lines": 12, "hunks": 2})
 
-    _on_card_completed("card-1", "completed", {"agent_id": "agent-a", "path": "src/a.py"})
+    _on_card_completed("card-1", "completed", {"agent_id": "agent-a", "path": "systems/python-reference-runtime/a.py"})
 
     from l1.kernel.registry import get_registry
 

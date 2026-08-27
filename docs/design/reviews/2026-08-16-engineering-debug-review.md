@@ -10,11 +10,11 @@
 
 | Area | Files |
 |---|---|
-| Core manager | `src/l3/tool_system/engineering_debug.py` (469 L) |
-| Input privacy controller | `src/l3/tool_system/input_activity.py` (176 L) |
-| Port abstractions | `src/l1/kernel/ports/service.py` (InputActivityPort), `types.py` (InputActivitySnapshot), `__init__.py` exports |
-| Params constants | `src/l1/kernel/params/system.py` (11 `ENGINEERING_DEBUG_*`) |
-| L1 prompt registry | `src/l1/kernel/prompts.py` (set/get/restore/clear override + versioning) |
+| Core manager | `systems/python-reference-runtime/l3/tool_system/engineering_debug.py` (469 L) |
+| Input privacy controller | `systems/python-reference-runtime/l3/tool_system/input_activity.py` (176 L) |
+| Port abstractions | `systems/python-reference-runtime/l1/kernel/ports/service.py` (InputActivityPort), `types.py` (InputActivitySnapshot), `__init__.py` exports |
+| Params constants | `systems/python-reference-runtime/l1/kernel/params/system.py` (11 `ENGINEERING_DEBUG_*`) |
+| L1 prompt registry | `systems/python-reference-runtime/l1/kernel/prompts.py` (set/get/restore/clear override + versioning) |
 | L3 wiring | `prompt_monitor.py`, `boot/discovery.py`, `boot/lifecycle.py`, `config_handlers*.py`, `config_loader.py`, `settings_center.py` |
 | L4 API | `api_handlers_engineering_debug.py`, `api_routes.py` (7 routes), `api_endpoints.py`, handler class wiring |
 | L2 Shell | `commands/engineering_debug.py` (`/debug-mode`), `commands/input_activity.py` (`/debug-input`) |

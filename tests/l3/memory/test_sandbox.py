@@ -7,7 +7,7 @@ import shutil
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestMemoryManager:
@@ -51,7 +51,12 @@ class TestMemoryManager:
         from l3.memory.memory import MemoryManager
 
         mem = MemoryManager()
-        mem.remember("agent-a", "working", "project root at /home/user/src/api uses Python 3.12", ring=1)
+        mem.remember(
+            "agent-a",
+            "working",
+            "project root at /home/user/systems/python-reference-runtime/api uses Python 3.12",
+            ring=1,
+        )
         mem.remember("agent-a", "short", "staging server at 10.0.1.50 with Docker Compose", ring=2)
         mem.remember("agent-a", "long", "database migration from MySQL to PostgreSQL completed 2026-01-15", ring=3)
         results = mem.recall(agent_id="agent-a", rings=[1, 2, 3], limit=10)
@@ -61,7 +66,12 @@ class TestMemoryManager:
         from l3.memory.memory import MemoryManager
 
         mem = MemoryManager()
-        mem.remember("agent-a", "observation", "project root at /home/user/src/api uses Python 3.12", ring=1)
+        mem.remember(
+            "agent-a",
+            "observation",
+            "project root at /home/user/systems/python-reference-runtime/api uses Python 3.12",
+            ring=1,
+        )
         ctx = mem.build_context("agent-a", max_tokens=4096)
         assert "Python 3.12" in ctx
 

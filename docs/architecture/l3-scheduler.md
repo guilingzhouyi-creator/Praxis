@@ -1,6 +1,6 @@
 # L3 — Scheduler (5D matrix)
 
-The CPU scheduler of the agent SoC: 11 files in `src/l3/scheduler/` route,
+The CPU scheduler of the agent SoC: 11 files in `systems/python-reference-runtime/l3/scheduler/` route,
 time-slice, rate-limit, budget, and pool agent work — plus loop/sequence
 safety layers and thinking quotas.
 

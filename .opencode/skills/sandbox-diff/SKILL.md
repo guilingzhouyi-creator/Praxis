@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis sandbox or structured-diff cod
 
 ## Overview
 
-Architecture guide for the sandbox / structured diff system (`src/l4/sandbox/`, `src/l1/kernel/diff_frame.py`, spec: `docs/architecture/sandbox-diff.md`). Every agent edit lands in the sandbox with per-hunk attribution; diffs are computed tier-shaped and compressed with shared dictionaries.
+Architecture guide for the sandbox / structured diff system (`systems/python-reference-runtime/l4/sandbox/`, `systems/python-reference-runtime/l1/kernel/diff_frame.py`, spec: `docs/architecture/sandbox-diff.md`). Every agent edit lands in the sandbox with per-hunk attribution; diffs are computed tier-shaped and compressed with shared dictionaries.
 
 ## Module Map
 

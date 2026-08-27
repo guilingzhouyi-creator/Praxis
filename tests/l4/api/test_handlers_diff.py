@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestDiffHandlers:
@@ -40,7 +40,7 @@ class TestDiffReviewContext:
             raise RuntimeError("lsp unavailable")
 
         monkeypatch.setattr("l4.lsp.lsp_manager.get_manager", _boom)
-        assert _lsp_diagnostics("src/a.py") == []
+        assert _lsp_diagnostics("systems/python-reference-runtime/a.py") == []
 
     def test_ast_symbols_empty_without_path(self):
         from l4.api.api_handlers_diff import _ast_symbols
@@ -68,7 +68,7 @@ class TestDiffReviewContext:
                 "tier": "review",
                 "old_text": "def a():\n    pass\n",
                 "new_text": "def a():\n    return 1\n",
-                "rel_path": "src/x.py",
+                "rel_path": "systems/python-reference-runtime/x.py",
                 "agent_id": "rev-1",
             }
         )
@@ -91,7 +91,7 @@ class TestDiffReviewAstFrame:
                 "tier": "review",
                 "old_text": "def foo(a):\n    return a + 1\n",
                 "new_text": "def foo(a):\n    return a + 2\n",
-                "rel_path": "src/x.py",
+                "rel_path": "systems/python-reference-runtime/x.py",
                 "agent_id": "rev-1",
             }
         )
@@ -117,7 +117,7 @@ class TestDiffReviewAstFrame:
                 "tier": "review",
                 "old_text": "package main\nfunc main() {}\n",
                 "new_text": "package main\nfunc main() { x := 1 }\n",
-                "rel_path": "src/app.go",
+                "rel_path": "tests/fixtures/app.go",
                 "agent_id": "rev-1",
             }
         )
@@ -137,7 +137,7 @@ class TestDiffReviewAstFrame:
                 "tier": "review",
                 "old_text": "def broken(:",
                 "new_text": "def broken(:\n    pass\n",
-                "rel_path": "src/broken.py",
+                "rel_path": "systems/python-reference-runtime/broken.py",
                 "agent_id": "rev-1",
             }
         )

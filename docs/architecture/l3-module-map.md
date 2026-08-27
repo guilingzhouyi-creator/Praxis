@@ -5,11 +5,11 @@
 > SAME commit. Status claims without a matching tree state are drift.
 >
 > Survey basis: main @ `32035cec` (2026-08-23), post `l2-ts-advanced-optimize` polish (simple-array Outbox, FIFO middleware, direct-sort dispatcher).
-> **TS mirror status**: `packages/protocol-ts/` — 29 modules, 77+ tests, tsc clean. See §8.
+> **TS mirror status**: `systems/typescript-shell-engine/` — 29 modules, 77+ tests, tsc clean. See §8.
 > Regenerate counts anytime with:
 >
 > ```bash
-> for d in src/l3/*/; do echo "$d $(find "$d" -maxdepth 1 -name '*.py' | wc -l)"; done
+> for d in systems/python-reference-runtime/l3/*/; do echo "$d $(find "$d" -maxdepth 1 -name '*.py' | wc -l)"; done
 > ```
 
 ## 1. Ownership domains (7-domain partition)
@@ -109,7 +109,7 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | A2/A3 | runtime-subsystems counts + README registration | **Complete** |
 
 
-## 8. TS Mirror Status (`packages/protocol-ts/`)
+## 8. TS Mirror Status (`systems/typescript-shell-engine/`)
 
 The L2 TS engine is under active rewrite. The following modules are
 implemented and tested (62+ tests, tsc clean):

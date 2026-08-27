@@ -80,6 +80,6 @@ diff_languages:
 # dependency on zstandard).
 diff_dictionary:
   enabled: true
-  samples_dir: "src"          # code sample roots to train from (relative to repo root)
+  samples_dir: "systems/python-reference-runtime"          # code sample roots to train from (relative to repo root)
   size_bytes: 65536           # 64KB dictionary
   training_level: 19          # zstd level used for L2 review-frame compression

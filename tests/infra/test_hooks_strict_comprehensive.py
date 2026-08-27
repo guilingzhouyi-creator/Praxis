@@ -105,7 +105,7 @@ def test_hook_accepts_valid():
     import tempfile as _tf
 
     # Stage a scripts/py probe so the type-to-content gate sees a matching
-    # path (feat requires src/crates/packages/scripts/...) and the scope-
+    # path (feat requires systems/python-reference-runtime/, systems/rust-kernel-engine/, systems/typescript-shell-engine/, scripts/, .githooks/, config/...) and the scope-
     # to-dir alignment holds (scope=scripts maps to scripts/). Avoids
     # .githooks/ prefix which would trigger the shared-file handoff gate.
     probe = ROOT / "scripts" / "py" / "_tmp_valid_probe.py"

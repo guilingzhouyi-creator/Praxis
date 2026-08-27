@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
+      - "systems/python-reference-runtime/**"
       - "scripts/py/comment_audit.py"
   pull_request:
     branches: [main]
     paths:
-      - "src/**"
+      - "systems/python-reference-runtime/**"
       - "scripts/py/comment_audit.py"
   workflow_dispatch:
 
@@ -29,4 +29,4 @@ jobs:
           python-version: "3.12"
       - name: Run comment audit
         run: |
-          python scripts/py/comment_audit.py src --non-ascii
+          python scripts/py/comment_audit.py systems/python-reference-runtime --non-ascii

@@ -2,7 +2,7 @@
 
 Multi-agent deliberation: when an issue is bigger than one cell, the
 convention system convenes cells, cross-examines answers, aggregates,
-detects divergence, and reports. 7 files in `src/l3/discussion/`.
+detects divergence, and reports. 7 files in `systems/python-reference-runtime/l3/discussion/`.
 
 ## Flow
 

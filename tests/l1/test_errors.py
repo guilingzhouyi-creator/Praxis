@@ -1,6 +1,7 @@
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"C:\CODE_game-development\praxis\src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "systems" / "python-reference-runtime"))
 
 from l1.kernel.errors import (
     E_INTERNAL,

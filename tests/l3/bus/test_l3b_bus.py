@@ -57,7 +57,9 @@ def test_route_to_cell_direct():
     reset_bus()
     bus = get_bus()
     bus.register("l3b-cell-1-cell-2")
-    r = bus.route_to_cell("", "cell-2", L3BMessageType.REVIEW_REWORK, {"rel_path": "src/a.py"})
+    r = bus.route_to_cell(
+        "", "cell-2", L3BMessageType.REVIEW_REWORK, {"rel_path": "systems/python-reference-runtime/a.py"}
+    )
     assert r["success"] is True
     assert r["path"] == ["l3b-cell-1-cell-2"]
     assert r["hops"] == 0

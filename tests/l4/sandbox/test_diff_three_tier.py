@@ -45,9 +45,11 @@ def test_build_diff_attribution_on_hunks():
 
 def test_review_diff_structured_with_attribution():
     """Review tier adds per-hunk attribution and optional context."""
-    r = review_diff(OLD, NEW, rel_path="src/foo.py", agent_id="agent-a", tool_name="write_file")
+    r = review_diff(
+        OLD, NEW, rel_path="systems/python-reference-runtime/foo.py", agent_id="agent-a", tool_name="write_file"
+    )
     assert r["tier"] == "review"
-    assert r["rel_path"] == "src/foo.py"
+    assert r["rel_path"] == "systems/python-reference-runtime/foo.py"
     assert r["attribution"], "expected per-hunk attribution"
     first = r["attribution"][0]
     assert first["agent_id"] == "agent-a"
@@ -67,7 +69,7 @@ def test_review_diff_custom_context():
 
 def test_conflict_diff_none():
     """No other agent touching the file → conflict level none."""
-    r = conflict_diff("src/a.py", "agent-a", path_index={}, entries={})
+    r = conflict_diff("systems/python-reference-runtime/a.py", "agent-a", path_index={}, entries={})
     assert r["tier"] == "conflict"
     assert r["level"] == "none"
     assert r["actionable"] is False
@@ -78,18 +80,25 @@ def test_conflict_diff_block_other_agent():
     import time
 
     entries = {
-        "cell-1::src/a.py::agent-b": type(
+        "cell-1::systems/python-reference-runtime/a.py::agent-b": type(
             "E", (), {"agent_id": "agent-b", "status": "pending", "modified_at": time.time()}
         )()
     }
-    r = conflict_diff("src/a.py", "agent-a", path_index={"src/a.py": ["cell-1::src/a.py::agent-b"]}, entries=entries)
+    r = conflict_diff(
+        "systems/python-reference-runtime/a.py",
+        "agent-a",
+        path_index={
+            "systems/python-reference-runtime/a.py": ["cell-1::systems/python-reference-runtime/a.py::agent-b"]
+        },
+        entries=entries,
+    )
     assert r["level"] == "block"
     assert r["actionable"] is True
 
 
 def test_check_conflict_consistent_with_tier3():
     """conflict_diff wraps check_conflict (same level)."""
-    level = check_conflict("src/a.py", "agent-a", path_index={}, entries={})
+    level = check_conflict("systems/python-reference-runtime/a.py", "agent-a", path_index={}, entries={})
     assert level == "none"
 
 

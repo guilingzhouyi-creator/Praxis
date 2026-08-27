@@ -11,21 +11,21 @@ phases:
     steps:
       - action: scout
         agent: scout
-        target: "Search src/kernel/ for numeric literals >= 100 that are NOT in params.py. List file:line:value."
+        target: "Search systems/python-reference-runtime/kernel/ for numeric literals >= 100 that are NOT in params.py. List file:line:value."
         params:
-          prompt: "Search in src/kernel/ for any integer or float literals >= 100 that appear outside of params.py. These are potential magic numbers. Report each with file path, line number, and the value."
+          prompt: "Search in systems/python-reference-runtime/kernel/ for any integer or float literals >= 100 that appear outside of params.py. These are potential magic numbers. Report each with file path, line number, and the value."
 
       - action: scout
         agent: scout
-        target: "Search src/kernel/ for hardcoded timeouts, delays, TTLs. List file:line:value."
+        target: "Search systems/python-reference-runtime/kernel/ for hardcoded timeouts, delays, TTLs. List file:line:value."
         params:
-          prompt: "Search src/kernel/ for hardcoded timeout values (timeout=, deadline=, sleep(), ttl=, interval=, delay=). These should be in params.py. Report file:line:value."
+          prompt: "Search systems/python-reference-runtime/kernel/ for hardcoded timeout values (timeout=, deadline=, sleep(), ttl=, interval=, delay=). These should be in params.py. Report file:line:value."
 
       - action: scout
         agent: scout
-        target: "Search src/kernel/ for hardcoded string config keys and paths. List file:line."
+        target: "Search systems/python-reference-runtime/kernel/ for hardcoded string config keys and paths. List file:line."
         params:
-          prompt: "Search src/kernel/ for hardcoded string literals used as config keys, paths, or resource names (like 'tokens', 'workers', '/proc', '/sys'). These should be in params.py. Report file:line:string."
+          prompt: "Search systems/python-reference-runtime/kernel/ for hardcoded string literals used as config keys, paths, or resource names (like 'tokens', 'workers', '/proc', '/sys'). These should be in params.py. Report file:line:string."
 
   - name: analyze
     mode: SEQUENTIAL
@@ -35,7 +35,7 @@ phases:
         target: "Analyze scout findings"
         params:
           prompt: |
-            Review the scout findings from scanning src/kernel/ for hardcoded values.
+            Review the scout findings from scanning systems/python-reference-runtime/kernel/ for hardcoded values.
             Categorize each finding:
             - HIGH: numeric literal >= 100 in kernel module code (not in params.py)
             - MEDIUM: hardcoded timeout/sleep/delay

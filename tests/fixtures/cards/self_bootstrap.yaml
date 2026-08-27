@@ -18,10 +18,10 @@ phases:
           prompt: |
             DO NOT ask me for the file content. USE THE TOOLS AVAILABLE TO YOU.
 
-            Step 1: Use read_file to read src/kernel/__init__.py.
-            Step 2: Use list_dir to list all .py files in src/kernel/.
+            Step 1: Use read_file to read systems/python-reference-runtime/kernel/__init__.py.
+            Step 2: Use list_dir to list all .py files in systems/python-reference-runtime/kernel/.
             Step 3: Compare. Find which imported modules are NOT in __all__.
-            Step 4: Use write_file to write the corrected src/kernel/__init__.py.
+            Step 4: Use write_file to write the corrected systems/python-reference-runtime/kernel/__init__.py.
             Step 5: Only change the __all__ list. Keep everything else identical.
             Step 6: Report the exact changes you made.
 
@@ -39,7 +39,7 @@ phases:
         target: "Verify the modified file compiles"
         params:
           prompt: |
-            Read the file src/kernel/__init__.py.
+            Read the file systems/python-reference-runtime/kernel/__init__.py.
             Check that it has valid Python syntax:
             - Balanced brackets
             - Proper __all__ list format

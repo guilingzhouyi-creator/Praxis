@@ -84,12 +84,12 @@ cutover authority. R5 clean cutover remains pending.
 ## 5. Immediate Work
 
 The first R1 implementation slice is now present in
-`crates/l1-kernel-rs/src/substrate.rs`: typed generation-tagged process
+`systems/rust-kernel-engine/l1-kernel-rs/src/substrate.rs`: typed generation-tagged process
 handles, deterministic shard planning, and allocation-free atomic queue
 metrics. The fixed-work benchmark schema is now present in
-`crates/l1-kernel-rs/src/benchmark.rs`. The first Rust-owned state/queue
-prototype is now present in `crates/l1-kernel-rs/src/state_queue.rs`, and
-`crates/l1-kernel-rs/src/benchmark_runner.rs` provides a bounded-queue
+`systems/rust-kernel-engine/l1-kernel-rs/src/benchmark.rs`. The first Rust-owned state/queue
+prototype is now present in `systems/rust-kernel-engine/l1-kernel-rs/src/state_queue.rs`, and
+`systems/rust-kernel-engine/l1-kernel-rs/src/benchmark_runner.rs` provides a bounded-queue
 contention smoke that emits complete worker/round coverage with p95/p99,
 queue/lock waits, and rejection counts. The queue also exposes a token-aware
 wait that returns `Cancelled` before claiming work. It must remain a build-only candidate
@@ -645,7 +645,7 @@ The mechanism tests for `state_queue`, `process`, `terminal`, `session`, `agent_
 `state_store`, `config_store`, `platform`, `paths`, `discovery`, `lifecycle`,
 `assembly`, `contract`, `ipc`, `persist`, `protocol`, `constitution`,
 `gatechain`, `allocator`, `vfs`, `load_adaptive`, and `versioning` now live
-under `crates/l1-kernel-rs/tests/<domain>/` as independent Rust test targets.
+under `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` as independent Rust test targets.
 The crate
 contract-version check is part of `contract_vectors.rs`; no inline test module
 remains in `lib.rs`. The worker scaling test uses only public submission and

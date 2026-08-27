@@ -30,7 +30,7 @@ from collect_stats import (  # noqa: E402
 )
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 DOCS = ROOT / "docs" / "architecture"
 OUT_INDEX = DOCS / "llms.txt"
 OUT_FULL = DOCS / "llms-full.txt"

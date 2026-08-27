@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis memory subsystem code — R4Ag
 
 ## Overview
 
-Architecture guide for the Praxis memory and skill subsystems (`src/l3/memory/`, ~29 modules). Use it when touching R4Agent skill workflows, memory persistence, or the R5 graph so conventions stay intact.
+Architecture guide for the Praxis memory and skill subsystems (`systems/python-reference-runtime/l3/memory/`, ~29 modules). Use it when touching R4Agent skill workflows, memory persistence, or the R5 graph so conventions stay intact.
 
 ## Module Map
 
@@ -15,7 +15,7 @@ Architecture guide for the Praxis memory and skill subsystems (`src/l3/memory/`,
 - **Ingest/query**: `memory_ingest.py`, `memory_search.py`, `memory_query.py`, `memory_inject.py`, `memory_context.py`, `memory_quality.py`, `memory_ring.py`, `skill_retrieval.py`, `skill_retriever.py`
 - **R4Agent (skill evolution)**: `r4_agent.py` (orchestrator) + `r4_skill_evolution.py`, `r4_skill_generalize.py` (`evolve_skill`), `r4_skill_trace.py` (`_process_failure_traces` — lean cases), `r4_skill_lifecycle.py` (`_prune_stale_skills` TTL, `_clean_orphan_traces` 24h), `r4_skill_persist.py`, `r4_skill_retrieval.py`, `r4_skill_feedback.py`, `r4_skill_distill.py`
 - **R5 graph**: `memory_graph.py`
-- **Skill manager**: `src/l1/kernel/skill.py` (SkillManager), `src/l1/kernel/prompts.py` (prompt registry — prompt templates are data, not params)
+- **Skill manager**: `systems/python-reference-runtime/l1/kernel/skill.py` (SkillManager), `systems/python-reference-runtime/l1/kernel/prompts.py` (prompt registry — prompt templates are data, not params)
 
 ## Skill Evolution Conventions (R4Agent)
 
@@ -34,7 +34,7 @@ Architecture guide for the Praxis memory and skill subsystems (`src/l3/memory/`,
 
 ## Memory Conventions
 
-- **Weights in params**: `MEMORY_IMPORTANCE_*` / `MEMORY_PRESSURE_*` from `src/l1/kernel/params/system.py` — never inline.
+- **Weights in params**: `MEMORY_IMPORTANCE_*` / `MEMORY_PRESSURE_*` from `systems/python-reference-runtime/l1/kernel/params/system.py` — never inline.
 - **Persistence**: `memories/` runtime persistence via memory_persist; compaction via memory_compact; keep serialized formats backward-compatible or versioned.
 - **Conftest**: new memory services with module-level singletons must register their reset function in `_RESETS` (`tests/conftest.py`), else tests pollute each other.
 

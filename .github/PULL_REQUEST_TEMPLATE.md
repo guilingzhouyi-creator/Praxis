@@ -18,7 +18,7 @@
 
 - [ ] 新增/更新了测试(测试文件与用例数见 `collect_stats` 输出)
 - [ ] 全量测试通过: `python -m pytest tests/ -q`
-- [ ] ruff / mypy 通过: `ruff check src/ tests/ && mypy src/ ...`
+- [ ] ruff / mypy 通过: `ruff check systems/python-reference-runtime/ tests/ && mypy systems/python-reference-runtime/ ...`
 
 ## 签名与提交规范 (Signature & commit conventions)
 

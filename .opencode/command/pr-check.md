@@ -24,7 +24,7 @@ Run these git commands to build the review context:
 - [ ] Ruff clean: `make lint` (double quotes, line-length 120)
 - [ ] Layer import test passes: `python -m pytest tests/infra/test_layer_imports.py -x -q`
 - [ ] Params compliance passes: `python -m pytest tests/infra/test_params_compliance.py -x -q`
-- [ ] No hardcoded magic numbers — use `src/l1/kernel/params/` constants
+- [ ] No hardcoded magic numbers — use `systems/python-reference-runtime/l1/kernel/params/` constants
 - [ ] Truncation/hash/importance literals use the `params/system.py` / `params/tool.py` constants
 
 ### API contract (if API changed)

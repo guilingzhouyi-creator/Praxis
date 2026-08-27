@@ -4,10 +4,10 @@ import re
 from pathlib import Path
 
 SCAN_PATHS = [
-    Path("src/l2/l2_shell/commands"),
-    Path("src/l2/l2_shell/commands_settings.py"),
-    Path("src/l2/selector.py"),
-    Path("src/l2/shell_session.py"),
+    Path("systems/python-reference-runtime/l2/l2_shell/commands"),
+    Path("systems/python-reference-runtime/l2/l2_shell/commands_settings.py"),
+    Path("systems/python-reference-runtime/l2/selector.py"),
+    Path("systems/python-reference-runtime/l2/shell_session.py"),
 ]
 ERROR_FIELD = re.compile(r'"(error|message)":\s*"[^"]*[A-Za-z][^"]*"')
 ALLOWED_ERROR_VALUES = {"send_failed", "refused", "alive", ""}

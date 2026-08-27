@@ -14,7 +14,7 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from l1.kernel.skill import get_skill_manager, reset_skill_manager
 
@@ -273,7 +273,7 @@ class TestEvolvedSkillContract:
     def test_validate_skill_content_detects_paths(self):
         from l1.kernel.skill import validate_skill_content
 
-        assert validate_skill_content("write to src/l1/kernel") != []
+        assert validate_skill_content("write to systems/python-reference-runtime/l1/kernel") != []
         assert validate_skill_content("generic guidance, no project refs") == []
 
 

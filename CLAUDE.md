@@ -17,13 +17,13 @@ Card = unit of work. Cell = scheduling unit. Import direction enforced downward.
 ## Commands
 
 Run inside WSL with the repo venv (`.venv/bin/python`). Quickstart:
-`pip install -e ".[test]"` → `python src/main.py boot|health|status|ps|card` → `python -m pytest tests/ -x -q`.
+`pip install -e ".[test]"` → `python systems/python-reference-runtime/main.py boot|health|status|ps|card` → `python -m pytest tests/ -x -q`.
 Full lists: AGENTS.md "Test commands" / "Lint / format / typecheck".
 
 ## Before changing code — mandatory gates
 
 See `docs/workflow/code-of-conduct.md` for full text. Key rules:
-- **Worktree gate**: never edit `src/ tests/ config/ scripts/ docs/` on main tree
+- **Worktree gate**: never edit `systems/python-reference-runtime/ tests/ config/ scripts/ docs/` on main tree
 - **Two independent waivers** (user-granted, never self-awarded): main-tree modification (WHERE)
   and branch pre-merge (WHEN)
 - **Key conventions**: magic numbers → `params/`; prompts are data; English-only comments

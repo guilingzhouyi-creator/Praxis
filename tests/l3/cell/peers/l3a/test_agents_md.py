@@ -73,8 +73,8 @@ def test_register_cell_auto_activates_at_two_cells(monkeypatch):
 
     monkeypatch.setattr("l3.cell.peers.l3a.agents_md.generate_agents_md", _fake_generate)
     ctl = CentralController()
-    ctl.register_cell("cell-1", ["src/a"], agents=["a1"])
+    ctl.register_cell("cell-1", ["systems/python-reference-runtime/a"], agents=["a1"])
     assert calls == []  # single Cell → handbook NOT generated
-    ctl.register_cell("cell-2", ["src/b"], agents=["b1"])
+    ctl.register_cell("cell-2", ["systems/python-reference-runtime/b"], agents=["b1"])
     assert "cell-2" in calls  # 2+ Cells → per-Cell handbook generated
     assert "cell-1" not in calls  # only the newly registered Cell

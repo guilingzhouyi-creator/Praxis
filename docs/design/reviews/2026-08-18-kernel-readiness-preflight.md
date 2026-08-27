@@ -200,10 +200,10 @@ criterion.
 G5 now has a reproducible, build-only boundary:
 
 - Rust `1.97.1` with `rustfmt` and `clippy` pinned by `rust-toolchain.toml`;
-- contract-only `crates/l1-kernel-rs/` workspace with no Python bindings or
+- contract-only `systems/rust-kernel-engine/l1-kernel-rs/` workspace with no Python bindings or
   execution authority;
 - Node 24 CI pin, TypeScript 5.7/Vitest lockfile, and read-only
-  `packages/protocol-ts/` parity mirror;
+  `systems/typescript-shell-engine/` parity mirror;
 - Makefile and CI gates for install, test, typecheck, format, and clippy.
 
 Local verification passed: TS `5 tests`, TypeScript typecheck, Rust unit tests,

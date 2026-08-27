@@ -1,6 +1,6 @@
 # Service runtime limits — auto-discovered by ConfigDiscovery.
-# Overlays src/l1/kernel/params/*.py defaults (see _init_discovery in
-# src/l3/boot/boot.py, section "service_limits").
+# Overlays systems/python-reference-runtime/l1/kernel/params/*.py defaults (see _init_discovery in
+# systems/python-reference-runtime/l3/boot/boot.py, section "service_limits").
 #
 # The values below are the params defaults, kept commented out so
 # this file carries no duplicated truth. Uncomment + edit a key to override

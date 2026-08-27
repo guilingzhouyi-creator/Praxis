@@ -94,7 +94,7 @@ ADDED=0
 DELETED=0
 DOC_LINES=0
 DOCS_ONLY=1
-CODE_PREFIXES="src/ tests/ config/ scripts/ .github/ .githooks/ locales/ .gitcode/"
+CODE_PREFIXES="systems/python-reference-runtime/ tests/ config/ scripts/ .github/ .githooks/ locales/ .gitcode/"
 CODE_FILES="pyproject.toml Makefile Dockerfile docker-compose.yml .pre-commit-config.yaml .gitleaks.toml codecov.yml .editorconfig .gitattributes .mcp.json"
 DOC_PREFIXES="docs/"
 DOC_FILES="README.md AGENTS.md CHANGELOG.md LICENSE .praxis-rules.md"
@@ -151,7 +151,7 @@ if [ "$ADDED" -gt 0 ]; then
   COMMENT_ADDED=$(python3 - "$MERGE_BASE" "$BRANCH" <<'PY'
 import subprocess, sys
 base, head = sys.argv[1], sys.argv[2]
-paths = ["src", "tests", "config", "scripts", ".github", ".githooks", "locales", ".gitcode"]
+paths = ["systems/python-reference-runtime", "tests", "config", "scripts", ".github", ".githooks", "locales", ".gitcode"]
 out = subprocess.run(
     ["git", "diff", "-U0", base, head, "--", *paths],
     capture_output=True, text=True,

@@ -7,7 +7,7 @@
 ## TaskStartSnapshot
 
 - HEAD：`1a396e650f5cd5f21e9047c4a2e073ff55727bb8`（= `origin/main`）
-- 基线：`tests/l3/l3a/test_compression_ratio.py`、`tests/l3/agent/{test_compression_guard,test_sensitive_detect,test_digest_cache,test_tool_result_cache}.py`、`tests/l3/config/test_cache_strategy.py` 共 27 tests 全绿（worktree src 经 `pyproject.toml [tool.pytest.ini_options] pythonpath=["src"]` 解析到 worktree）
+- 基线：`tests/l3/l3a/test_compression_ratio.py`、`tests/l3/agent/{test_compression_guard,test_sensitive_detect,test_digest_cache,test_tool_result_cache}.py`、`tests/l3/config/test_cache_strategy.py` 共 27 tests 全绿（worktree src 经 `pyproject.toml [tool.pytest.ini_options] pythonpath=["systems/python-reference-runtime"]` 解析到 worktree）
 - 迁移原则：绞杀者（strangler-fig）——老架构不动、新架构并行建、配置门控过渡态、验证后迁移、最后移除老路径
 
 ## 1. Goal
@@ -62,7 +62,7 @@ Phase 5  基准（G7 压缩比实测 + 基线落盘）
 - `docs/architecture/l3-memory.md`（Context isolation + 3.1 B1–B6 现状）
 - `docs/architecture/l3a-central.md`（History compression 五级管线）
 - `docs/architecture/perf-baseline.md`（`perf_quality.py` + `perf-baseline.yaml` 契约）
-- `src/l1/kernel/params/system.py`（B1/B2/B6 默认常量）
+- `systems/python-reference-runtime/l1/kernel/params/system.py`（B1/B2/B6 默认常量）
 - `config/discovery/commits.yaml`（提交门禁）
 
 ## 5. Compatibility boundary（兼容边界）

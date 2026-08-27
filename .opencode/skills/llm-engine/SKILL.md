@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis LLM/reasoning code — llm_pro
 
 ## Overview
 
-Architecture guide for the L4 LLM/reasoning system (`src/l4/llm/`). Config-first: no model name is hardcoded in agent code — everything flows through providers, effort tiers, strategy packs, and the model_spec cascade.
+Architecture guide for the L4 LLM/reasoning system (`systems/python-reference-runtime/l4/llm/`). Config-first: no model name is hardcoded in agent code — everything flows through providers, effort tiers, strategy packs, and the model_spec cascade.
 
 ## Module Map
 

@@ -18,7 +18,7 @@ backends to the Code Mode / PTC presentation layer.
 
 ## 1. The backend model (already in place)
 
-`src/l3/tool_system/tool_presentation.py` defines one abstraction the whole
+`systems/python-reference-runtime/l3/tool_system/tool_presentation.py` defines one abstraction the whole
 framework depends on:
 
 ```
@@ -48,7 +48,7 @@ as backward-compatible aliases.
 
 ## 2. Adding a TypeScript backend
 
-1. **New file** `src/l3/tool_system/ts_language_backend.py` (or extend
+1. **New file** `systems/python-reference-runtime/l3/tool_system/ts_language_backend.py` (or extend
    `tool_presentation.py`):
 
    ```python
@@ -156,9 +156,9 @@ engine and the Rust kernel mechanism set.
 The language build perimeter is now executable without changing the Python3
 runtime:
 
-- `packages/protocol-ts/package-lock.json` fixes the TypeScript/Vitest graph;
+- `systems/typescript-shell-engine/package-lock.json` fixes the TypeScript/Vitest graph;
   `npm ci` is the only clean-install path used by the Makefile and CI.
-- `crates/` is a pinned Rust 1.97.1 workspace with `rustfmt` and `clippy`.
+- `systems/rust-kernel-engine/` is a pinned Rust 1.97.1 workspace with `rustfmt` and `clippy`.
   `l1-kernel-rs` exports only a versioned contract descriptor and forbids
   unsafe code.
 - `make language-check` runs TS tests/typecheck plus Rust test, format, and

@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 def _install_mock_engine(tool_call_results, generate_responses=None):
@@ -134,8 +134,8 @@ class TestAgentLoopMultistepChain:
 
             def tool_use(self, prompt, tools, system="", max_turns=5, user_id="", **overrides):
                 canned = [
-                    ("read_file", 1, {"path": "src/x.py"}),
-                    ("edit_file", 2, {"path": "src/x.py"}),
+                    ("read_file", 1, {"path": "systems/python-reference-runtime/x.py"}),
+                    ("edit_file", 2, {"path": "systems/python-reference-runtime/x.py"}),
                     ("verify", 1, {}),
                 ]
                 executed = []
@@ -348,12 +348,16 @@ class TestDialogueCrossTurnToolFeedback:
 
         # Turn 1: LLM called read_file tool, returned 'file content'
         session.record_turn(
-            prompt="what is in src/x.py?",
+            prompt="what is in systems/python-reference-runtime/x.py?",
             response="let me read the file",
-            tool_calls=[{"name": "read_file", "args": {"path": "src/x.py"}}],
+            tool_calls=[{"name": "read_file", "args": {"path": "systems/python-reference-runtime/x.py"}}],
         )
         # Feed back: push tool result into next turn's context
-        session.push_context(role="tool", content="read_file(src/x.py) => 'file content'", source="read_file")
+        session.push_context(
+            role="tool",
+            content="read_file(systems/python-reference-runtime/x.py) => 'file content'",
+            source="read_file",
+        )
 
         # Turn 2: build_context must include previous turn's tool result
         ctx = session.build_context()
@@ -378,8 +382,8 @@ class TestDialogueCrossTurnToolFeedback:
 
         # Simulate 3 turns of read→edit→verify tool call accumulation feedback
         steps = [
-            ("read_file", "read_file(src/a.py) => 'a content'", "read a"),
-            ("edit_file", "edit_file(src/a.py) => 'edited'", "edit it"),
+            ("read_file", "read_file(systems/python-reference-runtime/a.py) => 'a content'", "read a"),
+            ("edit_file", "edit_file(systems/python-reference-runtime/a.py) => 'edited'", "edit it"),
             ("verify", "verify() => 'ok'", "verify"),
         ]
         for _i, (tool_name, tool_feedback, prompt) in enumerate(steps):

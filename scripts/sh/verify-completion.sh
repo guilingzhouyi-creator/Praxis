@@ -193,7 +193,7 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
   # which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
   # thrashes memory and hangs the suite. Default 4 workers; operators may
   # override with JUDGE_PYTEST_N (0 = single process, safest).
-  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
+  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
     S_COVERAGE=1; pass "coverage >= $THRESH%"
     M_TESTS_FAILED=0
@@ -258,7 +258,7 @@ fi
 # ── 2. Coverage (standalone — tests skipped) ────────────────────────────
 if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
   echo "[judge] ── 2. Coverage (standalone, fail-under) ──"
-  if python -m pytest tests/ -q --tb=short $XDIST_ARGS --cov=src --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
+  if python -m pytest tests/ -q --tb=short $XDIST_ARGS --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     S_COVERAGE=1; pass "coverage >= $THRESH%"
   else
     S_COVERAGE=2; grep -E "TOTAL|fail_under" /tmp/judge_cov.log | tail -2 >&2
@@ -315,10 +315,10 @@ if [ "$RUN_LINT" = "1" ]; then
   echo "[judge] ── 5. ruff + mypy ──"
   LINT_OK=1
   if [ -f pyproject.toml ]; then
-    ruff check src/ tests/ > /tmp/judge_ruff.log 2>&1 || LINT_OK=0
-    ruff format --check src/ tests/ >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
+    ruff check systems/python-reference-runtime/ tests/ > /tmp/judge_ruff.log 2>&1 || LINT_OK=0
+    ruff format --check systems/python-reference-runtime/ tests/ >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     if command -v mypy >/dev/null 2>&1; then
-      mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
+      mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators >> /tmp/judge_ruff.log 2>&1 || LINT_OK=0
     else
       echo "mypy not installed — type check cannot run" >> /tmp/judge_ruff.log
       LINT_OK=0

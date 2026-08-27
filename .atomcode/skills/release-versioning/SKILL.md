@@ -9,7 +9,7 @@ Operational checklist for versioning and contract management. The first multi-ag
 
 ## Contract Versioning Rules
 
-- **API contracts are versioned, not edited in place**: all HTTP routes live under `/api/v2/` (src/l4/api/api_routes.py). Breaking path changes require a new version segment (`/api/v3/`) PLUS an entry in the endpoint manifest (`src/l4/api/api_endpoints.py`). `_strip_version` classifies version-agnostically.
+- **API contracts are versioned, not edited in place**: all HTTP routes live under `/api/v2/` (systems/python-reference-runtime/l4/api/api_routes.py). Breaking path changes require a new version segment (`/api/v3/`) PLUS an entry in the endpoint manifest (`systems/python-reference-runtime/l4/api/api_endpoints.py`). `_strip_version` classifies version-agnostically.
 - **Path naming enforced**: kebab-case segments, `{param}` placeholders whose names mirror handler keyword args (no generic `id`), no trailing-slash parameter style. `validate()` in `api_endpoints.py` rejects violations.
 - **The manifest is the single source of truth**: register via `register_endpoint()` / `register_domain()` / `register_group()`; never hand-edit `API_ROUTES` for classification purposes.
 - **Validate before pushing API changes**: `python -m l4.api.api_endpoints`.
@@ -20,7 +20,7 @@ Run `python scripts/py/bump_version.py <ver>` (or `make bump-version`; `--dry-ru
 
 1. `pyproject.toml` version
 2. `AGENTS.md` header (`# Praxis — Agent OS (v<ver> "<codename>")`)
-3. `src/l1/kernel/params/system.py` `KERNEL_VERSION`
+3. `systems/python-reference-runtime/l1/kernel/params/system.py` `KERNEL_VERSION`
 4. Its test assertions (kernel version test)
 5. `docs/` SOC references
 
@@ -29,7 +29,7 @@ Run `python scripts/py/bump_version.py <ver>` (or `make bump-version`; `--dry-ru
 
 ## Release Flow
 
-1. Bump version atomically on a `feature/` branch (mainline whitelist covers CHANGELOG; `src/` + `pyproject.toml` changes need the branch flow).
+1. Bump version atomically on a `feature/` branch (mainline whitelist covers CHANGELOG; `systems/python-reference-runtime/` + `pyproject.toml` changes need the branch flow).
 2. Validate endpoints: `python -m l4.api.api_endpoints`.
 3. Double-green: full suite on the branch and on main (`source .venv/bin/activate && python -m pytest tests/`), then `bash scripts/sh/verify-completion.sh` COMPLETE (11-dimension judge, including net-delta).
 4. Merge with `--no-ff`, keep the branch for traceability. The mainline net-delta gate (`verify-main-merge-gate.sh`, auto-run by `push-both.sh main`) applies — an API bump with real code qualifies; accumulate on the branch if rejected (never self-waive; ask the user when genuinely stalled below threshold).

@@ -1,4 +1,4 @@
-"""Detect circular imports in src/ via AST.
+"""Detect circular imports in systems/python-reference-runtime/ via AST.
 
 Builds a module dependency graph from import statements (absolute and
 relative) and reports strongly-connected components with more than one
@@ -17,7 +17,7 @@ import sys
 
 
 def _module_name(py: pathlib.Path) -> str:
-    parts = py.relative_to("src").with_suffix("").parts
+    parts = py.relative_to("systems/python-reference-runtime").with_suffix("").parts
     if parts and parts[-1] == "__init__":
         parts = parts[:-1]
     return ".".join(parts)
@@ -81,7 +81,7 @@ def _build_graph() -> tuple[dict[str, set[str]], dict[str, str]]:
 
         yield from visit(tree, False)
 
-    for py in sorted(pathlib.Path("src").rglob("*.py")):
+    for py in sorted(pathlib.Path("systems/python-reference-runtime").rglob("*.py")):
         if "__pycache__" in py.parts:
             continue
         try:

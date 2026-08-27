@@ -4,18 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - "crates/**"
+      - "systems/rust-kernel-engine/**"
       - "rust-toolchain.toml"
-      - "packages/protocol-ts/**"
+      - "systems/typescript-shell-engine/**"
       - "tests/fixtures/protocol_v1_records.json"
       - "Makefile"
       - ".github/workflows/multilang.yml"
   pull_request:
     branches: [main]
     paths:
-      - "crates/**"
+      - "systems/rust-kernel-engine/**"
       - "rust-toolchain.toml"
-      - "packages/protocol-ts/**"
+      - "systems/typescript-shell-engine/**"
       - "tests/fixtures/protocol_v1_records.json"
       - "Makefile"
       - ".github/workflows/multilang.yml"
@@ -34,13 +34,13 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: packages/protocol-ts/package-lock.json
+          cache-dependency-path: systems/typescript-shell-engine/package-lock.json
       - name: Install TypeScript dependencies
-        run: npm ci --prefix packages/protocol-ts
+        run: npm ci --prefix systems/typescript-shell-engine
       - name: TypeScript protocol tests
-        run: npm test --prefix packages/protocol-ts
+        run: npm test --prefix systems/typescript-shell-engine
       - name: TypeScript typecheck
-        run: npm run typecheck --prefix packages/protocol-ts
+        run: npm run typecheck --prefix systems/typescript-shell-engine
 
   rust:
     runs-on: ubuntu-latest
@@ -52,10 +52,10 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: crates
+          workspaces: systems/rust-kernel-engine
       - name: Rust tests
-        run: cargo test --workspace --manifest-path crates/Cargo.toml
+        run: cargo test --workspace --manifest-path systems/rust-kernel-engine/Cargo.toml
       - name: Rust format check
-        run: cargo fmt --manifest-path crates/Cargo.toml --all -- --check
+        run: cargo fmt --manifest-path systems/rust-kernel-engine/Cargo.toml --all -- --check
       - name: Rust clippy
-        run: cargo clippy --manifest-path crates/Cargo.toml --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --manifest-path systems/rust-kernel-engine/Cargo.toml --workspace --all-targets --all-features -- -D warnings

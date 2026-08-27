@@ -4,15 +4,23 @@ Rust and TypeScript build scaffolding for the language-neutral rewrite
 contracts; neither workspace is a Praxis runtime authority. The target Rust
 kernel is a clean-break build, not a Python user-data compatibility layer.
 
+The physical system boundary is declared in
+[`systems/system-boundaries.yaml`](../../systems/system-boundaries.yaml) and
+validated by `make system-boundaries`. The build perimeter may run cross-language
+tests, but runtime source trees remain source-to-source independent.
+
 ## Workspace inventory
 
 | Path | Role | Runtime status |
 |---|---|---|
-| `crates/` | Cargo workspace for selective L1 mechanism sinks | Build-only; isolated candidates only |
-| `crates/l1-kernel-rs/` | Versioned Rust L1 boundary types and isolated mechanism candidates | Candidate-only; no Python bindings, policy, or execution authority |
-| `packages/protocol-ts/` | TypeScript mirror of protocol v1 and TS-neutral records | Read-only parity implementation |
+| `systems/rust-kernel-engine/` | Cargo workspace for selective L1 mechanism sinks | Build-only; isolated candidates only |
+| `systems/rust-kernel-engine/l1-kernel-rs/` | Versioned Rust L1 boundary types and isolated mechanism candidates | Candidate-only; no Python bindings, policy, or execution authority |
+| `systems/typescript-shell-engine/` | TypeScript mirror of protocol v1 and TS-neutral records | Read-only parity implementation |
 | `rust-toolchain.toml` | Rust compiler, formatter, and linter pin | Build input |
-| `packages/protocol-ts/package-lock.json` | Reproducible npm dependency graph | Build input |
+| `systems/typescript-shell-engine/package-lock.json` | Reproducible npm dependency graph | Build input |
+
+The TypeScript package is intentionally named `@praxis/typescript-shell-engine`;
+the historical `@praxis/protocol-ts` name is not used for new development.
 
 ## Contracts
 
@@ -55,7 +63,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   fairness, and SSE/WS fan-out remain outside the deterministic vector.
 - Rust test ownership is fully isolated by boundary: mechanism invariants,
   concurrency behavior, public behavior, and cross-language parity tests live
-  under `crates/l1-kernel-rs/tests/<domain>/` and consume `tests/fixtures/` when
+  under `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` and consume `tests/fixtures/` when
   vectors are required. `Cargo.toml` explicitly registers each historical
   target name with `autotests = false`; implementation modules contain no
   inline test blocks. `make rust-contract-test` runs the independent domain,
@@ -96,13 +104,13 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   values. It is a mechanism-only session truth seam for a future AgentLoop and
   TS bridge; it does not execute prompts/tools, own PTY processes, or replace
   Python session/runtime authority. Its public tests live in
-  `crates/l1-kernel-rs/tests/session/session.rs` and `session_vectors.rs`.
+  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/session.rs` and `session_vectors.rs`.
 - The Rust `session_store` adapter persists the complete `SessionBook` as an
   atomically replaced, versioned document under the fresh Rust state root.
   Clean writes reject active/closing sessions; unclean documents normalize
   non-terminal sessions to explicit `crashed` state and require caller-driven
   recovery. It does not import Python state or execute AgentLoop/provider work.
-  Its public behavior is isolated in `crates/l1-kernel-rs/tests/session/session_store.rs`.
+  Its public behavior is isolated in `systems/rust-kernel-engine/l1-kernel-rs/tests/session/session_store.rs`.
   The `rust-session-store-probe` binary is test-only (build with
   `make rust-session-store-probe`): `emit` writes a
   deterministic unclean checkpoint and `validate` reads and validates an
@@ -194,7 +202,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   linearized under one loop lock. Provider/model/tool execution, prompt policy,
   PTY/subprocess ownership, terminal mailbox mutation, and runtime scheduling
   remain outside this candidate; its independent tests live in
-  `crates/l1-kernel-rs/tests/session/agent_loop.rs`. `run_agent_loop` and the
+  `systems/rust-kernel-engine/l1-kernel-rs/tests/session/agent_loop.rs`. `run_agent_loop` and the
   `rust-agent-loop-bench` binary emit separate v3 fixed-work evidence with
   loop-mutex wait accounting; the current 4096-item smoke shows decreasing
   throughput and rising wait at 2/4 workers, so no scaling policy is promoted.
@@ -334,7 +342,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips
   unknown record fields, and provides bounded replay/cursor values. Its public
-  parity tests live in `crates/l1-kernel-rs/tests/protocol/protocol_vectors.rs` and
+  parity tests live in `systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/protocol_vectors.rs` and
   consume `tests/fixtures/protocol_v1_records.json`; HTTP/WS framing, L2
   dispatch, clocks, and runtime session ownership remain adapters.
 - The Rust `protocol_host` module is the bounded R4 JSONL adapter seam. It
@@ -343,7 +351,7 @@ kernel is a clean-break build, not a Python user-data compatibility layer.
   envelopes, and returns structured failures without dispatching or executing
   them. `rust-protocol-gate` is a no-Python stdin/stdout smoke entrypoint;
   rejected lines are diagnostics only. Its mechanism tests live in the
-  independent `crates/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
+  independent `systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/protocol_host.rs` target, and it does
   not own AgentLoop, provider, session, or runtime authority.
 - The TS L2 transport layer now exposes a managed child-process factory for
   the Python reference and Rust `rust-protocol-host`. `PRAXIS_RUST_HOST` is

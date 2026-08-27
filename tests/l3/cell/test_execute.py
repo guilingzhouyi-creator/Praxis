@@ -9,7 +9,7 @@ from l3.cell.components.cell_execute import _raw_to_card, _take_snapshot, execut
 def test_execute_card_raw_string():
     """execute_card accepts a raw intent string and returns a result dict."""
     reset_cells()
-    cell = get_cell("test-cell", territory=["src"])
+    cell = get_cell("test-cell", territory=["systems/python-reference-runtime"])
     result = execute_card(cell, "test intent")
     assert isinstance(result, dict)
     assert "card_id" in result or "success" in result
@@ -18,10 +18,10 @@ def test_execute_card_raw_string():
 def test_execute_card_handles_issue():
     """execute_card routes IssueCard to convention protocol."""
     reset_cells()
-    cell = get_cell("test-cell-2", territory=["src"])
+    cell = get_cell("test-cell-2", territory=["systems/python-reference-runtime"])
     from l3.card.issue import IssueCard
 
-    card = IssueCard(title="test issue", intent="fix bug", domain="src")
+    card = IssueCard(title="test issue", intent="fix bug", domain="systems/python-reference-runtime")
     result = execute_card(cell, card)
     assert isinstance(result, dict)
 
@@ -29,8 +29,8 @@ def test_execute_card_handles_issue():
 def test_raw_to_card_returns_card():
     """_raw_to_card converts a string to a Card object."""
     reset_cells()
-    cell = get_cell("test-cell-3", territory=["src"])
-    card = _raw_to_card(cell, "simple task", "src")
+    cell = get_cell("test-cell-3", territory=["systems/python-reference-runtime"])
+    card = _raw_to_card(cell, "simple task", "systems/python-reference-runtime")
     assert card is not None
     assert hasattr(card, "phases") or hasattr(card, "intent")
 
@@ -38,8 +38,8 @@ def test_raw_to_card_returns_card():
 def test_raw_to_card_skip_htn():
     """_raw_to_card with skip_htn=True bypasses HTN decomposition."""
     reset_cells()
-    cell = get_cell("test-cell-4", territory=["src"])
-    card = _raw_to_card(cell, "test", "src", skip_htn=True)
+    cell = get_cell("test-cell-4", territory=["systems/python-reference-runtime"])
+    card = _raw_to_card(cell, "test", "systems/python-reference-runtime", skip_htn=True)
     assert card is not None
 
 

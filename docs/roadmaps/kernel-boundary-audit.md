@@ -10,18 +10,18 @@
 
 | # | 事实 | 位置 |
 |---|---|---|
-| E1 | `syscall()` 生产环境 0 调用者（唯一调用在 `tests/integration/test_integration.py:47`）；`register_syscall()` 外部 0 使用者；内置 8 组 ~23 个子操作 | `src/l1/kernel/__init__.py` |
+| E1 | `syscall()` 生产环境 0 调用者（唯一调用在 `tests/integration/test_integration.py:47`）；`register_syscall()` 外部 0 使用者；内置 8 组 ~23 个子操作 | `systems/python-reference-runtime/l1/kernel/__init__.py` |
 | E2 | 上层（L2–L5）对 kernel 的直接 import 共 1,104 处，全部绕过 syscall 直改内核状态 | 全量 grep |
 | E3 | 三套互相独立的进程/卡片注册表：kernel `ProcessTable`、L3 `IssueTable`、L3 `CardRegistry` | `l1/kernel/process.py`、`l3/card/issue.py`、`l3/card/card_registry.py` |
-| E4 | Kernel 无任何 scheduler 模块；调度在 L3 `CentralScheduler` + L4 `CronScheduler`，主路径仅 best-effort（try/except + debug 吞掉） | `src/l3/scheduler/`、`src/l3/cell/components/cell_execute.py` |
-| E5 | 主 agent 路径经 L3 ToolPipeline 门禁（`agent_loop.py:_wrap_handler`），但存在多条不经 pipeline 的执行路径（见 §5） | `src/l3/agent/agent_loop.py:367` |
-| E6 | G1 白名单从未填充：`register_tools()` 生产零调用；空白名单 → G1 = WARN；`test_unknown_tool_g1_blocks` 只断言 `allowed is not None` | `src/l1/kernel/gatechain.py:325`、`tests/l1/test_gatechain.py:163` |
-| E7 | G2 身份校验仅 WARN（no Ed25519 keypair）；进程表 FSM 无人驱动 run/yield/exit | `src/l1/kernel/gatechain.py:339` |
-| E8 | API 鉴权默认开放：无静态 token 且无 AuthPort → 放行；AuthPort 失败回退静态 token；空 token → True（backward-compatible open default） | `src/l4/api/api_handler.py:31-66` |
-| E9 | harness 姿态检查 fail-open：posture matrix 校验包在 try/except + logger.debug | `src/l3/tool_system/harness.py:83` |
-| E10 | VFS 文档声称唯一文件通路，实际仅 boot 步骤 + 2 个 L2 命令使用；真实 I/O 走 `l3/services/fs_adapter.py`（直接 OS）与 L4 sandbox | `src/l1/kernel/vfs.py:1-15` |
-| E11 | Kernel 审计为内存 deque（maxlen、无持久化）；RC/审计在 L3（`reference_channel.py`），异步 best-effort | `src/l1/kernel/__init__.py:73` |
-| E12 | 事件系统多头：kernel EventBus/SystemBus/IpcBus + L3 L3B/task_bus/monitor_bus/observability_bus/error_bus；`SignalType` 多成员无生产 emitter，字符串事件与枚举命名分裂 | `src/l1/kernel/event.py` |
+| E4 | Kernel 无任何 scheduler 模块；调度在 L3 `CentralScheduler` + L4 `CronScheduler`，主路径仅 best-effort（try/except + debug 吞掉） | `systems/python-reference-runtime/l3/scheduler/`、`systems/python-reference-runtime/l3/cell/components/cell_execute.py` |
+| E5 | 主 agent 路径经 L3 ToolPipeline 门禁（`agent_loop.py:_wrap_handler`），但存在多条不经 pipeline 的执行路径（见 §5） | `systems/python-reference-runtime/l3/agent/agent_loop.py:367` |
+| E6 | G1 白名单从未填充：`register_tools()` 生产零调用；空白名单 → G1 = WARN；`test_unknown_tool_g1_blocks` 只断言 `allowed is not None` | `systems/python-reference-runtime/l1/kernel/gatechain.py:325`、`tests/l1/test_gatechain.py:163` |
+| E7 | G2 身份校验仅 WARN（no Ed25519 keypair）；进程表 FSM 无人驱动 run/yield/exit | `systems/python-reference-runtime/l1/kernel/gatechain.py:339` |
+| E8 | API 鉴权默认开放：无静态 token 且无 AuthPort → 放行；AuthPort 失败回退静态 token；空 token → True（backward-compatible open default） | `systems/python-reference-runtime/l4/api/api_handler.py:31-66` |
+| E9 | harness 姿态检查 fail-open：posture matrix 校验包在 try/except + logger.debug | `systems/python-reference-runtime/l3/tool_system/harness.py:83` |
+| E10 | VFS 文档声称唯一文件通路，实际仅 boot 步骤 + 2 个 L2 命令使用；真实 I/O 走 `l3/services/fs_adapter.py`（直接 OS）与 L4 sandbox | `systems/python-reference-runtime/l1/kernel/vfs.py:1-15` |
+| E11 | Kernel 审计为内存 deque（maxlen、无持久化）；RC/审计在 L3（`reference_channel.py`），异步 best-effort | `systems/python-reference-runtime/l1/kernel/__init__.py:73` |
+| E12 | 事件系统多头：kernel EventBus/SystemBus/IpcBus + L3 L3B/task_bus/monitor_bus/observability_bus/error_bus；`SignalType` 多成员无生产 emitter，字符串事件与枚举命名分裂 | `systems/python-reference-runtime/l1/kernel/event.py` |
 | E13 | 危险工具 `execute_shell`/`destroy_file`/`deploy`/`run_code` 标注 requires witness approval，但该批准仅 pipeline 内生效 | `config/tools.yaml` layer_3 |
 
 ## 1. Kernel Boundary Map（当前职责归属）
@@ -132,7 +132,7 @@
 
 ## 8. Dependency Direction
 
-- 静态 import：L1 → 上层干净（src/l1 无 from l3/l4 语句）。
+- 静态 import：L1 → 上层干净（systems/python-reference-runtime/l1 无 from l3/l4 语句）。
 - 但 tests/infra/test_layer_imports.py 无条件 allowlist (1,3) 与 (1,4) 模式——向上 import 重新引入不会被拦。
 - 动态/注入耦合：kernel → L3/L4 回调（§7），属 Kernel → Application 注入形态，多处 fail-open。
 
@@ -170,7 +170,7 @@ Kernel 强制不变量：单一执行器；G1 白名单非空（未知能力=BLO
 1. **Phase 0（Python3 侧封口，先于任何 Rust 迁移）**：修复 B1/B2/B3 绕过与 E8/E9 fail-open；`register_tools()` 接线使 G1 白名单非空；把 execute_tool_spec 降为仅 pipeline 可调。
    - ✅ **部分已实施（feature/kernel-boundary-hardening）**：B1/B2 改走 `invoke_capability`（单一执行门，交互主体经 `interactive` 过 G2，G1/G3/G4/G5 照常）；B3 拒绝未包装 spec（`ToolSpec.gated`）；B5 sideload 改走 CardRegistry.submit；E8 API 鉴权默认关闭（`AUTH_DENY_WHEN_UNCONFIGURED`，`PRAXIS_AUTH_OPEN=1` 显式开启）；W2.3 G1 白名单 boot 填充 + 空白名单 BLOCK（fail-closed）；W4.2 每次工具调用（含被拒）写入 kernel 审计。**剩余未封口：B4（`$` 直跑 ProcessPort）、B6（长生命周期 Popen 句柄）、B8（L3A handler 捷径）、B9（死 syscall）——见 `production-closure-roadmap.md` P0.5/P0.6。**
 2. **Phase 1（执行权威收敛）**：在 kernel 侧定义 invoke-capability 接口并让 AgentLoop/MCP/L2/LLM engine/sideload 全部改走它——Rust 重写才有单一可替换执行面。
-   - ✅ **已实施（W6.1）**：`src/l1/kernel/capability.py::invoke_capability` 成为唯一执行权威——未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点把 kernel seam 连到 ToolPipeline（`_register_capability_executor` → `invoke_gated`）；L2 shell 与 MCP 边界调用方已全部改走 kernel seam。同时落地 W2.2（harness posture 校验失败即拒绝）与 W2.4（RING≥2 未验证身份 G2 BLOCK）。
+   - ✅ **已实施（W6.1）**：`systems/python-reference-runtime/l1/kernel/capability.py::invoke_capability` 成为唯一执行权威——未接线 executor 即 fail-closed BLOCK + 审计；boot 唯一接线点把 kernel seam 连到 ToolPipeline（`_register_capability_executor` → `invoke_gated`）；L2 shell 与 MCP 边界调用方已全部改走 kernel seam。同时落地 W2.2（harness posture 校验失败即拒绝）与 W2.4（RING≥2 未验证身份 G2 BLOCK）。
 3. **Phase 2（按缩放曲线选热路径，frontend-kernel-roadmap §4.2）**：优先 sync/event/allocator/process 记账等纯机制模块；只迁移机制，策略留在 Python3/config。
    - ✅ **候选切片已落地（feature/root-kernel-preflight）**：Rust `platform` 已镜像 OS 值、shell/grep 命令构造、URL 拼接、临时目录派生和 TCP endpoint 解析；`paths` 已镜像 DeployMode、配置覆盖、完整 `PraxisPaths` 子路径/模板字段和 resettable store；`territory` 已提供带显式 working directory 的组件边界判断；`interrupt` 已提供五类 IRQ、按类型序号和 bounded history 记账；`errors` 已提供错误码目录、失败响应、cause 截断和显式 trace 值；`discovery` 已镜像 defaults/source/runtime 三层 registry、对象浅合并、标量替换、null section 保留默认值、未知 section 忽略和 tool/service fallback；`load_adaptive` 已镜像纯 EWMA/hysteresis/扩缩容控制律，时间显式注入；`schema` 已镜像 owner 冲突、同 owner 更新和排序快照；`rule_descriptor` 已镜像纯 severity/result、描述元数据、排序 tags 和 checker context；共享向量覆盖 POSIX/Windows、CLI/Docker、territory、interrupt、errors、discovery、load-adaptive、schema 与 rule-descriptor 分支，但不执行任何 subprocess/filesystem/socket/symlink/callback/i18n/ErrorBus/YAML 目录扫描/线程池/EventBus/catalog/Markdown 副作用。
 4. **Phase 3（下沉验收）**：每个下沉模块必须满足——无 bypass、fail-closed、审计强制、白名单非空、port 接口不变（`l1_kernel_rs` 复用同一套 params/ 常量）。

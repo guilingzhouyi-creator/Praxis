@@ -95,6 +95,7 @@ flowchart TB
 | — | [perf-baseline.md](perf-baseline.md) | Per-layer performance gates: benchmark vs baseline scan (perf_quality.py), drift floor |
 | — | [automation.md](automation.md) | Declarative automation manifest, DAG planning, ProcessPort execution, and evidence hooks |
 | — | [multilang-build.md](multilang-build.md) | Rust workspace and TypeScript protocol build boundary for the staged rewrite |
+| — | [`systems/README.md`](../../systems/README.md) | Physical three-system layout and build-perimeter boundary (machine check: `make system-boundaries`) |
 | — | [completion-judge.md](completion-judge.md) | CompletionJudge: 11-dimension "done" gate, COMPLETE/PARTIAL/INCOMPLETE verdicts, shared JSONL log, mode-split dashboard |
 | — | [skill-system.md](skill-system.md) | Skill manager (L1), R4Agent evolution, per-Cell bindings, staged/guided skills |
 | — | [runtime-subsystems.md](runtime-subsystems.md) | error bus (trace_id), AgentLoop entities, boot, search, LLM workers, resource buffer, ConfigDiscovery |
@@ -104,17 +105,17 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| L1 Kernel | 66 files / 18,598 lines |
+| L1 Kernel | 66 files / 18,613 lines |
 | L2 Shell | 45 files / 6,624 lines |
-| L3 Cell | 351 files / 79,484 lines |
-| L4 Bridge | 113 files / 23,465 lines |
+| L3 Cell | 351 files / 79,515 lines |
+| L4 Bridge | 113 files / 23,470 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 7,367 lines |
 | L3 Memory | 47 files / 11,040 lines |
 | L3 Card | 27 files / 6,451 lines |
 | L3 Services | 45 files / 11,742 lines |
 | L3 Bus | 17 files / 4,396 lines |
-| L3 Agent | 37 files / 8,808 lines |
+| L3 Agent | 37 files / 8,810 lines |
 | L4 Handlers | 34 files / 6,337 lines |
 | API routes | 368 (`/api/v2/*` versioned) |
 | Route domains | 46 (largest: memory=37, skill=29, system=18, security=18, provider=17) |

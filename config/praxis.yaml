@@ -460,7 +460,7 @@ prompt:
 # Loaded by l3.config.config_handlers_llm.cfg_prompts → l1.kernel.prompts.
 # Keys follow the dot notation used by get_prompt(); each override replaces
 # the built-in template of the same key (priority: override > built-in).
-# See src/l1/kernel/prompts.py _DEFAULTS for the full key list, and
+# See systems/python-reference-runtime/l1/kernel/prompts.py _DEFAULTS for the full key list, and
 # docs/configuration/overview.md for details.
 prompts:
   # verifier.self_check: "Custom verification prompt..."  # example override
@@ -523,14 +523,14 @@ api:
 # ── Territory → role mapping (paths must exist in this repo) ──
 territories:
   reader:
-    - src/l1
-    - src/l2
+    - systems/python-reference-runtime/l1
+    - systems/python-reference-runtime/l2
     - docs
   writer:
-    - src/l3
-    - src/l4
+    - systems/python-reference-runtime/l3
+    - systems/python-reference-runtime/l4
   reviewer:
-    - src/l5
+    - systems/python-reference-runtime/l5
     - config
 
 # ── Clearance (role → ring) ──

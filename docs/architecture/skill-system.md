@@ -38,7 +38,7 @@ operation. Persistence (builtin / evolved / lean SKILL.md) round-trips through t
 registry; retrieval ranks candidates for the three injection consumers; R4Agent
 evolution writes back under the write gate.
 
-## 1. Registry (L1, `src/l1/kernel/skill.py`)
+## 1. Registry (L1, `systems/python-reference-runtime/l1/kernel/skill.py`)
 
 ### 1.1 Skill record
 

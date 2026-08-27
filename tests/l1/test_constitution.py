@@ -37,7 +37,7 @@ class TestTerritoryConstitution:
 
     def test_is_blank_false(self):
         tc = TerritoryConstitution()
-        tc.territories["agent_a"] = ["src/"]
+        tc.territories["agent_a"] = ["systems/python-reference-runtime/"]
         assert not tc.is_blank()
 
 
@@ -61,7 +61,7 @@ G5: report_decision
 default_reputation: 0.85
 token_budget: 73000
 
-agent_alpha: src/, docs/
+agent_alpha: systems/python-reference-runtime/, docs/
 agent_beta: tests/
 """
         tc = parse_territory(text)
@@ -89,7 +89,7 @@ G5: report_decision
 default_reputation: 0.85
 token_budget: 73000
 
-agent_alpha: src/
+agent_alpha: systems/python-reference-runtime/
 agent_beta: tests/
 """
         tc = parse_territory(text)
@@ -110,7 +110,7 @@ class TestSaveLoadTerritory:
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "territory.yaml")
             tc = TerritoryConstitution()
-            tc.territories["agent_a"] = ["src/"]
+            tc.territories["agent_a"] = ["systems/python-reference-runtime/"]
             tc.gate_rules["G1"] = "allowed_tools"
             save_territory(tc, path)
             assert os.path.exists(path)
@@ -127,28 +127,28 @@ class TestSaveLoadTerritory:
 class TestUpdateTerritory:
     def test_update_single(self):
         tc = TerritoryConstitution()
-        r = update_territory(tc, "agent_x", ["src/"])
+        r = update_territory(tc, "agent_x", ["systems/python-reference-runtime/"])
         assert r["success"]
-        assert tc.territories["agent_x"] == ["src/"]
+        assert tc.territories["agent_x"] == ["systems/python-reference-runtime/"]
         assert tc.version == 2
 
 
 class TestMergeProposal:
     def test_merge(self):
         tc = TerritoryConstitution()
-        proposal = {"agent_a": ["src/"], "agent_b": ["tests/"]}
+        proposal = {"agent_a": ["systems/python-reference-runtime/"], "agent_b": ["tests/"]}
         r = merge_proposal(tc, proposal)
         assert r["success"]
-        assert tc.territories["agent_a"] == ["src/"]
+        assert tc.territories["agent_a"] == ["systems/python-reference-runtime/"]
         assert "agent_b" in tc.territories
 
 
 class TestDiffTerritory:
     def test_diff_added(self):
         old = TerritoryConstitution()
-        old.territories["agent_a"] = ["src/"]
+        old.territories["agent_a"] = ["systems/python-reference-runtime/"]
         new = TerritoryConstitution()
-        new.territories["agent_a"] = ["src/", "docs/"]
+        new.territories["agent_a"] = ["systems/python-reference-runtime/", "docs/"]
         d = diff_territory(old, new)
         assert d["changed"]
         assert "agent_a" in d.get("changes", {})
@@ -230,7 +230,7 @@ class TestConstitutionRules:
         text = """# NOMOS Constitution
 # Version: 1
 
-agent_alpha: src/
+agent_alpha: systems/python-reference-runtime/
 agent_beta: tests/
 
 default_reputation: 0.85

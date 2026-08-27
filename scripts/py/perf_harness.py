@@ -17,7 +17,7 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "systems/python-reference-runtime"))
 
 SCHEMA_VERSION = 1
 PERF_HARNESS_CONFIG = ROOT / "config" / "quality" / "perf-harness.yaml"

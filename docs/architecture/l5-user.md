@@ -1,15 +1,15 @@
 # L5 — User Layer
 
 Entry points and user-facing contract. 2 files / ~600 lines:
-`src/main.py` (entry + REPL) and `src/l5/cli.py` (command handlers).
+`systems/python-reference-runtime/main.py` (entry + REPL) and `systems/python-reference-runtime/l5/cli.py` (command handlers).
 
-## CLI entry (`src/main.py`)
+## CLI entry (`systems/python-reference-runtime/main.py`)
 
-`main.py` inserts `src/` on `sys.path` and dispatches to the handler table
+`main.py` inserts `systems/python-reference-runtime/` on `sys.path` and dispatches to the handler table
 imported from `l5.cli.COMMANDS`:
 
 ```python
-python src/main.py boot | health | ps | card <intent> [domain] |
+python systems/python-reference-runtime/main.py boot | health | ps | card <intent> [domain] |
                      card-list | card-submit <intent> | card-cancel <card_id> |
                      tools [agent_id] | audit [agent_id] | chain <call_id> |
                      interrupts | devices | status | sys [path] | dev [path] |
@@ -17,7 +17,7 @@ python src/main.py boot | health | ps | card <intent> [domain] |
                      backups | restore <backup-name> | restart
 ```
 
-- `python src/main.py -h` prints the module docstring (usage).
+- `python systems/python-reference-runtime/main.py -h` prints the module docstring (usage).
 - With no argument, `main.py` enters the **REPL** (`repl()`): reads
   `praxis> ` lines, splits on whitespace, resolves `COMMANDS`, and prints
   `Unknown: ...` for unknown commands. `exit`/`quit`/`q` runs
@@ -26,7 +26,7 @@ python src/main.py boot | health | ps | card <intent> [domain] |
   per-command side effect. A TUI/desktop can call the same handlers and
   render the dicts — see "Interaction layers" below.
 
-## Command reference (`src/l5/cli.py`)
+## Command reference (`systems/python-reference-runtime/l5/cli.py`)
 
 `COMMANDS` maps 21 names to handlers (last one is a lambda composing
 `shutdown` then `boot`). All handlers return a dict; `args` is the
@@ -68,7 +68,7 @@ Notes:
 - Backup/restore operate on the runtime `data_dir` only — never on source
   or git state.
 
-## Agent runtime (`src/l5/agent_runtime.py`)
+## Agent runtime (`systems/python-reference-runtime/l5/agent_runtime.py`)
 
 `AgentRuntime` is the L5-side execution loop contract for user-facing
 agents (e.g. an interactive assistant driven by the CLI/REPL):
@@ -126,6 +126,6 @@ see `cross-cutting.md` for the architecture principle.
 
 | File | Responsibility |
 |---|---|
-| `src/main.py` | Entry point: argv dispatch to `COMMANDS`, `-h` usage, REPL loop with memory shutdown hooks |
-| `src/l5/cli.py` | 21 command handlers + `COMMANDS` registry (all return dicts) |
-| `src/l5/agent_runtime.py` | `AgentRuntime` execution loop + `Action` decorator + event emit |
+| `systems/python-reference-runtime/main.py` | Entry point: argv dispatch to `COMMANDS`, `-h` usage, REPL loop with memory shutdown hooks |
+| `systems/python-reference-runtime/l5/cli.py` | 21 command handlers + `COMMANDS` registry (all return dicts) |
+| `systems/python-reference-runtime/l5/agent_runtime.py` | `AgentRuntime` execution loop + `Action` decorator + event emit |

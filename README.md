@@ -29,8 +29,8 @@ upgrades):
 
 ```bash
 pip install -e ".[test]"
-python src/main.py boot           # Boot the kernel
-python src/main.py status         # System status
+python systems/python-reference-runtime/main.py boot           # Boot the kernel
+python systems/python-reference-runtime/main.py status         # System status
 python -m l2.l2_shell             # Interactive agent shell
 curl http://localhost:8080/api/v2/health  # API health check
 ```
@@ -46,6 +46,9 @@ L1 — Kernel Layer        (sync, process, VFS, gatechain)
 ```
 
 **Docs:** [Architecture Overview](docs/architecture/README.md) | [Per-layer Reference](docs/architecture/llms.txt) | [Agent instructions](AGENTS.md)
+
+**System layout:** [three-system boundary](systems/README.md) |
+[machine-readable manifest](systems/system-boundaries.yaml)
 
 ## What is a "Card"?
 
@@ -72,7 +75,7 @@ Cell tracks performance via PMU (hardware counters)
 ## Project structure
 
 ```
-src/
+systems/python-reference-runtime/
 ├── l1/kernel/          # 46 files — OS primitives, params (~1,026 constants, 8 sub-modules)
 ├── l2/                 # 22 files — Shell layer (49 YAML commands + 2 code-registered)
 ├── l3/                 # 242 files — Cell layer (~57K lines)
