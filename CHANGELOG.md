@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Refactor (scripts)**: settle perimeter libraries under _lib
 - **Refactor (scripts)**: rename quality gates to verbs-lexicon names
 - **Refactor (scripts)**: promote stats library and rename comment gate
 - **Refactor (scripts)**: add merge gate dispatcher and rename hunk auditor
