@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Refactor (scripts)**: promote stats library and rename comment gate
 - **Refactor (scripts)**: add merge gate dispatcher and rename hunk auditor
 - **Refactor (scripts)**: unify commit governance under commit_gate cli
 - **Refactor (infra)**: separate runtime systems
