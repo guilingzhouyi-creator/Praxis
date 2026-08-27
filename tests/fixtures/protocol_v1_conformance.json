@@ -1,15 +1,15 @@
 {
   "_meta": {
-    "source": "packages/protocol-ts (normative authority)",
+    "source": "systems/typescript-shell-engine (normative authority)",
     "rulings_doc": "docs/architecture/l2-shell-engine.md#protocol-v1-conformance-rulings",
     "frozen_at_branch": "feature/protocol-v1-conformance",
     "runners": {
-      "typescript": "packages/protocol-ts/tests/conformance.test.ts",
-      "rust": "crates/l1-kernel-rs/tests/protocol/conformance_vectors.rs",
+      "typescript": "systems/typescript-shell-engine/tests/conformance.test.ts",
+      "rust": "systems/rust-kernel-engine/l1-kernel-rs/tests/protocol/conformance_vectors.rs",
       "python_legacy": "tests/l2/test_conformance_vectors.py"
     },
     "legacy_exceptions": [
-      "R6 dialect routing is not pinned against src/l2 (frozen legacy keeps its historical order until G6)"
+      "R6 dialect routing is not pinned against systems/python-reference-runtime/l2 (frozen legacy keeps its historical order until G6)"
     ]
   },
   "canonical_envelopes": [

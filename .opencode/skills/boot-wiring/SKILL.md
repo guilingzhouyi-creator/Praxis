@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis boot wiring — boot.py 7-step
 
 ## Overview
 
-Architecture guide for the bootstrap system (`src/l3/boot/`). Boot is a 7-phase pipeline: port wiring first, then a registry-driven sequence of boot steps (each with declared dependencies), then finalize with health snapshot. Wiring.py is where all `*Port` adapters register — the single place `get_port(name)` consumers resolve against.
+Architecture guide for the bootstrap system (`systems/python-reference-runtime/l3/boot/`). Boot is a 7-phase pipeline: port wiring first, then a registry-driven sequence of boot steps (each with declared dependencies), then finalize with health snapshot. Wiring.py is where all `*Port` adapters register — the single place `get_port(name)` consumers resolve against.
 
 ## Module Map
 
@@ -18,7 +18,7 @@ Architecture guide for the bootstrap system (`src/l3/boot/`). Boot is a 7-phase 
 ## Core Conventions
 
 - **Boot order is dependency-declared, not positional**: `register_boot_step(name, fn, depends_on=[...])`; `_execute_boot_steps` runs them in dependency-satisfying order and HALTS on first failure (result `{"success": False, "error": ...}`). New steps must declare dependencies and be idempotent.
-- **Wiring is the ONLY adapter registration point**: `register_port("name", adapter)` in `wire_defaults()`/`wire_from_config()`; consumers resolve via `get_port(name)` from `src/l1/kernel/ports/`. Never bypass wiring by constructing a port consumer's adapter inline.
+- **Wiring is the ONLY adapter registration point**: `register_port("name", adapter)` in `wire_defaults()`/`wire_from_config()`; consumers resolve via `get_port(name)` from `systems/python-reference-runtime/l1/kernel/ports/`. Never bypass wiring by constructing a port consumer's adapter inline.
 - **Failure recovery**: `_reset_singletons_on_retry` resets registered singletons before a retry; `_restore_previous_state` recovers the last known-good snapshot; error capture wired via `_wire_error_capture` (`capture()` on error_bus, component="kernel").
 - **prepare_layout runs first**: every runtime dir must exist before any service/step writes to the data dir — new runtime paths must be provisioned there.
 - **capability executor wiring**: boot is the ONLY place that wires the `invoke_capability` executor (boot_steps/tools.py) — never wire it elsewhere.

@@ -32,17 +32,17 @@ def test_registry_declares_languages():
 def test_detect_language_by_extension():
     """Extension → language mapping comes from the registry, not code."""
     reg = get_registry()
-    assert reg.detect_language("src/main.py") == "python"
-    assert reg.detect_language("src/app.ts") == "typescript"
-    assert reg.detect_language("src/app.go") == "go"
+    assert reg.detect_language("systems/python-reference-runtime/main.py") == "python"
+    assert reg.detect_language("systems/typescript-shell-engine/app.ts") == "typescript"
+    assert reg.detect_language("tests/fixtures/app.go") == "go"
     assert reg.detect_language("unknown.xyz") == ""  # unlisted → line-level
 
 
 def test_semantic_gating_declared():
     """Semantic classification is declared per language (off for data files)."""
     reg = get_registry()
-    assert reg.semantic_for("src/a.py") is True
-    assert reg.semantic_for("src/b.json") is False
+    assert reg.semantic_for("systems/python-reference-runtime/a.py") is True
+    assert reg.semantic_for("systems/python-reference-runtime/b.json") is False
     assert reg.semantic_for("unknown.xyz") is False
 
 
@@ -77,4 +77,4 @@ def test_registry_missing_config_degrades(tmp_path):
 
     reg = DiffLanguageRegistry(config_path=str(tmp_path / "missing.yaml"))
     assert reg.status()["languages"] == []
-    assert reg.detect_language("src/a.py") == ""
+    assert reg.detect_language("systems/python-reference-runtime/a.py") == ""

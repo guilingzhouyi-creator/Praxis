@@ -258,11 +258,11 @@ emit("watchdog.crash", {"agent_id": "agent-a"}, source="cell-1.watchdog")
 
 ## 6. 迁移计划
 
-### Phase 1: 核心 (src/l1/kernel/bus.py)
+### Phase 1: 核心 (systems/python-reference-runtime/l1/kernel/bus.py)
 
 | 文件 | 内容 |
 |---|---|
-| `src/l1/kernel/bus.py` | ComponentMeta, Component, SystemBus |
+| `systems/python-reference-runtime/l1/kernel/bus.py` | ComponentMeta, Component, SystemBus |
 
 ### Phase 2: 组件包装器 (每个现有类一个 wrapper)
 

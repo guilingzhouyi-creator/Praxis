@@ -12,7 +12,9 @@ import zlib
 from l4.sandbox.diff_codec import compress_record, decompress_record
 
 
-def _record(diff_id: str = "d1", path: str = "src/a.py", ts: float = 100.0, stitched: str = "") -> dict:
+def _record(
+    diff_id: str = "d1", path: str = "systems/python-reference-runtime/a.py", ts: float = 100.0, stitched: str = ""
+) -> dict:
     return {"diff_id": diff_id, "ts": ts, "meta": {"path": path}, "stitched": stitched}
 
 
@@ -21,7 +23,7 @@ def _repetitive_diff() -> str:
     headers and ---/+++ markers repeat across hunks (the redundancy the
     structure-aware codec exploits)."""
     shared_ctx = "     return dispatch(event, ctx)\n"
-    lines = ["--- a/src/a.py", "+++ b/src/a.py"]
+    lines = ["--- a/systems/python-reference-runtime/a.py", "+++ b/systems/python-reference-runtime/a.py"]
     for i in range(5):
         lines.extend(
             [
@@ -37,11 +39,13 @@ def _repetitive_diff() -> str:
 
 def test_round_trip_preserves_fields():
     """compress → decompress restores diff_id / ts / meta / stitched exactly."""
-    rec = _record(stitched="--- a/src/a.py\n+++ b/src/a.py\n@@ -1,3 +1,3 @@\n-old\n+new")
+    rec = _record(
+        stitched="--- a/systems/python-reference-runtime/a.py\n+++ b/systems/python-reference-runtime/a.py\n@@ -1,3 +1,3 @@\n-old\n+new"
+    )
     out = decompress_record(compress_record(rec))
     assert out["diff_id"] == "d1"
     assert out["ts"] == 100.0
-    assert out["meta"] == {"path": "src/a.py"}
+    assert out["meta"] == {"path": "systems/python-reference-runtime/a.py"}
     assert out["stitched"] == rec["stitched"]
 
 
@@ -69,7 +73,7 @@ def test_structure_aware_overhead_controlled():
 
 def test_legacy_v1_record_degrades():
     """Plain-zlib records (no magic) restore as stitched text (backward compat)."""
-    text = "--- a/src/a.py\n+++ b/src/a.py\n@@ -1,1 +1,1 @@\n-old\n+new"
+    text = "--- a/systems/python-reference-runtime/a.py\n+++ b/systems/python-reference-runtime/a.py\n@@ -1,1 +1,1 @@\n-old\n+new"
     legacy = zlib.compress(text.encode("utf-8"))
     out = decompress_record(legacy)
     assert out["stitched"] == text
@@ -101,7 +105,7 @@ def test_eviction_uses_structure_codec(monkeypatch):
     store = diff_persist.get_diff_persist()
     store.set_enabled(True)
     store._capacity = 1
-    store.append("a", _repetitive_diff(), meta={"path": "src/a.py"})
+    store.append("a", _repetitive_diff(), meta={"path": "systems/python-reference-runtime/a.py"})
     store.append("b", "newer content")
 
     assert len(calls) == 1

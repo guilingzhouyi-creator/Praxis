@@ -1,7 +1,7 @@
 # Code Auto-Format Module — Design
 
 > Status: proposed | Applies to the L3 execution layer (AgentLoop write path)
-> Companion to: `src/l3/services/file_editor.py` (edit engine), `src/l3/tool_system/tool_pipeline.py` (gated execution), `config/tools.yaml` (tool registry)
+> Companion to: `systems/python-reference-runtime/l3/services/file_editor.py` (edit engine), `systems/python-reference-runtime/l3/tool_system/tool_pipeline.py` (gated execution), `config/tools.yaml` (tool registry)
 
 ## 1. Problem
 
@@ -21,23 +21,23 @@ and no post-write formatting hook registered on the `ToolPipeline`.
    after `create_file` / `file_patch` / `file_append` succeed on a formattable
    source file, run the configured formatter in place.
 3. Keep everything aligned with project conventions: constants in
-   `src/l1/kernel/params/`, tools registered in `config/tools.yaml`, OS
+   `systems/python-reference-runtime/l1/kernel/params/`, tools registered in `config/tools.yaml`, OS
    operations via `l1.kernel.platform`, writes through the sandbox/resource
    buffer for attribution, layer-import clean.
 
 ## 3. Module layout
 
 ```
-src/l3/services/code_format.py      # formatter engine (detect + run + batch)
-src/l3/tools/_format.py             # thin tool handlers (Ring 2)
+systems/python-reference-runtime/l3/services/code_format.py      # formatter engine (detect + run + batch)
+systems/python-reference-runtime/l3/tools/_format.py             # thin tool handlers (Ring 2)
 config/tools.yaml                   # layer_2: format_file, format_project
-src/l1/kernel/params/tool.py        # TOOL_FORMAT_* constants
-src/l3/boot/wiring.py               # register auto-format post-execute hook
+systems/python-reference-runtime/l1/kernel/params/tool.py        # TOOL_FORMAT_* constants
+systems/python-reference-runtime/l3/boot/wiring.py               # register auto-format post-execute hook
 config/praxis.yaml                  # tools.format: enabled / auto / tool
 tests/l3/services/test_code_format.py
 ```
 
-### 3.1 `src/l3/services/code_format.py` — formatter engine
+### 3.1 `systems/python-reference-runtime/l3/services/code_format.py` — formatter engine
 
 Pure L3 service, no L4 imports at module level (mirrors `file_editor.py`):
 
@@ -55,7 +55,7 @@ Pure L3 service, no L4 imports at module level (mirrors `file_editor.py`):
 - `auto_format_hook(tool_name, agent_id, args, result) -> dict` — the
   ToolPipeline post-execute hook (see §5). Registered at boot; config-gated.
 
-### 3.2 `src/l3/tools/_format.py` — tool handlers
+### 3.2 `systems/python-reference-runtime/l3/tools/_format.py` — tool handlers
 
 - `format_file(args, agent_id)` → `code_format.format_file(path=args["path"])`
 - `format_project(args, agent_id)` → `code_format.format_project(root=...)`
@@ -76,7 +76,7 @@ format:
     params: [{name: path, type: string, optional: true, default: "."}, {name: tool, type: string, optional: true}]
 ```
 
-## 4. Params constants (`src/l1/kernel/params/tool.py`)
+## 4. Params constants (`systems/python-reference-runtime/l1/kernel/params/tool.py`)
 
 | Constant | Type | Default | Purpose |
 |----------|------|---------|---------|
@@ -91,7 +91,7 @@ No hardcoded `"ruff"`/`"black"` strings in implementation files — all through
 
 ## 5. Automatic formatting hook (write path)
 
-Registered once at boot (`src/l3/boot/wiring.py`, via
+Registered once at boot (`systems/python-reference-runtime/l3/boot/wiring.py`, via
 `ToolPipeline.register_post_execute_hook`). Semantics:
 
 - **Trigger tools**: `create_file`, `file_patch`, `file_append` (content

@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestCardRegistrySubmit:
@@ -30,7 +30,7 @@ class TestCardRegistrySubmit:
 
         reset_registry()
         cr = get_registry()
-        cid = cr.submit("fix login bug", "src/auth")
+        cid = cr.submit("fix login bug", "systems/python-reference-runtime/auth")
         assert cid.startswith("card-")
 
     def test_submit_multiple_cards(self):

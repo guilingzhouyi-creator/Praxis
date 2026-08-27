@@ -46,7 +46,13 @@ class TestBottomLineGuard:
         assert HARNESS_BOTTOM_LINE == _BOTTOM_LINE
         assert SECURITY_BOTTOM_LINE == _BOTTOM_LINE
 
-    @pytest.mark.parametrize("rel_path", ["src/l3/tool_system/harness.py", "src/l3/tool_system/security_mode.py"])
+    @pytest.mark.parametrize(
+        "rel_path",
+        [
+            "systems/python-reference-runtime/l3/tool_system/harness.py",
+            "systems/python-reference-runtime/l3/tool_system/security_mode.py",
+        ],
+    )
     def test_hardcoded_bottom_line_matches_params_contract(self, rel_path: str) -> None:
         text = _read(rel_path)
         assert "constitution" in text and "gatechain" in text and "sandbox" in text

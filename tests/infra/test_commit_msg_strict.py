@@ -97,7 +97,7 @@ def test_trailer_must_be_last_line():
     # Well-formed message must pass; use a non-placeholder summary (>=10 chars).
     # A `feat` subject also needs a staged file so the type-to-content gate
     # sees a matching path (mirrors test_githooks_commit_msg.py probe pattern).
-    p = _stage_tmp_probe("src/_tmp_trailer_probe.py")
+    p = _stage_tmp_probe("systems/python-reference-runtime/_tmp_trailer_probe.py")
     try:
         msg_good = (
             "feat(core): add strict gate for hooks\n\nCo-Authored-By: OpenCode (ox-alpha) <noreply@opencode.ai>\n"

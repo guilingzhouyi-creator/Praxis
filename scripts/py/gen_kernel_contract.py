@@ -1,6 +1,6 @@
 """Generate/verify the kernel public-API contract snapshot (W6.3).
 
-Scans ``src/l1/kernel`` (modules, public functions, public classes), the
+Scans ``systems/python-reference-runtime/l1/kernel`` (modules, public functions, public classes), the
 syscall registry, and the ``l1.kernel`` ``__all__`` exports into a golden
 JSON that ``l1_kernel_rs`` aligns against.
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SRC_KERNEL = ROOT / "src" / "l1" / "kernel"
+SRC_KERNEL = ROOT / "systems/python-reference-runtime" / "l1" / "kernel"
 GOLDEN = ROOT / "docs" / "contracts" / "kernel-contract.json"
 
 CONTRACT_VERSION = 1
@@ -24,7 +24,7 @@ CONTRACT_VERSION = 1
 
 def _module_path(py: Path) -> str:
     """Relative import path, e.g. ``l1.kernel.params.gatechain``."""
-    rel = py.relative_to(ROOT / "src").with_suffix("")
+    rel = py.relative_to(ROOT / "systems/python-reference-runtime").with_suffix("")
     return ".".join(rel.parts)
 
 

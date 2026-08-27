@@ -27,7 +27,7 @@ main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 
 | 提交 | 内容 | 门禁动作 |
 |---|---|---|
-| C1 | `chore(config): register rust scope for crates tree` | commits.yaml `scope_dirs.rust: crates/` + scopes 列表 + ALIGNMENT 行 + gen_commits_json 刷新（同提交） |
+| C1 | `chore(config): register rust scope for Rust engine tree` | commits.yaml `scope_dirs.rust: systems/rust-kernel-engine/` + scopes 列表 + ALIGNMENT 行 + gen_commits_json 刷新（同提交） |
 | C2 | `docs(design): add l1l2 docking execution plan` | 本文档落位 |
 
 ## 2. 各分支提交序列（规范化提交信息）

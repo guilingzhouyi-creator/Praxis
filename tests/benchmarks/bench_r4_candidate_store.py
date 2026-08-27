@@ -13,7 +13,7 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from l3.memory.r4_candidate_store import CandidateStore  # noqa: E402
 from l4.params import EVAL_AMDAHL_ROUNDS, EVAL_PERSIST_ITERS

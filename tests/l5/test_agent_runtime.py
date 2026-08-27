@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 
 class TestAgentRuntime:
@@ -21,9 +21,9 @@ class TestAgentRuntime:
     def test_create_with_territory(self):
         from l5.agent_runtime import AgentRuntime
 
-        rt = AgentRuntime(agent_id="reader", territory=["src/", "docs/"])
+        rt = AgentRuntime(agent_id="reader", territory=["systems/python-reference-runtime/", "docs/"])
         assert rt.agent_id == "reader"
-        assert "src/" in rt.territory
+        assert "systems/python-reference-runtime/" in rt.territory
 
     def test_idle_tick(self):
         from l5.agent_runtime import AgentRuntime

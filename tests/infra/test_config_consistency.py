@@ -52,7 +52,7 @@ def test_tools_yaml_param_types_in_whitelist() -> None:
 
 def test_tools_yaml_full_load() -> None:
     """Every tools.yaml definition must load into TOOL_REGISTRY without skips."""
-    sys.path.insert(0, os.path.join(ROOT, "src"))
+    sys.path.insert(0, os.path.join(ROOT, "systems/python-reference-runtime"))
     from l3.tool_system.tool_config import ToolConfig
 
     defined = sum(1 for _ in _all_tool_defs())

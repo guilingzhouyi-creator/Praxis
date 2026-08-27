@@ -273,7 +273,7 @@ class TestGateChain:
         from l1.kernel.gatechain import get_gatechain
 
         gc = get_gatechain()
-        r = gc.check("read_file", "l3", target="src/test.txt")
+        r = gc.check("read_file", "l3", target="systems/python-reference-runtime/test.txt")
         assert isinstance(r, dict)
 
     def test_gate_ledger(self):

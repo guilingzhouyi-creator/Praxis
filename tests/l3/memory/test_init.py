@@ -7,7 +7,7 @@ import shutil
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 # Delay import so tests don't trigger memory_init side effects at module load
 _imported = False

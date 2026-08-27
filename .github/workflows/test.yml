@@ -163,6 +163,9 @@ jobs:
       - name: Infra (layer imports / params / registration contracts)
         run: python -m pytest tests/infra/ -n 0 --maxfail=5 -q --tb=short
         timeout-minutes: 3
+      - name: System boundary manifest
+        run: python scripts/py/check_system_boundaries.py
+        timeout-minutes: 1
       - name: API endpoint manifest
         run: python -m l4.api.api_endpoints
         timeout-minutes: 1
@@ -173,7 +176,7 @@ jobs:
           done
         timeout-minutes: 5
       - name: Type check (mypy)
-        run: mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
+        run: mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
         timeout-minutes: 10
 
   coverage:
@@ -195,7 +198,7 @@ jobs:
           pip install -e ".[test]"
         timeout-minutes: 5
       - name: Full suite with coverage
-        run: python -m pytest tests/ -q --tb=short --cov=src --cov-report=xml --cov-report=term --cov-fail-under=60 --ignore=tests/benchmarks/bench_card.py
+        run: python -m pytest tests/ -q --tb=short --cov=systems/python-reference-runtime --cov-report=xml --cov-report=term --cov-fail-under=60 --ignore=tests/benchmarks/bench_card.py
         timeout-minutes: 30
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

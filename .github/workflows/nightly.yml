@@ -11,7 +11,7 @@ jobs:
     # the local .githooks/pre-commit only checks staged files (staged-scoped
     # since 2026-08-07 — it must never run whole-tree passes, which silently
     # reformat files outside the commit). This weekly run is the ONLY
-    # full-tree style gate: it enforces that src/ + tests/ stays clean and
+    # full-tree style gate: it enforces that systems/python-reference-runtime/ + tests/ stays clean and
     # catches debt rotting in untouched files.
     runs-on: ubuntu-latest
     steps:
@@ -22,9 +22,9 @@ jobs:
           cache: "pip"
       - run: pip install -e ".[test]"
       - name: ruff check (full tree)
-        run: ruff check src/ tests/
+        run: ruff check systems/python-reference-runtime/ tests/
       - name: ruff format (full tree)
-        run: ruff format --check src/ tests/
+        run: ruff format --check systems/python-reference-runtime/ tests/
       - name: hooks executable (gate guards)
         # The pre-commit/commit-msg/post-checkout hooks are load-bearing
         # gates; git silently skips non-executable core.hooksPath hooks, and
@@ -69,7 +69,7 @@ jobs:
       - name: Count mypy findings vs baseline
         run: |
           BASELINE=0
-          COUNT=$(mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators 2>&1 | grep -cE "error:" || true)
+          COUNT=$(mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators 2>&1 | grep -cE "error:" || true)
           echo "mypy findings: $COUNT (baseline $BASELINE)"
           if [ "$COUNT" -gt "$BASELINE" ]; then
             echo "❌ mypy debt GREW: $COUNT > $BASELINE — fix or raise the baseline deliberately."
@@ -118,7 +118,7 @@ jobs:
         run: python scripts/py/mem_check.py
 
   import-cycle:
-    # Circular-import gate: src/ module graph must stay acyclic at load
+    # Circular-import gate: systems/python-reference-runtime/ module graph must stay acyclic at load
     # time (AST scan; TYPE_CHECKING and function-body imports are lazy and
     # therefore exempt).
     runs-on: ubuntu-latest

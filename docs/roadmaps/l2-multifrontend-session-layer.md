@@ -17,25 +17,25 @@
   1. L2 是 Shell Engine 吗？→ **否，是 CLI command collection + 半套分派器**（parser/AST、job control、pipeline、重定向、env/cwd/history 全部缺失或为桩；默认 L3A 意图路径实测断裂）。
   2. L2 拥有非 Shell 的系统 authority 吗？→ **是**：安全裁决（注入+LLM 复核）、工作流（card approve/reject）、生命周期（spawn/kill/destroy/emergency）、配置/模型/Skill/CI/身份策略写入、harness/auto-test 安全模式、内核事件发布。
   3. 存在绕过 L3/Kernel 的副作用路径吗？→ **HEAD 存在 2 条 CRITICAL 工具执行旁路**（L2 terminal + L4 MCP 直调公开 `execute_tool_spec`），**工作树已封堵**（`invoke_gated` 单门 + `gated` 标志 + 静态门测试，未提交）；仍存 63 个 slash 命令直连 L3 内部（结构性）与 `$` 无门执行（INDIRECT 但无 approval/ring/sandbox）。
-- ⚠️ 审计期间工作树被并行修改（21 文件 M，含 `shells/terminal.py`、`tool_spec.py`、`tool_pipeline_steps.py`、`gatechain.py`、`invoke.py`、`boot_steps/tools.py`、`src/l4/*`）——本基线结论以"HEAD + WT 均审计"双状态记录。
+- ⚠️ 审计期间工作树被并行修改（21 文件 M，含 `shells/terminal.py`、`tool_spec.py`、`tool_pipeline_steps.py`、`gatechain.py`、`invoke.py`、`boot_steps/tools.py`、`systems/python-reference-runtime/l4/*`）——本基线结论以"HEAD + WT 均审计"双状态记录。
 
 ## 1. 关键证据事实
 
 | # | 事实 | 位置 |
 |---|---|---|
-| E1 | L2 共 36 个模块 / 4,783 行；51 条 YAML 命令 + 63 个 `_cmd_*` handler；`config/commands.yaml` 类别仅 session/system/debug/control/memory/agent/audit/ext，无 files/job/pipeline | `src/l2`、`config/commands.yaml` |
+| E1 | L2 共 36 个模块 / 4,783 行；51 条 YAML 命令 + 63 个 `_cmd_*` handler；`config/commands.yaml` 类别仅 session/system/debug/control/memory/agent/audit/ext，无 files/job/pipeline | `systems/python-reference-runtime/l2`、`config/commands.yaml` |
 | E2 | 依赖方向系统性违规并被制度化：`test_layer_imports.py` ALLOWLIST 共 114 条，其中 **74 条来自 L2**（67→L3、7→L4）；"L2→L1 only" 名存实亡 | `tests/infra/test_layer_imports.py:17-46` |
-| E3 | 默认交互路径断裂：`_l3a_intent` 中 `from .cell.peers.l3 import get_coordinator` 解析为 `l2.l2_shell.cell`，实测任意自由文本返回 `No module named 'l2.l2_shell.cell'` | `src/l2/l2_shell/__init__.py:229` |
-| E4 | HEAD 公开 `execute_tool_spec`（仅 mute/校验/middleware/ResultStore/counter，无 clearance/approval/rate/constitution/gatechain/sandbox），L2 terminal 与 L4 MCP 直调 → CRITICAL BYPASS；WT 已改名 `_execute_tool_spec` 私有化并新增 `invoke_gated` 单门（`interactive=True`），`test_single_execution_gate.py` 通过 | `src/l3/tool_system/tool_spec.py:378/381`、`src/l3/tool_system/invoke.py`、`tests/infra/test_single_execution_gate.py` |
-| E5 | 三张进程/终端表并存：L1 `ProcessTable`（PCB，逻辑进程权威）、L3 `_terminals`（AgentTerminal 注册表，运行态权威）、L2 `TerminalManager`（`subprocess.Popen` + SIGTERM/SIGKILL，**全库 0 调用方，死代码**；计划删除，main 上仍存在） | `src/l1/kernel/process.py:184`、`src/l3/agent_terminal/__init__.py:564`、`src/l2/shell_session.py:73-137` |
-| E6 | 配置权威碎片化 ≥4 存储且 L2 均可写：L1 `kernel.settings`（/config、/departments）、L3 `SettingsCenter`（.praxis_settings.json，/settings、/model switch）、ACB slots（/settings cell|agent）、`ci.review.*`（/ci set） | `src/l1/kernel/settings.py:175`、`src/l3/config/settings_center.py:206` |
-| E7 | 事件/审计多头：L1 EventBus + L3 error_bus + observability_bus + central_security.audit_log + ProcessTable.audit_log；L2 至少写 2 读 4，含 `emit_signal(EVENT_TASK_ASSIGN)`（shell 发布内核任务路由事件） | `src/l2/l2_shell/__init__.py:218-223` |
-| E8 | 安全策略内嵌 Shell：`selector.py` 自带注入模式表 + `_llm_reviewer` 回调 + allow/deny 裁决；`output_guard.py` "intercept dangerous responses" | `src/l2/selector.py:188-246,368-379`、`src/l2/l2_shell/output_guard.py` |
-| E9 | 工作流/生命周期权威直连：`/card approve|reject|cancel|submit` → `CardRegistry`；`/spawn /kill /destroy /emergency /agent-restart` → L3 cell/terminals | `src/l2/l2_shell/commands/memory.py:259-363` |
-| E10 | `_pipeline` 是参数级假管道（上一步 `output` 塞入下一步 args），无流连接/并发/重定向；help 文案却宣称 "auto Map/Chain/Passthrough" | `src/l2/l2_shell/commands/common.py:132-155`、`src/l2/l2_shell/commands/system.py:565` |
-| E11 | `_cmd_history` 是桩（返回 `[]`）；无 cd/pwd/env/export/alias 内置；无 jobs/fg/bg/suspend/resume；`resize()` 是 no-op（"PTY resize not yet implemented"） | `src/l2/l2_shell/commands/system.py:474-478`、`src/l2/shell_session.py:44-45` |
-| E12 | `/model health` 摸 `engine._provider.health`（L4 LLM 引擎私有）；`/htn` 摸 `planner._methods`；`/cache` 摸 `cell.cache`——L2 直达多处私有内部 | `src/l2/l2_shell/commands/model.py:197-209`、`extra_cluster.py:44-52`、`system.py:455-460` |
-| E13 | 命令注册表三写者：L1 `CommandRegistry` 单实例，L2 导入期写 63 handler、L4 API 写 user commands、YAML/配置文件写 defaults | `src/l1/kernel/commands.py:47`、`src/l4/api_handlers/api_handlers_commands.py:51,94` |
+| E3 | 默认交互路径断裂：`_l3a_intent` 中 `from .cell.peers.l3 import get_coordinator` 解析为 `l2.l2_shell.cell`，实测任意自由文本返回 `No module named 'l2.l2_shell.cell'` | `systems/python-reference-runtime/l2/l2_shell/__init__.py:229` |
+| E4 | HEAD 公开 `execute_tool_spec`（仅 mute/校验/middleware/ResultStore/counter，无 clearance/approval/rate/constitution/gatechain/sandbox），L2 terminal 与 L4 MCP 直调 → CRITICAL BYPASS；WT 已改名 `_execute_tool_spec` 私有化并新增 `invoke_gated` 单门（`interactive=True`），`test_single_execution_gate.py` 通过 | `systems/python-reference-runtime/l3/tool_system/tool_spec.py:378/381`、`systems/python-reference-runtime/l3/tool_system/invoke.py`、`tests/infra/test_single_execution_gate.py` |
+| E5 | 三张进程/终端表并存：L1 `ProcessTable`（PCB，逻辑进程权威）、L3 `_terminals`（AgentTerminal 注册表，运行态权威）、L2 `TerminalManager`（`subprocess.Popen` + SIGTERM/SIGKILL，**全库 0 调用方，死代码**；计划删除，main 上仍存在） | `systems/python-reference-runtime/l1/kernel/process.py:184`、`systems/python-reference-runtime/l3/agent_terminal/__init__.py:564`、`systems/python-reference-runtime/l2/shell_session.py:73-137` |
+| E6 | 配置权威碎片化 ≥4 存储且 L2 均可写：L1 `kernel.settings`（/config、/departments）、L3 `SettingsCenter`（.praxis_settings.json，/settings、/model switch）、ACB slots（/settings cell|agent）、`ci.review.*`（/ci set） | `systems/python-reference-runtime/l1/kernel/settings.py:175`、`systems/python-reference-runtime/l3/config/settings_center.py:206` |
+| E7 | 事件/审计多头：L1 EventBus + L3 error_bus + observability_bus + central_security.audit_log + ProcessTable.audit_log；L2 至少写 2 读 4，含 `emit_signal(EVENT_TASK_ASSIGN)`（shell 发布内核任务路由事件） | `systems/python-reference-runtime/l2/l2_shell/__init__.py:218-223` |
+| E8 | 安全策略内嵌 Shell：`selector.py` 自带注入模式表 + `_llm_reviewer` 回调 + allow/deny 裁决；`output_guard.py` "intercept dangerous responses" | `systems/python-reference-runtime/l2/selector.py:188-246,368-379`、`systems/python-reference-runtime/l2/l2_shell/output_guard.py` |
+| E9 | 工作流/生命周期权威直连：`/card approve|reject|cancel|submit` → `CardRegistry`；`/spawn /kill /destroy /emergency /agent-restart` → L3 cell/terminals | `systems/python-reference-runtime/l2/l2_shell/commands/memory.py:259-363` |
+| E10 | `_pipeline` 是参数级假管道（上一步 `output` 塞入下一步 args），无流连接/并发/重定向；help 文案却宣称 "auto Map/Chain/Passthrough" | `systems/python-reference-runtime/l2/l2_shell/commands/common.py:132-155`、`systems/python-reference-runtime/l2/l2_shell/commands/system.py:565` |
+| E11 | `_cmd_history` 是桩（返回 `[]`）；无 cd/pwd/env/export/alias 内置；无 jobs/fg/bg/suspend/resume；`resize()` 是 no-op（"PTY resize not yet implemented"） | `systems/python-reference-runtime/l2/l2_shell/commands/system.py:474-478`、`systems/python-reference-runtime/l2/shell_session.py:44-45` |
+| E12 | `/model health` 摸 `engine._provider.health`（L4 LLM 引擎私有）；`/htn` 摸 `planner._methods`；`/cache` 摸 `cell.cache`——L2 直达多处私有内部 | `systems/python-reference-runtime/l2/l2_shell/commands/model.py:197-209`、`extra_cluster.py:44-52`、`system.py:455-460` |
+| E13 | 命令注册表三写者：L1 `CommandRegistry` 单实例，L2 导入期写 63 handler、L4 API 写 user commands、YAML/配置文件写 defaults | `systems/python-reference-runtime/l1/kernel/commands.py:47`、`systems/python-reference-runtime/l4/api_handlers/api_handlers_commands.py:51,94` |
 | E14 | L2 自身无直接文件写 / 网络 / DB 副作用（grep 0 命中）——旁路全部是委托式 | 全量 grep |
 | E15 | `l2-shell.md` 现行文档已过时：声称 49 命令（实际 51）、工具执行走 `execute_tool_spec`（WT 已改 `invoke_gated`） | `docs/architecture/l2-shell.md:4,91` |
 
@@ -111,11 +111,11 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 ### 6.2 P1 边界迁移 — ⚠️ 曾合入后被 edc5caa6 回退（2026-08-25 复核）
 
-> ⚠️ **main 现状复核**：`src/l2/bridge.py`、`src/l3/services/injection_guard.py` 已被 `edc5caa6`
+> ⚠️ **main 现状复核**：`systems/python-reference-runtime/l2/bridge.py`、`systems/python-reference-runtime/l3/services/injection_guard.py` 已被 `edc5caa6`
 > 移除且未回补——下述 ✅ 记录的是合入当时（08-20/21）的状态；main 上 L2→L3/L4 直连回归。
 > 重做边界迁移或改为协议客户端形态收敛之前，本阶段不得视为完成。
 
-- **L3 command bridge 清零**：`src/l2/bridge.py` 为 L2→L3 唯一受控边界（92 函数 / 49 allowlist）；26 个文件 allowlist 条目清零；非桥 L2→L3 直连 44 → 0（余 8 条 L2→L4 独立边界：ci_review/mcp_bridge/api_handlers/llm/cron/i18n）。
+- **L3 command bridge 清零**：`systems/python-reference-runtime/l2/bridge.py` 为 L2→L3 唯一受控边界（92 函数 / 49 allowlist）；26 个文件 allowlist 条目清零；非桥 L2→L3 直连 44 → 0（余 8 条 L2→L4 独立边界：ci_review/mcp_bridge/api_handlers/llm/cron/i18n）。
 - **selector**：dict 数据 API（`cell_ids`/`cell_liveness`/`cell_agent_reachable`/`cell_territory`，对象句柄零泄漏）；注入策略迁 L3（`l3/services/injection_guard.py`——模式表/阈值裁决/LLM reviewer 下沉）。
 - **配置权威收敛**：L2 配置写面统一经桥 `settings_set` → L3 settings_center（`/config`、`/settings global`、`/ci set`、`/ci toggle`）；L1 kernel.settings 只作默认值只读面；ACB 槽位写属绑定域保留。
 - **i18n 收编**：47 处 f-string error 串 → `shell.app_error.*`（31 key × 4 locale）；`test_i18n_l2_regression` 正则已补 f-string 盲区。
@@ -123,13 +123,13 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 ### 6.3 P2 协议 v1 — 🟡 参考实现与契约钉在 main，接线层不在（2026-08-25 复核）
 
-> ⚠️ **main 现状复核**：`src/l2/protocol/{envelope,records,schema,host}.py` 与
+> ⚠️ **main 现状复核**：`systems/python-reference-runtime/l2/protocol/{envelope,records,schema,host}.py` 与
 > `tests/l2/test_protocol_v1.py`、`test_protocol_records.py` 在 main；`projection.py`、
 > `tests/l2/test_projection.py`、`tests/l4/test_shell_protocol.py` 不在 main；
-> `src/l4` 全目录无 ProtocolHost/envelope 接线（web 双模式与 ws envelope 分支随 edc5caa6 移除未回补）——
+> `systems/python-reference-runtime/l4` 全目录无 ProtocolHost/envelope 接线（web 双模式与 ws envelope 分支随 edc5caa6 移除未回补）——
 > "多前端同会话可恢复"验收在当前 main 不成立，仅 stdio host（`python -m l2.protocol`）可用。
 
-- **参考实现**：`src/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`packages/protocol-ts/`（共享 fixture + Vitest）。
+- **参考实现**：`systems/python-reference-runtime/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`systems/typescript-shell-engine/`（共享 fixture + Vitest）。
 - **接入**：web 端点双模式（`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层 `SessionIdentity`；多前端统一调用（`SessionCursor` 每视图游标 + 单一 ProtocolHost 入口，前端只做线格式适配）。
 - **multiplexing**：Outbox 非破坏性 ack + 共享水位按落后视图（`_advance_shared_cursor`）；3 个补丁：共享水位恒 -1 修复、host stdout 捕获（防污染 JSONL）、stdio 单次校验。
 - **投影与镜像**：event projection（web/TUI/desktop 三形状 + 未知回退 web）；TS 镜像同步（Outbox 非破坏性/unacked(after_seq)/SessionCursor.ack 与 Python3 逐字段对齐）；dispatch 热路径优化（`/lang` -7%、`/history` -22%）。
@@ -197,7 +197,7 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 
 | 域 | Python3 | TS（已落地/预留） |
 |---|---|---|
-| 协议契约 | `protocol/envelope.py`、`records.py` | `protocol-ts/src/{envelope,records}.ts` ✅ |
+| 协议契约 | `systems/python-reference-runtime/l2/protocol/{envelope,records}.py` | `systems/typescript-shell-engine/src/{envelope,records}.ts` ✅ |
 | 引擎 | `l2_shell` 路由语义 | `engine/{parser,dispatcher,builtins}.ts` ✅ |
 | 会话 | `shells/session.py` + host 状态容器 | `engine/session.ts`（SessionView）✅ |
 | 桥 | `bridge.py`（92 函数，域分组） | `engine/bridge.ts`（1:1 转发）✅ |

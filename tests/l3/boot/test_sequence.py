@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestBootRegister:
@@ -39,7 +39,7 @@ class TestBootFunction:
 
         repo = Path(__file__).resolve().parents[3]
         code = (
-            "import sys; sys.path.insert(0, 'src'); "
+            "import sys; sys.path.insert(0, 'systems/python-reference-runtime'); "
             "from l3.boot import boot; "
             "r = boot(agent_config=[], interactive=False); "
             "sys.exit(0 if isinstance(r, dict) else 1)"

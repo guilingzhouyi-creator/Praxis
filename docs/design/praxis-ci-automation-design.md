@@ -12,7 +12,7 @@
 
 | 项 | 结论 |
 |---|---|
-| 模块位置 | `src/l4/ci_review.py` 新增 `CiReviewService`（L4 Bridge 层） |
+| 模块位置 | `systems/python-reference-runtime/l4/ci_review.py` 新增 `CiReviewService`（L4 Bridge 层） |
 | 触发方式 | `CardRegistry` 新增**全局完成监听器** `register_completion_listener()`，`complete()` 内回调 |
 | 审查执行 | 复用现有 L4 `CIService.run_pipeline()`（后台线程、平台 shell、超时/重试就绪） |
 | 门禁范围 | 按卡片变更文件（sandbox per-hunk 归因）定向执行 ruff / mypy / pytest |
@@ -23,7 +23,7 @@
 | **关键联动** | 与 `AutoTestGate`（L3 编辑后回归）**互补不重叠**；结论可串接审批/审议/声誉/归档/会话/通知（均为可选策略，默认只读旁路） |
 
 **为什么放 L4 而不是 L3**：层导入约束（L3 → L2/L1，L3 **不得** import L4）。既有
-`src/l4/ci.py` 的 `CIService` 已实现管线执行（shell 抽象、后台线程、状态机），
+`systems/python-reference-runtime/l4/ci.py` 的 `CIService` 已实现管线执行（shell 抽象、后台线程、状态机），
 L4 可同时 import L3（card_registry / review / monitor_bus / reputation / archive）与 L4（ci.py / notify.py），
 是唯一不破坏分层、且能复用全部既有设施的挂载点。
 
@@ -35,24 +35,24 @@ L4 可同时 import L3（card_registry / review / monitor_bus / reputation / arc
 
 | 设施 | 位置 | 复用点 |
 |---|---|---|
-| `CIService.run_pipeline(name, steps, agent_id, timeout)` | `src/l4/ci.py` | 步骤执行、状态机、日志截断、后台守护线程 |
-| 卡片完成事件 | `src/l3/card/card_registry.py::complete()` | `emit_signal(EVENT_TASK_ASSIGN, data={"event": "completed"})` + `_notify_subscribers()` + TaskBus webhook + ReferenceChannel |
+| `CIService.run_pipeline(name, steps, agent_id, timeout)` | `systems/python-reference-runtime/l4/ci.py` | 步骤执行、状态机、日志截断、后台守护线程 |
+| 卡片完成事件 | `systems/python-reference-runtime/l3/card/card_registry.py::complete()` | `emit_signal(EVENT_TASK_ASSIGN, data={"event": "completed"})` + `_notify_subscribers()` + TaskBus webhook + ReferenceChannel |
 | 卡片完成订阅 API | `card_registry.subscribe(card_id, cb)` | 模式参考（per-card）；本模块需新增**全局**监听器（见 §2.2） |
 | 变更文件归因 | sandbox per-hunk（`agent_id`/`tool_name`/`task_id`/`modified_at`） | 门禁定向到卡片实际改动文件 |
-| 对等审查 | `src/l3/agent/review.py::perform_review()` | LLM 审查（PASS/NEEDS_CHANGES/REJECT） |
-| 监控事件 | `src/l3/bus/monitor_bus.py` | `MonitorEvent` 入环 + JSONL + SSE |
+| 对等审查 | `systems/python-reference-runtime/l3/agent/review.py::perform_review()` | LLM 审查（PASS/NEEDS_CHANGES/REJECT） |
+| 监控事件 | `systems/python-reference-runtime/l3/bus/monitor_bus.py` | `MonitorEvent` 入环 + JSONL + SSE |
 | 事件总线 | `l1.kernel.get_event_bus().emit_event()` | 字符串类型自动注册（`skill_mutated` 惯例） |
 | 平台 shell | `l1.kernel.platform.shell_command()` | 不落地 `shell=True`，`ci.py` 已示范 |
-| **AutoTestGate** | `src/l3/tool_system/auto_test.py` | 既有"卡后回归"机制——本模块与其差异化互补（见 §3.1） |
-| **R4 归档** | `src/l3/tools/_archive.py::_cmd_archive_store(fonds, series, content, tags)` | 报告归档（`fonds="ci"`），全项目统一归档通道 |
-| **声誉** | `src/l1/kernel/reputation.py::record_review(agent_id, approved)` | 结论可选影响执行 agent 声誉（`REP_REVIEW_*`） |
-| **审批** | `src/l3/card/approval_gate.py::ApprovalGate.request()` | REJECT 可选升级人工/系统审批（`APPROVAL_REQUIRED` 事件） |
-| **审议** | `src/l3/card/card_convention.py::_route_to_convention()` | NEEDS_CHANGES 可选路由多 agent 交叉审议 |
-| **通知** | `src/l4/notify.py::send_notification()` | REJECT/失败可选推送（webhook/email/slack/sms/log） |
-| **技能演化** | `src/l3/memory/r4_skill_feedback.py`（`fonds="skills", series="lean_trace"`） | 门禁失败可选沉淀 lean trace 供 R4Agent 演化技能 |
-| **R5 图** | `src/l3/memory/memory_graph.py::add_semantic_edge()` | 图启用时可选记录审查边（默认图关闭 → 降级 no-op） |
-| **会话闭环** | `src/l3/cell/peers/l3a/session.py::_on_card_completed()` | 卡片结果已注入会话历史；审查结论追加进 `result` 即可 |
-| **安全** | `src/l3/services/central_security.py::check_all()` | 可选对 LLM 审查输出做内容信任校验 |
+| **AutoTestGate** | `systems/python-reference-runtime/l3/tool_system/auto_test.py` | 既有"卡后回归"机制——本模块与其差异化互补（见 §3.1） |
+| **R4 归档** | `systems/python-reference-runtime/l3/tools/_archive.py::_cmd_archive_store(fonds, series, content, tags)` | 报告归档（`fonds="ci"`），全项目统一归档通道 |
+| **声誉** | `systems/python-reference-runtime/l1/kernel/reputation.py::record_review(agent_id, approved)` | 结论可选影响执行 agent 声誉（`REP_REVIEW_*`） |
+| **审批** | `systems/python-reference-runtime/l3/card/approval_gate.py::ApprovalGate.request()` | REJECT 可选升级人工/系统审批（`APPROVAL_REQUIRED` 事件） |
+| **审议** | `systems/python-reference-runtime/l3/card/card_convention.py::_route_to_convention()` | NEEDS_CHANGES 可选路由多 agent 交叉审议 |
+| **通知** | `systems/python-reference-runtime/l4/notify.py::send_notification()` | REJECT/失败可选推送（webhook/email/slack/sms/log） |
+| **技能演化** | `systems/python-reference-runtime/l3/memory/r4_skill_feedback.py`（`fonds="skills", series="lean_trace"`） | 门禁失败可选沉淀 lean trace 供 R4Agent 演化技能 |
+| **R5 图** | `systems/python-reference-runtime/l3/memory/memory_graph.py::add_semantic_edge()` | 图启用时可选记录审查边（默认图关闭 → 降级 no-op） |
+| **会话闭环** | `systems/python-reference-runtime/l3/cell/peers/l3a/session.py::_on_card_completed()` | 卡片结果已注入会话历史；审查结论追加进 `result` 即可 |
+| **安全** | `systems/python-reference-runtime/l3/services/central_security.py::check_all()` | 可选对 LLM 审查输出做内容信任校验 |
 | **L2 命令模式** | `config/commands.yaml` + `l2_shell/commands/*.py`（`test_auto` 先例） | `/ci` 命令按同一模式注册 |
 
 ### 1.2 缺口（本模块补）
@@ -67,7 +67,7 @@ L4 可同时 import L3（card_registry / review / monitor_bus / reputation / arc
 
 ## 2. 架构设计
 
-### 2.1 模块结构（`src/l4/ci_review.py`）
+### 2.1 模块结构（`systems/python-reference-runtime/l4/ci_review.py`）
 
 ```
 CiReviewService(BaseService)                  # name="ci_review"，随 ServiceManager 生命周期管理
@@ -168,7 +168,7 @@ card 完成
 
 ### 3.1 与 AutoTestGate 的关系（关键差异化）
 
-既有 `src/l3/tool_system/auto_test.py`（L3，`off|async` 开关，`/test_auto` 命令）：
+既有 `systems/python-reference-runtime/l3/tool_system/auto_test.py`（L3，`off|async` 开关，`/test_auto` 命令）：
 循环结束发现**未验证编辑** → 后台跑**全量**测试套件 → 结果入 Cell L2 缓存
 （`AUTO_TEST_CACHE_KEY="auto_test"`）→ 发 `auto_test.result` 事件 → 反馈队列
 （`push_feedback`）注入**下一张卡**（最高优先级）。
@@ -223,7 +223,7 @@ CiReviewService 回答"这张卡交付质量如何、可否进入下游"（交�
 | 面 | 新增 | 模式参照 |
 |---|---|---|
 | L2 Shell | `/ci` 命令：`/ci list [status]`、`/ci show <card_id>`、`/ci toggle on|off` | `config/commands.yaml` + `l2_shell/commands/extra.py`（`test_auto` 同款） |
-| CLI (main.py) | `python src/main.py ci <card_id>`（可选，非本期必须） | 现有 `ps/status/audit` 子命令 |
+| CLI (main.py) | `python systems/python-reference-runtime/main.py ci <card_id>`（可选，非本期必须） | 现有 `ps/status/audit` 子命令 |
 | API | `GET /api/v2/ci/reviews`、`GET /api/v2/ci/reviews/{card_id}`、`PUT /api/v2/ci/config` | `loop/auto-test` 端点模式 + `register_endpoint()` |
 | 前端 | **零改动**：SSE/WS 已消费 EventBus/MonitorBus 全量事件 | `ci.review.*` / `ci.card.review` 自动可见 |
 
@@ -253,17 +253,17 @@ CiReviewService 回答"这张卡交付质量如何、可否进入下游"（交�
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l4/ci_review.py` | **新增** | `CiReviewService` 核心（触发/门禁/报告/事件/归档/联动调度，~400 行） |
-| `src/l3/card/card_registry.py` | 编辑 | 全局 `_completion_listeners` + `register/unregister_completion_listener()` + `complete()` 尾部触发（~20 行，纯增量） |
-| `src/l4/ci.py` | 编辑 | `PipelineRun` 增加 `card_id: str = ""` 字段（报告关联用；向后兼容） |
-| `src/l1/kernel/params/system.py` | 编辑 | 新增 `CI_REVIEW_*` 常量（见 §5.1） |
-| `src/l1/kernel/settings.py` | 编辑 | `DEFAULTS` 注册 `ci.review.*` 默认值 |
+| `systems/python-reference-runtime/l4/ci_review.py` | **新增** | `CiReviewService` 核心（触发/门禁/报告/事件/归档/联动调度，~400 行） |
+| `systems/python-reference-runtime/l3/card/card_registry.py` | 编辑 | 全局 `_completion_listeners` + `register/unregister_completion_listener()` + `complete()` 尾部触发（~20 行，纯增量） |
+| `systems/python-reference-runtime/l4/ci.py` | 编辑 | `PipelineRun` 增加 `card_id: str = ""` 字段（报告关联用；向后兼容） |
+| `systems/python-reference-runtime/l1/kernel/params/system.py` | 编辑 | 新增 `CI_REVIEW_*` 常量（见 §5.1） |
+| `systems/python-reference-runtime/l1/kernel/settings.py` | 编辑 | `DEFAULTS` 注册 `ci.review.*` 默认值 |
 | `config/praxis.yaml` | 编辑 | 新增 `ci:` 段（部署开关 + 联动策略） |
-| `src/l3/boot/boot.py` 或 `src/l3/boot/wiring.py` | 编辑 | boot 接线：实例化 + `register_card_trigger()`（wire_from_config 内，随网关启动） |
-| `src/l4/api/api_routes.py` | 编辑 | `/api/v2/ci/*` 路由 |
-| `src/l4/api/api_endpoints.py` | 编辑 | `register_endpoint()` 注册（kebab-case、参数名=handler 关键字） |
-| `src/l4/api/api_handlers_ci.py` | **新增** | handler：查询 + 运行时开关（仿 `loop/auto-test`） |
-| `src/l2/l2_shell/commands/extra.py` | 编辑 | `/ci` 命令实现（`test_auto` 同款模式） |
+| `systems/python-reference-runtime/l3/boot/boot.py` 或 `systems/python-reference-runtime/l3/boot/wiring.py` | 编辑 | boot 接线：实例化 + `register_card_trigger()`（wire_from_config 内，随网关启动） |
+| `systems/python-reference-runtime/l4/api/api_routes.py` | 编辑 | `/api/v2/ci/*` 路由 |
+| `systems/python-reference-runtime/l4/api/api_endpoints.py` | 编辑 | `register_endpoint()` 注册（kebab-case、参数名=handler 关键字） |
+| `systems/python-reference-runtime/l4/api/api_handlers_ci.py` | **新增** | handler：查询 + 运行时开关（仿 `loop/auto-test`） |
+| `systems/python-reference-runtime/l2/l2_shell/commands/extra.py` | 编辑 | `/ci` 命令实现（`test_auto` 同款模式） |
 | `config/commands.yaml` | 编辑 | `/ci` 命令定义 |
 | `tests/conftest.py` | 编辑 | `_RESETS` 注册 `ci_review.reset_service()` + 全局监听器清理 |
 | `tests/l4/test_ci_review.py` | **新增** | 核心 + 联动用例（见 §8） |
@@ -276,7 +276,7 @@ CiReviewService 回答"这张卡交付质量如何、可否进入下游"（交�
 
 ## 5. 配置与常量（v2）
 
-### 5.1 新常量（`src/l1/kernel/params/system.py`，禁止硬编码）
+### 5.1 新常量（`systems/python-reference-runtime/l1/kernel/params/system.py`，禁止硬编码）
 
 ```python
 # ── CI review (card-triggered) ──
@@ -371,7 +371,7 @@ python -m pytest tests/l4/test_ci_review.py tests/l4/test_ci.py -x -q
 python -m pytest tests/l2/test_l2_commands.py tests/l2/test_commands_extra.py -x -q   # /ci 命令
 python -m l4.api.api_endpoints                              # 端点 manifest 校验
 python tests/runner.py                                      # 全量基线
-ruff check src/l4/ci_review.py src/l3/card/card_registry.py src/l4/ci.py src/l2/l2_shell/commands/extra.py
+ruff check systems/python-reference-runtime/l4/ci_review.py systems/python-reference-runtime/l3/card/card_registry.py systems/python-reference-runtime/l4/ci.py systems/python-reference-runtime/l2/l2_shell/commands/extra.py
 ```
 
 ---
@@ -436,7 +436,7 @@ R4 归档 + AutoTestGate 差异化）已全部经代码确认，本模块为纯�
 | `ci.review.todo_linkage` | bool | 门禁失败 → TodoTracker |
 | `ci.review.notify.enabled` | bool | 失败通知开关 |
 
-- 白名单常量 `CI_SETTING_KEYS: frozenset[str]` 定义于 `src/l4/ci_review.py`，API/L2 共用。
+- 白名单常量 `CI_SETTING_KEYS: frozenset[str]` 定义于 `systems/python-reference-runtime/l4/ci_review.py`，API/L2 共用。
 - **越界键拒绝**：`ci.control.*` 权限键**不在**白名单内——权限本身不可经 API/L2 修改（防自举提权），
   只能通过配置文件（praxis.yaml / SettingsCenter 管理面）调整。
 
@@ -474,13 +474,13 @@ R4 归档 + AutoTestGate 差异化）已全部经代码确认，本模块为纯�
 
 | 文件 | 操作 |
 |---|---|
-| `src/l1/kernel/params/system.py` | 新增 `CI_CONTROL_API_WRITABLE` / `CI_CONTROL_SHELL_WRITABLE` |
-| `src/l1/kernel/settings.py` | DEFAULTS 追加 `ci.control.api.writable` / `ci.control.shell.writable` |
+| `systems/python-reference-runtime/l1/kernel/params/system.py` | 新增 `CI_CONTROL_API_WRITABLE` / `CI_CONTROL_SHELL_WRITABLE` |
+| `systems/python-reference-runtime/l1/kernel/settings.py` | DEFAULTS 追加 `ci.control.api.writable` / `ci.control.shell.writable` |
 | `config/praxis.yaml` | `ci:` 段追加 `control:` 子段 |
-| `src/l4/ci_review.py` | 新增 `CI_SETTING_KEYS` + `_surface_writable()` |
-| `src/l4/api_handlers/api_handlers_ci.py` | `handle_ci_config_get` + PUT 支持子键/批量/权限校验 |
-| `src/l4/api/api_routes.py` + `api_endpoints.py` | 注册 `GET /api/v2/ci/config` |
-| `src/l2/l2_shell/commands/ci.py` | 新增 `config` / `set` 子命令 + 权限校验 |
+| `systems/python-reference-runtime/l4/ci_review.py` | 新增 `CI_SETTING_KEYS` + `_surface_writable()` |
+| `systems/python-reference-runtime/l4/api_handlers/api_handlers_ci.py` | `handle_ci_config_get` + PUT 支持子键/批量/权限校验 |
+| `systems/python-reference-runtime/l4/api/api_routes.py` + `api_endpoints.py` | 注册 `GET /api/v2/ci/config` |
+| `systems/python-reference-runtime/l2/l2_shell/commands/ci.py` | 新增 `config` / `set` 子命令 + 权限校验 |
 | `tests/l4/test_ci_review.py` | 新增权限隔离 / 子开关 / GET config 用例 |
 
 ### 11.6 测试要点（v2.1）
@@ -606,10 +606,10 @@ PUT 键展开规则：
 |---|---|
 | 配置 | `ci.review.gates` 保持 `list[str]`（简单模式，不变）；新增可选 `ci.review.matchers: {<gate>: {"include": [...], "exclude": [...]}}` |
 | 语义 | include 为空 = 不限；exclude 优先（先 exclude 后 include） |
-| glob | 仅路径匹配（`src/**`、`*.py`），使用 `fnmatch`（大小写不敏感，Windows 兼容） |
+| glob | 仅路径匹配（`systems/python-reference-runtime/**`、`*.py`），使用 `fnmatch`（大小写不敏感，Windows 兼容） |
 | 生效点 | `_build_steps`：每个 gate 先用 matcher 过滤变更文件，无剩余文件则跳过该 gate（与"无匹配跳过 pytest"一致） |
 | 默认 | 无 matchers 配置时行为与 v1-v3 完全一致（零破坏） |
-| 示例 | `matchers: {mypy: {include: ["src/**"], exclude: ["src/l1/kernel/params/**"]}}` |
+| 示例 | `matchers: {mypy: {include: ["systems/python-reference-runtime/**"], exclude: ["systems/python-reference-runtime/l1/kernel/params/**"]}}` |
 
 ### 13.2 AutoTest 缓存真实消费
 
@@ -647,12 +647,12 @@ PUT 键展开规则：
 
 | 文件 | 操作 |
 |---|---|
-| `src/l4/ci_review.py` | `_build_steps` 加 matcher 过滤；`_collect_autotest_context`；`rerun()`；`_link_notify` 扩展 webhook |
-| `src/l4/api_handlers/api_handlers_ci.py` | `handle_ci_review_rerun`（POST） |
-| `src/l4/api/api_routes.py` + `api_endpoints.py` | 注册 `POST /api/v2/ci/reviews/{card_id}/rerun` |
-| `src/l2/l2_shell/commands/ci.py` | `/ci rerun <card_id>` 子命令 |
+| `systems/python-reference-runtime/l4/ci_review.py` | `_build_steps` 加 matcher 过滤；`_collect_autotest_context`；`rerun()`；`_link_notify` 扩展 webhook |
+| `systems/python-reference-runtime/l4/api_handlers/api_handlers_ci.py` | `handle_ci_review_rerun`（POST） |
+| `systems/python-reference-runtime/l4/api/api_routes.py` + `api_endpoints.py` | 注册 `POST /api/v2/ci/reviews/{card_id}/rerun` |
+| `systems/python-reference-runtime/l2/l2_shell/commands/ci.py` | `/ci rerun <card_id>` 子命令 |
 | `config/praxis.yaml` | `ci.review.matchers` + `notify.webhook_url/webhook_events` |
-| `src/l1/kernel/params/system.py` | `CI_REVIEW_RERUN_CONCURRENCY`（可选） |
+| `systems/python-reference-runtime/l1/kernel/params/system.py` | `CI_REVIEW_RERUN_CONCURRENCY`（可选） |
 | `tests/l4/test_ci_review.py` | matcher / 缓存附注 / 重跑 / webhook 用例 |
 
 ### 13.6 测试要点（v4）

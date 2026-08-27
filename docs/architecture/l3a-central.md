@@ -2,7 +2,7 @@
 
 L3A is not another agent loop — it is the **central office** between the
 will (user) and the departments (cells/agents). 26 files / 7,367 lines in
-`src/l3/cell/peers/l3a/`.
+`systems/python-reference-runtime/l3/cell/peers/l3a/`.
 
 ```
 User (will) ──intent──> L3A central ──card──> Cell/agents (execution)

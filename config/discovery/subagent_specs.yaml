@@ -1,4 +1,4 @@
-# SubAgent spec definitions — loaded directly by src/l3/agent/subagent_spec.py
+# SubAgent spec definitions — loaded directly by systems/python-reference-runtime/l3/agent/subagent_spec.py
 # (load_specs), NOT via ConfigDiscovery (the section is unregistered there).
 # Each entry maps to a SubAgentSpec dataclass and overrides the built-in
 # defaults in subagent_spec.py by name; unknown names register new specs.

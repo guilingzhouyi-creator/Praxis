@@ -35,11 +35,11 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE = ROOT / "config" / "quality" / "layer-baseline.yaml"
 
 LAYERS: dict[str, Path] = {
-    "L1": ROOT / "src" / "l1",
-    "L2": ROOT / "src" / "l2",
-    "L3": ROOT / "src" / "l3",
-    "L4": ROOT / "src" / "l4",
-    "L5": ROOT / "src" / "l5",
+    "L1": ROOT / "systems/python-reference-runtime" / "l1",
+    "L2": ROOT / "systems/python-reference-runtime" / "l2",
+    "L3": ROOT / "systems/python-reference-runtime" / "l3",
+    "L4": ROOT / "systems/python-reference-runtime" / "l4",
+    "L5": ROOT / "systems/python-reference-runtime" / "l5",
 }
 
 # Hardcoded-arg scan: keyword names that should always come from params/.

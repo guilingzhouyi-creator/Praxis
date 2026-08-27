@@ -18,15 +18,15 @@ is deleted without a migration step.
 All three run `AgentLoop` inside a `ThreadPoolExecutor` and expose some
 `commission`/`pool`/`collect` shape. They differ in scope and spec model.
 
-### 2.1 `src/l3/agent/subagent.py` — `SubAgent` (legacy, 128 lines)
+### 2.1 `systems/python-reference-runtime/l3/agent/subagent.py` — `SubAgent` (legacy, 128 lines)
 
 - Synchronous single-shot runner (`run(task, tools)` → `SubAgentResult`).
 - Callers:
-  - `src/l3/tools/_subagent.py` — the `subagent_tool` (review/deploy/scout profiles)
+  - `systems/python-reference-runtime/l3/tools/_subagent.py` — the `subagent_tool` (review/deploy/scout profiles)
   - `tests/l3/agent/test_subagent.py`
 - Not wired into Cell or L3A delegation.
 
-### 2.2 `src/l3/agent/subagent_*.py` — `SubAgentPool` (formal framework, ~1311 lines)
+### 2.2 `systems/python-reference-runtime/l3/agent/subagent_*.py` — `SubAgentPool` (formal framework, ~1311 lines)
 
 Files: `subagent_spec.py`, `subagent_task.py`, `subagent_dispatcher.py`,
 `subagent_pool.py`, `subagent_framework.py`, `subagent_gate.py`, `subagent_merger.py`.
@@ -36,16 +36,16 @@ Files: `subagent_spec.py`, `subagent_task.py`, `subagent_dispatcher.py`,
   `code-reviewer`, `documenter`, `data-analyst`, `architect`, `helper`,
   `refactor-agent`, `fixer`).
 - Territory / GateChain integration on commission.
-- Callers: `src/l3/cell/__init__.py`, `src/l3/services/cell_orchestrate.py`,
-  `src/l3/cell/components/cell_execute.py` (gate), tests `tests/l3/subagent/`.
+- Callers: `systems/python-reference-runtime/l3/cell/__init__.py`, `systems/python-reference-runtime/l3/services/cell_orchestrate.py`,
+  `systems/python-reference-runtime/l3/cell/components/cell_execute.py` (gate), tests `tests/l3/subagent/`.
 
-### 2.3 `src/l3/cell/peers/l3a/subagent.py` — `L3ASubAgentPool` (297 lines)
+### 2.3 `systems/python-reference-runtime/l3/cell/peers/l3a/subagent.py` — `L3ASubAgentPool` (297 lines)
 
 - L3A-session pool singleton (`get_pool()`), two hardcoded specs
   (`card-planner`, `investigator`) in `_L3A_SPECS`.
 - Group-based `collect(group)` with `as_completed`, custom `cardwrite` tool
   handler, `_extract_findings` (expect_keys), L3A prompt key.
-- Callers: `src/l3/cell/peers/l3a/session.py`, `src/l3/cell/peers/l3a/__init__.py`,
+- Callers: `systems/python-reference-runtime/l3/cell/peers/l3a/session.py`, `systems/python-reference-runtime/l3/cell/peers/l3a/__init__.py`,
   tests `tests/l3/l3a/`.
 
 ### 2.4 Overlap
@@ -126,20 +126,20 @@ down the wrong path. `l3a/subagent.py` states the design intent explicitly:
 
 ## 3. Assembly vs Discussion — two generations of the same concept
 
-### 3a `src/l3/services/assembly.py` (218 lines)
+### 3a `systems/python-reference-runtime/l3/services/assembly.py` (218 lines)
 
 `AssemblyMode` (start_issue / submit_proposal / challenge / respond / converge /
 status) + Proposal/Challenge/Response/IssueDocument — the blank-Cell → proposals →
 cross-exam → consensus → constitution flow.
 
 Live call graph (as of 2026-08-12):
-- `src/l3/cell/peers/l3a/helpers.py` **no longer imports it** — the former
+- `systems/python-reference-runtime/l3/cell/peers/l3a/helpers.py` **no longer imports it** — the former
   `from l3.services.assembly import AssemblyMode` was a dead import, shadowed by
   `from .types import AssemblyMode` (the routing enum); removed in the first
-  dedup pass. Nothing else in `src/` references the module.
+  dedup pass. Nothing else in `systems/python-reference-runtime/` references the module.
 - `tests/l3/discussion/test_assembly.py` exercises it directly.
 
-### 3b `src/l3/discussion/` (7 modules)
+### 3b `systems/python-reference-runtime/l3/discussion/` (7 modules)
 
 `IssueOrchestrator` / `DiscussionSession` / `AnswerSession` / `CellAnswerRepo` /
 `AnswerAggregator` / `SupplementManager` / `ReportService` — cross-Cell issue →
@@ -167,7 +167,7 @@ types, one of which is only reachable via a dead import.
    - Option B (conservative): rename to `discussion/legacy_assembly.py`, mark
      deprecated, and land it once the L3A flow moves to `IssueOrchestrator`.
    - **DONE** (2026-08-12): **Option A**. `services/assembly.py` had zero
-     production references in `src/` (only `tests/l3/discussion/test_assembly.py`
+     production references in `systems/python-reference-runtime/` (only `tests/l3/discussion/test_assembly.py`
      exercised it; the lone `assembly_mode` hits in `boot.py`/`api_endpoints.py`
      are unrelated local wording). Deleted both files; its single assertion with
      real semantic value (`TerritoryConstitution.is_blank()`) was already
@@ -180,10 +180,10 @@ types, one of which is only reachable via a dead import.
 
 ## 4. Naming overlaps (low priority, document-only)
 
-- `src/l1/kernel/ipc.py` vs `src/l3/bus/ipc.py` — kernel primitive vs L3 bus transport.
-- `src/l3/memory/context.py` (`ContextManager`) vs `src/l3/cell/peers/l3a/context.py`
+- `systems/python-reference-runtime/l1/kernel/ipc.py` vs `systems/python-reference-runtime/l3/bus/ipc.py` — kernel primitive vs L3 bus transport.
+- `systems/python-reference-runtime/l3/memory/context.py` (`ContextManager`) vs `systems/python-reference-runtime/l3/cell/peers/l3a/context.py`
   (`ContextRegistry`) — two different "context" systems with the same file name.
-- `src/l4/{rpc,sandbox,llm_worker}/server.py` + `l4/ws/ws_bridge.py` +
+- `systems/python-reference-runtime/l4/{rpc,sandbox,llm_worker}/server.py` + `l4/ws/ws_bridge.py` +
   `l4/sse/sse_bridge.py` — separate server entrypoints, different ports. No merge.
 
 These are keep-as-is; they only matter when making a new `context`/`ipc`/`server`
@@ -196,7 +196,7 @@ python -m pytest tests/infra/test_layer_imports.py -q -p xdist -n 0
 python -m pytest tests/infra/test_params_compliance.py -q
 python -m pytest tests/l3/subagent/ tests/l3/l3a/ tests/l3/agent/ -q
 python tests/runner.py
-ruff check src/ tests/
+ruff check systems/python-reference-runtime/ tests/
 ```
 
 ## 6. Extra

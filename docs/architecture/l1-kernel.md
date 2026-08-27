@@ -40,7 +40,7 @@ The kernel’s semantic surface is frozen for the Rust rewrite (`l1_kernel_rs`):
 security/control invariants and explicitly retained wire fields are evidence;
 Python class layout and user-data formats are not migration requirements.
 
-The staged Rust build boundary lives in `crates/l1-kernel-rs/`. Its primitive
+The staged Rust build boundary lives in `systems/rust-kernel-engine/l1-kernel-rs/`. Its primitive
 value contracts are mirrored and isolated mechanism candidates now cover
 sync/cancellation/process/event/channel/allocator/worker, lock IPC, journal, bounded audit,
 capability-authority, G1-G5 gatechain, Constitution rule/evaluation shapes,
@@ -163,7 +163,7 @@ same-loop admissions no longer serialize on one mutex. Session
 history and `input_seq` remain authoritative in `Session`; terminal mailboxes,
 PTYs, subprocesses, providers, prompts, tools, and worker execution remain
 adapter-owned. The candidate is covered by the independent
-`crates/l1-kernel-rs/tests/session/agent_loop.rs` target and does not grant runtime
+`systems/rust-kernel-engine/l1-kernel-rs/tests/session/agent_loop.rs` target and does not grant runtime
 authority. `run_agent_loop` and `rust-agent-loop-bench` add a separate v3
 fixed-work input-admission workload with lifecycle-lock wait accounting; a current
 4096-item release smoke measured median throughput of about 1.706M/0.898M/
@@ -392,7 +392,7 @@ and monitoring policy remain host-owned.
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
 substrate metadata, port metadata, and halted lifecycle into a deterministic
-`KernelAssembly`. `crates/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
+`KernelAssembly`. `systems/rust-kernel-engine/l1-kernel-rs/src/bin/rust-kernel.rs` is an independent
 entrypoint that requires an explicit state-root argument and emits this
 complete snapshot as JSON with no Python import; it never infers a relative
 working-directory root.
@@ -605,12 +605,12 @@ persist, protocol, protocol-host, constitution, gatechain, allocator, vfs, load-
 versioning mechanism
 tests are maintained as
 independent integration files under
-`crates/l1-kernel-rs/tests/<domain>/`; the public contract-version check is also part of
+`systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/`; the public contract-version check is also part of
 `contract_vectors.rs`. Their public APIs are therefore the only test-visible
 boundary for these slices.
 
 The synchronization mechanism tests are also fully isolated under
-`crates/l1-kernel-rs/tests/core/sync.rs`; the shared RWLock vectors remain in
+`systems/rust-kernel-engine/l1-kernel-rs/tests/core/sync.rs`; the shared RWLock vectors remain in
 `sync_vectors.rs`. The source module now contains no private test block, so
 Mutex, Semaphore, Barrier, Condition, and RWLock are validated only through
 the public candidate API. This is a test-domain boundary, not runtime lock
@@ -692,7 +692,7 @@ boundary caller (L2 shell / API / MCP)
       → kernel audit record (capability.invoke)
 ```
 
-`src/l1/kernel/capability.py` owns the single execution authority: boot is the
+`systems/python-reference-runtime/l1/kernel/capability.py` owns the single execution authority: boot is the
 ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
 connects it to `invoke_gated`), the kernel never imports L3, and an unwired
 executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
@@ -854,7 +854,7 @@ call storage, trimming/re-rooting, and tool execution remain Python-owned; the
 candidate has no runtime singleton or capability authority.
 
 Rust parity and mechanism tests for this boundary run as independent
-integration targets under `crates/l1-kernel-rs/tests/<domain>/`; implementation modules
+integration targets under `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/`; implementation modules
 contain no inline test block. The Python infra gate
 `tests/infra/test_rust_test_domain.py` enforces this public-boundary rule.
 
@@ -990,7 +990,7 @@ and a terminal-observation path whose executable and invocation prefix are
 supplied by the host probe, optional cwd/input/environment settings, per-stream
 output caps with continuous draining, deadline kill, and structured
 not-found/execution/timeout results. Its public tests live in the independent
-`crates/l1-kernel-rs/tests/process/process_adapter.rs` target, and
+`systems/rust-kernel-engine/l1-kernel-rs/tests/process/process_adapter.rs` target, and
 `run_process_adapter`/`rust-process-adapter-bench` report the isolated
 `process.adapter.oneshot` workload. A current release smoke measured roughly
 707/1404/2758 ops/s at 1/2/4 workers with p95 about 1.54/1.56/1.57 ms and no

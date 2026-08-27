@@ -5,12 +5,12 @@
 
 ## 0. 现状基线（main）
 
-- Python L2：`src/l2/` 22 文件 / 3550 行（commands / selector / i18n /
+- Python L2：`systems/python-reference-runtime/l2/` 22 文件 / 3550 行（commands / selector / i18n /
   shell_completer / shells/* / l2_shell/* / protocol/*）。
-- TS 已落地（分支）：`packages/protocol-ts/src/` —— 协议镜像
+- TS 已落地（分支）：`systems/typescript-shell-engine/src/` —— 协议镜像
   `envelope.ts`/`records.ts` + `engine/`（parser / dispatcher / bridge /
   session / builtins）+ `engine/transports/`（stdio / http / ws / ssh）。
-- ⚠️ **bridge.py 不存在于 main**：handoff §1.2 声称的 `src/l2/bridge.py`
+- ⚠️ **bridge.py 不存在于 main**：handoff §1.2 声称的 `systems/python-reference-runtime/l2/bridge.py`
   （92 函数 / 49 allowlist）已不在仓库；L2 当前直接 import L3/L4
   （`l3.error_bus`、`l3.params`、`l4.ports`、`l4.adapters.i18n_yaml`）。
   TS 侧 `engine/bridge.ts` 已是协议 v1 客户端形态——**正确方向**：TS
@@ -20,8 +20,8 @@
 
 | Python3 模块 | 关键符号 | TS 对应 | 状态 |
 |---|---|---|---|
-| `protocol/envelope.py` | `Outbox`/`SessionCursor`/`make_message`/`validate_message` | `src/envelope.ts` | ✅ 已有（镜像，非破坏性 ack） |
-| `protocol/records.py` | `SessionIdentity` | `src/records.ts` | ✅ 已有 |
+| `protocol/envelope.py` | `Outbox`/`SessionCursor`/`make_message`/`validate_message` | `systems/typescript-shell-engine/src/envelope.ts` | ✅ 已有（镜像，非破坏性 ack） |
+| `protocol/records.py` | `SessionIdentity` | `systems/typescript-shell-engine/src/records.ts` | ✅ 已有 |
 | `protocol/host.py` | `ProtocolHost.handle`/`_emit`/`_advance_shared_cursor` | `engine/bridge.ts`（客户端）+ `session.ts`（SessionView） | 🟡 部分：客户端/投影已有；host 权威留 Python3 |
 | `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` | 🟡 部分：解析/分派已有；alias 反查、`_l3a_intent` 路由未映射 |
 | `shells/base.py` | `Shell(ABC)` / `run` | `engine/session.ts`（SessionView） | 🟡 部分：会话视图已有；Shell 方言抽象未映射 |
@@ -32,7 +32,7 @@
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | 本地投影（dict 数据 API，零句柄） | ⏳ 需重写（选择结果渲染，权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
 | `shells/session.py` + host 状态容器 | `ShellSession` / `_advance_shared_cursor` | `engine/session-manager.ts`（一会话 N 视图游标 + 共享水位=落后视图） | ✅ 已实现 |
-| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin | ✅ 已实现（`src/i18n.ts`） |
+| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin | ✅ 已实现（`systems/typescript-shell-engine/src/i18n.ts`） |
 | `shell_completer.py` + `l2_shell/completer.py` | `TerminalCompleter.complete`/`get_command_names`/`get_aliases` | 本地补全（桥数据渲染候选） | ✅ 已实现（`engine/completer.ts`） |
 | `l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） | ✅ 已实现（`engine/command-groups.ts`） |
 | `l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python3） | ✅ 已实现（`engine/output-guard.ts`） |

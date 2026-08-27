@@ -60,7 +60,7 @@ architecture and performance gates.
 | Engineering debug mode | Main feature is merged, but the roadmap still has P1 gaps: settings authorization bypass, hardware adapter absence, provider rollback, production prompt read exposure, and privacy-config drift | **Open P1** |
 | Performance decision | Runs `20260818-preflight-01` through `20260818-preflight-03` have fixed-work Amdahl/lock/platform evidence, explicit EventBus dispatch/drop counters, and separate bounded clean-load evidence; normal non-zero listener loads remain lossy and RWLock needs ownership review | **Open M3** |
 | Automation perimeter | Quality sampling is configured outside L1; stable evidence/observability/dependency-graph/trace seams are present on the preflight branch | **Reverify** with the runner gates |
-| Build scaffolding | `crates/Cargo.toml`, `rust-toolchain.toml`, `packages/protocol-ts/package.json`, lockfile, and TS config are present on the preflight branch | **Reverify** with language-check |
+| Build scaffolding | `systems/rust-kernel-engine/Cargo.toml`, `rust-toolchain.toml`, `systems/typescript-shell-engine/package.json`, lockfile, and TS config are present on the preflight branch | **Reverify** with language-check |
 
 The historical implementation ledger in
 `docs/design/rust-readiness-hardening-plan.md` marks WS1–WS6 slices as landed.
@@ -299,9 +299,9 @@ recorded and reproducible:
 - provide offline/CI smoke commands and artifact locations;
 - keep Python's current test and runtime path usable during the migration.
 
-The build boundary is now checked in: `crates/Cargo.toml` and
-`crates/l1-kernel-rs/` are contract/candidate Rust scaffolds, while
-`packages/protocol-ts/` is a read-only protocol parity mirror with a committed
+The build boundary is now checked in: `systems/rust-kernel-engine/Cargo.toml` and
+`systems/rust-kernel-engine/l1-kernel-rs/` are contract/candidate Rust scaffolds, while
+`systems/typescript-shell-engine/` is a read-only protocol parity mirror with a committed
 lockfile. `rust-toolchain.toml`, Makefile targets, and
 `.github/workflows/multilang.yml` pin and exercise the same checks. These files
 do not grant Rust or TypeScript runtime authority.

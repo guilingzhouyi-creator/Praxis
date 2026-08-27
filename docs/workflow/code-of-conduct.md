@@ -8,7 +8,7 @@ below are the load-bearing summary, stated here exactly once (index into
 
 ## Worktree gate — mandatory before ANY code change
 
-NEVER edit `src/`, `tests/`, `config/`, `scripts/`, or `docs/` on the main
+NEVER edit `systems/python-reference-runtime/`, `tests/`, `config/`, `scripts/`, or `docs/` on the main
 tree. Plan first, then build in a dedicated worktree:
 `git worktree add ../praxis-<area> feature/<agent>-<area>`.
 
@@ -24,7 +24,7 @@ The gate system has exactly two waivers, each granted by the user, never
 self-awarded:
 
 1. **Main-tree modification waiver (主树修改推进豁免)** — grants permission
-   to EDIT ON the main tree paths (`src/` `tests/` `config/` `scripts/`
+   to EDIT ON the main tree paths (`systems/python-reference-runtime/` `tests/` `config/` `scripts/`
    `docs/`) instead of opening a worktree. It waives WHERE you change code,
    NOT whether the change may ship. Default: DENIED (worktree gate above).
    Grant signal: user approves "准许主树操作 / allowed to edit on main".

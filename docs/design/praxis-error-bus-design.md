@@ -342,7 +342,7 @@ data: {"type": "error", "entry": {...}}
                capture("xxx failed", exc=e, ...) # New bus push
 ```
 
-### `capture()` Design in `src/services/error_bus.py`
+### `capture()` Design in `systems/python-reference-runtime/services/error_bus.py`
 
 ```python
 # One-line replacement for pass / logger.warning in all except points
@@ -430,146 +430,146 @@ All except points are uniformly replaced by one of the following patterns:
 ### 7.2 P0 — Eliminate 62 Silent Swallow Points (Grouped by File)
 
 ```
-src/main.py
+systems/python-reference-runtime/main.py
   L36  except Exception: pass           → capture("shutdown handler register failed", component="main")
   L58  except Exception: pass           → capture("main loop error", component="main")
 
-src/cli.py
+systems/python-reference-runtime/cli.py
   L189 except Exception: pass           → capture("cli status display failed", component="cli")
 
-src/kernel/net.py
+systems/python-reference-runtime/kernel/net.py
   L173 except Exception: continue       → capture("udp discovery handler error", component="kernel")
   L163 except Exception: continue       → capture("udp discovery error", component="kernel")
 
-src/kernel/persist.py
+systems/python-reference-runtime/kernel/persist.py
   L162 except Exception: continue       → capture("event replay json parse failed", component="kernel")
   L310 except Exception: ok = False     → capture("persist cleanup failed", component="kernel")
 
-src/kernel/platform.py
+systems/python-reference-runtime/kernel/platform.py
   L182 except Exception: pass           → capture("log file read failed", component="kernel")
   L188 except Exception: return []      → capture("file read failed", component="kernel")
 
-src/kernel/skill.py
+systems/python-reference-runtime/kernel/skill.py
   L162 except Exception: return False   → capture("skill file read failed", component="kernel")
   L171 except Exception: return False   → capture("skill yaml parse failed", component="kernel")
 
-src/services/agent_loop.py
+systems/python-reference-runtime/services/agent_loop.py
   L366 except Exception: pass           → capture("state file cleanup failed", component="services")
   L636 except Exception: pass           → capture("memory compact failed", component="services")
   L705 except Exception: pass           → capture("stub compact failed", component="services")
 
-src/services/agent_terminal.py
+systems/python-reference-runtime/services/agent_terminal.py
   L320 except Exception: ...skip        → capture("memory store failed", component="services")
   L337 except Exception: ...skip        → capture("cross review failed", component="services")
   L439 except Exception: pass           → capture("direct session archive failed", component="services")
 
-src/services/card_gate.py
+systems/python-reference-runtime/services/card_gate.py
   L139 except Exception: pass           → capture("approval set failed", component="services")
 
-src/services/card_registry.py
+systems/python-reference-runtime/services/card_registry.py
   L120 except Exception: pass           → capture("gate auto approve failed", component="services")
   L200 except Exception: fallback       → capture("gate evaluate failed", component="services")
   L293 except Exception: fallback       → capture("llm plan parse failed", component="services")
 
-src/services/central_memory.py
+systems/python-reference-runtime/services/central_memory.py
   L49  except Exception: pass           → capture("quality score failed", component="services")
   L99  except Exception: pass           → capture("ring4 recall failed", component="services")
   L138 except Exception: pass           → capture("memory stats failed", component="services")
   L145 except Exception: pass           → capture("r4 stats failed", component="services")
 
-src/services/central_security.py
+systems/python-reference-runtime/services/central_security.py
   L137 except Exception: fallback       → capture("rate limit check failed", component="services")
 
-src/services/config_handlers.py
+systems/python-reference-runtime/services/config_handlers.py
   L236 except Exception: dtype=fallback → capture("device type parse failed", component="services")
 
-src/services/config_loader.py
+systems/python-reference-runtime/services/config_loader.py
   L192 except Exception: fallback       → capture("provider list failed", component="services")
 
-src/services/convergence.py
+systems/python-reference-runtime/services/convergence.py
   L121 except Exception: fallback       → capture("llm converge failed", component="services")
 
-src/services/dialogue_session.py
+systems/python-reference-runtime/services/dialogue_session.py
   L240 except Exception: return None    → capture("session restore failed", component="services")
 
-src/services/htn_planner.py
+systems/python-reference-runtime/services/htn_planner.py
   L113 except Exception: fallback       → capture("htn params failed", component="services")
 
-src/services/issue.py
+systems/python-reference-runtime/services/issue.py
   L285 except Exception: pass           → capture("draft delete failed", component="services")
 
-src/services/l2_shell.py
+systems/python-reference-runtime/services/l2_shell.py
   L125 except Exception: pass           → capture("agent autocomplete failed", component="services")
   L556 except Exception: pass           → capture("close direct session failed", component="services")
 
-src/services/llm.py
+systems/python-reference-runtime/services/llm.py
   L75  except Exception: return cls()   → capture("provider create failed", component="services")
   L342 except Exception: pass           → capture("retry memory compact failed", component="services")
   L359 except Exception: return {...}   → capture("llm json decode failed", component="services")
   L416 except Exception: config=default → capture("llm config load failed", component="services")
 
-src/services/llm_providers.py
+systems/python-reference-runtime/services/llm_providers.py
   L45,108,179,215: except Exception: return default → capture("settings get failed", component="services")
 
-src/services/lsp.py
+systems/python-reference-runtime/services/lsp.py
   L54  except Exception: return False   → capture("pyright check failed", component="services")
   L108 except Exception: continue       → capture("lsp file read failed", component="services")
   L148 except Exception: pass           → capture("pyright parse failed", component="services")
 
-src/services/mcp_bridge.py
+systems/python-reference-runtime/services/mcp_bridge.py
   L102 except Exception: return False   → capture("mcp ping failed", component="services")
 
-src/services/memory.py
+systems/python-reference-runtime/services/memory.py
   L470 except Exception: return []      → capture("memory db query failed", component="services")
 
-src/services/memory_init.py
+systems/python-reference-runtime/services/memory_init.py
   L76  except Exception: return None    → capture("memory load failed", component="services")
 
-src/services/observability_bus.py
+systems/python-reference-runtime/services/observability_bus.py
   L107,113,119,125: except Exception: fallback → capture("obs subsystem failed", component="services")
 
-src/services/pending_queue.py
+systems/python-reference-runtime/services/pending_queue.py
   L138 except Exception: pass           → capture("pending approval set failed", component="services")
 
-src/services/process.py
+systems/python-reference-runtime/services/process.py
   L118 except Exception: break          → capture("process reader error", component="services")
 
-src/services/selector.py
+systems/python-reference-runtime/services/selector.py
   L83  except Exception: return fallback → capture("cell service unavailable", component="services")
   L198 except Exception: continue       → capture("agent lookup failed", component="services")
   L211 except Exception: pass           → capture("role lookup failed", component="services")
 
-src/services/shell.py
+systems/python-reference-runtime/services/shell.py
   L118 except Exception: fallback       → capture("tool list failed", component="services")
 
-src/services/shell_completer.py
+systems/python-reference-runtime/services/shell_completer.py
   L48  except Exception: return fallback → capture("registry load failed", component="services")
   L72  except Exception: return None    → capture("complete failed", component="services")
 
-src/services/shell_session.py
+systems/python-reference-runtime/services/shell_session.py
   L129 except Exception: break          → capture("shell session read error", component="services")
 
-src/services/verifier.py
+systems/python-reference-runtime/services/verifier.py
   L49  except Exception: fallback       → capture("llm verify failed", component="services")
   L91  except Exception: pass           → capture("consistency check failed", component="services")
 
-src/services/_term_lifecycle.py
+systems/python-reference-runtime/services/_term_lifecycle.py
   L44  except Exception: pass           → capture("keepalive check failed", component="services")
 
-src/services/fs.py
+systems/python-reference-runtime/services/fs.py
   L62  except OSError: continue         → capture("file stat failed", component="services")
 
-src/tools/advanced/tools_notify.py
+systems/python-reference-runtime/tools/advanced/tools_notify.py
   L22  except Exception: fallback       → capture("notify json parse failed", component="tools")
 
-src/tools/base/tools_context.py
+systems/python-reference-runtime/tools/base/tools_context.py
   L48  except Exception: fallback       → capture("context json parse failed", component="tools")
 
-src/tools/base/tools_data.py
+systems/python-reference-runtime/tools/base/tools_data.py
   L88  except Exception: return error   → capture("schema json parse failed", component="tools")
   L128 except Exception: fallback       → capture("mapping json parse failed", component="tools")
 
-src/tools/special/tools_archive.py
+systems/python-reference-runtime/tools/special/tools_archive.py
   L110 except Exception: return 0       → capture("archive db count failed", component="tools")
 ```
 
@@ -602,10 +602,10 @@ src/tools/special/tools_archive.py
 | File | Status | Description |
 |------|--------|-------------|
 | `docs/design/praxis-error-bus-design.md` | ✅ New | This design document |
-| `src/services/error_bus.py` | ✅ New | ErrorBus core + capture + API handlers |
-| `src/kernel/params.py` | ✅ Modified | Add 3 ERROR_BUS_* constants |
-| `src/services/api_gateway.py` | ✅ Modified | Register LOG_ROUTES with API Gateway |
-| `src/services/api_handlers.py` | 🔜 Optional | Can mix handlers into ApiHandlers class (already has LOG_ROUTES standalone mode) |
+| `systems/python-reference-runtime/services/error_bus.py` | ✅ New | ErrorBus core + capture + API handlers |
+| `systems/python-reference-runtime/kernel/params.py` | ✅ Modified | Add 3 ERROR_BUS_* constants |
+| `systems/python-reference-runtime/services/api_gateway.py` | ✅ Modified | Register LOG_ROUTES with API Gateway |
+| `systems/python-reference-runtime/services/api_handlers.py` | 🔜 Optional | Can mix handlers into ApiHandlers class (already has LOG_ROUTES standalone mode) |
 | ~190 except points across the project | 🔜 Pending | Gradually replace by phase P0→P1→P2→P3 |
 
 ## 8. Frontend Integration Contract

@@ -123,9 +123,9 @@ answering a different question:
 | **Stall & oscillation** | Is the agent *spinning*? | stagnation rate = stagnation-trigger count / total steps; oscillation detection = zero-crossing / variance analysis of the EWMA `queue_ratio` series (feeds the load-adaptive hysteresis tuning); convergence-step histogram to surface long-tail cards |
 | **Scaling curve** | Where is the serial bottleneck? | Amdahl fit `speedup = 1 / (1−P + P/N)` over agent counts 1→2→4→8 → serial fraction P (high P ⇒ scheduler/shared-lock bottleneck); Gustafson correction at fixed wall time; saturation knee N* = measured max useful concurrency for `praxis.yaml` |
 
-Sources already in-tree: `src/l3/agent/verifier.py` (pass/fail),
+Sources already in-tree: `systems/python-reference-runtime/l3/agent/verifier.py` (pass/fail),
 `convergence.py` (resolution ratio), `stagnation.py` (loop detection),
-`src/l3/scheduler/` (rate limits, step budgets), `tests/benchmarks/bench_card.py`
+`systems/python-reference-runtime/l3/scheduler/` (rate limits, step budgets), `tests/benchmarks/bench_card.py`
 (wall time, steps/s, parallel efficiency, CPU/wall speedup),
 `tests/benchmarks/bench_platform.py` (L1 primitives: mutex/event bus/channel/
 worker pool/thread create; platform fingerprint incl. WSL; `--json` for

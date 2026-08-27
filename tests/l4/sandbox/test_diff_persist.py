@@ -32,7 +32,7 @@ def test_enable_and_append():
     """Enabling the store allows stitching diffs into the ring."""
     store = get_diff_persist()
     assert store.set_enabled(True)["success"] is True
-    r = store.append("d1", "def foo():\n    return 1\n", meta={"path": "src/a.py"})
+    r = store.append("d1", "def foo():\n    return 1\n", meta={"path": "systems/python-reference-runtime/a.py"})
     assert r["success"] is True
     assert r["ring"] == 1
     assert store.stats()["ring"] == 1
@@ -125,14 +125,14 @@ def test_frontend_consumes_stitched_diffs():
 
     store = get_diff_persist()
     store.set_enabled(True)
-    store.append("d1", "def foo():\n    return 1\n", meta={"path": "src/a.py"})
-    store.append("d2", "def bar():\n    return 2\n", meta={"path": "src/b.py"})
+    store.append("d1", "def foo():\n    return 1\n", meta={"path": "systems/python-reference-runtime/a.py"})
+    store.append("d2", "def bar():\n    return 2\n", meta={"path": "systems/python-reference-runtime/b.py"})
 
     r = diff_persist_list({"limit": 10})
     assert r["success"] is True
     assert len(r["stitched"]) == 2
     assert r["stitched"][0]["diff_id"] == "d1"
-    assert r["stitched"][0]["path"] == "src/a.py"
+    assert r["stitched"][0]["path"] == "systems/python-reference-runtime/a.py"
     assert "def foo" in r["stitched"][0]["stitched"]
 
 
@@ -159,7 +159,7 @@ def test_flush_writes_jsonl(tmp_path):
     store = get_diff_persist()
     store.set_enabled(True)
     store.set_persist_path(str(path))
-    store.append("d1", "def foo():\n    return 1\n", meta={"path": "src/a.py"})
+    store.append("d1", "def foo():\n    return 1\n", meta={"path": "systems/python-reference-runtime/a.py"})
     store._flush()  # force the periodic write
 
     assert path.exists()

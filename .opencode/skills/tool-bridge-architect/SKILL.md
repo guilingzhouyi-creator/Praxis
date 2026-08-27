@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis tool system or bridge layer co
 
 ## Overview
 
-Architecture guide for the tool execution system (`src/l3/tool_system/`) and the L4 bridge (`src/l4/`: API gateway, LLM engine, sandbox, MCP, search, LSP, vault). Covers both how tools execute and how the outside world reaches the cell.
+Architecture guide for the tool execution system (`systems/python-reference-runtime/l3/tool_system/`) and the L4 bridge (`systems/python-reference-runtime/l4/`: API gateway, LLM engine, sandbox, MCP, search, LSP, vault). Covers both how tools execute and how the outside world reaches the cell.
 
 ## Tool System
 
@@ -13,7 +13,7 @@ Architecture guide for the tool execution system (`src/l3/tool_system/`) and the
 - **Registration**: `ToolSpec` (`tool_spec.py`, `tool()` decorator, `execute_tool_spec`), registered via `register()`/`register_plugin()` (`tool_registry.py`) with ring/danger/parameters defined in `config/tools.yaml` (72 tools by ring layer). Middleware hooks: `register_middleware(hook_type, name, fn)`.
 - **Muting**: `mute_tool`/`mute_category`/`mute_plugin`/`mute_ring` in `tool_registry.py` — respect muted state in any new execution path.
 - **Security posture**: `security_mode.py` (posture get/set with `confirmed`), `security_evidence.py` (evidence rows, `record_evidence`, bounded raw), `harness.py` (harness mode), `auto_test.py` (test feedback loop: `push_feedback`/`pop_feedback`/`maybe_trigger`).
-- **Config**: `tool_config.py` resolves handler paths + param specs from YAML. Tool timeouts use `TOOL_*` constants from `src/l1/kernel/params/tool.py` (e.g. `TOOL_PACKAGE_MANAGER_TIMEOUT`, `TOOL_PIP_INSTALL_TIMEOUT`) — never inline numbers.
+- **Config**: `tool_config.py` resolves handler paths + param specs from YAML. Tool timeouts use `TOOL_*` constants from `systems/python-reference-runtime/l1/kernel/params/tool.py` (e.g. `TOOL_PACKAGE_MANAGER_TIMEOUT`, `TOOL_PIP_INSTALL_TIMEOUT`) — never inline numbers.
 - **Platform**: use `l1.kernel.platform` abstractions (`grep_cmd()`, `run_shell()`, `IS_*` flags) for OS-specific ops; never self-implement platform subprocess calls.
 
 ## Bridge Layer (L4)

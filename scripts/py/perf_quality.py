@@ -42,9 +42,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent.parent
 BASELINE = ROOT / "config" / "quality" / "perf-baseline.yaml"
 
-# In-process L3 query benches import l3.* directly — put src on sys.path so
+# In-process L3 query benches import l3.* directly — put the Python reference
+# runtime on sys.path so
 # they resolve the worktree sources (never an installed praxis copy).
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "systems/python-reference-runtime"))
 sys.path.insert(0, str(ROOT / "scripts" / "py"))
 
 from perf_harness import (  # noqa: E402

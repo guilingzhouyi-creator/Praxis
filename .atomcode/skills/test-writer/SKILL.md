@@ -29,7 +29,7 @@ Read the target file at `$ARGUMENTS`. Identify:
 
 Reference existing test files (`tests/test_*.py`) for style patterns:
 - `from __future__ import annotations` at top.
-- `sys.path.insert(0, ...)` to import from `src/`.
+- `sys.path.insert(0, ...)` to import from `systems/python-reference-runtime/`.
 - Class-based grouping: `class TestFoo:`.
 - Plain `assert` statements (no `self.assertEqual`).
 - `conftest.py` autouse fixtures handle singleton resets.
@@ -45,9 +45,9 @@ Cover:
 ### 4. Write Test File
 
 Map source to test path:
-- `src/l1/kernel/foo.py` → `tests/l1/test_foo.py`
-- `src/l2/foo.py` → `tests/l2/test_foo.py`
-- `src/l3/foo.py` → `tests/l3/test_foo.py`
+- `systems/python-reference-runtime/l1/kernel/foo.py` → `tests/l1/test_foo.py`
+- `systems/python-reference-runtime/l2/foo.py` → `tests/l2/test_foo.py`
+- `systems/python-reference-runtime/l3/foo.py` → `tests/l3/test_foo.py`
 - etc.
 
 If the test file already exists, append new tests rather than overwriting.

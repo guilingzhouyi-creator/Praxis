@@ -6,10 +6,10 @@ from l3.agent_terminal import AgentTerminal
 
 
 def test_create_agent_terminal():
-    t = AgentTerminal("test-agent", role="writer", territory=["src"], cell_id="cell-1")
+    t = AgentTerminal("test-agent", role="writer", territory=["systems/python-reference-runtime"], cell_id="cell-1")
     assert t.agent_id == "test-agent"
     assert t.role == "writer"
-    assert t.territory == ["src"]
+    assert t.territory == ["systems/python-reference-runtime"]
     assert t.cell_id == "cell-1"
     assert t.status.name == "BOOTING"
 

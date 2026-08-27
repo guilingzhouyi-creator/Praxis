@@ -1,4 +1,4 @@
-"""Scan src/ for module-level singleton patterns (_xxx = None) with getters.
+"""Scan systems/python-reference-runtime/ for module-level singleton patterns (_xxx = None) with getters.
 
 A module-level ``_xxx = None`` (plain or annotated) paired with a
 ``get_xxx()``-style accessor is a real global singleton that can leak
@@ -43,8 +43,8 @@ def _module_singletons(tree: ast.Module):
 
 
 def _module_name(py: pathlib.Path) -> str:
-    """Map a src/ path to its dotted module name (handles __init__.py)."""
-    rel = py.relative_to(ROOT / "src")
+    """Map a systems/python-reference-runtime/ path to its dotted module name (handles __init__.py)."""
+    rel = py.relative_to(ROOT / "systems/python-reference-runtime")
     parts = list(rel.parts)
     if parts[-1] == "__init__.py":
         parts.pop()
@@ -54,7 +54,7 @@ def _module_name(py: pathlib.Path) -> str:
 
 
 def scan() -> dict:
-    """Scan src/ and return structured singleton data.
+    """Scan systems/python-reference-runtime/ and return structured singleton data.
 
     Returns:
         {
@@ -64,7 +64,7 @@ def scan() -> dict:
           "gaps": [(module, var), ...],          # with_getter minus registered
         }
     """
-    src = ROOT / "src"
+    src = ROOT / "systems/python-reference-runtime"
     resets_text = (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
     registered = set(re.findall(r'"([a-z0-9_.]+)": \("', resets_text))
 

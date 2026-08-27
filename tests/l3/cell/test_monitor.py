@@ -5,14 +5,14 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 def test_register_cell():
     from l3.cell.components.cell_monitor import CellMonitor
 
     cm = CellMonitor()
-    r = cm.register_cell("cell-1", ["src"], {"agent-a": "reader"})
+    r = cm.register_cell("cell-1", ["systems/python-reference-runtime"], {"agent-a": "reader"})
     assert r.get("success")
     cells = cm.list_cells()
     assert any(c["cell_id"] == "cell-1" for c in cells)

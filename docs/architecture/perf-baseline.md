@@ -31,7 +31,7 @@ python scripts/py/perf_quality.py --baseline > config/quality/perf-baseline.yaml
 ## Unified metric contract
 
 Runtime measurements from the security/toolchain cross-links are emitted to
-`StatsCenter` through `src/l3/services/observability.py`. Duration values use
+`StatsCenter` through `systems/python-reference-runtime/l3/services/observability.py`. Duration values use
 the `*.duration_ms` suffix; volume values use `*.count`, `*.nodes`,
 `*.records`, `*.edges`, or `*.tasks`; benchmark drivers expose the comparable
 `*_ops_per_sec` values. New points use bounded dimensions only:

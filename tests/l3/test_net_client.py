@@ -7,7 +7,7 @@ import os
 import sys
 from unittest import mock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from l3 import net_client as nc  # noqa: E402
 from l3.net_client import NetClient  # noqa: E402

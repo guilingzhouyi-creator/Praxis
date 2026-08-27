@@ -2,7 +2,7 @@
 # Auto-discovered by ConfigDiscovery; overlays params/tool.py and params/gatechain.py.
 # Only `ring_gates` (tool_spec.py) and `gatechain_danger_levels` (gatechain.py)
 # are consumed at runtime. Other danger-level metadata lives in
-# src/l1/kernel/params/tool.py / params/gatechain.py — do not duplicate it here.
+# systems/python-reference-runtime/l1/kernel/params/tool.py / params/gatechain.py — do not duplicate it here.
 
 # ── Tool ring → gate requirements ──
 ring_gates:

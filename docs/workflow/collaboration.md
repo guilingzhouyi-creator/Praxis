@@ -13,13 +13,13 @@ when its domain tests + the full baseline are green.
 
 | Domain | Agent ID | Source scope | Test scope | Notes |
 |--------|----------|--------------|------------|-------|
-| K — Kernel core | `k-agent` | `src/l1/kernel/` (incl. `params/`) | `tests/l1/` + `tests/infra/` | Highest risk: gatechain, VFS, params constants. Single-owner only. |
-| M — Memory system | `m-agent` | `src/l3/memory/` | `tests/l3/memory/` | Hot zone: R5 memory graph, Mer side-channel, R4 archive. Owns `memory_graph.db` migration logic. |
-| S — Sessions & subagents | `s-agent` | `src/l3/cell/peers/l3a/`, `src/l3/agent/subagent*.py` | `tests/l3/l3a/` + `tests/l3/subagent/` | Hot zone: L3A session system, subagent pool. |
-| T — Tool pipeline | `t-agent` | `src/l3/tools/`, `src/l3/tool_system/`, `config/tools.yaml` | `tests/l3/tools/` + `tests/l3/tool_system/` | Hot zone: mute semantics, ToolSpec, 9-step pipeline. |
-| C — Card / scheduler / cell orchestration | `c-agent` | `src/l3/card/`, `src/l3/scheduler/`, `src/l3/cell/components/`, `src/l3/cell/peers/` (except `l3a/`) | `tests/l3/card/` + `tests/l3/scheduler/` + `tests/l3/cell/` | Excludes l3a/ (owned by S). |
-| B — Bus / discussion / services | `b-agent` | `src/l3/bus/`, `src/l3/discussion/`, `src/l3/services/`, `src/l3/error_bus/`, `src/l3/resource_buffer/`, `src/l3/config/` | `tests/l3/bus/` + `tests/l3/discussion/` + `tests/l3/services/` + `tests/l3/config/` + `tests/l3/error_bus/` | |
-| A — Bridge / Shell / API | `a-agent` | `src/l4/`, `src/l5/`, `src/l2/`, `config/` (except `tools.yaml`) | `tests/l4/` + `tests/l5/` + `tests/l2/` + `tests/integration/` | API gateway, sandbox, LLM providers, i18n. |
+| K — Kernel core | `k-agent` | `systems/python-reference-runtime/l1/kernel/` (incl. `params/`) | `tests/l1/` + `tests/infra/` | Highest risk: gatechain, VFS, params constants. Single-owner only. |
+| M — Memory system | `m-agent` | `systems/python-reference-runtime/l3/memory/` | `tests/l3/memory/` | Hot zone: R5 memory graph, Mer side-channel, R4 archive. Owns `memory_graph.db` migration logic. |
+| S — Sessions & subagents | `s-agent` | `systems/python-reference-runtime/l3/cell/peers/l3a/`, `systems/python-reference-runtime/l3/agent/subagent*.py` | `tests/l3/l3a/` + `tests/l3/subagent/` | Hot zone: L3A session system, subagent pool. |
+| T — Tool pipeline | `t-agent` | `systems/python-reference-runtime/l3/tools/`, `systems/python-reference-runtime/l3/tool_system/`, `config/tools.yaml` | `tests/l3/tools/` + `tests/l3/tool_system/` | Hot zone: mute semantics, ToolSpec, 9-step pipeline. |
+| C — Card / scheduler / cell orchestration | `c-agent` | `systems/python-reference-runtime/l3/card/`, `systems/python-reference-runtime/l3/scheduler/`, `systems/python-reference-runtime/l3/cell/components/`, `systems/python-reference-runtime/l3/cell/peers/` (except `l3a/`) | `tests/l3/card/` + `tests/l3/scheduler/` + `tests/l3/cell/` | Excludes l3a/ (owned by S). |
+| B — Bus / discussion / services | `b-agent` | `systems/python-reference-runtime/l3/bus/`, `systems/python-reference-runtime/l3/discussion/`, `systems/python-reference-runtime/l3/services/`, `systems/python-reference-runtime/l3/error_bus/`, `systems/python-reference-runtime/l3/resource_buffer/`, `systems/python-reference-runtime/l3/config/` | `tests/l3/bus/` + `tests/l3/discussion/` + `tests/l3/services/` + `tests/l3/config/` + `tests/l3/error_bus/` | |
+| A — Bridge / Shell / API | `a-agent` | `systems/python-reference-runtime/l4/`, `systems/python-reference-runtime/l5/`, `systems/python-reference-runtime/l2/`, `config/` (except `tools.yaml`) | `tests/l4/` + `tests/l5/` + `tests/l2/` + `tests/integration/` | API gateway, sandbox, LLM providers, i18n. |
 
 Boundary rule: a file belongs to exactly one domain. Agents never touch files
 outside their domain without announcing in the shared-file register (section 4).
@@ -69,12 +69,12 @@ announce intent (in commit message of the announcing commit, or this file) first
 
 | Shared file | Why | Preferred owner |
 |-------------|-----|-----------------|
-| `src/l3/cell/peers/l3.py` | CentralController hub: L3A + L3B + CardRegistry | c-agent, coordination with s-agent |
-| `src/l1/kernel/params/*.py` | 1,027 constants; strict compliance test | k-agent (others: add via review, not parallel) |
-| `src/l3/boot/` (boot.py, wiring.py) | all domains depend on wiring | b-agent |
+| `systems/python-reference-runtime/l3/cell/peers/l3.py` | CentralController hub: L3A + L3B + CardRegistry | c-agent, coordination with s-agent |
+| `systems/python-reference-runtime/l1/kernel/params/*.py` | 1,027 constants; strict compliance test | k-agent (others: add via review, not parallel) |
+| `systems/python-reference-runtime/l3/boot/` (boot.py, wiring.py) | all domains depend on wiring | b-agent |
 | `tests/conftest.py` | singleton reset registry `_RESETS` | whoever adds a new singleton; must not conflict |
 | `tests/infra/test_layer_imports.py` | cross-layer allowlist | whoever adds a new cross-layer import |
-| `src/*/__init__.py` | export symbols | domain owner; conflicts resolved by rebase |
+| `systems/python-reference-runtime/*/__init__.py` | export symbols | domain owner; conflicts resolved by rebase |
 | `config/praxis.yaml` | deployment config | a-agent (with announce) |
 | `docs/workflow/branching.md`, `docs/workflow/collaboration.md` | policy docs | any agent, merge on main quickly |
 
@@ -87,8 +87,8 @@ python -m pytest tests/infra/test_layer_imports.py -x -q    # layer constraint
 python -m pytest tests/infra/test_params_compliance.py -x -q  # params constants (strict)
 python -m pytest tests/<domain>/ -x -q                       # domain tests
 python -m pytest tests/ -q                                   # full baseline (~3,473 tests)
-ruff check src/ tests/                                       # lint
-ruff format --check src/                                     # format (double quotes, 120)
+ruff check systems/python-reference-runtime/ tests/                                       # lint
+ruff format --check systems/python-reference-runtime/                                     # format (double quotes, 120)
 ```
 
 Small-fix path (single-file bug/doc/test) may commit directly to main per
@@ -125,7 +125,7 @@ showed that documentation-only discipline does not survive parallel agents.
 ### 8.1 Mainline whitelist (direct commits to `main`)
 
 Only low-risk files may be committed directly on `main`. Everything else
-(`src/` code, `tests/`, shared files) MUST land via a feature branch and the
+(`systems/python-reference-runtime/` code, `tests/`, shared files) MUST land via a feature branch and the
 double-green merge flow (branching.md).
 
 ```
@@ -134,7 +134,7 @@ Allowed on main (whitelist):
   scripts/**  .pre-commit-config.yaml  .praxis-rules.md  coverage.xml
 
 Blocked on main (must go through a feature branch):
-  src/** (all code), tests/**, pyproject.toml
+  systems/python-reference-runtime/** (all code), tests/**, pyproject.toml
 ```
 
 Enforced by `.githooks/pre-commit`: when `git branch --show-current` is

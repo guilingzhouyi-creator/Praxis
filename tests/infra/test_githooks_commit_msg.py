@@ -35,7 +35,7 @@ def run_hook(message: str) -> int:
 def test_valid_conventional_passes():
     # A real feat commit stages source files — model that so the type-to-
     # content gate sees a qualifying path instead of judging an empty index.
-    p = _stage_tmp_probe("src/_tmp_valid_probe.py")
+    p = _stage_tmp_probe("systems/python-reference-runtime/_tmp_valid_probe.py")
     try:
         assert run_hook(f"feat(core): add token ring revocation\n\n{COAUTH}\n") == 0
     finally:
@@ -154,7 +154,7 @@ def test_shared_file_change_with_registration_passes():
 
 
 def test_must_include_rejects_feat_without_source_files():
-    # feat/fix/refactor must touch src/crates/packages/scripts/.githooks/config
+    # feat/fix/refactor must touch systems/python-reference-runtime/, systems/rust-kernel-engine/, systems/typescript-shell-engine/, scripts/, .githooks/, or config/
     # — a staged tests/ file alone does not qualify (validate-commit must_include).
     p = _stage_tmp_probe("tests/_tmp_must_include.py")
     try:

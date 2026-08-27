@@ -20,12 +20,12 @@ Identify changes in security-critical areas: `auth`, `identity`, `session`, `gat
 - Review `gatechain.py` for gate permission logic.
 
 ### 3. API Gateway Security Review
-- Review `src/l4/api/` for input validation patterns.
+- Review `systems/python-reference-runtime/l4/api/` for input validation patterns.
 - Check for injection risks (command, SQL, YAML) in dynamic operations.
 - Verify API key handling is secure (not logged, not hardcoded).
 
 ### 4. Process & Resource Isolation Review
-- Review `src/l4/sandbox/` for escape vulnerabilities.
+- Review `systems/python-reference-runtime/l4/sandbox/` for escape vulnerabilities.
 - Check process table (`process.py`) for PID exhaustion / DoS risks.
 - Verify resource limits (tokens, workers, scouts) are enforced.
 
@@ -44,7 +44,7 @@ Identify changes in security-critical areas: `auth`, `identity`, `session`, `gat
 - Check for exposure of internal configuration in error responses.
 - Review `.env` / secrets handling patterns.
 
-### 8. Security Posture & Harness Review (`src/l1/kernel/security_mode.py`, `harness.py`, `posture_matrix.py`)
+### 8. Security Posture & Harness Review (`systems/python-reference-runtime/l1/kernel/security_mode.py`, `harness.py`, `posture_matrix.py`)
 - **Security mode** (`security_mode.py`): `productive` (default) | `security-test` (attack). Attack posture REQUIRES explicit confirmation + a target whitelist; the system must return to `productive` after the test; never leave it in attack posture.
 - **Harness mode** (`harness.py`): the unified tool-usage control bar split by the CONTROL LINE (approval gate):
   - Guarded class: `governed` (default, full control) | `code` (PTC — full control + `run_code` programmatic presentation) | `semi` (rate limit only, drops approval + pool).

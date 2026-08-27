@@ -45,7 +45,7 @@ Pressure/load sources: `_pre_send_compression_guard` measures
 
 ## Engineering debug integration (3.5)
 
-`src/l3/tool_system/engineering_debug.py` is the single authority for the
+`systems/python-reference-runtime/l3/tool_system/engineering_debug.py` is the single authority for the
 engineering/debug state. The requested mode is `auto`, `on`, or `off`; the
 effective mode is still production unless the configured marker is present:
 

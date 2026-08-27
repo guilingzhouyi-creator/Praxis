@@ -97,7 +97,7 @@ opencode.json
 .reasonix/
 
 # ── Rust build output ──
-crates/target/
+systems/rust-kernel-engine/target/
 
 # ── Config / runtime artifacts (test checkpoints, keys) ──
 .config/

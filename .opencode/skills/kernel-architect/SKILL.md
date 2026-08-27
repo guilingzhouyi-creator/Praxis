@@ -5,7 +5,7 @@ description: Use when writing or modifying Praxis L1 kernel code — syscall sur
 
 ## Overview
 
-Architecture guide for the L1 kernel (`src/l1/kernel/`, ~58 files, 17k lines). The bare-metal layer every upper layer builds on — nothing above L1 may be imported by L1 (one-way dependency, enforced by `tests/infra/test_layer_imports.py`). Upper layers reach kernel facilities only through: syscall-style module imports, the event bus, port adapters, and `params/*` constants.
+Architecture guide for the L1 kernel (`systems/python-reference-runtime/l1/kernel/`, ~58 files, 17k lines). The bare-metal layer every upper layer builds on — nothing above L1 may be imported by L1 (one-way dependency, enforced by `tests/infra/test_layer_imports.py`). Upper layers reach kernel facilities only through: syscall-style module imports, the event bus, port adapters, and `params/*` constants.
 
 ## Module Map
 
@@ -21,11 +21,11 @@ Architecture guide for the L1 kernel (`src/l1/kernel/`, ~58 files, 17k lines). T
 
 ## Core Conventions
 
-- **All magic numbers go in `src/l1/kernel/params/`** — never hardcode in implementation files. `tests/infra/test_params_compliance.py` (strict mode) enforces it.
+- **All magic numbers go in `systems/python-reference-runtime/l1/kernel/params/`** — never hardcode in implementation files. `tests/infra/test_params_compliance.py` (strict mode) enforces it.
 - **New kernel modules MUST be exported** in `kernel/__init__.py` `__all__`; new config items register defaults in `kernel/settings.py` `DEFAULTS`.
 - **GateChain**: G1 whitelist → G2 identity → G3 territory+risk → G4 escalation → G5 composite; BLOCK stops execution, WARN passes with audit. Empty whitelist fail-closes (`GATECHAIN_REQUIRE_WHITELIST`, boot populates it from tool registry).
 - **capability.py is the single execution authority**: boot is the ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor` → `invoke_gated`); kernel never imports L3; an unwired executor denies every call (fail-closed).
-- **Ports are duck-typed adapters**: `register_port()`/`get_port()` in `src/l3/boot/wiring.py` wire them at boot; a language-agnostic kernel can swap adapters without import changes. `ProcessPort` is limited to bounded non-interactive commands — interactive shells/LSP hold Python `Popen` handles (not FFI-clean).
+- **Ports are duck-typed adapters**: `register_port()`/`get_port()` in `systems/python-reference-runtime/l3/boot/wiring.py` wire them at boot; a language-agnostic kernel can swap adapters without import changes. `ProcessPort` is limited to bounded non-interactive commands — interactive shells/LSP hold Python `Popen` handles (not FFI-clean).
 - **Truncation**: use `LOG_TRUNC_*` / `HASH_TRUNC_*` from params, never raw `[:40]` slices.
 - **Event bus**: `emit_signal` resolves static enum members first, falls back to dynamic registration — unknown names never raise KeyError. `on_any(cb)` used by SSE/WS bridges.
 - **Unified trace_id**: one trace id flows request → agent → tool → error via error_bus; propagate it, never mint new ids.

@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from unittest.mock import patch
 
@@ -28,15 +28,15 @@ class TestFormatFile:
     def test_delegates_to_engine(self):
         """format_file forwards path/tool to code_format.format_file."""
         with patch("l3.tools._format._format_file", return_value={"success": True, "changed": False}) as mock:
-            result = format_file({"path": "src/x.py", "tool": "ruff"}, "agent-1")
-        mock.assert_called_once_with("src/x.py", tool="ruff")
+            result = format_file({"path": "systems/python-reference-runtime/x.py", "tool": "ruff"}, "agent-1")
+        mock.assert_called_once_with("systems/python-reference-runtime/x.py", tool="ruff")
         assert result["success"] is True
 
     def test_delegates_empty_tool(self):
         """format_file with no tool override forwards an empty tool string."""
         with patch("l3.tools._format._format_file", return_value={"success": True, "changed": True}) as mock:
-            result = format_file({"path": "src/y.py"}, "agent-1")
-        mock.assert_called_once_with("src/y.py", tool="")
+            result = format_file({"path": "systems/python-reference-runtime/y.py"}, "agent-1")
+        mock.assert_called_once_with("systems/python-reference-runtime/y.py", tool="")
         assert result["success"] is True
 
 
@@ -57,8 +57,8 @@ class TestFormatProject:
         with patch(
             "l3.tools._format._format_project", return_value={"success": True, "total": 2, "changed": 1}
         ) as mock:
-            result = format_project({"path": "src/l1", "tool": "ruff"}, "agent-1")
-        mock.assert_called_once_with(root="src/l1", tool="ruff")
+            result = format_project({"path": "systems/python-reference-runtime/l1", "tool": "ruff"}, "agent-1")
+        mock.assert_called_once_with(root="systems/python-reference-runtime/l1", tool="ruff")
         assert result["success"] is True
         assert result["changed"] == 1
 

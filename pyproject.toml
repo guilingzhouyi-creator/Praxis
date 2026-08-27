@@ -35,7 +35,7 @@ praxis-supervisor = "l4.supervisor:main"
 praxis-install = "l3.boot.install:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["systems/python-reference-runtime"]
 
 [tool.setuptools.data-files]
 # Config/asset templates shipped with the wheel — the installer (praxis-install)
@@ -78,7 +78,7 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-pythonpath = ["src"]
+pythonpath = ["systems/python-reference-runtime"]
 addopts = "-v --tb=short --strict-markers -W ignore::DeprecationWarning -n auto --dist loadfile"
 # -n auto: use all idle CPU cores (xdist). --dist loadfile: parallel across
 # files, serial within a file (keeps same-file port bindings safe).
@@ -95,10 +95,15 @@ asyncio_mode = "strict"
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+src = ["systems/python-reference-runtime", "."]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RET", "PLR0911"]
-ignore = ["E501", "N812", "SIM117"]
+# N999 is emitted for package files beneath the intentionally kebab-case
+# `python-reference-runtime` system directory; the directory identity is
+# validated by `check_system_boundaries.py`, so suppress only this path-name
+# diagnostic while keeping the remaining naming rules active.
+ignore = ["E501", "N812", "N999", "SIM117"]
 
 [tool.ruff.lint.per-file-ignores]
 # PLR0911 (too many return branches): pre-existing debt — exempted so the
@@ -120,7 +125,7 @@ no_implicit_optional = true
 check_untyped_defs = false
 
 [tool.coverage.run]
-source = ["src"]
+source = ["systems/python-reference-runtime"]
 omit = ["tests/*"]
 
 [tool.coverage.report]

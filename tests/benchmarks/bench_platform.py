@@ -27,7 +27,7 @@ import threading
 import time
 from typing import Any
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 # Benchmark sizing — iteration counts are generous so per-op cost is stable.
 MUTEX_ITERS: int = 20_000

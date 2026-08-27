@@ -2,7 +2,7 @@
 # Auto-discovered by ConfigDiscovery; overlays params/api.py.
 # Only `provider_urls` is consumed at runtime (llm_providers.py, model_registry.py).
 # Other provider metadata (env vars, model names, IPC, etc.) lives in
-# src/l1/kernel/params/api.py — do not duplicate it here.
+# systems/python-reference-runtime/l1/kernel/params/api.py — do not duplicate it here.
 #
 # The official public endpoints below are the params/api.py defaults and are
 # kept commented out so this file carries no hardcoded URLs. Uncomment + edit a

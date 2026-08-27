@@ -64,16 +64,16 @@ GET  /api/v2/shell/autocomplete     → _shell_autocomplete → l2.l2_shell.comp
 GET  /api/v2/shell/commands         → _shell_commands    → l1.kernel.commands.get_registry().list(category)
 ```
 
-仍待完成：Phase 4（会话收尾——`src/l2/l2_shell/state.py` shim 仍在）与 Phase 5（底层边界文档标注转化位）。
+仍待完成：Phase 4（会话收尾——`systems/python-reference-runtime/l2/l2_shell/state.py` shim 仍在）与 Phase 5（底层边界文档标注转化位）。
 Phase 6 已完成（2026-08-25 复核）：`l2-shell.md` 契约面已写 `invoke_capability`（boot 接线 ToolPipeline）
 与 51 YAML 命令，不再有 `execute_tool_spec` 过期表述。
 
 | Phase | 动作 | 落点 |
 |---|---|---|
-| **1. 接通命令执行** | `_shell_dispatch` stub → `l2.l2_shell.dispatch(text, session)` | `src/l4/api_handlers/api_handlers_agent.py` |
+| **1. 接通命令执行** | `_shell_dispatch` stub → `l2.l2_shell.dispatch(text, session)` | `systems/python-reference-runtime/l4/api_handlers/api_handlers_agent.py` |
 | **2. 接通补全** | `_shell_autocomplete` stub → `l2.l2_shell.completer.autocomplete()` | 同上 |
 | **3. 接通命令列表** | `_shell_commands` stub → `l1.kernel.commands.get_registry().list()` | 同上 |
-| **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `src/l2/l2_shell/state.py` |
+| **4. 会话收尾** | `ShellSession` 全接管，移除 `state.py` deprecated shim | `systems/python-reference-runtime/l2/l2_shell/state.py` |
 | **5. 底层边界留位** | 确认 process/fs/terminal 走 `ProcessPort`/`FilesystemPort`/`WorkerPort` + L4 通道；仅文档标注转化位 | `l2-shell.md` "Bottom-layer boundary" 表格（fs/worker 已接 port，`ProcessPort` 为 Rust 下沉候选） |
 | **6. 文档同步** | 更新 `docs/architecture/l2-shell.md` 契约面 | l2-shell.md — ✅ 完成（契约面已写 `invoke_capability`，2026-08-25 复核） |
 
@@ -152,7 +152,7 @@ R4/R5 独立 Rust kernel（新入口、新状态布局、版本化协议）
 ### 4.5 “完整翻译”的限定定义与递进顺序
 
 后续可以把所有**符合 Rust 边界的 L1 机制**逐步重建，但这里的“完整”不是把
-`src/l1/kernel/` 的每个 Python 文件机械搬运。保持不变的是经过 R0 确认的安全/控制不变量和
+`systems/python-reference-runtime/l1/kernel/` 的每个 Python 文件机械搬运。保持不变的是经过 R0 确认的安全/控制不变量和
 明确保留的 wire contract；Rust 内部可以采用不同的数据结构、并发模型、状态目录和错误分类。
 
 递进顺序固定为：
@@ -187,7 +187,7 @@ adaptive sampling 与 Python 异常映射仍是 G6 前置决策。worker snapsho
 若 worker 在 wrapper 启动前因淘汰、关闭或 admission 失败返回终态，`RuntimeTask::result()`
 会主动收敛 direct scheduler 状态，任务仍可安全 `reap`；observer wait timeout 不会
 误改任务状态。该行为由独立 runtime/scheduler integration targets 覆盖，且
-`tests/infra/test_rust_test_domain.py` 门禁禁止 `src/**/*.rs` 重新出现 inline tests。
+`tests/infra/test_rust_test_domain.py` 门禁禁止 `systems/rust-kernel-engine/l1-kernel-rs/src/**/*.rs` 重新出现 inline tests。
 这仍只是 R1/R2 候选优化和证据闭环，不改变 Rust kernel 尚未接管 boot、AgentLoop 执行、
 Provider 或生产入口的边界。
 
@@ -212,7 +212,7 @@ loop 的输入排入 `KernelRuntime`，任务在 worker 真正执行后才完成
 不产生历史写入，action failure 保留已提交 input receipt。该片只闭合 Rust-native
 AgentLoop/WorkerPool/Session 机制，不接 provider/prompt/tool/PTY，不做副作用 rollback，
 也不授予生产入口或 R4/R5 cutover authority；独立测试位于
-`crates/l1-kernel-rs/tests/runtime/agent_loop_execution.rs`。下一步仍需真实 host
+`systems/rust-kernel-engine/l1-kernel-rs/tests/runtime/agent_loop_execution.rs`。下一步仍需真实 host
 adapter、进程组信号/PTY、生产 reaper、持久化执行失败策略和 TS/L2 消费协议评审。
 
 随后补齐 AgentLoop 批量执行准入：`AgentLoopExecutionBridge::submit_input_batch`
@@ -388,7 +388,7 @@ queue contention 证据；`make r2-baseline-bundle` 进一步以独立 Python re
 下出现 convoy 和 p95 恶化，因此不改变默认策略，也不授予 runtime authority。
 随后将 bounded drain 的 completion 记账收敛为单次原子计数更新与饱和 depth CAS，固定工作量完成数、重复完成
 下溢保护和 v3 证据字段保持不变；`process`、`terminal`、`benchmark_runner` 的机制测试同步迁移到
-`crates/l1-kernel-rs/tests/<domain>/` 分域独立测试域，Cargo 保持历史 target 名并显式登记路径，
+`systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` 分域独立测试域，Cargo 保持历史 target 名并显式登记路径，
 为后续 TS/Rust 重写保留清晰的公共 API 边界。
 对 producer claim-batch 的同规格实验因 4-worker 中位 tail latency 回退而不纳入默认实现；性能改动必须同时
 通过 1/2/4-worker 的 fixed-work 吞吐和 p95/p99 证据，不能以单 worker 加速替代整体基线。
@@ -977,7 +977,7 @@ T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主
 标签、权限、键盘/指针聚合标志和调用方时间，使用相同的 idle window、来源数
 上限及 fail-closed 校验，输出既有 `InputActivitySnapshot`。共享向量和测试
 分别位于 `tests/fixtures/kernel_input_activity_vectors.json`、Rust
-`tests/terminal/input_activity.rs` 与 `packages/protocol-ts/tests/input-activity.test.ts`。
+`tests/terminal/input_activity.rs` 与 `systems/typescript-shell-engine/tests/input-activity.test.ts`。
 这一步不扫描设备节点、不保留原始键值/坐标，也不启用真实硬件监测。T4b
 才负责平台 adapter、权限提示和旁路监控联动，必须另行提供跨平台隐私与失败
 证据后才能进入生产 wiring 评审。

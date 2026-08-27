@@ -4,7 +4,7 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from pathlib import Path
 
@@ -182,7 +182,7 @@ class TestLayerHygiene:
     """Module-level import constraints."""
 
     def test_code_format_no_l4_module_import(self):
-        src = Path(__file__).parents[3] / "src" / "l3" / "services" / "code_format.py"
+        src = Path(__file__).parents[3] / "systems/python-reference-runtime" / "l3" / "services" / "code_format.py"
         text = src.read_text(encoding="utf-8")
         for line in text.splitlines():
             stripped = line.strip()
@@ -190,6 +190,6 @@ class TestLayerHygiene:
                 assert "l4." not in stripped, f"module-level L4 import in code_format.py: {line}"
 
     def test_tool_handler_is_thin(self):
-        src = Path(__file__).parents[3] / "src" / "l3" / "tools" / "_format.py"
+        src = Path(__file__).parents[3] / "systems/python-reference-runtime" / "l3" / "tools" / "_format.py"
         text = src.read_text(encoding="utf-8")
         assert "l3.services.code_format" in text

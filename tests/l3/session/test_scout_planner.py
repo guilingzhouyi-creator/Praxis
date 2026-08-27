@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestScoutCore:
@@ -45,14 +45,14 @@ class TestHtnPlanner:
         from l3.bus.htn_planner import HTNPlanner
 
         planner = HTNPlanner()
-        task = planner.decompose("read src/main.py", ".")
+        task = planner.decompose("read systems/python-reference-runtime/main.py", ".")
         assert task is not None
 
     def test_decompose_develop(self):
         from l3.bus.htn_planner import HTNPlanner
 
         planner = HTNPlanner()
-        task = planner.decompose("add login feature to auth module", "src/auth")
+        task = planner.decompose("add login feature to auth module", "systems/python-reference-runtime/auth")
         assert task is not None
 
     def test_to_card(self):

@@ -28,7 +28,7 @@ class TestAgentIdentity:
             role="writer",
             ring=2,
             cell_id="cell-1",
-            territory=["src/"],
+            territory=["systems/python-reference-runtime/"],
             status="online",
         )
         assert ident.agent_id == "agent-b"

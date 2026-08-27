@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-RUST_MANIFEST = ROOT / "crates" / "Cargo.toml"
+RUST_MANIFEST = ROOT / "systems" / "rust-kernel-engine" / "Cargo.toml"
 PYTHON_REFERENCE = ROOT / "scripts" / "py" / "r2_reference_bench.py"
 BUNDLE_SCHEMA_VERSION = 1
 EVIDENCE_SCHEMA_VERSION = 3

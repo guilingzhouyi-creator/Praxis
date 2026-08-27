@@ -1,11 +1,11 @@
 ---
 name: card-scheduler-architect
-description: Use when writing or modifying Praxis card and cell execution code — CardRegistry lifecycle, card pool, planner, decomposer, execution engine (rollback/recovery), dialogue sessions, scheduler, or CentralController (src/l3/cell/peers/l3.py).
+description: Use when writing or modifying Praxis card and cell execution code — CardRegistry lifecycle, card pool, planner, decomposer, execution engine (rollback/recovery), dialogue sessions, scheduler, or CentralController (systems/python-reference-runtime/l3/cell/peers/l3.py).
 ---
 
 ## Overview
 
-Architecture guide for the card execution system (`src/l3/card/`, `src/l3/cell/`) and its scheduler. Work enters the system as cards (`python main.py card "<intent>"`), is planned, decomposed, executed with rollback safety, and converged back.
+Architecture guide for the card execution system (`systems/python-reference-runtime/l3/card/`, `systems/python-reference-runtime/l3/cell/`) and its scheduler. Work enters the system as cards (`python main.py card "<intent>"`), is planned, decomposed, executed with rollback safety, and converged back.
 
 ## Module Map
 
@@ -15,7 +15,7 @@ Architecture guide for the card execution system (`src/l3/card/`, `src/l3/cell/`
 - **Verification**: `execution_verify.py` (scout + diff verify + consistency checks)
 - **Collaboration**: `dialogue_session.py` (per-agent dialogue, `create_session`/`get_session`/`close_session`), `issue.py` (IssueCard + registry), `convention.py` (structured debate: propose/cross_examine/rebut/close, document generation)
 - **Persistence**: `card_persistence.py`, `plan_step_types.py` (step timing)
-- **Orchestration**: `src/l3/cell/peers/l3.py` — CentralController: L3A sessions + L3B routing + CardRegistry lifecycle; `src/l3/scheduler/` owns dispatch timing/queues; `src/l3/cell/` Cell objects bind agents + skills.
+- **Orchestration**: `systems/python-reference-runtime/l3/cell/peers/l3.py` — CentralController: L3A sessions + L3B routing + CardRegistry lifecycle; `systems/python-reference-runtime/l3/scheduler/` owns dispatch timing/queues; `systems/python-reference-runtime/l3/cell/` Cell objects bind agents + skills.
 
 ## Conventions
 
@@ -25,7 +25,7 @@ Architecture guide for the card execution system (`src/l3/card/`, `src/l3/cell/`
 - **Cell bindings**: `Cell.bind_skills(names)` white-lists skills per Cell (config `cell.skills` in `config/praxis.yaml`); unbound Cells fall back to the global pool. AgentLoop context injection filters by `cell_id`.
 - **Decomposition**: `dispatch_to_cell` maps slices to agents/cells; `converge` merges results — keep convergence idempotent so retried converges do not double-apply.
 - **Singleton discipline**: registry/pool/engine have `get_*()` + `reset_*()`; new ones must register resets in `tests/conftest.py` `_RESETS`.
-- **Constants**: scheduler timings, retry budgets, pool sizes go in params (`src/l1/kernel/params/`) — never inline.
+- **Constants**: scheduler timings, retry budgets, pool sizes go in params (`systems/python-reference-runtime/l1/kernel/params/`) — never inline.
 
 ## Tests
 

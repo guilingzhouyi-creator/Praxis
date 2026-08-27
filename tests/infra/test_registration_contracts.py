@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 
 
 def _load_yaml(rel: str) -> dict:

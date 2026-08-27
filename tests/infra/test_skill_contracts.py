@@ -80,7 +80,7 @@ class TestBuiltinSkillCatalog:
     def test_no_project_specific_paths(self):
         """Skill content must be generalized — no project-specific path literals."""
         forbidden = [
-            "src/l",
+            "systems/python-reference-runtime/l",
             "tests/infra",
             "praxis.yaml",
             ".praxis/skills",

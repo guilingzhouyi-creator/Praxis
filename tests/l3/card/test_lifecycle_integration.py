@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 def _setup_cell():
@@ -25,8 +25,10 @@ def _setup_cell():
 
     reset_cells()
     reset_terminals()
-    cell = get_cell("integration-cell", ["src", "tests"])
-    cell.add_agent("reader-1", role="reader", ring=1, territory=["src"], max_scouts=2, auto_boot=False)
+    cell = get_cell("integration-cell", ["systems/python-reference-runtime", "tests"])
+    cell.add_agent(
+        "reader-1", role="reader", ring=1, territory=["systems/python-reference-runtime"], max_scouts=2, auto_boot=False
+    )
     return cell
 
 
@@ -97,7 +99,9 @@ class TestCellExecuteCardIntegration:
         from l3.agent_terminal import get_terminal
 
         cell = _setup_cell()
-        get_terminal("reader-1", role="reader", territory=["src"], cell_id="integration-cell")
+        get_terminal(
+            "reader-1", role="reader", territory=["systems/python-reference-runtime"], cell_id="integration-cell"
+        )
         r = cell.dispatch_card("reader-1", "think", target=".", params={})
         assert isinstance(r, dict)
 

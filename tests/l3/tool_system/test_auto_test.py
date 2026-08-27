@@ -123,7 +123,7 @@ class TestTrigger:
             }
 
         monkeypatch.setattr("l3.tool_system.auto_test._execute_tests", fake_execute)
-        spawned = maybe_trigger("writer", "", "fix the bug", ["src/a.py"])
+        spawned = maybe_trigger("writer", "", "fix the bug", ["systems/python-reference-runtime/a.py"])
         assert spawned is True
         deadline = time.time() + 3.0
         while time.time() < deadline and not pending_feedback():
@@ -195,7 +195,7 @@ class TestCadenceHook:
         from l3.agent.verify_cadence import VerifyCadence
 
         vc = VerifyCadence()
-        vc.record_edit("src/a.py")
-        assert vc.unverified_edits() == ["src/a.py"]
+        vc.record_edit("systems/python-reference-runtime/a.py")
+        assert vc.unverified_edits() == ["systems/python-reference-runtime/a.py"]
         vc.record_check("pytest")
         assert vc.unverified_edits() == []

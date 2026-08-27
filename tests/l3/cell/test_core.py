@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestCellInit:
@@ -12,9 +12,9 @@ class TestCellInit:
     def test_basic_init(self):
         from l3.cell import Cell
 
-        cell = Cell("test-cell-1", territory=["src", "docs"])
+        cell = Cell("test-cell-1", territory=["systems/python-reference-runtime", "docs"])
         assert cell.cell_id == "test-cell-1"
-        assert "src" in cell.territory
+        assert "systems/python-reference-runtime" in cell.territory
         assert len(cell.territory) == 2
 
     def test_init_empty_territory(self):

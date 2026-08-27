@@ -17,6 +17,7 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 | Workflow — parallel agents | `docs/workflow/collaboration.md` |
 | Build discipline — worktree, waivers, DoD | `docs/workflow/code-of-conduct.md` |
 | Repo layout & naming rules | `docs/project-structure.md` |
+| Runtime system boundaries | `systems/README.md` + `systems/system-boundaries.yaml` |
 | Config system | `docs/configuration/overview.md` |
 | Automation perimeter | `docs/architecture/automation.md` |
 | Memory / skill / security / sandbox specs | `docs/architecture/l3-memory.md`, `skill-system.md`, `security-evidence.md`, `sandbox-diff.md` |
@@ -25,7 +26,7 @@ Python 3.11+ Agent OS for orchestrating LLM-based agents. Five-layer architectur
 
 ```bash
 pip install -e ".[test]"                       # install + dev deps
-python src/main.py boot|health|status|ps|card  # kernel lifecycle + dispatch
+python systems/python-reference-runtime/main.py boot|health|status|ps|card  # kernel lifecycle + dispatch
 python -m l2.l2_shell                          # interactive L2 Shell
 ```
 
@@ -40,31 +41,38 @@ Lint: `make lint|format|typecheck`. Coverage: `make coverage`. Gates: `make prec
 Layer map (details: `docs/architecture/README.md`):
 
 ```
-src/l5/ — User layer: cli.py, agent_runtime.py
-src/l4/ — Bridge: API gateway, LLM engine+providers, sandbox, MCP, search, LSP, vault
-src/l3/ — Cell layer: agents, memory, cards, scheduler, tool pipeline, discussion
-src/l3/cell/peers/l3a/ — L3A orchestration daemon: session system, subagent pool, context epoch
-src/l3/cell/peers/l3.py — CentralController (L3A+L3B+CardRegistry)
-src/l2/ — Shell family: shells/ dialect adapters, l2_shell engine, protocol v1 wire contract
-src/l1/kernel/ — Kernel primitives: sync, event, constitution, allocator, gatechain, VFS, IPC, params/
-src/l1/kernel/ports/ — 18 *Port(ABC) abstractions
+systems/python-reference-runtime/ — Python technical prototype and semantic baseline
+systems/rust-kernel-engine/       — independent Rust formal-kernel rewrite
+systems/typescript-shell-engine/  — independent TypeScript formal shell/protocol rewrite
+tests/ + scripts/ + config/ + docs/ — build and verification perimeter only
+
+systems/python-reference-runtime/l5/ — User layer: cli.py, agent_runtime.py
+systems/python-reference-runtime/l4/ — Bridge: API gateway, LLM engine+providers, sandbox, MCP, search, LSP, vault
+systems/python-reference-runtime/l3/ — Cell layer: agents, memory, cards, scheduler, tool pipeline, discussion
+systems/python-reference-runtime/l3/cell/peers/l3a/ — L3A orchestration daemon: session system, subagent pool, context epoch
+systems/python-reference-runtime/l3/cell/peers/l3.py — CentralController (L3A+L3B+CardRegistry)
+systems/python-reference-runtime/l2/ — Shell family: shells/ dialect adapters, l2_shell engine, protocol v1 wire contract
+systems/python-reference-runtime/l1/kernel/ — Kernel primitives: sync, event, constitution, allocator, gatechain, VFS, IPC, params/
+systems/python-reference-runtime/l1/kernel/ports/ — 18 *Port(ABC) abstractions
 ```
 
 ### Import rules (enforced by `tests/infra/test_layer_imports.py`)
 - L5→L4→L3→L2→L1 only; L1 cannot import upper layers; 130 pre-existing cross-layer imports allowlisted
+- The three runtime systems cannot import one another's source; run `make system-boundaries`
+  (enforced by `tests/infra/test_system_boundaries.py`)
 
 ## Key conventions
 
-- **All magic numbers in `src/l1/kernel/params/`** — never hardcode in implementation files
+- **All magic numbers in `systems/python-reference-runtime/l1/kernel/params/`** — never hardcode in implementation files
 - **New kernel modules** exported in `kernel/__init__.py __all__`
 - **New config items** register defaults in `kernel/settings.py DEFAULTS`
 - **Use `threading.RLock`** for reentrant locks; plain `threading.Lock` for flat sections
-- **Unified `trace_id`**: `get_trace_id`/`set_trace_id`/`trace_scope` in `src/l3/error_bus/core.py`
+- **Unified `trace_id`**: `get_trace_id`/`set_trace_id`/`trace_scope` in `systems/python-reference-runtime/l3/error_bus/core.py`
 - **Never import `services/` inside `kernel/`**
 - **Register tools** via `ToolSpec` in `config/tools.yaml`
 - **No bare `except:`** — use `except Exception:`
 - **Double quotes** for strings (ruff `quote-style = "double"`), line-length 120
-- **Prompt templates are data** in `src/l3/agent/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
+- **Prompt templates are data** in `systems/python-reference-runtime/l3/agent/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
 
 ## Skill system
 
@@ -127,7 +135,7 @@ Full spec: `docs/workflow/commits.md`. Load-bearing summary:
 
 Spec: `docs/workflow/code-of-conduct.md`. Load-bearing rules:
 
-- **Worktree gate**: never edit `src/ tests/ config/ scripts/ docs/` on main tree — build in a worktree
+- **Worktree gate**: never edit `systems/python-reference-runtime/ tests/ config/ scripts/ docs/` on main tree — build in a worktree
 - **Two independent waivers** (user-granted, never self-awarded, never conflated): (1) Main-tree
   modification waiver (WHERE); (2) Branch pre-merge waiver (WHEN — `MERGE_GATE_SKIP=1` +
   `MERGE_GATE_REASON`)
@@ -164,11 +172,11 @@ vs `.pre-commit-config.yaml` (style lint only, not governance).
 
 ## Key files
 
-`src/main.py` — CLI entry | `src/l5/cli.py` — CLI commands | `src/l1/kernel/os.py` — OS lifecycle |
-`src/l1/kernel/constitution.py` — Constitutional rules engine |
-`src/l3/tool_system/tool_pipeline.py` — 9-step execution pipeline |
-`src/l3/card/card_registry.py` — Card lifecycle | `src/l3/boot/boot.py` — 7-step bootstrap |
-`src/l3/cell/peers/l3a/` — L3A session system (25 modules) | `src/l3/cell/peers/l3.py` — CentralController
+`systems/python-reference-runtime/main.py` — CLI entry | `systems/python-reference-runtime/l5/cli.py` — CLI commands | `systems/python-reference-runtime/l1/kernel/os.py` — OS lifecycle |
+`systems/python-reference-runtime/l1/kernel/constitution.py` — Constitutional rules engine |
+`systems/python-reference-runtime/l3/tool_system/tool_pipeline.py` — 9-step execution pipeline |
+`systems/python-reference-runtime/l3/card/card_registry.py` — Card lifecycle | `systems/python-reference-runtime/l3/boot/boot.py` — 7-step bootstrap |
+`systems/python-reference-runtime/l3/cell/peers/l3a/` — L3A session system (25 modules) | `systems/python-reference-runtime/l3/cell/peers/l3.py` — CentralController
 
 ## Project structure & sandbox
 

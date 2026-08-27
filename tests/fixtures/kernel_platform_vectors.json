@@ -41,14 +41,14 @@
     "shell_command": ["C:\\Windows\\System32\\cmd.exe", "/c", "echo ready"],
     "grep_options": {
       "pattern": "needle",
-      "path": "src",
+      "path": "systems/python-reference-runtime",
       "fixed": true,
       "ignore_case": true,
       "max_count": 0,
       "glob_pattern": "*.py",
       "file_type": ""
     },
-    "grep_command": ["findstr", "/n", "/s", "/i", "/x", "/c:needle", "src\\*.py"],
+    "grep_command": ["findstr", "/n", "/s", "/i", "/x", "/c:needle", "systems/python-reference-runtime\\*.py"],
     "url_parts": ["/api/", "/v2/", "/health"],
     "url": "api/v2/health",
     "temp_system": "C:\\Temp",

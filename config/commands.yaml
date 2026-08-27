@@ -379,9 +379,9 @@ buffer:
     - {name: sub, description: "status|commit <path>|diff <path>|discard <path>"}
   examples:
     - "/buffer             — show buffer status"
-    - "/buffer commit src/main.py — commit buffered changes"
-    - "/buffer diff src/main.py   — show pending diff"
-    - "/buffer discard src/main.py — discard buffered changes"
+    - "/buffer commit systems/python-reference-runtime/main.py — commit buffered changes"
+    - "/buffer diff systems/python-reference-runtime/main.py   — show pending diff"
+    - "/buffer discard systems/python-reference-runtime/main.py — discard buffered changes"
 
 card:
   category: ext

@@ -49,7 +49,7 @@
       "tool": "read_file",
       "agent_id": "shell",
       "target": "/project/outside.py",
-      "territory": ["/project/src"],
+      "territory": ["/project/systems/python-reference-runtime"],
       "interactive": true
     },
     "expect": {
@@ -121,7 +121,7 @@
       "action": "read_file",
       "agent_id": "agent-a",
       "target": "/project/outside.py",
-      "territory": ["/project/src"]
+      "territory": ["/project/systems/python-reference-runtime"]
     },
     "expect": {
       "allowed": false,

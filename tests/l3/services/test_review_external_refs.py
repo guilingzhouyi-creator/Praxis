@@ -40,7 +40,7 @@ def test_external_references_attached(monkeypatch):
 
     monkeypatch.setattr("l3.tools._web.web_search", _fake_web_search)
     pipe = rp.get_review_pipeline()
-    r = pipe.dispose(_hunky_review_diff(), rel_path="src/x.py")
+    r = pipe.dispose(_hunky_review_diff(), rel_path="systems/python-reference-runtime/x.py")
     assert r["references"] == [{"title": "Sanitize best practice", "url": "https://example.org/sanitize"}]
 
 
@@ -53,7 +53,7 @@ def test_external_references_degrade_when_tool_fails(monkeypatch):
 
     monkeypatch.setattr("l3.tools._web.web_search", _boom)
     pipe = rp.get_review_pipeline()
-    r = pipe.dispose(_hunky_review_diff(), rel_path="src/x.py")
+    r = pipe.dispose(_hunky_review_diff(), rel_path="systems/python-reference-runtime/x.py")
     assert r["references"] == []
     assert r["disposition"] == "small"  # review still proceeds
 

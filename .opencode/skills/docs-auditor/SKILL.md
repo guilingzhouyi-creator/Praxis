@@ -15,7 +15,7 @@ goal is 0 CJK residue in code comments.
 
 ### 1. Scope the Audit
 - If a diff/commit range is given, audit only the changed `.py` files.
-- Otherwise scan `src/` (all layers L1-L5) and report the worst offenders.
+- Otherwise scan `systems/python-reference-runtime/` (all layers L1-L5) and report the worst offenders.
 - Exclude `locales/`, `config/skills/`, and i18n translation data.
 
 ### 2. CJK Residue Scan
@@ -28,7 +28,7 @@ For each target `.py` file:
 
 ### 3. Module Docstring Check
 - Every module must have a module-level docstring (one-liner explaining purpose).
-- Flag `.py` files under `src/` whose first non-comment statement is not a
+- Flag `.py` files under `systems/python-reference-runtime/` whose first non-comment statement is not a
   docstring (exclude `__init__.py` files that are intentionally empty, and
   `tests/`).
 

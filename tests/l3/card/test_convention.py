@@ -21,7 +21,7 @@ def _make_issue_card(title: str = "test issue") -> IssueCard:
 
 def test_convene():
     cell = get_cell("cell-1")
-    cell.add_agent("agent-a", role="reader", territory=["src"])
+    cell.add_agent("agent-a", role="reader", territory=["systems/python-reference-runtime"])
     cell.add_agent("agent-b", role="writer", territory=["doc"])
     card = _make_issue_card()
     try:
@@ -46,7 +46,7 @@ def test_convene_blank_constitution():
 
 def test_send_convention_message():
     cell = get_cell("cell-3")
-    cell.add_agent("agent-a", role="reader", territory=["src"])
+    cell.add_agent("agent-a", role="reader", territory=["systems/python-reference-runtime"])
     card = _make_issue_card("messaging")
     try:
         r = cell.convene(card)

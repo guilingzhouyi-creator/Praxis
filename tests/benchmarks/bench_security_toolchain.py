@@ -9,7 +9,7 @@ import tempfile
 import time
 from statistics import median
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 from l3.memory.memory_graph import MemoryGraph  # noqa: E402
 from l3.services.todo_tracker import TodoTracker  # noqa: E402

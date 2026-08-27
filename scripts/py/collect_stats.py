@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 
 LAYERS = {
     "l1/kernel": "L1 Kernel",
@@ -54,7 +54,7 @@ def count_lines(path: Path) -> int:
 
 
 def count_files(rel: str) -> int:
-    """Number of .py files under ``src/<rel>``."""
+    """Number of .py files under ``systems/python-reference-runtime/<rel>``."""
     return len(py_files(SRC / rel))
 
 
@@ -79,7 +79,7 @@ def test_stats() -> tuple[int, int]:
 
 
 def long_functions() -> int:
-    """Count src/ functions longer than 200 lines (mega-function smell)."""
+    """Count systems/python-reference-runtime/ functions longer than 200 lines (mega-function smell)."""
     count = 0
     for p in py_files(SRC):
         with contextlib.suppress(OSError, UnicodeDecodeError):
@@ -93,7 +93,7 @@ def long_functions() -> int:
 
 
 def comment_ratio() -> float:
-    """Fraction of lines starting with ``#`` across src/ (docstrings excluded)."""
+    """Fraction of lines starting with ``#`` across systems/python-reference-runtime/ (docstrings excluded)."""
     total = 0
     comments = 0
     for p in py_files(SRC):
@@ -106,7 +106,7 @@ def comment_ratio() -> float:
 
 
 def third_party_imports() -> list[str]:
-    """Sorted third-party import names actually used in src/.
+    """Sorted third-party import names actually used in systems/python-reference-runtime/.
 
     Only names that resolve to a declared dependency in ``pyproject.toml``
     are reported (import alias → package mapping, e.g. ``yaml``→PyYAML,

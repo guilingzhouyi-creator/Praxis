@@ -1,6 +1,6 @@
 """Compliance: L1-L5 code must use params constants, not hardcoded magic values.
 
-Scans src/l1/..src/l5 for:
+Scans systems/python-reference-runtime/l1/..systems/python-reference-runtime/l5 for:
   - Truncation [:N] where N has a LOG_TRUNC_* constant
   - Hash truncation hexdigest()[:N] / hex()[:N] / uuid.uuid4().hex[:N] where N has a HASH_TRUNC_* constant
 
@@ -13,7 +13,7 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 
 # Known constants and their values
@@ -46,17 +46,17 @@ HASH_TRUNC_VALUES: dict[int, str] = {
 
 # Files/types exempt from scanning (e.g., param definitions)
 EXEMPT_DIRS = {"__pycache__", "params"}
-# params.py files (e.g. src/l3/cell/peers/l3a/params.py) are definitions,
+# params.py files (e.g. systems/python-reference-runtime/l3/cell/peers/l3a/params.py) are definitions,
 # not consumers — exempt by filename; __init__.py files are scanned like any
 # other consumer (they may contain real code, e.g. l3a/__init__.py).
 EXEMPT_FILES = {"params.py"}
 
 SCAN_ROOTS = [
-    os.path.join(os.path.dirname(__file__), "..", "..", "src", "l1"),
-    os.path.join(os.path.dirname(__file__), "..", "..", "src", "l2"),
-    os.path.join(os.path.dirname(__file__), "..", "..", "src", "l3"),
-    os.path.join(os.path.dirname(__file__), "..", "..", "src", "l4"),
-    os.path.join(os.path.dirname(__file__), "..", "..", "src", "l5"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l1"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l2"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l3"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l4"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime", "l5"),
 ]
 
 

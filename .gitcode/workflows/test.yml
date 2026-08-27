@@ -102,10 +102,10 @@ jobs:
       # Non-gating type check: 671 pre-existing mypy findings are tracked as
       # debt (same policy as ruff in ci.yml) and cleared incrementally; this
       # step reports them without blocking merges. --no-namespace-packages is
-      # required for the src/ layout (mixed namespace + regular packages).
+      # required for the systems/python-reference-runtime/ layout (mixed namespace + regular packages).
       - name: Type check (mypy, non-gating)
         continue-on-error: true
-        run: mypy src/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
+        run: mypy systems/python-reference-runtime/ --no-namespace-packages --ignore-missing-imports --allow-untyped-calls --allow-untyped-decorators
 
       - name: Summary
         run: echo "CI completed for Python ${{ matrix.python-version }}"

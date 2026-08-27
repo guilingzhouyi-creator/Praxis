@@ -10,7 +10,7 @@ Code quality reviewer for the Praxis codebase. Triggered on code changes to revi
 ## Workflow
 
 ### 1. Scan Changed Files
-Identify files in the change set. Prioritize kernel (`src/l1/kernel/`), cell (`src/l3/`), bridge (`src/l4/`), and shell (`src/l2/`) layers.
+Identify files in the change set. Prioritize kernel (`systems/python-reference-runtime/l1/kernel/`), cell (`systems/python-reference-runtime/l3/`), bridge (`systems/python-reference-runtime/l4/`), and shell (`systems/python-reference-runtime/l2/`) layers.
 
 ### 2. Architecture & Design Review
 - Verify syscall patterns are followed consistently (all kernel ops through `syscall()`).

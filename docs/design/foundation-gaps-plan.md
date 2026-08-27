@@ -26,7 +26,7 @@
 1. 每个阶段独立 `feature/foundation-*` 分支，双绿合并（feature 测试 + main 测试全绿，`--no-ff`），**合并不删分支**。
 2. 阶段内若并行 agent 操作，使用 `git worktree add ../praxis-<area> feature/foundation-*` 物理隔离。
 3. 共享文件（`params/*.py`、`l3/boot/`、`tests/conftest.py`、`test_layer_imports.py`）**同一时刻仅一个 writer**，S0 先落地主干。
-4. 新增常量一律进 `src/l1/kernel/params/`，不硬编码。
+4. 新增常量一律进 `systems/python-reference-runtime/l1/kernel/params/`，不硬编码。
 5. 新 API 端点一律 `/api/v2/` + 在 `api_endpoints.py` 用 `register_endpoint()` 注册（不手改 `API_ROUTES` 分类）。
 6. 每阶段验证门：层导入测试 + params 合规 + 域内测试 + 全量基线 + ruff。
 
@@ -36,7 +36,7 @@
 
 > 分支: `feature/foundation-ports`（K 域独占，合入主干后 S1/S2 才可开工）
 
-### S0.1 `src/l1/kernel/ports.py` — 新增 4 个端口抽象
+### S0.1 `systems/python-reference-runtime/l1/kernel/ports.py` — 新增 4 个端口抽象
 
 当前 8 个 `*Port(ABC)`（Transport / Channel / EventBus / Worker / I18n / CardRegistry / MonitorBus / LLM），缺 4 个：
 
@@ -49,7 +49,7 @@
 
 遵循现有端口风格：`ABC` + 抽象方法 + `register_port("name", impl)` / `get_port("name")`（见 `wiring.py` 既有模式）。
 
-### S0.2 `src/l1/kernel/event.py` — SignalType 扩展
+### S0.2 `systems/python-reference-runtime/l1/kernel/event.py` — SignalType 扩展
 
 `SignalType` 当前 17 成员，增加 3 个（见缺口 5 需求）：
 
@@ -61,14 +61,14 @@ APPROVAL_RESPONDED = auto() # 审批响应已提交
 
 注意：`emit_event()` 与 `emit_signal()` 双通道——事件总线广播用 `emit_signal(SignalType.X, ...)` 时需确认 SSE `_broadcast` 监听的是 signal 通道（S1a 时联调）。
 
-### S0.3 `src/l1/kernel/params/api.py` — 新增常量
+### S0.3 `systems/python-reference-runtime/l1/kernel/params/api.py` — 新增常量
 
 | 常量 | 建议默认值 | 说明 |
 |---|---|---|
 | `RPC_SERVER_PORT` | `42110` | RPC server 监听端口（缺口 3，既有常量，服务器已接线） |
 | `AUTH_TOKEN_TTL_SECONDS` | `86400` | 登录 token 有效期（缺口 1） |
 
-> WS 缺口 2：`src/l4/ws/ws_bridge.py` 为同步直发模型（`conn.send()`，无每客户端队列），
+> WS 缺口 2：`systems/python-reference-runtime/l4/ws/ws_bridge.py` 为同步直发模型（`conn.send()`，无每客户端队列），
 > 镜像 `SSE_QUEUE_MAXSIZE` 的 `WS_MAX_QUEUED_PER_CLIENT` 无自然消费者，已删除；
 > 若后续引入每客户端有界队列再恢复该常量。
 
@@ -81,7 +81,7 @@ python -m pytest tests/infra/test_params_compliance.py -x -q
 python -m pytest tests/infra/test_layer_imports.py -x -q
 python -m pytest tests/l1/ -x -q          # kernel 域测试
 python tests/runner.py                    # 全量基线
-ruff check src/l1/kernel/
+ruff check systems/python-reference-runtime/l1/kernel/
 ```
 
 ---
@@ -94,12 +94,12 @@ ruff check src/l1/kernel/
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l1/kernel/ports.py` | 编辑 | `WebSocketPort` 已在 S0 定义，此处仅确认 |
-| `src/l4/ws/__init__.py` | 新建 | WS 包 |
-| `src/l4/ws/ws_bridge.py` | 新建 | 实现 `WebSocketPort`，镜像 `sse_bridge.py` 的客户端注册表 + EventBus 订阅结构 |
-| `src/l4/api/api_routes.py` | 编辑 | 新增 `("GET", "/api/v2/ws", ...)` upgrade 端点 |
-| `src/l4/api/api_gateway.py` | 编辑 | `_Handler` 加 `Upgrade: websocket` 分支（`do_GET` 内检测 header） |
-| `src/l4/api/api_endpoints.py` | 编辑 | `register_endpoint("GET", "/api/v2/ws", ...)` 注册分类 |
+| `systems/python-reference-runtime/l1/kernel/ports.py` | 编辑 | `WebSocketPort` 已在 S0 定义，此处仅确认 |
+| `systems/python-reference-runtime/l4/ws/__init__.py` | 新建 | WS 包 |
+| `systems/python-reference-runtime/l4/ws/ws_bridge.py` | 新建 | 实现 `WebSocketPort`，镜像 `sse_bridge.py` 的客户端注册表 + EventBus 订阅结构 |
+| `systems/python-reference-runtime/l4/api/api_routes.py` | 编辑 | 新增 `("GET", "/api/v2/ws", ...)` upgrade 端点 |
+| `systems/python-reference-runtime/l4/api/api_gateway.py` | 编辑 | `_Handler` 加 `Upgrade: websocket` 分支（`do_GET` 内检测 header） |
+| `systems/python-reference-runtime/l4/api/api_endpoints.py` | 编辑 | `register_endpoint("GET", "/api/v2/ws", ...)` 注册分类 |
 | `pyproject.toml` | 编辑 | 新增服务端 WS 依赖 |
 
 ### 技术风险与决策点
@@ -141,12 +141,12 @@ python tests/runner.py
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l4/vault/auth.py` | 编辑 | `AuthService` 实现 `AuthPort`：`issue_token` / `verify_token` / `revoke_token` / `refresh_token`（HMAC + `AUTH_TOKEN_SECRET` + 过期时间；吊销表放 vault） |
-| `src/l3/services/central_security.py` | 编辑 | 第 3 步（**实际第 103 行**）改用 `get_port("auth").verify_token(user_token)`，替换硬编码 `"auth verify_token not implemented"` |
-| `src/l4/api/api_routes.py` | 编辑 | 新增 `/api/v2/auth/login|logout|refresh` 路由 |
-| `src/l4/api/api_handlers/` | 编辑 | 新增 `auth` handler（或 `api_handlers_auth.py`） |
-| `src/l4/api/api_endpoints.py` | 编辑 | `register_domain("auth", ...)` + 注册 3 个端点 |
-| `src/l1/kernel/params/api.py` | 编辑 | `AUTH_TOKEN_TTL_SECONDS`（S0 已加，确认值） |
+| `systems/python-reference-runtime/l4/vault/auth.py` | 编辑 | `AuthService` 实现 `AuthPort`：`issue_token` / `verify_token` / `revoke_token` / `refresh_token`（HMAC + `AUTH_TOKEN_SECRET` + 过期时间；吊销表放 vault） |
+| `systems/python-reference-runtime/l3/services/central_security.py` | 编辑 | 第 3 步（**实际第 103 行**）改用 `get_port("auth").verify_token(user_token)`，替换硬编码 `"auth verify_token not implemented"` |
+| `systems/python-reference-runtime/l4/api/api_routes.py` | 编辑 | 新增 `/api/v2/auth/login|logout|refresh` 路由 |
+| `systems/python-reference-runtime/l4/api/api_handlers/` | 编辑 | 新增 `auth` handler（或 `api_handlers_auth.py`） |
+| `systems/python-reference-runtime/l4/api/api_endpoints.py` | 编辑 | `register_domain("auth", ...)` + 注册 3 个端点 |
+| `systems/python-reference-runtime/l1/kernel/params/api.py` | 编辑 | `AUTH_TOKEN_TTL_SECONDS`（S0 已加，确认值） |
 
 ### 注意
 
@@ -172,11 +172,11 @@ python tests/runner.py
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l4/rpc/server.py` | 新建 | `RpcServer`：`asyncio.start_server` 监听 `RPC_SERVER_PORT`（既有常量，42110），`RpcMessage.method` 路由到 `register_handler` 注册的 handler，复用 `RpcTransport.send/recv`（4 字节长度前缀 + JSON，已有） |
-| `src/l1/kernel/ports.py` | 编辑 | `RpcServerPort` 已在 S0，`wiring.py` 注册实现 |
-| `src/l3/boot/wiring.py` | 编辑 | `wire_defaults()` 中 `register_port("rpc_server", RpcServer(...))` |
-| `src/l4/api/api_gateway.py` | 编辑 | `start()` 时同步启动 RPC server（独立线程/进程） |
-| `src/l1/kernel/params/api.py` | 已存在 | `RPC_SERVER_PORT`（既有常量，S0 曾新增重复的 `PRAXIS_RPC_PORT` 已移除，统一单一来源） |
+| `systems/python-reference-runtime/l4/rpc/server.py` | 新建 | `RpcServer`：`asyncio.start_server` 监听 `RPC_SERVER_PORT`（既有常量，42110），`RpcMessage.method` 路由到 `register_handler` 注册的 handler，复用 `RpcTransport.send/recv`（4 字节长度前缀 + JSON，已有） |
+| `systems/python-reference-runtime/l1/kernel/ports.py` | 编辑 | `RpcServerPort` 已在 S0，`wiring.py` 注册实现 |
+| `systems/python-reference-runtime/l3/boot/wiring.py` | 编辑 | `wire_defaults()` 中 `register_port("rpc_server", RpcServer(...))` |
+| `systems/python-reference-runtime/l4/api/api_gateway.py` | 编辑 | `start()` 时同步启动 RPC server（独立线程/进程） |
+| `systems/python-reference-runtime/l1/kernel/params/api.py` | 已存在 | `RPC_SERVER_PORT`（既有常量，S0 曾新增重复的 `PRAXIS_RPC_PORT` 已移除，统一单一来源） |
 
 ### 注意
 
@@ -202,8 +202,8 @@ python tests/runner.py
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l3/card/pending_queue.py` | 编辑 | `enqueue()`（第 118 行）在现有 `emit_signal(EVENT_TASK_ASSIGN, ...)` 之外，增发 `emit_signal(SignalType.CARD_PENDING, ...)`（sender="pending_queue"，data 含 card_id/msg_id） |
-| `src/l3/card/approval_gate.py` | 编辑 | `request()`（**注意：方法名是 `request` 不是文档附录 B 写的 `hold`**）内发 `APPROVAL_REQUIRED`；`respond()` 内发 `APPROVAL_RESPONDED`（approved 结果进 data） |
+| `systems/python-reference-runtime/l3/card/pending_queue.py` | 编辑 | `enqueue()`（第 118 行）在现有 `emit_signal(EVENT_TASK_ASSIGN, ...)` 之外，增发 `emit_signal(SignalType.CARD_PENDING, ...)`（sender="pending_queue"，data 含 card_id/msg_id） |
+| `systems/python-reference-runtime/l3/card/approval_gate.py` | 编辑 | `request()`（**注意：方法名是 `request` 不是文档附录 B 写的 `hold`**）内发 `APPROVAL_REQUIRED`；`respond()` 内发 `APPROVAL_RESPONDED`（approved 结果进 data） |
 
 ### 注意
 
@@ -229,11 +229,11 @@ python tests/runner.py
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l3/services/fs.py` | 编辑 | 文件读写/树/监听改走 `get_port("fs")`；现有 `watch_start`（Path + 轮询）可作为默认 adapter 实现 |
-| `src/l3/services/file_editor.py` | 编辑 | `Path.write_text` 等直接 IO 改走端口（或保留为默认 adapter 内部实现，视接口粒度） |
-| `src/l1/kernel/ports.py` | 编辑 | `FilesystemPort` 已在 S0 |
-| `src/l4/api/api_routes.py` | 编辑 | 新增 `/api/v2/fs/tree`、`/api/v2/fs/read`、`/api/v2/fs/watch`（注意与现有 `/api/v2/fs/edit|patch|history` 不冲突） |
-| `src/l4/api/api_endpoints.py` | 编辑 | 注册 3 个新端点 |
+| `systems/python-reference-runtime/l3/services/fs.py` | 编辑 | 文件读写/树/监听改走 `get_port("fs")`；现有 `watch_start`（Path + 轮询）可作为默认 adapter 实现 |
+| `systems/python-reference-runtime/l3/services/file_editor.py` | 编辑 | `Path.write_text` 等直接 IO 改走端口（或保留为默认 adapter 内部实现，视接口粒度） |
+| `systems/python-reference-runtime/l1/kernel/ports.py` | 编辑 | `FilesystemPort` 已在 S0 |
+| `systems/python-reference-runtime/l4/api/api_routes.py` | 编辑 | 新增 `/api/v2/fs/tree`、`/api/v2/fs/read`、`/api/v2/fs/watch`（注意与现有 `/api/v2/fs/edit|patch|history` 不冲突） |
+| `systems/python-reference-runtime/l4/api/api_endpoints.py` | 编辑 | 注册 3 个新端点 |
 
 ### 注意
 
@@ -260,8 +260,8 @@ python tests/runner.py
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `src/l3/services/hook.py` | 编辑 | **方案 A（推荐）:** 新增 `EventEmitHook(LifecycleHooks)` 子类，`turn_complete` → `get_bus().emit_event("turn.complete", {"result": result, "elapsed": elapsed})`，`on_error` → `"turn.error"`，`session_end` → `"session.end"`；**不改基类 `pass`** |
-| `src/l3/boot/wiring.py` | 编辑 | boot 时 `hook_chain.add(EventEmitHook())` |
+| `systems/python-reference-runtime/l3/services/hook.py` | 编辑 | **方案 A（推荐）:** 新增 `EventEmitHook(LifecycleHooks)` 子类，`turn_complete` → `get_bus().emit_event("turn.complete", {"result": result, "elapsed": elapsed})`，`on_error` → `"turn.error"`，`session_end` → `"session.end"`；**不改基类 `pass`** |
+| `systems/python-reference-runtime/l3/boot/wiring.py` | 编辑 | boot 时 `hook_chain.add(EventEmitHook())` |
 
 ### 注意
 

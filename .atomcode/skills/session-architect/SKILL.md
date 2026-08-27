@@ -1,11 +1,11 @@
 ---
 name: session-architect
-description: Use when writing or modifying Praxis session subsystem code — L3A session system (session lifecycle, history, compression, persistence, subagents, context epochs, ask state machine, secretary), or CentralController integration in src/l3/cell/peers/l3a/.
+description: Use when writing or modifying Praxis session subsystem code — L3A session system (session lifecycle, history, compression, persistence, subagents, context epochs, ask state machine, secretary), or CentralController integration in systems/python-reference-runtime/l3/cell/peers/l3a/.
 ---
 
 ## Overview
 
-Architecture guide for the L3A session system (`src/l3/cell/peers/l3a/`, 23 modules) and its CentralController integration (`src/l3/cell/peers/l3.py`). Use it when adding session features, fixing session persistence, or wiring L2/API routing.
+Architecture guide for the L3A session system (`systems/python-reference-runtime/l3/cell/peers/l3a/`, 23 modules) and its CentralController integration (`systems/python-reference-runtime/l3/cell/peers/l3.py`). Use it when adding session features, fixing session persistence, or wiring L2/API routing.
 
 ## Module Map
 
@@ -14,7 +14,7 @@ Architecture guide for the L3A session system (`src/l3/cell/peers/l3a/`, 23 modu
 - **Concurrency**: `subagent.py` (L3ASubAgentPool), `context.py` (ContextEpoch/Registry), `inbox.py` (PromptInbox)
 - **R4/LLM glue**: `summaries.py` (summary + R4), `model.py` (L3AModelConfig), `archive.py` (R4 store/restore), `pipeline.py` (ManagedToolOutput)
 - **Coordination**: `task_table.py` (task monitor), `helpers.py` (cardwrite/convergence), `api.py` (L2 routing), `agents_md.py` (AGENTS.md generator), `types.py` (enums/dataclasses), `params.py` (constants), `ask.py` (clarification state machine), `secretary.py` (L3A-C: capability-threshold assist → peer upgrade)
-- **Owner**: `src/l3/cell/peers/l3.py` — CentralController: L3A sessions + L3B routing + CardRegistry lifecycle
+- **Owner**: `systems/python-reference-runtime/l3/cell/peers/l3.py` — CentralController: L3A sessions + L3B routing + CardRegistry lifecycle
 
 ## Conventions
 

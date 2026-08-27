@@ -10,19 +10,19 @@
         "read_only": false
       },
       {
-        "name": "/project/src",
+        "name": "/project/systems/python-reference-runtime",
         "mount_type": "SANDBOX",
-        "real_path": "/srv/src",
+        "real_path": "/srv/systems/python-reference-runtime",
         "min_ring": 2,
         "read_only": true
       }
     ],
-    "path": "/project/src/main.py",
+    "path": "/project/systems/python-reference-runtime/main.py",
     "expect": {
-      "mount": "/project/src",
+      "mount": "/project/systems/python-reference-runtime",
       "rel": "main.py",
-      "root": "/srv/src",
-      "real_path": "/srv/src/main.py",
+      "root": "/srv/systems/python-reference-runtime",
+      "real_path": "/srv/systems/python-reference-runtime/main.py",
       "min_ring": 2,
       "read_only": true
     }
@@ -38,9 +38,9 @@
         "read_only": false
       },
       {
-        "name": "/project/src",
+        "name": "/project/systems/python-reference-runtime",
         "mount_type": "SANDBOX",
-        "real_path": "/srv/src",
+        "real_path": "/srv/systems/python-reference-runtime",
         "min_ring": 2,
         "read_only": true
       }

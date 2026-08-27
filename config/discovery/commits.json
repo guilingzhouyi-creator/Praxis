@@ -75,16 +75,16 @@
     "cleaning"
   ],
   "scope_dirs": {
-    "kernel": "src/l1/kernel/",
-    "l2": "src/l2/",
-    "l3": "src/l3/",
-    "l3a": "src/l3/cell/peers/l3a/",
-    "l4": "src/l4/",
-    "api": "src/l4/api/",
-    "llm": "src/l4/llm/",
-    "sandbox": "src/l4/sandbox/",
-    "l5": "src/l5/",
-    "cli": "src/l5/",
+    "kernel": "systems/python-reference-runtime/l1/kernel/",
+    "l2": "systems/python-reference-runtime/l2/",
+    "l3": "systems/python-reference-runtime/l3/",
+    "l3a": "systems/python-reference-runtime/l3/cell/peers/l3a/",
+    "l4": "systems/python-reference-runtime/l4/",
+    "api": "systems/python-reference-runtime/l4/api/",
+    "llm": "systems/python-reference-runtime/l4/llm/",
+    "sandbox": "systems/python-reference-runtime/l4/sandbox/",
+    "l5": "systems/python-reference-runtime/l5/",
+    "cli": "systems/python-reference-runtime/l5/",
     "docs": "docs/",
     "tests": "tests/",
     "scripts": "scripts/",
@@ -93,7 +93,7 @@
     "judge": "docs/",
     "git": "scripts/",
     "hooks": ".githooks/",
-    "rust": "crates/"
+    "rust": "systems/rust-kernel-engine/"
   },
   "agents": [
     {
@@ -302,38 +302,38 @@
   "strictness": "strict",
   "type_content_rules": {
     "feat": [
-      "src/",
-      "crates/",
-      "packages/",
+      "systems/python-reference-runtime/",
+      "systems/rust-kernel-engine/",
+      "systems/typescript-shell-engine/",
       "scripts/",
       ".githooks/",
       "config/"
     ],
     "fix": [
-      "src/",
-      "crates/",
-      "packages/",
+      "systems/python-reference-runtime/",
+      "systems/rust-kernel-engine/",
+      "systems/typescript-shell-engine/",
       "scripts/",
       ".githooks/",
       "config/"
     ],
     "refactor": [
-      "src/",
-      "crates/",
-      "packages/",
+      "systems/python-reference-runtime/",
+      "systems/rust-kernel-engine/",
+      "systems/typescript-shell-engine/",
       "scripts/",
       ".githooks/",
       "config/"
     ],
     "perf": [
-      "src/",
-      "crates/",
-      "packages/"
+      "systems/python-reference-runtime/",
+      "systems/rust-kernel-engine/",
+      "systems/typescript-shell-engine/"
     ],
     "test": [
       "tests/",
-      "crates/",
-      "packages/"
+      "systems/rust-kernel-engine/",
+      "systems/typescript-shell-engine/"
     ],
     "ci": [
       ".github/"

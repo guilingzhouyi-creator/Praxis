@@ -97,8 +97,8 @@
   },
   {
     "case": "explicit_relative_working_dir",
-    "target": "src/main.rs",
-    "bases": ["src"],
+    "target": "systems/python-reference-runtime/main.py",
+    "bases": ["systems/python-reference-runtime"],
     "working_dir": "/workspace/praxis",
     "expected": true
   }

@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class TestCardModel:
@@ -12,9 +12,9 @@ class TestCardModel:
     def test_card_create(self):
         from l3.card.models import Card
 
-        card = Card(intent="fix bug", domain="src")
+        card = Card(intent="fix bug", domain="systems/python-reference-runtime")
         assert card.intent == "fix bug"
-        assert card.domain == "src"
+        assert card.domain == "systems/python-reference-runtime"
 
     def test_card_priority_default(self):
         from l3.card.models import Card
@@ -42,7 +42,7 @@ class TestCardBuilder:
     def test_build_default(self):
         from l3.card.card_builder import build_card
 
-        card = build_card(task_id="t1", intent="implement login", domain="src/auth")
+        card = build_card(task_id="t1", intent="implement login", domain="systems/python-reference-runtime/auth")
         assert card is not None
         # CardUnified uses summary.title instead of .intent
         assert "login" in card.summary.title
@@ -79,7 +79,7 @@ class TestCardRegistry:
 
         reset_registry()
         reg = get_registry()
-        cid = reg.submit("fix auth bug", domain="src/auth")
+        cid = reg.submit("fix auth bug", domain="systems/python-reference-runtime/auth")
         assert cid is not None
         assert cid.startswith("card-")
 
@@ -108,7 +108,7 @@ class TestCardRegistry:
 
         reset_registry()
         reg = get_registry()
-        reg.submit("auth fix", domain="src/auth")
+        reg.submit("auth fix", domain="systems/python-reference-runtime/auth")
         reg.submit("docs update", domain="docs")
         cards = reg.list(domain="docs")
         assert len(cards) >= 1

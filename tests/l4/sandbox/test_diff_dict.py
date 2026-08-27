@@ -32,7 +32,7 @@ def test_train_requires_samples(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     r = diff_dict.train_dictionary(path=str(tmp_path / "d.bin"), force=True)
-    assert r["success"] in (True, False)  # may train from repo src/ samples
+    assert r["success"] in (True, False)  # may train from repo systems/python-reference-runtime/ samples
 
 
 def test_train_persists_and_loads(tmp_path):

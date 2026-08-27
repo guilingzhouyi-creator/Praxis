@@ -164,13 +164,13 @@ are **additive** - no existing engine behavior was changed.
 
 | Asset | Path | Purpose |
 |---|---|---|
-| Envelope reference | `src/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay, `maxlen=1024`) + `SessionCursor`; stdlib-only, zero singletons, zero I/O; TS mirror uses simple array (`push/shift/filter`) for auditability |
-| JSON Schemas | `src/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
-| TS-neutral records | `src/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
+| Envelope reference | `systems/python-reference-runtime/l2/protocol/envelope.py` | pure make/validate/encode/decode + `Outbox` (bounded replay, `maxlen=1024`) + `SessionCursor`; stdlib-only, zero singletons, zero I/O; TS mirror uses simple array (`push/shift/filter`) for auditability |
+| JSON Schemas | `systems/python-reference-runtime/l2/protocol/schema.py` | Draft-07 envelope + per-kind payload schemas - the TS zod/io-ts mirror target |
+| TS-neutral records | `systems/python-reference-runtime/l2/protocol/records.py` | versioned `SessionIdentity`, `EventEnvelope`, `SessionMessage`, `ToolFailure`, `DecisionSummary`, and `EvidenceRef`; unknown fields are ignored, unsupported versions fail closed, and CoT is excluded |
 | Record fixtures | `tests/fixtures/protocol_v1_records.json` | deterministic v1 samples consumed by Python tests and the planned TypeScript/vitest mirror |
-| TypeScript mirror | `packages/protocol-ts/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
-| Stdio host | `src/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
-| Rust host candidate | `crates/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `packages/protocol-ts/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring, stderr capture, and immediate pending-request failure on child/input close, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
+| TypeScript mirror | `systems/typescript-shell-engine/src/{records,envelope}.ts` | read-only parity implementation; it consumes the shared fixture and does not own L2/L3 runtime state |
+| Stdio host | `systems/python-reference-runtime/l2/protocol/host.py` (`python -m l2.protocol.host`) | JSONL bridge over the existing `l2.l2_shell.dispatch`; command/intent/control in, result/event/ack out; fail-closed on bad input |
+| Rust host candidate | `systems/rust-kernel-engine/l1-kernel-rs/src/bin/rust-protocol-host.rs` + `systems/typescript-shell-engine/src/engine/transports/rust-host.ts` | opt-in JSONL child host selected by `PRAXIS_RUST_HOST`; TS owns only process wiring, stderr capture, and immediate pending-request failure on child/input close, while Rust owns candidate routing/gates; production default remains Python until R4/R5 cutover |
 | Contract pins | `tests/l2/test_protocol_v1.py` | envelope round-trip, validation, outbox cursor/ack/cap, schema alignment, host smoke tests |
 | Dispatch JSON contract | `tests/l2/test_dispatch_contract.py` | every render-ready dispatch result must survive `json.dumps`; stable shapes for /help /lang /history /sysinfo, unknown-command, pipeline, alias |
 
@@ -183,7 +183,7 @@ $ printf '%s\n' '{"v":1,"session_id":"s-1","seq":1,"ts":0.0,"kind":"command","pa
 {"kind":"ack","payload":{"ack_seq":1},...}
 ```
 
-TS mirror strategy: `packages/protocol-ts` ports `envelope.py` and `records.py`
+TS mirror strategy: `systems/typescript-shell-engine` ports `envelope.py` and `records.py`
 semantics 1:1 into `envelope.ts` and `records.ts`, loads
 `tests/fixtures/protocol_v1_records.json`, and runs parity expectations in
 Vitest. The Python tests and fixture double as the TS spec; this package is
@@ -209,9 +209,9 @@ instead of converting a malformed frame into a timeout.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 
-Authority model: **`packages/protocol-ts` is the normative L2 protocol
-authority**; the Rust kernel (`crates/l1-kernel-rs`) must reproduce TS
-canonical output byte-for-byte; `src/l2/protocol` (Python) is a frozen
+Authority model: **`systems/typescript-shell-engine` is the normative L2 protocol
+authority**; the Rust kernel (`systems/rust-kernel-engine/l1-kernel-rs`) must reproduce TS
+canonical output byte-for-byte; `systems/python-reference-runtime/l2/protocol` (Python) is a frozen
 legacy reference retained only until the G6 cut-over retires it. Golden
 vectors are frozen from the TS engine, not from the Python host.
 

@@ -6,13 +6,13 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 
 # Layer hierarchy: index determines allowed upward imports
 LAYER_ORDER = {"l1": 0, "l2": 1, "l3": 2, "l4": 3, "l5": 4}
 
 # Allowlist: pre-existing cross-layer imports (adapter patterns + service calls).
-# Rebuilt from the actual src/ import graph — every entry is a real (file, module)
+# Rebuilt from the actual systems/python-reference-runtime/ import graph — every entry is a real (file, module)
 # pair; add a line here when introducing a new cross-layer import.
 ALLOWLIST = {
     ("l2/i18n.py", "l4.adapters.i18n_yaml"),
@@ -282,7 +282,7 @@ class TestLayerImports:
                     # Strict layering: no upward imports allowed
                     if target_order > source_order:
                         rel = str(fp.relative_to(ROOT)).replace("\\", "/")
-                        key = rel.replace("src/", "", 1)
+                        key = rel.replace("systems/python-reference-runtime/", "", 1)
                         if (key, imp_mod) in ALLOWLIST:
                             continue
                         violations.append(f"{rel}: imports {imp_mod} ({source_layer}→{target_layer})")
@@ -296,10 +296,10 @@ class TestLayerImports:
 
 
 class TestLayerConstraints:
-    """Scan files under src/ one by one, verify cross-layer import constraints"""
+    """Scan files under systems/python-reference-runtime/ one by one, verify cross-layer import constraints"""
 
     def _find_src_files(self):
-        src_dir = Path("src")
+        src_dir = Path("systems/python-reference-runtime")
         files = []
         for f in src_dir.rglob("*.py"):
             if "__pycache__" in f.parts:
@@ -324,7 +324,8 @@ class TestLayerConstraints:
                     continue
                 if dst_layer > src_layer and not _is_allowlisted(src_layer, dst_layer, module):
                     violations.append(
-                        f"{fpath.relative_to('src')}: imports {module} (L{src_layer} → L{dst_layer}) not allowlisted"
+                        f"{fpath.relative_to('systems/python-reference-runtime')}: imports {module} "
+                        f"(L{src_layer} → L{dst_layer}) not allowlisted"
                     )
 
         assert not violations, "Layer import violations:\n" + "\n".join(violations[:30])
@@ -332,7 +333,7 @@ class TestLayerConstraints:
     def test_l1_imports_upper_allowlisted(self):
         """L1 kernel must have zero upward imports to L2+ (clean Rust boundary)."""
         violations = []
-        for fpath in Path("src/l1/kernel").rglob("*.py"):
+        for fpath in Path("systems/python-reference-runtime/l1/kernel").rglob("*.py"):
             if "__pycache__" in fpath.parts:
                 continue
             imports = _parse_imports(str(fpath))
@@ -344,12 +345,12 @@ class TestLayerConstraints:
 
     def test_l5_can_import_any(self):
         """L5 should be able to import any layer (no restrictions)"""
-        l5_files = list(Path("src/l5").rglob("*.py"))
+        l5_files = list(Path("systems/python-reference-runtime/l5").rglob("*.py"))
         assert len(l5_files) >= 2, "L5 should have at least 2 files"
 
     def test_allowlist_matches_reality(self):
         """Verify each pattern in allowlist has at least one actual reference"""
-        src_dir = Path("src")
+        src_dir = Path("systems/python-reference-runtime")
         unmatched = []
         for fpath_filter, module_pattern in ALLOWLIST:
             found = False
@@ -379,13 +380,13 @@ class TestFullScanL3toL4:
     def test_all_l3_l4_imports_allowlisted(self):
         """Check each L3→L4 import is in the allowlist"""
         violations = []
-        for fpath in Path("src/l3").rglob("*.py"):
+        for fpath in Path("systems/python-reference-runtime/l3").rglob("*.py"):
             if "__pycache__" in fpath.parts:
                 continue
             imports = _parse_imports(str(fpath))
             for _imp_type, module in imports:
                 if _import_layer(module) == 4 and not _is_allowlisted(3, 4, module):
-                    violations.append(f"{fpath.relative_to('src')}: {module}")
+                    violations.append(f"{fpath.relative_to('systems/python-reference-runtime')}: {module}")
         assert not violations, "L3→L4 imports not in allowlist:\n" + "\n".join(violations)
 
     def test_all_l3_l4_imports_documented(self):
@@ -399,11 +400,11 @@ class TestFullScanL2toL3:
     def test_all_l2_l3_imports_allowlisted(self):
         """Check each L2→L3 import is in the allowlist"""
         violations = []
-        for fpath in Path("src/l2").rglob("*.py"):
+        for fpath in Path("systems/python-reference-runtime/l2").rglob("*.py"):
             if "__pycache__" in fpath.parts:
                 continue
             imports = _parse_imports(str(fpath))
             for _imp_type, module in imports:
                 if _import_layer(module) == 3 and not _is_allowlisted(2, 3, module):
-                    violations.append(f"{fpath.relative_to('src')}: {module}")
+                    violations.append(f"{fpath.relative_to('systems/python-reference-runtime')}: {module}")
         assert not violations, "L2→L3 imports not in allowlist:\n" + "\n".join(violations[:20])

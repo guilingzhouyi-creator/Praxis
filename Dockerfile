@@ -5,7 +5,7 @@ WORKDIR /praxis
 # Install build deps + project
 COPY pyproject.toml .
 COPY .praxis-rules.md .
-COPY src/ src/
+COPY systems/python-reference-runtime/ systems/python-reference-runtime/
 COPY config/ config/
 RUN pip install --no-cache-dir ".[test]"
 

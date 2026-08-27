@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 
 
 class _FakeLoopDetector:
@@ -141,8 +141,8 @@ def test_diag_hook_injects_fix_once(monkeypatch) -> None:
     tool_results = [
         {
             "name": "file_edit",
-            "args": {"path": "src/x.py"},
-            "result": {"success": False, "error": "old_str not found", "file": "src/x.py"},
+            "args": {"path": "systems/python-reference-runtime/x.py"},
+            "result": {"success": False, "error": "old_str not found", "file": "systems/python-reference-runtime/x.py"},
         }
     ]
     out = _call_process(host, engine, tool_results, deadline=10**12)
@@ -165,8 +165,8 @@ def test_no_diag_no_llm_call(monkeypatch) -> None:
     tool_results = [
         {
             "name": "file_edit",
-            "args": {"path": "src/x.py"},
-            "result": {"success": False, "error": "old_str not found", "file": "src/x.py"},
+            "args": {"path": "systems/python-reference-runtime/x.py"},
+            "result": {"success": False, "error": "old_str not found", "file": "systems/python-reference-runtime/x.py"},
         }
     ]
     out = _call_process(host, engine, tool_results, deadline=10**12)
@@ -186,8 +186,8 @@ def test_looped_step_skips_llm(monkeypatch) -> None:
     tool_results = [
         {
             "name": "file_edit",
-            "args": {"path": "src/x.py"},
-            "result": {"success": False, "error": "old_str not found", "file": "src/x.py"},
+            "args": {"path": "systems/python-reference-runtime/x.py"},
+            "result": {"success": False, "error": "old_str not found", "file": "systems/python-reference-runtime/x.py"},
         }
     ]
     out = _call_process(host, engine, tool_results, deadline=10**12)
@@ -206,8 +206,8 @@ def test_deadline_guard_skips_llm(monkeypatch) -> None:
     tool_results = [
         {
             "name": "file_edit",
-            "args": {"path": "src/x.py"},
-            "result": {"success": False, "error": "old_str not found", "file": "src/x.py"},
+            "args": {"path": "systems/python-reference-runtime/x.py"},
+            "result": {"success": False, "error": "old_str not found", "file": "systems/python-reference-runtime/x.py"},
         }
     ]
     out = _call_process(host, engine, tool_results, deadline=time.time() - 1)

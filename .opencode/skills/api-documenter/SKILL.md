@@ -1,6 +1,6 @@
 ---
 name: api-documenter
-description: Use when API routes, handlers, or API docs change — reviews documentation completeness and consistency against the registered route manifest in src/l4/api/. Flags missing, stale, and ghost routes.
+description: Use when API routes, handlers, or API docs change — reviews documentation completeness and consistency against the registered route manifest in systems/python-reference-runtime/l4/api/. Flags missing, stale, and ghost routes.
 ---
 
 ## Overview
@@ -10,16 +10,16 @@ Automated API documentation reviewer for the Praxis codebase. Triggered when API
 ## When to Run
 
 Review is triggered automatically when files matching these patterns change:
-- `src/l4/api/api_routes.py`
-- `src/l4/api/api_gateway.py`
-- `src/l4/api/api_handlers_cards.py` / `api_handlers_diff.py`
+- `systems/python-reference-runtime/l4/api/api_routes.py`
+- `systems/python-reference-runtime/l4/api/api_gateway.py`
+- `systems/python-reference-runtime/l4/api/api_handlers_cards.py` / `api_handlers_diff.py`
 - `docs/api-reference.md` or `docs/design/*.md`
 
 ## Workflow
 
 ### 1. Scan Routes
 
-Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all registered routes. Extract:
+Read `systems/python-reference-runtime/l4/api/api_routes.py` and `systems/python-reference-runtime/l4/api/api_gateway.py` to find all registered routes. Extract:
 - HTTP method
 - URL path
 - Handler function reference

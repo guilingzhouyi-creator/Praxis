@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Comment hygiene audit for the Praxis codebase.
 
-Scans ``src/`` (or a path argument) for three comment-convention issues per
+Scans ``systems/python-reference-runtime/`` (or a path argument) for three comment-convention issues per
 AGENTS.md: CJK residue in comments/docstrings, missing module/class/function
 docstrings, and overly-short (low-detail) docstrings.
 
@@ -180,7 +180,12 @@ def audit_md_file(path: str, rel: str, result: AuditResult, strict: bool = False
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", nargs="?", default="src", help="root to scan (default: src)")
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default="systems/python-reference-runtime",
+        help="root to scan (default: systems/python-reference-runtime)",
+    )
     parser.add_argument("--strict", action="store_true", help="fail on advisory categories too")
     parser.add_argument(
         "--non-ascii",

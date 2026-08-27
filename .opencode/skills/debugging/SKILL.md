@@ -9,14 +9,14 @@ Systematic debugging workflow for Praxis. The codebase is 5-layer (L1 kernel →
 
 ## 1. Follow the Trace ID
 
-- One unified trace id flows request → agent → tool → error via `src/l3/error_bus/core.py`: `get_trace_id()` / `set_trace_id()` / `trace_scope`. Never mint new ids in new code paths — propagate the existing one.
+- One unified trace id flows request → agent → tool → error via `systems/python-reference-runtime/l3/error_bus/core.py`: `get_trace_id()` / `set_trace_id()` / `trace_scope`. Never mint new ids in new code paths — propagate the existing one.
 - When a failure surfaces, the trace_id in the error connects the failing step to the originating request; use it to correlate logs (kernel audit trail, tool pipeline gates, error bus events).
 
 ## 2. Classify the Failure
 
 - **Setup/pollution**: module-level singletons (`get_*()` accessors) are reset by `tests/conftest.py` `_RESETS` before each test. If tests pass alone but fail in sequence, a singleton is missing from `_RESETS`. Add the service's reset function there.
 - **Layer violation**: if an import fails with a cycle or an unexpected cross-layer import, check the import rules (L5→L4→L3→L2→L1 one-way). `python -m pytest tests/infra/test_layer_imports.py -x -q` flags new violations; pre-existing ones are allowlisted.
-- **Constants drift**: `tests/infra/test_params_compliance.py` (strict) catches hardcoded magic numbers that should live in `src/l1/kernel/params/`. Symmetric bug: params changed but references not regenerated (`make doc-stats`).
+- **Constants drift**: `tests/infra/test_params_compliance.py` (strict) catches hardcoded magic numbers that should live in `systems/python-reference-runtime/l1/kernel/params/`. Symmetric bug: params changed but references not regenerated (`make doc-stats`).
 - **Hook rejection**: a commit/merge rejected by git is usually the mainline whitelist or commit-msg rules — see the git-workflow skill.
 - **Gate rejection**: a push rejected by `push-both.sh main` is the mainline net-delta gate (`verify-main-merge-gate.sh`) — the change is below the ≥ 1000 net threshold (or comment/deletion locks tripped). Do NOT self-waive with `MERGE_GATE_SKIP=1`; accumulate on the worktree branch or ask the user (see the **net-delta-gate** skill).
 - **Contract mismatch**: API 4xx on valid calls — route not in the manifest (`python -m l4.api.api_endpoints`), or versioned path drifted (`_strip_version`).
@@ -24,7 +24,7 @@ Systematic debugging workflow for Praxis. The codebase is 5-layer (L1 kernel →
 ## 3. Trace the Execution Path
 
 - **Kernel**: every operation goes through `syscall(op, ...)` (audited, structured error codes). Check the audit trail for the op that failed and its error code.
-- **Tool path**: `src/l3/tool_system/tool_pipeline.py` 9-step pipeline with per-phase gate traces — enable step tracing to find which phase dropped the call.
+- **Tool path**: `systems/python-reference-runtime/l3/tool_system/tool_pipeline.py` 9-step pipeline with per-phase gate traces — enable step tracing to find which phase dropped the call.
 - **Card path**: CardRegistry lifecycle (submit → dispatch → complete/fail); execution_engine recovery modes (abort/retry/skip/rollback) explain "silently skipped" steps.
 - **Sandbox edits**: all agent writes land in the sandbox with per-hunk attribution (`agent_id`, `tool_name`, `task_id`, `modified_at`). "My edit disappeared" is usually a parallel-agent hunk or a sandbox cache issue (`.praxis/sandbox_state.json` in `data_dir`).
 

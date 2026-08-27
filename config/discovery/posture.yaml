@@ -1,6 +1,6 @@
 # Posture matrix — attack-posture configuration surface.
 #
-# Overlays src/l1/kernel/params/system.py POSTURE_MATRIX_DEFAULT at boot.
+# Overlays systems/python-reference-runtime/l1/kernel/params/system.py POSTURE_MATRIX_DEFAULT at boot.
 # Offensive posture is default-off; enabling it REQUIRES a target whitelist
 # (empty whitelist is rejected). While any domain is offensive, harness
 # mode 'minimal' is forbidden (approval + rate limiting are the bottom line).

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
+SRC = ROOT / "systems/python-reference-runtime"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 

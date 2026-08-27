@@ -7,7 +7,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "systems/python-reference-runtime"))
 
 if TYPE_CHECKING:
     from l1.kernel.tool_chain import ToolChain

@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "systems/python-reference-runtime"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "py"))
 
 from perf_harness import (  # noqa: E402

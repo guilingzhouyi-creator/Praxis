@@ -9,7 +9,7 @@
 
 ## 1. 背景与问题
 
-`ThreadPoolWorker`（`src/l1/kernel/worker_thread.py`）是内核唯一的 `WorkerPort`
+`ThreadPoolWorker`（`systems/python-reference-runtime/l1/kernel/worker_thread.py`）是内核唯一的 `WorkerPort`
 实现，被事件总线、IPC 传输、子代理池等共享。现有动态扩缩容是**简单启发式**：
 
 | 机制 | 现状 | 缺陷 |
@@ -70,7 +70,7 @@
 ### 3.3 落点
 
 不新增 Port、不破坏 `WorkerPort` 契约——**在 `ThreadPoolWorker` 内部加一个
-`LoadAdaptiveController` 协作者**（新模块 `src/l1/kernel/load_adaptive.py`），
+`LoadAdaptiveController` 协作者**（新模块 `systems/python-reference-runtime/l1/kernel/load_adaptive.py`），
 由控制器周期采样并调用现有的 `_grow()`/`_try_shrink()` 原语；`submit()` 里的
 旧启发式移除，统一走控制器。配置开关：
 
@@ -83,7 +83,7 @@ load_adaptive:
   high_ratio: 0.6
 ```
 
-## 4. 常量清单（全部进 `src/l1/kernel/params/api.py`，禁止硬编码）
+## 4. 常量清单（全部进 `systems/python-reference-runtime/l1/kernel/params/api.py`，禁止硬编码）
 
 | 常量 | 默认值 | 含义 |
 |---|---|---|
@@ -163,7 +163,7 @@ load_adaptive:
 
 ### 10.1 现有数据源（无需新埋点即可起步）
 
-- 质量：`src/l3/agent/verifier.py`（pass/fail）、`convergence.py`（收敛率）、`stagnation.py`（停滞）。
+- 质量：`systems/python-reference-runtime/l3/agent/verifier.py`（pass/fail）、`convergence.py`（收敛率）、`stagnation.py`（停滞）。
 - 吞吐：`tests/benchmarks/bench_card.py`（wall/steps/s/并行效率/CPU 加速比）、
   `tests/benchmarks/bench_platform.py`（L1 原语微基准，`--json` 跨平台对比）。
 - 负载：本设计落地后的 `ThreadPoolWorker.stats()`（`target_workers`/`ewma_depth`/

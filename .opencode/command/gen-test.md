@@ -13,10 +13,10 @@ Read the source file at `$ARGUMENTS`. Identify public classes, functions, and me
 ### 2. Determine Test File Path
 
 Map source to test path:
-- `src/l1/kernel/foo.py` → `tests/l1/test_foo.py`
-- `src/l2/foo.py` → `tests/l2/test_foo.py`
-- `src/l3/foo.py` → `tests/l3/test_foo.py`
-- `src/l4/foo.py` → `tests/l4/test_foo.py`
+- `systems/python-reference-runtime/l1/kernel/foo.py` → `tests/l1/test_foo.py`
+- `systems/python-reference-runtime/l2/foo.py` → `tests/l2/test_foo.py`
+- `systems/python-reference-runtime/l3/foo.py` → `tests/l3/test_foo.py`
+- `systems/python-reference-runtime/l4/foo.py` → `tests/l4/test_foo.py`
 - etc.
 
 If the test file already exists, append new tests rather than overwriting.
@@ -50,7 +50,7 @@ class Test<Class>:
 ```
 
 Notes:
-- Imports resolve from `src/` via `pythonpath = ["src"]` in `pyproject.toml` — no `sys.path` manipulation needed.
+- Imports resolve from `systems/python-reference-runtime/` via `pythonpath = ["systems/python-reference-runtime"]` in `pyproject.toml` — no `sys.path` manipulation needed.
 - Coverage targets: normal/positive paths, error/edge cases, lifecycle (init → use → cleanup) for services with start/stop.
 - `tests/conftest.py` resets singletons automatically via an `autouse` fixture — no manual reset in tests.
 

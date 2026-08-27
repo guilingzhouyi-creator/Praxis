@@ -7,7 +7,7 @@ allowed-tools: Read, Grep, Glob, Write
 
 ## Overview
 
-Generates and updates OpenAPI documentation for the Praxis API Gateway. Reads routes from `src/l4/api/api_gateway.py` and handler signatures from `src/l4/api/api_handlers*.py`, then produces or merges API documentation.
+Generates and updates OpenAPI documentation for the Praxis API Gateway. Reads routes from `systems/python-reference-runtime/l4/api/api_gateway.py` and handler signatures from `systems/python-reference-runtime/l4/api/api_handlers*.py`, then produces or merges API documentation.
 
 ## When to Use
 
@@ -20,7 +20,7 @@ Invoke via `/api-doc` when:
 
 ### 1. Scan API Routes
 
-Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all registered routes:
+Read `systems/python-reference-runtime/l4/api/api_routes.py` and `systems/python-reference-runtime/l4/api/api_gateway.py` to find all registered routes:
 
 ```python
 # Key structures:
@@ -31,7 +31,7 @@ Read `src/l4/api/api_routes.py` and `src/l4/api/api_gateway.py` to find all regi
 
 ### 2. Read Handler Signatures
 
-Read handler files from `src/l4/api/` and `src/l4/api_handlers/` to extract:
+Read handler files from `systems/python-reference-runtime/l4/api/` and `systems/python-reference-runtime/l4/api_handlers/` to extract:
 - Function signatures (parameters, return types).
 - Docstrings describing behavior.
 - Error response patterns.

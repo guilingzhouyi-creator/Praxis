@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 # Files updated by the atomic bump.
 PYPROJECT = ROOT / "pyproject.toml"
 AGENTS = ROOT / "AGENTS.md"
-KERNEL = ROOT / "src/l1/kernel/params/system.py"
+KERNEL = ROOT / "systems/python-reference-runtime/l1/kernel/params/system.py"
 DOCS = ROOT / "docs"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
@@ -103,7 +103,7 @@ def bump(version: str, dry_run: bool) -> list[str]:
         raise RuntimeError("unexpected KERNEL_VERSION match count")
     if not dry_run:
         KERNEL.write_text(new_text, encoding="utf-8")
-    changes.append(f"src/l1/kernel/params/system.py: KERNEL_VERSION -> {version}")
+    changes.append(f"systems/python-reference-runtime/l1/kernel/params/system.py: KERNEL_VERSION -> {version}")
 
     for path, pattern, label in VERSION_ASSERT_FILES:
         text = path.read_text(encoding="utf-8")
@@ -168,7 +168,9 @@ def main() -> int:
         print(f"  - {line}")
     if not dry_run:
         print("[bump-version] commit these together (atomic per AGENTS.md):")
-        print("  git add pyproject.toml AGENTS.md docs/ src/l1/kernel/params/system.py tests/ && git commit")
+        print(
+            "  git add pyproject.toml AGENTS.md docs/ systems/python-reference-runtime/l1/kernel/params/system.py tests/ && git commit"
+        )
     return 0
 
 
