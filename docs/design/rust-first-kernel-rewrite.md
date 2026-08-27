@@ -667,6 +667,11 @@ converted to BLOCK. This protects the policy value boundary without moving
 Constitution providers, Markdown/SettingsCenter I/O, or runtime authority into
 the Rust candidate.
 
+The registry-base notification hooks are advisory: a panic after a successful
+registration or removal is caught and counted as `callback_errors`, while the
+metadata mutation and registration order remain authoritative. This keeps
+local observability failures outside the registry's core state contract.
+
 The `sync` mechanism follows the same split: `tests/core/kernel_test_sync.rs` contains the
 eleven public Mutex/Semaphore/Barrier/Condition/RWLock behavior tests, while
 `tests/core/sync_vectors.rs` keeps the cross-language RWLock vectors. No private

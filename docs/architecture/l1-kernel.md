@@ -845,8 +845,10 @@ The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative
 descriptor defaults, duplicate rejection/overwrite policy, registration order,
 category filtering, public serialization, and counters. Rust callbacks are
-local adapter hooks only; Python handler closures, domain registries, source
-discovery, and runtime routing remain outside the candidate.
+local adapter hooks only; callback panics are contained and counted as
+`callback_errors` without rolling back the completed metadata mutation. Python
+handler closures, domain registries, source discovery, and runtime routing
+remain outside the candidate.
 
 The registry-base hot path now stores descriptors in a hash index plus an
 explicit order vector. Name admission and lookup are therefore expected O(1)

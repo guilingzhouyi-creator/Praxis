@@ -555,7 +555,9 @@ Python's `MapRegistry`: descriptor defaults, duplicate rejection or explicit
 overwrite, registration order, category filtering, public serialization, and
 registration/removal counters. `tests/fixtures/kernel_registry_base_vectors.json`
 is consumed by both languages. Handler closures, domain-specific registries,
-source discovery, and runtime routing remain adapter-owned.
+source discovery, and runtime routing remain adapter-owned. Hook panics are
+contained after the core mutation and exposed through the `callback_errors`
+statistic rather than unwinding through the registry.
 
 The isolated `registry` module mirrors only name-sorted opaque JSON section
 snapshots and explicit system-summary aggregation. The shared
