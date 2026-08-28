@@ -8,6 +8,27 @@
 # must run `ruff format <files>` before staging.
 set -euo pipefail
 
+# ── Build-artifact sweep (regenerable output) ───────────────────────────
+# Remove regenerable build products (vitest coverage reports, etc.) that are
+# gitignored but accumulate in the working tree. Deleting them is safe: they
+# are recreated by the exact commands that produce them. The reminder keeps
+# agents from hand-maintaining or staging these directories.
+BUILD_ARTIFACT_DIRS=(
+  "systems/typescript-shell-engine/coverage"
+)
+SWEPT=0
+for _dir in "${BUILD_ARTIFACT_DIRS[@]}"; do
+  if [ -d "$_dir" ]; then
+    rm -rf "$_dir"
+    echo "--- pre-commit: build-artifact sweep: removed $_dir (regenerable) ---"
+    SWEPT=$((SWEPT + 1))
+  fi
+done
+if [ "$SWEPT" -gt 0 ]; then
+  echo "   Reminder to agent: these directories are gitignored build output;"
+  echo "   recreate them with the producing command (e.g. vitest --coverage)."
+fi
+
 echo "--- pre-commit: ruff check (staged .py only) ---"
 STAGED_PY="$(git diff --cached --name-only --diff-filter=ACMR -- '*.py' || true)"
 if [ -n "$STAGED_PY" ]; then
