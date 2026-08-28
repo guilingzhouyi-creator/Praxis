@@ -60,9 +60,10 @@ The `constitution_io` module is the first filesystem-bearing Constitution
 candidate. It owns a strict, Rust-native `TerritoryConstitution` parser and
 deterministic renderer for territory/GateChain values, plus a
 `ConstitutionStore` that flushes and atomically replaces the selected document
-while publishing the in-memory snapshot only after success. Failed writes
-retain the prior snapshot and remove their temporary sibling; concurrent
-updates are serialized per store. The independent target
+while publishing the in-memory snapshot only after success. Temporary siblings
+are opened exclusively and the parent directory is synced after rename where
+supported. Failed writes retain the prior snapshot and remove their temporary
+sibling; concurrent updates are serialized per store. The independent target
 `tests/policy/kernel_test_constitution_io.rs` covers malformed scalar rejection,
 versioned updates, proposal merge, deterministic diffs, rollback, reopen, and
 concurrent disk/memory alignment. SettingsCenter discovery, providers,

@@ -502,6 +502,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   renders deterministic territory/GateChain Markdown, validates updates,
   computes stable territory diffs, and persists through flushed atomic
   replacement while keeping its in-memory snapshot unchanged on failed writes.
+  Temporary siblings use exclusive creation and the parent directory is synced
+  after rename where supported.
   `tests/policy/kernel_test_constitution_io.rs` covers parser fail-closed
   behavior, versioned updates, proposal merge, deterministic diffs, rollback,
   reopen, and concurrent disk/memory version alignment. SettingsCenter

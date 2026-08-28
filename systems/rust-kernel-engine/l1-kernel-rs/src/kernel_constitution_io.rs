@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -503,25 +503,34 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), ConstitutionStoreError>
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty());
-    if let Some(parent) = parent {
-        fs::create_dir_all(parent).map_err(ConstitutionStoreError::Io)?;
-    }
+    let parent = parent.unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(ConstitutionStoreError::Io)?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
-    let file_name = path
-        .file_name()
-        .ok_or(ConstitutionStoreError::Path(
-            ConstitutionIoError::InvalidPath,
-        ))?
-        .to_string_lossy();
-    let temporary = path.with_file_name(format!(".{file_name}.tmp-{}-{stamp}", std::process::id()));
+    let file_name =
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(ConstitutionStoreError::Path(
+                ConstitutionIoError::InvalidPath,
+            ))?;
+    let temporary = parent.join(format!(".{file_name}.tmp-{}-{stamp}", std::process::id()));
     let result = (|| {
-        let mut file = fs::File::create(&temporary).map_err(ConstitutionStoreError::Io)?;
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .truncate(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(ConstitutionStoreError::Io)?;
         file.write_all(bytes).map_err(ConstitutionStoreError::Io)?;
         file.flush().map_err(ConstitutionStoreError::Io)?;
         file.sync_all().map_err(ConstitutionStoreError::Io)?;
-        fs::rename(&temporary, path).map_err(ConstitutionStoreError::Io)
+        drop(file);
+        fs::rename(&temporary, path).map_err(ConstitutionStoreError::Io)?;
+        if let Ok(directory) = fs::File::open(parent) {
+            let _ = directory.sync_all();
+        }
+        Ok(())
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);

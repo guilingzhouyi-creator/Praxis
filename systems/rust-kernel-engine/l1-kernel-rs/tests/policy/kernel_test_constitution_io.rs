@@ -196,6 +196,28 @@ fn failed_atomic_replace_keeps_memory_and_cleans_temporary_file() {
 }
 
 #[test]
+fn invalid_replacement_keeps_memory_and_disk_unchanged() {
+    let root = temp_root("invalid-replace");
+    fs::create_dir_all(&root).expect("root");
+    let path = root.join(".praxis-rules.md");
+    let store = ConstitutionStore::open(&path).expect("open");
+    let previous = store.document();
+    let mut invalid = previous.clone();
+    invalid.default_reputation = f64::NAN;
+
+    let error = store
+        .replace_and_save(invalid)
+        .expect_err("invalid replacement");
+    assert!(matches!(
+        error,
+        ConstitutionStoreError::Document(ConstitutionIoError::InvalidReputation(_))
+    ));
+    assert_eq!(store.document(), previous);
+    assert!(!path.exists());
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
 fn concurrent_updates_keep_disk_and_memory_versions_aligned() {
     let root = temp_root("concurrent");
     fs::create_dir_all(&root).expect("root");

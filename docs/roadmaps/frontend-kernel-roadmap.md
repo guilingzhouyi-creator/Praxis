@@ -1062,7 +1062,8 @@ cutover 完成。
 `TerritoryConstitution` 已覆盖已保留的 territory/GateChain Markdown
 标量、确定性渲染、版本恢复、提案合并和集合差异；`ConstitutionStore`
 以单 store 锁串行化完整更新，执行 flush + 原子替换，并仅在写入成功后
-发布内存快照。`kernel_test_constitution_io.rs` 以独立 policy target
+发布内存快照。临时文件使用排他创建，rename 后在宿主支持时同步父目录，
+避免并发写入覆盖临时文件或目录项未持久化。`kernel_test_constitution_io.rs` 以独立 policy target
 覆盖 malformed known values、失败回滚、重开恢复和 8 线程磁盘/内存版本
 对齐。该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
 EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此

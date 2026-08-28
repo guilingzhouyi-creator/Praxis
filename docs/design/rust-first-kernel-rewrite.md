@@ -784,9 +784,11 @@ renders sorted deterministic Markdown, validates territory mutations, and
 returns stable set-based diffs. `ConstitutionStore` serializes each complete
 mutation under one store lock, flushes and atomically renames a sibling file,
 and publishes the new in-memory snapshot only after the write succeeds;
-concurrent updates therefore cannot reverse disk and memory versions. The
-independent policy target covers malformed values, proposal merge, rollback,
-reopen, and eight-thread version alignment. SettingsCenter discovery,
+temporary siblings use exclusive creation and the parent directory is synced
+after rename where supported, so concurrent updates cannot reverse disk and
+memory versions or silently clobber a sibling. The independent policy target
+covers malformed values, proposal merge, rollback, reopen, and eight-thread
+version alignment. SettingsCenter discovery,
 provider/prompt/EventBus wiring, and production Constitution authority remain
 outside this candidate and still require R4/R5 evidence.
 
