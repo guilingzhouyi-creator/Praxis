@@ -26,6 +26,7 @@ export interface WsTransportOptions {
   WebSocketInstance?: WebSocket;
 }
 
+/** Create a WebSocket JSONL transport to a remote host. */
 export function createWsTransport(options: WsTransportOptions): Transport {
   const { url, maxLines = 256, timeoutMs = 5000, maxFrameBytes } = options;
   const ws = options.WebSocketInstance ?? new (options.WebSocketImpl ?? WebSocket)(url);

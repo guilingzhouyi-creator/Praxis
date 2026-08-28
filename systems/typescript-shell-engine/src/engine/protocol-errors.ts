@@ -9,6 +9,7 @@
  * for error preservation (ES2022 Error.cause).
  */
 
+/** Canonical protocol error codes shared with Python3. */
 export const ERROR_CODES = [
   "VALIDATION_FAILED",
   "TRANSPORT_CLOSED",
@@ -35,6 +36,7 @@ export class ProtocolError extends Error {
     Object.setPrototypeOf(this, ProtocolError.prototype);
   }
 
+  /** Serialize the error as a wire-safe JSON payload. */
   toJSON(): { code: ErrorCode; message: string; retryable: boolean } {
     return { code: this.code, message: this.message, retryable: this.retryable };
   }

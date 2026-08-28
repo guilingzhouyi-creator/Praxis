@@ -26,6 +26,7 @@ export interface StdioTransportOptions {
   maxFrameBytes?: number;
 }
 
+/** Create a stdio JSONL transport over an input/output pair. */
 export function createStdioTransport(options: StdioTransportOptions): Transport {
   const { input, output, maxLines = 256, timeoutMs = 5000, maxFrameBytes } = options;
   const rl = readline.createInterface({ input, crlfDelay: Infinity });

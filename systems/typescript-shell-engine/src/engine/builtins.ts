@@ -13,6 +13,7 @@ export interface BuiltinOptions {
   i18n: I18n;
 }
 
+/** Register the builtin command set on a dispatcher. */
 export function registerBuiltins(dispatcher: Dispatcher, options?: BuiltinOptions): void {
   const i18n = options?.i18n;
 
