@@ -3,7 +3,7 @@
 **Runs**: 312 | **COMPLETE**: 42 (13%) | **PARTIAL**: 78 (25%, fast mode — checks skipped) | **INCOMPLETE**: 192 (62%, machine 'not done')
 **Mode split**: full 113 (37% complete) / fast 199 (fast = at least one check skipped)
 **Full-mode verdict rate**: 42/113 (37%) — the 'done' gold standard; mixed rates below include fast snapshots
-**Telemetry snapshots excluded from rates**: 6 (push-both activity probes)
+**Telemetry snapshots excluded from rates**: 7 (push-both activity probes)
 **Skipped tests notice**: tests skipped in 81 judge run(s) (full mode / WSL slice-serial required before merge)
 **Gate exemptions** (MERGE_GATE_SKIP commits in history): 11
 **Waived delta passes**: 4 judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)
