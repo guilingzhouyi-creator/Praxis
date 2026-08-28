@@ -172,6 +172,8 @@ pub enum ConfigError {
     RootNotDirectory(PathBuf),
     /// A non-Rust or migration-required root was found.
     ForeignRoot(PathBuf),
+    /// A paired document update could not restore the first replacement.
+    RollbackFailed { path: PathBuf, message: String },
 }
 
 impl Display for ConfigError {
@@ -204,6 +206,11 @@ impl Display for ConfigError {
             Self::ForeignRoot(path) => write!(
                 formatter,
                 "config root is not Rust-owned: {}",
+                path.display()
+            ),
+            Self::RollbackFailed { path, message } => write!(
+                formatter,
+                "config pair rollback failed for {}: {message}",
                 path.display()
             ),
         }
@@ -322,15 +329,52 @@ impl ConfigStore {
         Ok(())
     }
 
+    /// Atomically replace one config value and one setting value as a pair.
+    ///
+    /// The two documents are staged before either in-memory field changes.
+    /// If the second filesystem replacement fails, the first replacement is
+    /// restored from its prior bytes and both in-memory documents remain
+    /// unchanged. This is the only paired mutation surface; independent
+    /// `set_config` and `set_setting` calls intentionally remain independent.
+    ///
+    /// # Errors
+    ///
+    /// InvalidKey when either key is empty or contains an embedded NUL;
+    /// RollbackFailed when the second write fails and the first write cannot
+    /// be restored.
+    pub fn set_config_and_setting(
+        &mut self,
+        config_key: impl Into<String>,
+        config_value: Value,
+        setting_key: impl Into<String>,
+        setting_value: Value,
+    ) -> Result<(), ConfigError> {
+        let config_key = config_key.into();
+        let setting_key = setting_key.into();
+        validate_key(&config_key)?;
+        validate_key(&setting_key)?;
+
+        let mut next_config = self.config.clone();
+        next_config.values.insert(config_key, config_value);
+        next_config.revision = next_config.revision.saturating_add(1);
+        let mut next_settings = self.settings.clone();
+        next_settings.values.insert(setting_key, setting_value);
+        next_settings.revision = next_settings.revision.saturating_add(1);
+
+        self.persist_documents(&next_config, &next_settings)?;
+        self.config = next_config;
+        self.settings = next_settings;
+        Ok(())
+    }
+
     /// Persist both documents as separate atomic updates.
     ///
     /// # Errors
     ///
-    /// Io/serialization failures surfaced as ConfigError; writes are
-    /// atomic via temp-file rename.
+    /// Io/serialization failures surfaced as ConfigError. If the second
+    /// replacement fails, the first replacement is restored before returning.
     pub fn persist(&self) -> Result<(), ConfigError> {
-        self.persist_document(CONFIG_FILE, &self.config)?;
-        self.persist_document(SETTINGS_FILE, &self.settings)
+        self.persist_documents(&self.config, &self.settings)
     }
 
     fn initialize(root: PathBuf, contract_version: u32) -> Result<Self, ConfigError> {
@@ -365,6 +409,39 @@ impl ConfigStore {
         })?;
         atomic_write(&self.root.join(filename), &bytes)
     }
+
+    fn persist_documents(
+        &self,
+        config: &ConfigDocument,
+        settings: &ConfigDocument,
+    ) -> Result<(), ConfigError> {
+        config.validate()?;
+        settings.validate()?;
+        let config_bytes =
+            serde_json::to_vec(config).map_err(|error| ConfigError::InvalidDocument {
+                path: self.root.join(CONFIG_FILE),
+                message: error.to_string(),
+            })?;
+        let settings_bytes =
+            serde_json::to_vec(settings).map_err(|error| ConfigError::InvalidDocument {
+                path: self.root.join(SETTINGS_FILE),
+                message: error.to_string(),
+            })?;
+        let config_path = self.root.join(CONFIG_FILE);
+        let previous_config = read_optional(&config_path)?;
+        atomic_write(&config_path, &config_bytes)?;
+        if let Err(error) = atomic_write(&self.root.join(SETTINGS_FILE), &settings_bytes) {
+            if let Err(rollback_error) = restore_optional(&config_path, previous_config.as_deref())
+            {
+                return Err(ConfigError::RollbackFailed {
+                    path: config_path,
+                    message: format!("{error}; restore failed: {rollback_error}"),
+                });
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
 }
 
 fn is_safe_relative_path(path: &str) -> bool {
@@ -397,6 +474,58 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, ConfigError
     })
 }
 
+fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, ConfigError> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(ConfigError::Io(error)),
+    }
+}
+
+fn restore_optional(path: &Path, previous: Option<&[u8]>) -> Result<(), io::Error> {
+    match previous {
+        Some(bytes) => restore_file(path, bytes),
+        None => match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        },
+    }
+}
+
+fn restore_file(path: &Path, bytes: &[u8]) -> Result<(), io::Error> {
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "config document has no parent")
+    })?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid config filename"))?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    let temporary = parent.join(format!(
+        ".{file_name}.rollback-{}-{nonce}",
+        std::process::id()
+    ));
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .truncate(true)
+        .write(true)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    if let Err(error) = fs::rename(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(error);
+    }
+    if let Ok(directory) = File::open(parent) {
+        let _ = directory.sync_all();
+    }
+    Ok(())
+}
+
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
     let parent = path.parent().ok_or(ConfigError::InvalidRoot)?;
     fs::create_dir_all(parent)?;
@@ -415,7 +544,10 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
-    fs::rename(&temp, path)?;
+    if let Err(error) = fs::rename(&temp, path) {
+        let _ = fs::remove_file(&temp);
+        return Err(ConfigError::Io(error));
+    }
     if let Ok(directory) = File::open(parent) {
         let _ = directory.sync_all();
     }

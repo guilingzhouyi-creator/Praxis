@@ -474,7 +474,11 @@ divergent, or future roots fail closed; `praxis.yaml`, Python settings,
 engineering-debug policy, and provider wiring remain outside this store.
 Config and setting updates stage a cloned document and publish it in memory
 only after the corresponding atomic write succeeds, so failed writes do not
-advance a revision or expose a value absent from disk.
+advance a revision or expose a value absent from disk. The explicit paired
+mutation surface stages both documents before publication; if the second
+replacement fails, the first replacement is restored and failed rename
+temporaries are removed. A rollback failure is reported as a distinct
+fail-closed error rather than being hidden.
 
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process

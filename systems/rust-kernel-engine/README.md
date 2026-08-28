@@ -406,9 +406,13 @@ a versioned JSON manifest with separate `config.json` and `settings.json`
 documents, tracks monotonic revisions, and uses per-document atomic rename plus
 `sync_all`. It resumes only a matching Rust root and rejects foreign/future
 layouts; Python YAML/settings import, migration callbacks, provider wiring, and
-engineering-debug policy remain outside the store.
-`tests/storage/kernel_test_config_store.rs` covers manifest ordering, fresh-root revisions, foreign
-roots, invalid keys, and future-document rejection through the public API.
+engineering-debug policy remain outside the store. Single-document mutations
+publish staged values only after replacement succeeds; the explicit paired
+mutation restores the first replacement if the second fails and reports a
+rollback failure explicitly. Failed rename temporaries are removed.
+`tests/storage/kernel_test_config_store.rs` covers manifest ordering, fresh-root
+revisions, foreign roots, invalid keys, future-document rejection, paired
+rollback, and temporary-file cleanup through the public API.
 
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/

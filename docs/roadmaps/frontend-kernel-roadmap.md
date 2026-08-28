@@ -563,6 +563,12 @@ recovery、分歧/迁移 root fail-closed 固定下来。该片仍不读取 Pyth
 随后封口 `StateStore` 的失败原子性：checkpoint generation 仅在 lifecycle 与 checkpoint
 双写成功后提交；第二文件失败时恢复旧 lifecycle 字节，调用方可观察到的内存 lifecycle/generation
 同时回滚，避免失败持久化后继续沿用脏代际。
+随后补齐 `ConfigStore` 的跨文档失败边界：新增显式成对 config/setting
+mutation，先完成两个文档的 staged 校验，再按 config→settings 原子替换；
+第二个替换失败时恢复首个文档并清理临时文件，回滚失败显式 fail-closed。
+独立 `kernel_test_config_store.rs` 覆盖内存、磁盘与临时文件清理；该片仍只拥有
+Rust-owned JSON 根，不导入 Python 配置、不决定 engineering-debug 策略，也不提升为
+R5 cutover authority。
 
 随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
 快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与

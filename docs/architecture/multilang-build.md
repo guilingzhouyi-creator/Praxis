@@ -363,9 +363,13 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `config_store` module is the clean-break R4 configuration owner. It
   creates a versioned JSON manifest plus separate `config.json` and
   `settings.json` documents, persists revisions through atomic rename and
-  `sync_all`, and resumes only a matching Rust root. It never parses Python
-  YAML, imports Python settings, executes migrations, or decides engineering
-  debug policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
+  `sync_all`, and resumes only a matching Rust root. Single-document writes
+  stage values before publishing revisions; the explicit paired mutation
+  stages both documents and restores the first replacement if the second
+  fails. Failed rename temporaries are removed, and a failed rollback is
+  surfaced as a distinct fail-closed error. It never parses Python YAML,
+  imports Python settings, executes migrations, or decides engineering debug
+  policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
 - The Rust `terminal` module is the lower-layer AgentLoop terminal substrate.
   `TerminalBook` owns unique terminal/session/process bindings, terminal
   lifecycle terminality, and bounded opaque input/output mailboxes with

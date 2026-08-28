@@ -488,7 +488,11 @@ settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
 Each config/setting mutation uses a staged document and commits the in-memory
 revision only after its atomic file replacement succeeds; a failed write
-therefore leaves the prior value and revision available for a safe retry.
+therefore leaves the prior value and revision available for a safe retry. The
+explicit paired config/setting mutation stages both documents, restores the
+first replacement if the second atomic rename fails, and reports rollback
+failure instead of silently accepting a split root. The config adapter also
+cleans failed rename temporaries.
 
 The discovery candidate keeps the same adapter-owned three-tier semantics while
 adding a Rust-owned admission seam: blank, NUL-containing, or overlong

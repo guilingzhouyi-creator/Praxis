@@ -129,3 +129,88 @@ fn failed_document_write_keeps_in_memory_revision_and_value_unchanged() {
     assert_eq!(reopened.config().values["scheduler.max_workers"], json!(8));
     fs::remove_dir_all(root).expect("remove test root");
 }
+
+#[test]
+fn paired_mutation_rolls_back_first_document_when_second_write_fails() {
+    let root = temp_root("paired-rollback");
+    let mut store = ConfigStore::open(&root, 1).expect("fresh config root");
+    let previous_config = store.config().clone();
+    let previous_settings = store.settings().clone();
+    let previous_config_bytes = fs::read(root.join(CONFIG_FILE)).expect("config bytes");
+    let settings = root.join("settings.json");
+    fs::remove_file(&settings).expect("remove settings file");
+    fs::create_dir(&settings).expect("block settings replacement");
+
+    assert!(
+        store
+            .set_config_and_setting(
+                "scheduler.max_workers",
+                json!(8),
+                "terminal.preferred",
+                json!("bash"),
+            )
+            .is_err()
+    );
+    assert_eq!(store.config(), &previous_config);
+    assert_eq!(store.settings(), &previous_settings);
+    assert_eq!(
+        fs::read(root.join(CONFIG_FILE)).expect("rolled-back config bytes"),
+        previous_config_bytes
+    );
+    assert_eq!(
+        fs::read_dir(&root)
+            .expect("root entries")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".config.json.tmp-")
+            })
+            .count(),
+        0,
+        "failed paired write must clean staged config files"
+    );
+
+    fs::remove_dir(&settings).expect("remove settings blocker");
+    store
+        .set_config_and_setting(
+            "scheduler.max_workers",
+            json!(8),
+            "terminal.preferred",
+            json!("bash"),
+        )
+        .expect("paired retry");
+    assert_eq!(store.config().revision, 1);
+    assert_eq!(store.settings().revision, 1);
+    assert_eq!(store.config().values["scheduler.max_workers"], json!(8));
+    assert_eq!(store.settings().values["terminal.preferred"], json!("bash"));
+    fs::remove_dir_all(root).expect("remove test root");
+}
+
+#[test]
+fn failed_rename_removes_config_temporary_file() {
+    let root = temp_root("rename-cleanup");
+    let mut store = ConfigStore::open(&root, 1).expect("fresh config root");
+    let config = root.join(CONFIG_FILE);
+    fs::remove_file(&config).expect("remove config");
+    fs::create_dir(&config).expect("block config replacement");
+
+    assert!(store.set_config("scheduler.max_workers", json!(8)).is_err());
+    assert_eq!(
+        fs::read_dir(&root)
+            .expect("root entries")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".config.json.tmp-")
+            })
+            .count(),
+        0,
+        "failed rename must clean its temporary file"
+    );
+    fs::remove_dir(&config).expect("remove config blocker");
+    fs::remove_dir_all(root).expect("remove test root");
+}
