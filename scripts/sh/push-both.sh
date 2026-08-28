@@ -29,6 +29,10 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 2
 }
 
+# Sweep regenerable build products before pushing (shared with pre-commit
+# and gate-merge; see scripts/sh/build-artifact-sweep.sh).
+bash scripts/sh/build-artifact-sweep.sh
+
 # Verify both remotes exist before pushing anything.
 ORIGIN="$(git remote get-url origin 2>/dev/null)" || {
   echo "[push-both] ERROR: remote 'origin' (GitCode) is not configured" >&2

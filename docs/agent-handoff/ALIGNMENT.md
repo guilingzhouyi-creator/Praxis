@@ -23,7 +23,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
-| 2026-08-28 | .githooks/pre-commit | AtomCode (deepseek-v4-flash) | build-artifact sweep: auto-remove gitignored regenerable build output (vitest coverage/) at commit time and remind agents | in feature/l2-gate-artifact-sweep |
+| 2026-08-28 | .githooks/pre-commit + scripts/sh/{build-artifact-sweep,gate-merge,push-both}.sh | AtomCode (deepseek-v4-flash) | build-artifact sweep: shared script auto-removes gitignored regenerable build output (vitest coverage/, htmlcov/) at commit/merge/push gate entry and reminds agents | in feature/l2-gate-artifact-sweep |
 
 
 

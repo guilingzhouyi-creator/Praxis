@@ -42,6 +42,10 @@ fi
 STAGE="$1"
 shift
 
+# Sweep regenerable build products at every gate entry (shared with
+# pre-commit and push-both; see scripts/sh/build-artifact-sweep.sh).
+bash scripts/sh/build-artifact-sweep.sh
+
 case "$STAGE" in
   completion)                   exec bash scripts/sh/verify-completion.sh "$@" ;;
   local | local-merge)          exec bash scripts/sh/verify-local-merge.sh "$@" ;;
