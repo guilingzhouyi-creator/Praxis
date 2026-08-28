@@ -64,3 +64,15 @@ fn checker_receives_explicit_context_and_can_warn_or_block() {
         json!("BLOCK")
     );
 }
+
+#[test]
+fn checker_panic_fails_closed_as_block() {
+    let rule = RuleDescriptor::new("panic.rule", "§9", RuleSeverity::Must, "panic", 0.0)
+        .with_checker(std::sync::Arc::new(|_, _| -> Option<CheckResult> {
+            panic!("checker failure");
+        }));
+    assert_eq!(
+        rule.evaluate("write_file", "agent", "target", &[]),
+        CheckResult::Block
+    );
+}

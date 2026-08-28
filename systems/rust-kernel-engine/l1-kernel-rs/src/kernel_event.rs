@@ -54,6 +54,8 @@ pub struct EventBusConfig {
 /// Reason a signal-name registration was rejected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignalRegistrationError {
+    /// The signal name is empty or whitespace-only.
+    InvalidName,
     /// The name already denotes a built-in signal.
     BuiltIn,
     /// The bounded custom registry has no remaining capacity.
@@ -90,6 +92,7 @@ struct QueueInner {
     submitted: u64,
     completed: u64,
     dropped: u64,
+    callback_panics: u64,
     inflight: usize,
 }
 
@@ -110,6 +113,7 @@ impl QueueState {
                 submitted: 0,
                 completed: 0,
                 dropped: 0,
+                callback_panics: 0,
                 inflight: 0,
             }),
             not_empty: Condvar::new(),
@@ -119,6 +123,11 @@ impl QueueState {
 
     fn lock(&self) -> MutexGuard<'_, QueueInner> {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn record_callback_panic(&self) {
+        let mut inner = self.lock();
+        inner.callback_panics = inner.callback_panics.saturating_add(1);
     }
 }
 
@@ -212,7 +221,9 @@ impl EventBus {
         let count = callbacks.len();
         if self.queue.lock().closed {
             for callback in callbacks {
-                safe_call(&callback, &signal);
+                if !safe_call(&callback, &signal) {
+                    self.queue.record_callback_panic();
+                }
             }
             return count;
         }
@@ -277,6 +288,14 @@ impl EventBus {
         }
     }
 
+    /// Return the number of callback panics contained by this bus.
+    ///
+    /// This Rust-only diagnostic remains separate from the shared
+    /// `EventBusStats` value so the Python parity shape is unchanged.
+    pub fn callback_panics(&self) -> u64 {
+        self.queue.lock().callback_panics
+    }
+
     /// Stop accepting work and optionally drain callbacks until a deadline.
     pub fn shutdown(&self, wait: bool, timeout: Option<Duration>) {
         {
@@ -322,8 +341,12 @@ impl EventBus {
     ///
     /// # Errors
     ///
-    /// BuiltIn when shadowing a built-in signal; Full at registry capacity.
+    /// InvalidName for an empty name; BuiltIn when shadowing a built-in
+    /// signal; Full at registry capacity.
     pub fn register_signal_type(&self, event_type: &str) -> Result<(), SignalRegistrationError> {
+        if event_type.trim().is_empty() {
+            return Err(SignalRegistrationError::InvalidName);
+        }
         if BUILTIN_SIGNAL_TYPES.contains(&event_type) {
             return Err(SignalRegistrationError::BuiltIn);
         }
@@ -425,8 +448,11 @@ fn worker_loop(queue: Arc<QueueState>) {
         let Some(task) = task else {
             return;
         };
-        safe_call(&task.callback, &task.signal);
+        let callback_panicked = !safe_call(&task.callback, &task.signal);
         let mut inner = queue.lock();
+        if callback_panicked {
+            inner.callback_panics = inner.callback_panics.saturating_add(1);
+        }
         inner.active_channels.remove(&task.signal.signal_type);
         inner.completed = inner.completed.saturating_add(1);
         inner.inflight = inner.inflight.saturating_sub(1);
@@ -449,8 +475,8 @@ fn pop_dispatchable(inner: &mut QueueInner) -> Option<Task> {
     Some(task)
 }
 
-fn safe_call(callback: &Callback, signal: &Signal) {
-    let _ = catch_unwind(AssertUnwindSafe(|| callback(signal)));
+fn safe_call(callback: &Callback, signal: &Signal) -> bool {
+    catch_unwind(AssertUnwindSafe(|| callback(signal))).is_ok()
 }
 
 fn now_seconds() -> f64 {

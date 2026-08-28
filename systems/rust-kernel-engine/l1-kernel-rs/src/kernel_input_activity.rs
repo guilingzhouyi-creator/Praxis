@@ -7,6 +7,7 @@
 
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -195,10 +196,175 @@ struct HostInputActivityState {
 }
 
 /// Lifecycle port that reduces samples from a caller-owned host adapter.
+///
+/// Lifecycle calls are serialized so a concurrent permission transition cannot
+/// overwrite a newer snapshot or leave the adapter running after `stop`.
 pub struct HostInputActivityPort {
     probe: InputActivityProbe,
     adapter: Arc<dyn InputActivityHostAdapter>,
     state: Mutex<HostInputActivityState>,
+    operation: Mutex<()>,
+}
+
+/// Composite host adapter for independently owned keyboard/pointer sources.
+///
+/// The composite owns only lifecycle coordination. Each source remains
+/// responsible for platform permissions and aggregate-only sampling; no device
+/// nodes, raw key values, or pointer coordinates cross this boundary.
+pub struct CompositeInputActivityAdapter {
+    sources: Vec<Arc<dyn InputActivityHostAdapter>>,
+    permissions: Mutex<Vec<InputActivityPermission>>,
+    operation: Mutex<()>,
+}
+
+impl CompositeInputActivityAdapter {
+    /// Construct a composite from one or more host-owned input sources.
+    ///
+    /// # Errors
+    ///
+    /// InvalidConfig when no source is supplied. A source that is denied or
+    /// unavailable at runtime is retained as a degraded member rather than
+    /// preventing a separately granted source from being sampled.
+    pub fn new(
+        sources: Vec<Arc<dyn InputActivityHostAdapter>>,
+    ) -> Result<Self, InputActivityProbeError> {
+        if sources.is_empty() {
+            return Err(InputActivityProbeError::InvalidConfig(
+                "composite input adapter requires at least one source".to_owned(),
+            ));
+        }
+        let source_count = sources.len();
+        Ok(Self {
+            sources,
+            permissions: Mutex::new(vec![InputActivityPermission::Unavailable; source_count]),
+            operation: Mutex::new(()),
+        })
+    }
+
+    /// Return the number of independently managed host sources.
+    pub fn source_count(&self) -> usize {
+        self.sources.len()
+    }
+
+    fn aggregate_permission(permissions: &[InputActivityPermission]) -> InputActivityPermission {
+        if permissions.contains(&InputActivityPermission::Granted) {
+            InputActivityPermission::Granted
+        } else if permissions.contains(&InputActivityPermission::Denied) {
+            InputActivityPermission::Denied
+        } else {
+            InputActivityPermission::Unavailable
+        }
+    }
+
+    fn stop_sources(&self) {
+        for source in &self.sources {
+            safe_stop(source.as_ref());
+        }
+    }
+}
+
+impl InputActivityHostAdapter for CompositeInputActivityAdapter {
+    /// Start every source and retain any granted source for sampling.
+    fn start(&self) -> InputActivityPermission {
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut permissions = self
+            .permissions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut panicked = false;
+        for (index, source) in self.sources.iter().enumerate() {
+            permissions[index] = match catch_unwind(AssertUnwindSafe(|| source.start())) {
+                Ok(permission) => permission,
+                Err(_) => {
+                    panicked = true;
+                    InputActivityPermission::Unavailable
+                }
+            };
+        }
+        if panicked {
+            self.stop_sources();
+            permissions.fill(InputActivityPermission::Unavailable);
+            return InputActivityPermission::Unavailable;
+        }
+        let permission = Self::aggregate_permission(&permissions);
+        if permission != InputActivityPermission::Granted {
+            self.stop_sources();
+        }
+        permission
+    }
+
+    /// Stop all sources and reset their permissions to unavailable.
+    fn stop(&self) {
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.stop_sources();
+        let mut permissions = self
+            .permissions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        permissions.fill(InputActivityPermission::Unavailable);
+    }
+
+    /// Sample every currently granted source and merge aggregate observations.
+    ///
+    /// A denied or unavailable source is stopped and removed from subsequent
+    /// samples while other granted sources continue. An invalid granted-source
+    /// failure is returned unchanged so the outer port can fail closed.
+    fn sample(&self) -> Result<InputActivityHostSample, InputActivityPermission> {
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut permissions = self
+            .permissions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut now = 0.0_f64;
+        let mut observations = Vec::new();
+        let mut sampled = false;
+
+        for (index, source) in self.sources.iter().enumerate() {
+            if permissions[index] != InputActivityPermission::Granted {
+                continue;
+            }
+            match catch_unwind(AssertUnwindSafe(|| source.sample())) {
+                Err(_) => {
+                    permissions[index] = InputActivityPermission::Unavailable;
+                    return Err(InputActivityPermission::Granted);
+                }
+                Ok(Ok(sample)) => {
+                    if !sample.now.is_finite() || sample.now < 0.0 {
+                        permissions[index] = InputActivityPermission::Unavailable;
+                        return Err(InputActivityPermission::Granted);
+                    }
+                    now = now.max(sample.now);
+                    observations.extend(sample.observations);
+                    sampled = true;
+                }
+                Ok(Err(
+                    permission @ (InputActivityPermission::Denied
+                    | InputActivityPermission::Unavailable),
+                )) => {
+                    safe_stop(source.as_ref());
+                    permissions[index] = permission;
+                }
+                Ok(Err(InputActivityPermission::Granted)) => {
+                    permissions[index] = InputActivityPermission::Unavailable;
+                    return Err(InputActivityPermission::Granted);
+                }
+            }
+        }
+
+        if sampled {
+            return Ok(InputActivityHostSample { now, observations });
+        }
+        Err(Self::aggregate_permission(&permissions))
+    }
 }
 
 impl HostInputActivityPort {
@@ -216,6 +382,7 @@ impl HostInputActivityPort {
                 permission: InputActivityPermission::Unavailable,
                 snapshot: unknown_snapshot(InputActivityPermission::Unavailable),
             }),
+            operation: Mutex::new(()),
         })
     }
 
@@ -224,12 +391,22 @@ impl HostInputActivityPort {
         self.probe.config()
     }
 
-    /// Start host observation; false means denied or unavailable.
+    /// Start host observation; false means denied, unavailable, or panicked.
     pub fn start(&self) -> bool {
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if self.lock_state().running {
             return true;
         }
-        let permission = self.adapter.start();
+        let permission = match catch_unwind(AssertUnwindSafe(|| self.adapter.start())) {
+            Ok(permission) => permission,
+            Err(_) => {
+                safe_stop(self.adapter.as_ref());
+                InputActivityPermission::Unavailable
+            }
+        };
         let mut state = self.lock_state();
         state.permission = permission;
         state.running = permission == InputActivityPermission::Granted;
@@ -239,27 +416,60 @@ impl HostInputActivityPort {
 
     /// Stop host observation and expose an unavailable snapshot.
     pub fn stop(&self) {
-        self.adapter.stop();
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        safe_stop(self.adapter.as_ref());
         let mut state = self.lock_state();
         state.running = false;
         state.permission = InputActivityPermission::Unavailable;
         state.snapshot = unknown_snapshot(InputActivityPermission::Unavailable);
     }
 
-    /// Reduce one host sample; permission loss stops observation fail-closed.
+    /// Reduce one host sample; permission loss or a panic stops observation.
     pub fn snapshot(&self) -> Result<InputActivitySnapshot, InputActivityProbeError> {
+        let _operation = self
+            .operation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if !self.lock_state().running {
             return Ok(self.lock_state().snapshot.clone());
         }
-        let sample = match self.adapter.sample() {
-            Ok(sample) => sample,
-            Err(permission) => {
-                self.adapter.stop();
+        let sample = match catch_unwind(AssertUnwindSafe(|| self.adapter.sample())) {
+            Ok(Ok(sample)) => sample,
+            Ok(Err(
+                permission @ (InputActivityPermission::Denied
+                | InputActivityPermission::Unavailable),
+            )) => {
+                safe_stop(self.adapter.as_ref());
                 let mut state = self.lock_state();
                 state.running = false;
                 state.permission = permission;
                 state.snapshot = unknown_snapshot(permission);
                 return Ok(state.snapshot.clone());
+            }
+            Ok(Err(InputActivityPermission::Granted)) => {
+                safe_stop(self.adapter.as_ref());
+                let mut state = self.lock_state();
+                state.running = false;
+                state.permission = InputActivityPermission::Unavailable;
+                state.snapshot = unknown_snapshot(InputActivityPermission::Unavailable);
+                return Err(InputActivityProbeError::InvalidObservation {
+                    source: "host-adapter".to_owned(),
+                    reason: "sample failure cannot report granted permission".to_owned(),
+                });
+            }
+            Err(_) => {
+                safe_stop(self.adapter.as_ref());
+                let mut state = self.lock_state();
+                state.running = false;
+                state.permission = InputActivityPermission::Unavailable;
+                state.snapshot = unknown_snapshot(InputActivityPermission::Unavailable);
+                return Err(InputActivityProbeError::InvalidObservation {
+                    source: "host-adapter".to_owned(),
+                    reason: "sample panicked".to_owned(),
+                });
             }
         };
         match self.probe.aggregate(sample.now, sample.observations) {
@@ -271,7 +481,7 @@ impl HostInputActivityPort {
                 Ok(snapshot)
             }
             Err(error) => {
-                self.adapter.stop();
+                safe_stop(self.adapter.as_ref());
                 let mut state = self.lock_state();
                 state.running = false;
                 state.permission = InputActivityPermission::Unavailable;
@@ -284,6 +494,10 @@ impl HostInputActivityPort {
     fn lock_state(&self) -> std::sync::MutexGuard<'_, HostInputActivityState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+fn safe_stop(adapter: &dyn InputActivityHostAdapter) {
+    let _ = catch_unwind(AssertUnwindSafe(|| adapter.stop()));
 }
 
 fn unknown_snapshot(permission: InputActivityPermission) -> InputActivitySnapshot {

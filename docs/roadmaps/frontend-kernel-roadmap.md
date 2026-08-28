@@ -294,6 +294,9 @@ HOLD、GROW/SHRINK 限幅、慢任务 `GROW_FAST`、cooldown、reset 和稳定 r
 `kernel_rule_descriptor_vectors.json` 在 Python/Rust 两侧通过，Rust workspace
 测试总数达到 124 项。规则 catalog、Markdown/SettingsCenter、Constitution provider
 和 runtime policy 仍由 Python 持有，候选不接入 boot、EventBus 或 Port，也不解除 G3/G6。
+规则描述器的 checker 返回 `None` 仍按 PASS 处理，但 callback panic 会被捕获并
+转换为 BLOCK，避免策略异常穿透 L1 或意外放行；该值层保护不接管
+Constitution provider、Markdown/SettingsCenter 或生产 policy routing。
 
 随后完成 `registry_base` 声明式注册基座候选：Rust 镜像 descriptor 默认值、重复
 拒绝与显式覆盖、注册顺序、分类过滤、公开序列化和 register/unregister 统计；共享
@@ -533,6 +536,10 @@ prompt/persistence provider、Python state import、migration callback 与配置
 随后将 `platform` 的 3 项、`paths` 的 5 项、`discovery` 的 3 项和 `lifecycle` 的 6 项机制测试迁移到独立
 target，覆盖 provider-neutral command/path 计算、三层 discovery merge、生命周期 FSM/checkpoint 与 reset；
 命令执行、环境探测、YAML 扫描、时钟、持久化和 Python boot wiring 仍由适配器持有。
+discovery 候选随后补齐 Rust 侧身份边界：section/key 的空白、NUL、长度和嵌套
+对象键在写入前 fail-closed，文档合并采用 staged copy 一次提交，并提供确定性
+snapshot/有序 section 读模型。该片只服务后续 TS/L2 读桥，不接管 YAML 扫描、
+boot 注册或 Python registry 权威。
 随后将 `contract` 的 5 项、`ipc` 的 6 项、`persist` 的 3 项和 `assembly` 的 3 项机制测试迁移到独立 target；
 它们通过公开值/锁 IPC/JSONL journal/assembly snapshot API 验证，共享 vector target 继续保留，socket、SQLite、
 多进程 replay、provider wiring、filesystem side effects 和 runtime authority 仍不进入候选内核。
@@ -787,8 +794,8 @@ adapter、权限/失败证据和生产 shutdown 评审。
 随后补齐首个可注入宿主 adapter：
 `host_process_group_signal::HostProcessGroupSignalPort` 在调用宿主 sender 前完整解析
 所有 generation-safe handle，保持 stop plan 顺序，并拒绝零值、重复目标、解析失败及
-超额 delivered。sender 可实现 Unix/Windows 进程组、PTY 控制或测试替身；L1 不保存
-signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/kernel_test_host_process_group_signal.rs`
+超额 delivered；resolver/sender panic 转为 fail-closed 错误。sender 可实现
+Unix/Windows 进程组、PTY 控制或测试替身；L1 不保存 signal 编号、PID 扫描、权限和 retry 策略。独立 `tests/process/kernel_test_host_process_group_signal.rs`
 验证无部分派发与有界报告。这仍是候选宿主接缝，不等于真实平台 wiring 或生产 shutdown
 authority 已完成。
 
@@ -962,7 +969,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 | T3e | `ProcessTableGroupRuntime::new_with_audit`：准入/桥接/stop 共享有界审计旁路 | ✅ 候选完成 | 真实 EventStore wiring、PTY/signal 与生产 shutdown 仍待完成 |
 | T4a | Rust/TS 聚合输入活动值合同、共享向量与独立测试域 | ✅ 候选完成 | 仅冻结隐私保护的聚合 reducer；不代表硬件接入或运行时权威 |
 | T4b1 | `HostInputActivityPort`：宿主权限/聚合采样接缝与 fail-closed 生命周期 | ✅ 候选完成 | 真实平台采集、权限 UX、旁路监测与 production wiring 仍待完成 |
-| T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | ⏳ 未开始 | 由宿主注入 CMD/PowerShell/Bash 等平台观测；先做权限/隐私/失败证据，再评审生产 wiring |
+| T4b | 跨平台键盘/鼠标 adapter、权限与旁路监测联动 | 🟡 机制片已开始（`CompositeInputActivityAdapter`） | 由宿主注入 CMD/PowerShell/Bash 等平台观测；仍需真实平台 adapter、权限/隐私/失败证据，再评审生产 wiring |
 | T5 | Rust 兼容入口剔除：移除隐式 shell `run`/`spawn_shell`/`PlatformDescriptor::shell_command` 与 benchmark 平台 fallback，保留 direct argv 与探针派生 argv | ✅ 本轮完成 | 对 Rust 调用方做编译迁移；benchmark 命令必须由调用方注入；不得将旧入口重新作为默认适配器 |
 | T6 | 旧 Python/L2 进程执行切换前置审计与删除清单 | ⏳ 待 R4/R5 | 先完成 GateChain/ProcessTable/审计/PTY/reaper 证据，再做独立新入口切换 |
 
@@ -985,9 +992,18 @@ T4a 已冻结输入活动的跨语言值合同：Rust/TypeScript 只接收宿主
 T4b1 先落地 Rust 侧 `HostInputActivityPort` 机制接缝：宿主通过
 `InputActivityHostAdapter` 提供 `Granted`/`Denied`/`Unavailable` 与调用方时间的
 聚合样本；Rust 复用 T4a reducer，在拒绝/不可用时返回显式 unknown，遇到非法
-样本则停止适配器并 fail-closed。该切片不访问设备节点、不读取系统时钟、不保留
+样本则停止适配器并 fail-closed；宿主 callback panic 也会被捕获为结构化
+不可用/invalid-observation 结果。该切片不访问设备节点、不读取系统时钟、不保留
 原始键值/坐标；运行期权限撤回同样停止适配器并保留 denied 快照。真实平台
 采集、权限 UX、旁路监测和 production wiring 仍待宿主提供证据。
+
+T4b 机制片进一步增加 `CompositeInputActivityAdapter`：宿主可以分别注入键盘
+与指针（或其他聚合来源）adapter，由 Rust 统一串行化 start/stop/sample，
+合并已授权来源的聚合快照，并在单一来源撤权时保留其他来源的可用性。来源失效
+不会把原始设备数据带入 Rust；宿主仍负责平台探测、权限提示、旁路监测和
+生产 wiring。所有来源失效或出现矛盾的授权结果仍 fail-closed，后续必须补
+跨平台失败/隐私证据后才能推进 T4b production 评审；任何来源 callback panic
+均按整体组合失败处理，不允许以部分结果冒充健康状态。
 
 ---
 

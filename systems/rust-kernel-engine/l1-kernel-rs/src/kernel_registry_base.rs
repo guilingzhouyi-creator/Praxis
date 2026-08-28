@@ -5,6 +5,7 @@
 //! remain adapter-owned; only declarative metadata crosses this boundary.
 
 use std::collections::{BTreeMap, HashMap};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -82,6 +83,9 @@ pub struct RegistryStats {
     pub unregisters: usize,
     /// Current entry count grouped by category.
     pub categories: BTreeMap<String, usize>,
+    /// Number of notification callbacks that panicked after a core mutation.
+    #[serde(default)]
+    pub callback_errors: usize,
 }
 
 #[derive(Debug, Default)]
@@ -90,6 +94,7 @@ struct RegistryState {
     order: Vec<String>,
     registers: usize,
     unregisters: usize,
+    callback_errors: usize,
 }
 
 type RegisterCallback = Arc<dyn Fn(String, RegisterableSpec) + Send + Sync>;
@@ -151,8 +156,10 @@ impl MapRegistry {
             state.registers += 1;
             self.lock_register_callback().clone()
         };
-        if let Some(callback) = callback {
-            callback(spec.name.clone(), spec);
+        if let Some(callback) = callback
+            && catch_unwind(AssertUnwindSafe(|| callback(spec.name.clone(), spec))).is_err()
+        {
+            self.lock_state().callback_errors += 1;
         }
         true
     }
@@ -168,8 +175,10 @@ impl MapRegistry {
             state.unregisters += 1;
             self.lock_unregister_callback().clone()
         };
-        if let Some(callback) = callback {
-            callback(name.to_owned());
+        if let Some(callback) = callback
+            && catch_unwind(AssertUnwindSafe(|| callback(name.to_owned()))).is_err()
+        {
+            self.lock_state().callback_errors += 1;
         }
         true
     }
@@ -208,6 +217,7 @@ impl MapRegistry {
             registers: state.registers,
             unregisters: state.unregisters,
             categories,
+            callback_errors: state.callback_errors,
         }
     }
 

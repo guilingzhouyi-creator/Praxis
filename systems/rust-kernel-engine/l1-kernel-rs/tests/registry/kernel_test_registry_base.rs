@@ -45,6 +45,21 @@ fn callbacks_run_only_after_success() {
 }
 
 #[test]
+fn callback_panics_are_contained_and_counted() {
+    let registry = MapRegistry::default();
+    registry.set_on_register(|_, _| panic!("register notification failure"));
+    registry.set_on_unregister(|_| panic!("unregister notification failure"));
+
+    assert!(registry.register(RegisterableSpec::new("x"), "code"));
+    assert_eq!(
+        registry.get("x").expect("core registration survives").name,
+        "x"
+    );
+    assert!(registry.unregister("x"));
+    assert_eq!(registry.stats().callback_errors, 2);
+}
+
+#[test]
 fn public_view_excludes_private_metadata_and_truncates_description() {
     let mut spec = RegisterableSpec::new("x");
     spec.description = "x".repeat(250);

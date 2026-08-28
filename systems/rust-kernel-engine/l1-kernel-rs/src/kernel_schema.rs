@@ -38,6 +38,9 @@ impl EventSchemaRegistry {
     ) -> bool {
         let name = name.into();
         let owner = owner.into();
+        if !valid_identity(&name) || !valid_identity(&owner) {
+            return false;
+        }
         let mut events = self.lock_events();
         if let Some(existing) = events.get(&name)
             && existing.owner != owner
@@ -73,6 +76,10 @@ impl EventSchemaRegistry {
     fn lock_events(&self) -> MutexGuard<'_, BTreeMap<String, EventSchema>> {
         self.events.lock().unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+fn valid_identity(value: &str) -> bool {
+    !value.trim().is_empty() && !value.contains('\0')
 }
 
 impl Default for EventSchemaRegistry {

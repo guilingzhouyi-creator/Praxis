@@ -97,6 +97,29 @@ fn gated_submission_fails_closed_without_whitelist() {
         runtime.submit_gated(gate, request),
         Err(RuntimeError::GateBlocked(GateDecision::Block))
     ));
+    let rows = runtime.capability_authority().audit().query(10, None);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].op, "capability.gate");
+    assert!(!rows[0].success);
+    assert!(rows[0].error.contains("BLOCK"));
+}
+
+#[test]
+fn gated_submission_identity_mismatch_is_audited_before_worker_admission() {
+    let runtime = runtime(1, 2);
+    runtime.boot().expect("boot");
+    let request = capability_request();
+    let mut gate = GateRequest::new(request.name.clone(), request.agent_id.clone());
+    gate.agent_id = "forged-agent".to_owned();
+    assert!(matches!(
+        runtime.submit_gated(gate, request),
+        Err(RuntimeError::GateBlocked(GateDecision::Block))
+    ));
+    assert_eq!(runtime.snapshot().task_count, 0);
+    let rows = runtime.capability_authority().audit().query(10, None);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].op, "capability.gate_mismatch");
+    assert!(!rows[0].success);
 }
 
 #[test]

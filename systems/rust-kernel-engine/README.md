@@ -301,6 +301,14 @@ unknown snapshot, and stops on invalid samples; it never opens device nodes,
 reads a system clock, or retains raw input. Platform event collection and
 permission UX remain outside this crate.
 
+`CompositeInputActivityAdapter` is the multi-source extension of that seam. It
+coordinates independently injected keyboard/pointer adapters, merges only
+aggregate samples from granted sources, and removes a source from subsequent
+sampling after a denied/unavailable result. The composite does not select
+platform binaries, scan hardware, retain raw input, or own monitoring policy;
+all platform effects remain in the injected adapters. Panics from an injected
+adapter are caught and converted into an unavailable/fail-closed result.
+
 The `assembly` module composes the validated boot plan, state layout, port
 registry, and halted lifecycle into a `KernelAssembly` snapshot. The
 `rust-kernel` binary is an independent no-Python entrypoint that requires an
@@ -371,7 +379,8 @@ the candidate.
 host adapter for that seam. It resolves all handles before dispatch, keeps
 plan order, and fails closed on missing/duplicate/zero targets or an
 over-reported delivery count. The injected sender owns platform signal, PTY,
-permission, and retry behavior; see
+permission, and retry behavior; resolver/sender panics are converted to
+fail-closed adapter errors before they can unwind. See
 `tests/process/kernel_test_host_process_group_signal.rs`.
 
 The `protocol` module closes the retained R4 wire boundary as a pure candidate:
@@ -456,7 +465,9 @@ Rust candidate now serializes callback execution per signal channel while
 scanning past a busy channel, so a slow `TASK_ASSIGN` callback cannot reorder
 the next `TASK_ASSIGN` or starve an unrelated `TASK_DONE` channel. This
 ordering is tested as a Rust-native mechanism invariant; Python callback
-timing remains reference-only.
+timing remains reference-only. Empty custom signal names are rejected before
+registry mutation, and contained callback panics are exposed through the
+Rust-only `callback_panics()` diagnostic.
 
 The isolated `channel` module provides the JSON edge primitive used by a
 future `ChannelPort`: fixed-capacity FIFO, timeout-aware put/get/peek,
@@ -480,6 +491,10 @@ TCP endpoint parsing. It never executes commands, creates directories, or
 opens sockets; those remain Python adapter responsibilities. Public behavior and
 shared vectors are isolated in `tests/terminal/kernel_test_platform.rs`.
 
+The synchronization candidate treats its optional priority-inheritance callback
+as advisory: callback panics are contained so lock ownership and poisoning
+semantics remain kernel-owned.
+
 The isolated `paths` module mirrors deployment-mode selection, `PraxisPaths`
 child-path derivation, explicit environment/config overrides, and a resettable
 in-memory path store. `PathInputs` are injected by the host; environment
@@ -502,10 +517,15 @@ The isolated `discovery` module mirrors the three-tier configuration registry:
 registered defaults and source snapshots, already parsed section overrides,
 object shallow merge, scalar replacement, null-section default retention,
 unknown-section ignore behavior, runtime key updates, and tool/service fallback
-queries. `tests/fixtures/kernel_discovery_vectors.json` is consumed by both
-languages. YAML parsing, discovery-directory scans, logging, boot registration,
-and Python registry mutation remain adapter-owned; public behavior and shared
-vectors are isolated in `tests/registry/kernel_test_discovery.rs`.
+queries. Section/key identities are bounded and fail closed on blank, NUL, or
+invalid nested object keys. Checked document application validates all sections
+before atomically committing a staged registry view, and `DiscoverySnapshot`
+exposes a deterministic read model for the future TS/L2 bridge; checked reads
+and presence queries retain the same fail-closed identity boundary.
+`tests/fixtures/kernel_discovery_vectors.json` is consumed by both languages.
+YAML parsing, discovery-directory scans, logging, boot registration, and Python
+registry mutation remain adapter-owned; public behavior and shared vectors are
+isolated in `tests/registry/kernel_test_discovery.rs`.
 
 The isolated `load_adaptive` module mirrors the pure worker-sizing control law:
 EWMA smoothing, hysteresis, target-band HOLD, bounded GROW/SHRINK and
@@ -529,6 +549,8 @@ tags, explicit timestamps, and an injected checker context. The shared
 `tests/fixtures/kernel_rule_descriptor_vectors.json` covers value fields;
 Markdown, SettingsCenter, rule catalogs, and policy providers remain outside.
 Its public behavior tests live in `tests/policy/kernel_test_rule_descriptor.rs`.
+An absent checker result remains PASS, while a checker panic is contained and
+returned as BLOCK so policy failures cannot unwind through the kernel boundary.
 
 The isolated `ports` module owns validated port values and deterministic
 registration metadata for future adapters. It does not instantiate providers
@@ -540,7 +562,9 @@ Python's `MapRegistry`: descriptor defaults, duplicate rejection or explicit
 overwrite, registration order, category filtering, public serialization, and
 registration/removal counters. `tests/fixtures/kernel_registry_base_vectors.json`
 is consumed by both languages. Handler closures, domain-specific registries,
-source discovery, and runtime routing remain adapter-owned.
+source discovery, and runtime routing remain adapter-owned. Hook panics are
+contained after the core mutation and exposed through the `callback_errors`
+statistic rather than unwinding through the registry.
 
 The isolated `registry` module mirrors only name-sorted opaque JSON section
 snapshots and explicit system-summary aggregation. The shared
@@ -579,10 +603,23 @@ clock access remain Python-owned.
 
 The isolated `bus` module mirrors SystemBus metadata, registration replacement
 in place, parent-available dependency filtering, stable Kahn planning, cycle
-errors, and explicit component state labels. The shared
+errors, and explicit component state labels. Registration rejects blank or
+NUL-containing names, and planning uses a stable O(V+E) reverse-edge pass;
+duplicate hard and optional declarations are one ordering edge while remaining
+visible in the graph snapshot. The shared
 `tests/fixtures/kernel_bus_vectors.json` covers these values. Event handlers,
 child-bus routing, health/stats providers, callbacks, and actual component
 lifecycle ownership remain Python-owned.
+
+The isolated `schema` module rejects blank or NUL-containing event names and
+owners before mutation while retaining owner-conflict rejection, same-owner
+updates, sorted snapshots, and reset. The L3 catalog and boot registration
+remain Python-owned.
+
+The isolated `ipc` module contains handler panics and exposes a Rust-only
+`LockChannel::handler_panics()` diagnostic without changing the shared
+request/response or `LockBus` statistics shape. Socket transport and
+cross-process ownership remain outside the candidate.
 
 The isolated `health` module mirrors explicit subsystem-result aggregation:
 status precedence, healthy/degraded/failed counts, subsystem retention, and

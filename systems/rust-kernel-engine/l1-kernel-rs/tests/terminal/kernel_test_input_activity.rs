@@ -3,8 +3,8 @@
 use std::sync::{Arc, Mutex};
 
 use l1_kernel_rs::input_activity::{
-    HostInputActivityPort, InputActivityHostAdapter, InputActivityHostSample,
-    InputActivityObservation, InputActivityPermission, InputActivityProbe,
+    CompositeInputActivityAdapter, HostInputActivityPort, InputActivityHostAdapter,
+    InputActivityHostSample, InputActivityObservation, InputActivityPermission, InputActivityProbe,
     InputActivityProbeConfig,
 };
 use l1_kernel_rs::ports::InputActivitySnapshot;
@@ -164,6 +164,32 @@ impl InputActivityHostAdapter for FakeHostAdapter {
     }
 }
 
+struct PanickingHostAdapter {
+    panic_on_start: bool,
+    panic_on_sample: bool,
+}
+
+impl InputActivityHostAdapter for PanickingHostAdapter {
+    fn start(&self) -> InputActivityPermission {
+        if self.panic_on_start {
+            panic!("start failure");
+        }
+        InputActivityPermission::Granted
+    }
+
+    fn stop(&self) {}
+
+    fn sample(&self) -> Result<InputActivityHostSample, InputActivityPermission> {
+        if self.panic_on_sample {
+            panic!("sample failure");
+        }
+        Ok(InputActivityHostSample {
+            now: 1.0,
+            observations: Vec::new(),
+        })
+    }
+}
+
 #[test]
 fn host_input_port_models_permission_and_aggregate_lifecycle() {
     let adapter = Arc::new(FakeHostAdapter {
@@ -259,5 +285,182 @@ fn host_input_port_stops_when_permission_is_revoked_during_sampling() {
     assert_eq!(
         port.snapshot().expect("stopped snapshot").permission,
         "denied"
+    );
+}
+
+#[test]
+fn host_input_port_rejects_granted_permission_sample_errors() {
+    let adapter = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Err(InputActivityPermission::Granted))),
+        ..FakeHostAdapter::default()
+    });
+    let port = HostInputActivityPort::new(InputActivityProbeConfig::default(), adapter.clone())
+        .expect("port");
+    assert!(port.start());
+    assert_eq!(
+        port.snapshot().expect_err("invalid sample error"),
+        l1_kernel_rs::input_activity::InputActivityProbeError::InvalidObservation {
+            source: "host-adapter".to_owned(),
+            reason: "sample failure cannot report granted permission".to_owned(),
+        }
+    );
+    assert_eq!(
+        port.snapshot().expect("stopped snapshot").permission,
+        "unavailable"
+    );
+    assert_eq!(*adapter.stops.lock().expect("stop count"), 1);
+}
+
+#[test]
+fn composite_host_adapter_merges_granted_keyboard_and_pointer_sources() {
+    let keyboard = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 12.0,
+            observations: vec![InputActivityObservation::new(
+                "keyboard",
+                InputActivityPermission::Granted,
+                true,
+                false,
+                11.5,
+            )],
+        }))),
+        ..FakeHostAdapter::default()
+    });
+    let pointer = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 11.0,
+            observations: vec![InputActivityObservation::new(
+                "pointer",
+                InputActivityPermission::Granted,
+                false,
+                true,
+                10.5,
+            )],
+        }))),
+        ..FakeHostAdapter::default()
+    });
+    let composite =
+        Arc::new(CompositeInputActivityAdapter::new(vec![keyboard, pointer]).expect("composite"));
+    assert_eq!(composite.source_count(), 2);
+    let port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), composite).expect("port");
+    assert!(port.start());
+    let snapshot = port.snapshot().expect("snapshot");
+    assert_eq!(
+        snapshot.state,
+        l1_kernel_rs::ports::InputActivityState::Active
+    );
+    assert_eq!(snapshot.permission, "granted");
+    assert!(snapshot.keyboard_active);
+    assert!(snapshot.pointer_active);
+    assert_eq!(snapshot.last_activity_at, 11.5);
+}
+
+#[test]
+fn composite_host_adapter_keeps_granted_sources_when_one_source_is_denied() {
+    let keyboard = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 12.0,
+            observations: vec![InputActivityObservation::new(
+                "keyboard",
+                InputActivityPermission::Granted,
+                true,
+                false,
+                11.5,
+            )],
+        }))),
+        ..FakeHostAdapter::default()
+    });
+    let pointer = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Denied),
+        ..FakeHostAdapter::default()
+    });
+    let pointer_for_assert = Arc::clone(&pointer);
+    let composite =
+        Arc::new(CompositeInputActivityAdapter::new(vec![keyboard, pointer]).expect("composite"));
+    let port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), composite).expect("port");
+    assert!(port.start());
+    let snapshot = port.snapshot().expect("keyboard snapshot");
+    assert_eq!(snapshot.permission, "granted");
+    assert!(snapshot.keyboard_active);
+    assert!(!snapshot.pointer_active);
+    assert_eq!(*pointer_for_assert.stops.lock().expect("stop count"), 0);
+}
+
+#[test]
+fn composite_host_adapter_drops_a_revoked_source_without_losing_others() {
+    let keyboard = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Ok(InputActivityHostSample {
+            now: 12.0,
+            observations: vec![InputActivityObservation::new(
+                "keyboard",
+                InputActivityPermission::Granted,
+                true,
+                false,
+                11.5,
+            )],
+        }))),
+        ..FakeHostAdapter::default()
+    });
+    let pointer = Arc::new(FakeHostAdapter {
+        start_permission: Mutex::new(InputActivityPermission::Granted),
+        sample: Mutex::new(Some(Err(InputActivityPermission::Denied))),
+        ..FakeHostAdapter::default()
+    });
+    let pointer_for_assert = Arc::clone(&pointer);
+    let composite =
+        Arc::new(CompositeInputActivityAdapter::new(vec![keyboard, pointer]).expect("composite"));
+    let port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), composite).expect("port");
+    assert!(port.start());
+    let snapshot = port.snapshot().expect("keyboard snapshot");
+    assert_eq!(snapshot.permission, "granted");
+    assert!(snapshot.keyboard_active);
+    assert!(!snapshot.pointer_active);
+    assert_eq!(*pointer_for_assert.stops.lock().expect("stop count"), 1);
+}
+
+#[test]
+fn composite_host_adapter_rejects_empty_source_sets() {
+    assert!(CompositeInputActivityAdapter::new(Vec::new()).is_err());
+}
+
+#[test]
+fn host_input_port_contains_adapter_panics_and_fails_closed() {
+    let start_panic = Arc::new(PanickingHostAdapter {
+        panic_on_start: true,
+        panic_on_sample: false,
+    });
+    let start_port =
+        HostInputActivityPort::new(InputActivityProbeConfig::default(), start_panic).expect("port");
+    assert!(!start_port.start());
+    assert_eq!(
+        start_port.snapshot().expect("stopped snapshot").permission,
+        "unavailable"
+    );
+
+    let sample_panic = Arc::new(PanickingHostAdapter {
+        panic_on_start: false,
+        panic_on_sample: true,
+    });
+    let sample_port = HostInputActivityPort::new(InputActivityProbeConfig::default(), sample_panic)
+        .expect("port");
+    assert!(sample_port.start());
+    assert_eq!(
+        sample_port.snapshot().expect_err("sample panic"),
+        l1_kernel_rs::input_activity::InputActivityProbeError::InvalidObservation {
+            source: "host-adapter".to_owned(),
+            reason: "sample panicked".to_owned(),
+        }
+    );
+    assert_eq!(
+        sample_port.snapshot().expect("stopped snapshot").permission,
+        "unavailable"
     );
 }

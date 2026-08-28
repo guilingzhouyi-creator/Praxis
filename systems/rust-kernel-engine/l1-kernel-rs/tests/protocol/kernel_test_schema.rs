@@ -37,6 +37,18 @@ fn owner_conflicts_are_rejected_and_same_owner_updates() {
 }
 
 #[test]
+fn invalid_event_identities_are_rejected_before_mutation() {
+    let registry = EventSchemaRegistry::new();
+    assert!(!registry.register_event("", "owner", ""));
+    assert!(!registry.register_event("   ", "owner", ""));
+    assert!(!registry.register_event("event", "", ""));
+    assert!(!registry.register_event("event", "   ", ""));
+    assert!(!registry.register_event("bad\0event", "owner", ""));
+    assert!(!registry.register_event("event", "bad\0owner", ""));
+    assert!(registry.list_events().is_empty());
+}
+
+#[test]
 fn shared_schema_vectors_match_python_reference() {
     let vector: SchemaVector = serde_json::from_str(include_str!(
         "../../../../../tests/fixtures/kernel_schema_vectors.json"

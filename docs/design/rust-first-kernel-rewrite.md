@@ -368,8 +368,10 @@ The first adapter implementation is
 `host_process_group_signal::HostProcessGroupSignalPort`. It accepts explicit
 resolver and sender closures, resolves the complete handle batch before any
 host operation, and validates non-zero unique targets plus bounded delivery.
-This is a host-injection seam rather than a platform implementation: Linux,
-Windows, PTY, permission, and retry behavior remain outside the Rust crate.
+Callback panics are converted to structured adapter errors before they can
+unwind the kernel boundary. This is a host-injection seam rather than a
+platform implementation: Linux, Windows, PTY, permission, and retry behavior
+remain outside the Rust crate.
 
 `scripts/py/bench_r2_report.py` now summarizes that artifact by worker and
 language, including scaling efficiency, p95/p99 medians, rejection/error
@@ -460,6 +462,13 @@ collection, permission UX, and monitoring policy remain host-owned; no raw
 input or system clock crosses the Rust boundary. Permission revocation also
 stops the adapter while retaining an explicit denied snapshot.
 
+The T4b mechanism now also includes `CompositeInputActivityAdapter`. It
+coordinates independently owned keyboard, pointer, or other aggregate-only
+sources, keeps separately granted sources usable when one source is denied or
+unavailable, and serializes source lifecycle calls. Invalid granted-source
+failures and host callback panics remain fail-closed through the outer port;
+platform discovery, permission UX, and monitoring policy stay outside Rust.
+
 `assembly::KernelAssembly` now provides the first executable R4 seam by
 composing the declarative boot, state-layout, config-manifest, protocol,
 terminal-contract, port, and lifecycle candidates.
@@ -473,6 +482,15 @@ clock ownership, and runtime session state remain adapter obligations. The
 `config_store` candidate now supplies the independent JSON manifest/config/
 settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
+
+The discovery candidate keeps the same adapter-owned three-tier semantics while
+adding a Rust-owned admission seam: blank, NUL-containing, or overlong
+section/key identities and invalid nested object keys fail closed before
+mutation. `try_apply_document` validates the complete parsed document, applies
+overrides to a staged registry copy, and commits once, preserving the previous
+view on failure. `DiscoverySnapshot` and ordered section views are deterministic
+read models for the future TS/L2 bridge; directory scanning, YAML parsing,
+logging, and boot registration remain outside the candidate.
 
 The `preflight` candidate is the next R4 entry preparation slice. It accepts
 only a caller-supplied `AssemblySpec` and `StateProbe`, validates both through
@@ -652,6 +670,17 @@ remains in `lib.rs`. The worker scaling test uses only public submission and
 shutdown behavior, so the clean-break public boundary remains explicit for
 later TS and Rust runtime rebuilds.
 
+The `rule_descriptor` checker seam is fail-closed: an absent checker result
+continues to mean PASS, but a panic from an injected checker is caught and
+converted to BLOCK. This protects the policy value boundary without moving
+Constitution providers, Markdown/SettingsCenter I/O, or runtime authority into
+the Rust candidate.
+
+The registry-base notification hooks are advisory: a panic after a successful
+registration or removal is caught and counted as `callback_errors`, while the
+metadata mutation and registration order remain authoritative. This keeps
+local observability failures outside the registry's core state contract.
+
 The `sync` mechanism follows the same split: `tests/core/kernel_test_sync.rs` contains the
 eleven public Mutex/Semaphore/Barrier/Condition/RWLock behavior tests, while
 `tests/core/sync_vectors.rs` keeps the cross-language RWLock vectors. No private
@@ -676,6 +705,27 @@ channels to preserve cross-channel progress. This gives same-channel FIFO
 without a global slow-callback barrier. The behavior is a Rust-native
 mechanism invariant covered by blocking-callback tests; Python executor timing
 and SSE/WS fan-out remain outside the rewrite boundary.
+Custom signal registration rejects empty names before mutating the bounded
+registry. Callback panics remain contained and are counted through the
+Rust-only `callback_panics()` diagnostic; the shared Python/Rust
+`EventBusStats` parity shape is unchanged.
+
+The SystemBus candidate now rejects blank or NUL-containing component names
+before mutating its metadata table. Its dependency planner builds reverse edges
+once for a stable O(V+E) Kahn pass instead of rescanning every registered
+component after each pop. Duplicate hard and optional declarations retain
+their wire graph entries but are treated as one ordering edge, preventing a
+false cycle while preserving registration-order tie breaking.
+
+The string-event schema candidate now applies the same fail-closed identity
+boundary to event names and owners: blank or NUL-containing values are
+rejected before the owner map changes. Conflict rejection, same-owner updates,
+sorted snapshots, and reset remain unchanged.
+
+The lock-IPC candidate now counts contained handler panics through a
+Rust-only `handler_panics()` diagnostic. Normal send/request behavior and the
+shared `LockBus` statistics remain unchanged; socket transport and
+cross-process ownership stay adapter-owned.
 
 The synchronization candidate now assigns monotonically increasing tickets to
 queued writers. A writer can acquire only when its ticket reaches the head;
@@ -686,6 +736,9 @@ cloneable one-way token, first-reason retention, cooperative checks, and
 bounded waits; RWLock removes a cancelled writer ticket before waking
 successors. Task/queue cancellation, cross-process lock ownership, and runtime
 routing remain later mechanism work.
+The optional priority-inheritance callback is advisory and is invoked behind a
+panic boundary; a callback failure cannot poison the lock or cross the Rust L1
+boundary.
 
 ### 4.7 终端探测与 Agent 进程硬约束
 

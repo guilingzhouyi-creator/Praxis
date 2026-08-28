@@ -80,6 +80,7 @@ fn handler_panics_are_contained_and_backlog_is_bounded() {
     channel.send(message(LockOp::Release, "bounded"));
     channel.send(message(LockOp::Status, "bounded"));
     assert_eq!(channel.pending_count(), 2);
+    assert_eq!(channel.handler_panics(), 3);
 }
 
 #[test]

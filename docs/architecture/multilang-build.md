@@ -538,7 +538,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   closure-backed adapter for that seam. It resolves all generation-safe handles
   before dispatch, preserves plan order, rejects zero/duplicate targets and
   over-reported delivery, and leaves platform signal, PTY, permission, and
-  retry policy in the injected host sender. Its independent target is
+  retry policy in the injected host sender. Resolver and sender panics are
+  converted to fail-closed adapter errors. Its independent target is
   `tests/process/kernel_test_host_process_group_signal.rs`.
 - The Rust `event` module now contains an isolated EventBus candidate with
   synchronous history, typed/wildcard callbacks, bounded worker delivery,
@@ -650,9 +651,12 @@ The T4b Rust seam is `HostInputActivityPort` plus the host-owned
 `InputActivityHostAdapter`. The adapter provides explicit permission state and
 caller-timed aggregate samples; the port reduces them with the same bounded
 probe, returns an unknown snapshot on permission failure, stops when permission
-is revoked, and stops on an invalid sample. No device node, system clock, key
-value, or pointer coordinate enters the crate. Real platform collection and
-permission UX remain a host responsibility.
+is revoked, and stops on an invalid sample. `CompositeInputActivityAdapter`
+coordinates independently injected keyboard/pointer sources and keeps other
+granted sources usable when one source is denied or unavailable. No device node,
+system clock, key value, or pointer coordinate enters the crate. Real platform
+collection, permission UX, and monitoring remain host responsibilities. Host
+callback panics are converted to fail-closed unavailable results.
 
 The `process_constraints` candidate is the hard Agent-process admission seam.
 It evaluates ring, terminal identity/family and invocation, direct/shell mode,

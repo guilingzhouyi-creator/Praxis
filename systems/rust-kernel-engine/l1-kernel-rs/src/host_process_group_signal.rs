@@ -7,6 +7,7 @@
 //! sender is called so a missing target cannot create a partial dispatch.
 
 use std::collections::BTreeSet;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use crate::process_group::{
@@ -54,14 +55,16 @@ impl ProcessGroupSignalPort for HostProcessGroupSignalPort {
         validate_plan(plan)?;
         let mut targets = Vec::with_capacity(plan.handles.len());
         for handle in &plan.handles {
-            let target = (self.resolver)(*handle)
+            let target = catch_unwind(AssertUnwindSafe(|| (self.resolver)(*handle)))
+                .map_err(|_| format!("host target resolution panicked for {handle}"))?
                 .map_err(|error| format!("host target resolution failed for {handle}: {error}"))?;
             if target == 0 {
                 return Err(format!("host target resolution returned zero for {handle}"));
             }
             targets.push(target);
         }
-        let delivered = (self.sender)(&targets)?;
+        let delivered = catch_unwind(AssertUnwindSafe(|| (self.sender)(&targets)))
+            .map_err(|_| "host stop sender panicked".to_owned())??;
         if delivered > targets.len() as u64 {
             return Err("host sender returned more deliveries than targets".to_owned());
         }
