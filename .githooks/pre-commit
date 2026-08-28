@@ -8,6 +8,12 @@
 # must run `ruff format <files>` before staging.
 set -euo pipefail
 
+# ── Build-artifact sweep (regenerable output) ───────────────────────────
+# Shared with gate-merge.sh / push-both.sh: every governance entry point
+# removes gitignored build products (vitest coverage/, htmlcov/) and reminds
+# agents (see scripts/sh/build-artifact-sweep.sh).
+bash scripts/sh/build-artifact-sweep.sh
+
 echo "--- pre-commit: ruff check (staged .py only) ---"
 STAGED_PY="$(git diff --cached --name-only --diff-filter=ACMR -- '*.py' || true)"
 if [ -n "$STAGED_PY" ]; then

@@ -70,6 +70,17 @@ subsystem doc in AGENTS.md AND in the `docs/architecture/README.md` layer
 list. Doc prose in English (per `AGENTS.md` `## Comment conventions`);
 first-line summary + tables for structured data.
 
+## Build artifacts — auto-swept at every gate entry
+
+Regenerable build output (vitest `coverage/`, Python `htmlcov/`) is gitignored
+and auto-removed by `scripts/sh/build-artifact-sweep.sh`, invoked from
+`.githooks/pre-commit`, `scripts/sh/gate-merge.sh` and
+`scripts/sh/push-both.sh` so every commit/merge/push entry clears the working
+tree and reminds the agent. Never stage or hand-maintain these directories;
+recreate them with the producing command when a report is needed. Cache dirs
+(`.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`) are intentionally not
+swept — they carry performance value and belong to `make clean`.
+
 ## Naming discipline — no ad-hoc names
 
 New identifiers (modules, params, config keys, API segments, directory
