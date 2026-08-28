@@ -420,6 +420,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `bus` candidate mirrors SystemBus metadata, in-place replacement
   while preserving registration order, parent-available dependency filtering,
   stable topological planning, cycle errors, and explicit state labels.
+  Registration/lookup use a hash index while the ordered component vector stays
+  the source of deterministic names and planning order.
   `tests/fixtures/kernel_bus_vectors.json` is shared; event callbacks,
   child-bus routing, health/stats providers, and runtime lifecycle ownership
   remain Python-owned.

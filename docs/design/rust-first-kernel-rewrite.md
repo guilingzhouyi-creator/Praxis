@@ -753,6 +753,9 @@ once for a stable O(V+E) Kahn pass instead of rescanning every registered
 component after each pop. Duplicate hard and optional declarations retain
 their wire graph entries but are treated as one ordering edge, preventing a
 false cycle while preserving registration-order tie breaking.
+The registration table now keeps a hash index beside its ordered vector, making
+replacement and direct metadata lookup O(1) without changing deterministic
+registration order or dependency-plan output.
 
 The string-event schema candidate now applies the same fail-closed identity
 boundary to event names and owners: blank or NUL-containing values are

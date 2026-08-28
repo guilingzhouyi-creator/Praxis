@@ -55,6 +55,44 @@ fn registration_rejects_blank_and_nul_names() {
 }
 
 #[test]
+fn replacement_uses_index_without_changing_registration_order() {
+    let registry = ComponentRegistry::new();
+    registry
+        .register(ComponentSpec {
+            name: "first".to_owned(),
+            version: "1.0.0".to_owned(),
+            ..ComponentSpec::default()
+        })
+        .expect("first registers");
+    registry
+        .register(ComponentSpec {
+            name: "second".to_owned(),
+            ..ComponentSpec::default()
+        })
+        .expect("second registers");
+
+    registry
+        .register(ComponentSpec {
+            name: "first".to_owned(),
+            version: "2.0.0".to_owned(),
+            description: "replacement".to_owned(),
+            ..ComponentSpec::default()
+        })
+        .expect("replacement registers");
+
+    assert_eq!(registry.names(), ["first", "second"]);
+    assert_eq!(
+        registry.get("first"),
+        Some(ComponentSpec {
+            name: "first".to_owned(),
+            version: "2.0.0".to_owned(),
+            description: "replacement".to_owned(),
+            ..ComponentSpec::default()
+        })
+    );
+}
+
+#[test]
 fn duplicate_dependency_declarations_are_one_graph_edge() {
     let registry = ComponentRegistry::new();
     registry

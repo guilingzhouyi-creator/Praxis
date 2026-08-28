@@ -22,6 +22,8 @@ exercises:
 `tests/<domain>/*.rs` path. This keeps commands such as
 `cargo test --test process_group_runtime` stable while making accidental root
 level test files fail the Python infrastructure gate.
+The same gate rejects inline `cfg(test)`, `#[test]`, `#[bench]`, and test-module
+variants in `src/`, including whitespace-formatted attributes.
 
 When a test source basename would collide with a Python reference module, the
 source file uses the `kernel_test_` prefix (for example,

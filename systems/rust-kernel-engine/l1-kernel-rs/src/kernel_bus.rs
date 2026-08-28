@@ -108,6 +108,8 @@ impl std::error::Error for BusPlanError {}
 #[derive(Debug, Default)]
 struct BusState {
     components: Vec<ComponentSpec>,
+    /// Stable name-to-slot index; `components` remains the ordering source.
+    indices: HashMap<String, usize>,
     states: BTreeMap<String, ComponentState>,
 }
 
@@ -137,16 +139,15 @@ impl ComponentRegistry {
             return Err(BusPlanError::InvalidName);
         }
         let mut state = self.lock_state();
-        if let Some(index) = state
-            .components
-            .iter()
-            .position(|current| current.name == spec.name)
-        {
-            state.components[index] = spec.clone();
+        let name = spec.name.clone();
+        if let Some(&index) = state.indices.get(&name) {
+            state.components[index] = spec;
         } else {
-            state.components.push(spec.clone());
+            let index = state.components.len();
+            state.indices.insert(name.clone(), index);
+            state.components.push(spec);
         }
-        state.states.insert(spec.name, ComponentState::Registered);
+        state.states.insert(name, ComponentState::Registered);
         Ok(())
     }
 
@@ -161,10 +162,11 @@ impl ComponentRegistry {
 
     /// Return one cloned metadata record.
     pub fn get(&self, name: &str) -> Option<ComponentSpec> {
-        self.lock_state()
-            .components
-            .iter()
-            .find(|component| component.name == name)
+        let state = self.lock_state();
+        state
+            .indices
+            .get(name)
+            .and_then(|&index| state.components.get(index))
             .cloned()
     }
 
