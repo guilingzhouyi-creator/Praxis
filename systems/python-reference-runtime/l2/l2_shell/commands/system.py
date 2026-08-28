@@ -40,7 +40,7 @@ def _cmd_status(args: list[str]) -> dict:
     # Enrich with shell mode/cell context (agent_id only present in Direct mode)
     result = dict(h)
     try:
-        from ..state import get_state
+        from l2.l2_shell import get_state
 
         st = get_state()
         result["mode"] = st.mode

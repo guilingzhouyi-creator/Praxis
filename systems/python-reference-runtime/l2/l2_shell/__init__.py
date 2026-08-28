@@ -2,7 +2,6 @@
 output guard, and auto-completion.
 
 Sub-modules:
-  state       — ShellState singleton
   completer   — autocomplete, _complete_agent, _complete_role
   output_guard — guard_output, set_output_guard
   commands    — all _cmd_* handlers, _pipeline, preconnect_enhanced
@@ -12,11 +11,13 @@ from __future__ import annotations
 
 import logging
 import shlex
+from typing import TypeAlias
 
 from l1.kernel import EVENT_TASK_ASSIGN, emit_signal
 from l1.kernel.params.agent import SIGNAL_TARGET_L3
 from l2.commands import get_command, get_handler
 from l2.commands import get_registry as _get_cmd_reg
+from l2.shells.session import ShellSession
 
 from .commands import (
     _cmd_agents,
@@ -40,9 +41,41 @@ from .commands import (
 )
 from .completer import _complete_agent, _complete_role, autocomplete
 from .output_guard import guard_output, set_output_guard
-from .state import ShellSession, ShellState, get_state, reset_state
 
 logger = logging.getLogger(__name__)
+
+ShellState: TypeAlias = ShellSession
+
+# Stable fallback used ONLY while the ShellFamily is empty (early boot /
+# isolated tests).  Once a shell is registered, get_state() delegates to the
+# family default shell's session — this is not a second state source.
+_fallback_state = ShellSession(shell="legacy")
+
+
+def get_state() -> ShellState:
+    """Return the default shell's session (family-backed)."""
+    try:
+        from l2.shells.family import get_family
+
+        return get_family().default().get_session()
+    except Exception:
+        # Family not booted (e.g. early boot / isolated tests): fall back to
+        # the stable module-level session so legacy callers never crash and
+        # state mutations stay visible across get_state() calls.
+        return _fallback_state
+
+
+def reset_state() -> None:
+    """Reset the default shell's session to a fresh default."""
+    global _fallback_state
+    try:
+        from l2.shells.family import get_family
+
+        get_family().default().reset_session()
+    except Exception:
+        # Nothing registered yet — reset the fallback session.
+        _fallback_state = ShellSession(shell="legacy")
+
 
 __all__ = [
     "_cmd_agents",

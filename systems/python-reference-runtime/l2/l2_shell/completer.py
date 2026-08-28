@@ -85,7 +85,7 @@ def autocomplete(line: str) -> list[dict]:
 
 def _complete_agent(partial: str, cmd_name: str = "") -> list[dict]:
     """Complete agent IDs matching *partial*.  Falls back to current state agent."""
-    from .state import get_state
+    from l2.l2_shell import get_state
 
     state = get_state()
     results = []
