@@ -180,7 +180,10 @@ describe("command groups", () => {
     const { bridge, received } = fakeHost();
     registerCommandGroups(dispatcher, { bridge });
 
-    for (const name of ["settings", "settings-set", "status", "memory-digest", "model-specs", "cells"]) {
+    for (const name of [
+      "settings", "settings-set", "status", "memory-digest", "model-specs", "cells",
+      "card-submit", "card-approve", "l3a-send", "tool-invoke",
+    ]) {
       expect(dispatcher.has(name)).toBe(true);
     }
 
@@ -190,6 +193,38 @@ describe("command groups", () => {
     // The request went over the wire to the host — one line per command.
     expect(received).toHaveLength(1);
     expect(received[0]).toContain('"name":"status"');
+  });
+
+  it("card/l3a/tool groups forward to the host with proper payloads", async () => {
+    const dispatcher = new Dispatcher();
+    const { bridge, received } = fakeHost();
+    registerCommandGroups(dispatcher, { bridge });
+
+    await dispatcher.dispatch({ name: "card-submit", args: ["card: v1"] }, { sessionId: "s-1" });
+    await dispatcher.dispatch({ name: "card-approve", args: ["c42"] }, { sessionId: "s-1" });
+    await dispatcher.dispatch({ name: "l3a-send", args: ["do work"] }, { sessionId: "s-1" });
+    await dispatcher.dispatch({ name: "tool-invoke", args: ["search", "{}"] }, { sessionId: "s-1" });
+    expect(received).toHaveLength(4);
+    expect(received[0]).toContain('"name":"card_submit"');
+    expect(received[1]).toContain('"name":"card_approve"');
+    expect(received[2]).toContain('"name":"l3a_send"');
+    expect(received[3]).toContain('"name":"tool_invoke"');
+  });
+
+  it("card/l3a/tool groups validate arity locally before bridging", async () => {
+    const dispatcher = new Dispatcher();
+    const { bridge, received } = fakeHost();
+    registerCommandGroups(dispatcher, { bridge });
+    for (const [name, args] of [
+      ["card-submit", []],
+      ["card-approve", []],
+      ["l3a-send", []],
+      ["tool-invoke", ["search"]],
+    ] as const) {
+      const out = await dispatcher.dispatch({ name, args: [...args] }, { sessionId: "s-1" });
+      expect(out).toMatchObject({ kind: "local", data: { success: false } });
+    }
+    expect(received).toHaveLength(0); // nothing crossed the wire
   });
 
   it("settings-set validates arity locally before bridging", async () => {

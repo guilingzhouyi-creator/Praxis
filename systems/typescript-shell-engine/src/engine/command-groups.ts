@@ -63,11 +63,51 @@ export function registerSelectorGroup(dispatcher: Dispatcher, { bridge }: Comman
   });
 }
 
-/** Register all command groups (settings/system/memory/model/selector). */
+/** Register the card domain commands (submit/approve forward to the host). */
+export function registerCardGroup(dispatcher: Dispatcher, { bridge }: CommandGroupOptions): void {
+  dispatcher.register("card-submit", async (args) => {
+    if (args.length < 1) return { kind: "local", data: { success: false, error: "usage: card-submit <card-yaml>" } };
+    const messages = await bridge.cardSubmit(args.join(" "));
+    return { kind: "local", data: { domain: "card", messages } };
+  });
+  dispatcher.register("card-approve", async (args) => {
+    if (args.length < 1) return { kind: "local", data: { success: false, error: "usage: card-approve <card-id>" } };
+    const messages = await bridge.cardApprove(args[0]);
+    return { kind: "local", data: { domain: "card", messages } };
+  });
+}
+
+/** Register the L3A domain commands (intent passthrough — host owns intent). */
+export function registerL3aGroup(dispatcher: Dispatcher, { bridge }: CommandGroupOptions): void {
+  dispatcher.register("l3a-send", async (args) => {
+    if (args.length < 1) return { kind: "local", data: { success: false, error: "usage: l3a-send <text>" } };
+    const messages = await bridge.l3aSend(args.join(" "));
+    return { kind: "local", data: { domain: "l3a", messages } };
+  });
+}
+
+/** Register the tool domain commands (invoke forwards to the host gate). */
+export function registerToolGroup(dispatcher: Dispatcher, { bridge }: CommandGroupOptions): void {
+  dispatcher.register("tool-invoke", async (args) => {
+    if (args.length < 2) {
+      return { kind: "local", data: { success: false, error: "usage: tool-invoke <tool-name> <params-json>" } };
+    }
+    const messages = await bridge.toolInvoke(args[0], args[1]);
+    return { kind: "local", data: { domain: "tool", messages } };
+  });
+}
+
+/**
+ * Register all command groups (settings/system/memory/model/selector/
+ * card/l3a/tool).
+ */
 export function registerCommandGroups(dispatcher: Dispatcher, options: CommandGroupOptions): void {
   registerSettingsGroup(dispatcher, options);
   registerSystemGroup(dispatcher, options);
   registerMemoryGroup(dispatcher, options);
   registerModelGroup(dispatcher, options);
   registerSelectorGroup(dispatcher, options);
+  registerCardGroup(dispatcher, options);
+  registerL3aGroup(dispatcher, options);
+  registerToolGroup(dispatcher, options);
 }
