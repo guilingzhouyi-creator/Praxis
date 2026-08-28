@@ -465,7 +465,9 @@ Rust candidate now serializes callback execution per signal channel while
 scanning past a busy channel, so a slow `TASK_ASSIGN` callback cannot reorder
 the next `TASK_ASSIGN` or starve an unrelated `TASK_DONE` channel. This
 ordering is tested as a Rust-native mechanism invariant; Python callback
-timing remains reference-only.
+timing remains reference-only. Empty custom signal names are rejected before
+registry mutation, and contained callback panics are exposed through the
+Rust-only `callback_panics()` diagnostic.
 
 The isolated `channel` module provides the JSON edge primitive used by a
 future `ChannelPort`: fixed-capacity FIFO, timeout-aware put/get/peek,

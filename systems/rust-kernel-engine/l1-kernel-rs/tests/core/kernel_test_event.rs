@@ -65,12 +65,30 @@ fn bounded_queue_accounts_drops_without_blocking_emitter() {
 #[test]
 fn dynamic_registry_is_bounded_and_degrades() {
     let bus = bus();
+    assert!(bus.register_signal_type("").is_err());
+    assert_eq!(bus.emit_event("   ", JsonObject::new(), "test"), 0);
     assert!(bus.register_signal_type("CUSTOM_A").is_ok());
     assert!(bus.register_signal_type("CUSTOM_B").is_ok());
     assert!(bus.register_signal_type("CUSTOM_C").is_err());
     assert!(bus.register_signal_type("TASK_DONE").is_err());
     assert_eq!(bus.emit_event("CUSTOM_C", JsonObject::new(), "test"), 0);
     bus.shutdown(true, Some(Duration::from_secs(1)));
+}
+
+#[test]
+fn callback_panics_are_contained_and_counted() {
+    let async_bus = bus();
+    async_bus.on_any(callback(|_| panic!("observer failure")));
+    assert_eq!(async_bus.emit(signal("TASK_DONE")), 1);
+    async_bus.shutdown(true, Some(Duration::from_secs(1)));
+    assert_eq!(async_bus.callback_panics(), 1);
+    assert_eq!(async_bus.stats().completed, 1);
+
+    let closed = bus();
+    closed.on_any(callback(|_| panic!("closed observer failure")));
+    closed.shutdown(false, None);
+    assert_eq!(closed.emit(signal("TASK_DONE")), 1);
+    assert_eq!(closed.callback_panics(), 1);
 }
 
 #[test]

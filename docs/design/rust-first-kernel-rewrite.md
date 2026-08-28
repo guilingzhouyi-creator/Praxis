@@ -696,6 +696,10 @@ channels to preserve cross-channel progress. This gives same-channel FIFO
 without a global slow-callback barrier. The behavior is a Rust-native
 mechanism invariant covered by blocking-callback tests; Python executor timing
 and SSE/WS fan-out remain outside the rewrite boundary.
+Custom signal registration rejects empty names before mutating the bounded
+registry. Callback panics remain contained and are counted through the
+Rust-only `callback_panics()` diagnostic; the shared Python/Rust
+`EventBusStats` parity shape is unchanged.
 
 The synchronization candidate now assigns monotonically increasing tickets to
 queued writers. A writer can acquire only when its ticket reaches the head;

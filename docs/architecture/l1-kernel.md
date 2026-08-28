@@ -994,7 +994,9 @@ channel and scans past a busy channel, preserving same-channel FIFO while
 allowing unrelated channels to progress. Blocking-callback tests cover this
 Rust-native scheduling invariant; Python executor timing, overload policy,
 shutdown behavior, and runtime SSE/WS fan-out remain performance and adapter
-evidence.
+evidence. Rust rejects empty custom signal names before registry mutation and
+exposes a separate `callback_panics()` diagnostic for contained callback
+failures, without changing the shared `EventBusStats` parity shape.
 
 The deterministic process parity fixture
 `tests/fixtures/kernel_process_vectors.json` freezes PID/PCB registration,
