@@ -7,7 +7,7 @@
 //! against the Python reference implementation.
 //!
 //! Module map:
-//!   - Crate contract & shared values: contract, errors, identity_uid, territory, paths, platform, discovery, registry, registry_base, schema, rule_descriptor, tool_chain, identity_binding, device, notify, swapper, health, load_adaptive, ports
+//!   - Crate contract & shared values: contract, errors, identity_uid, territory, paths, platform, discovery, registry, registry_base, schema, rule_descriptor, tool_chain, identity_binding, device, notify, swapper, health, watchdog, load_adaptive, ports
 //!   - Concurrency mechanisms: sync, channel, event, bus, ipc, interrupt, cancellation, worker, state_queue, substrate, scheduler, runtime
 //!   - Process ownership: process, process_adapter, managed_process, process_bridge, process_constraints, process_group, process_group_runtime, host_process_group_signal, process_table_group_runtime
 //!   - Resource accounting: allocator
@@ -87,6 +87,10 @@ pub mod swapper;
 /// Provider-neutral health-result aggregation candidate for the L1 kernel.
 #[path = "kernel_health.rs"]
 pub mod health;
+
+/// Provider-neutral, caller-driven watchdog evaluator for the L1 kernel.
+#[path = "kernel_watchdog.rs"]
+pub mod watchdog;
 
 /// Provider-neutral load-adaptive worker-pool control law candidate.
 #[path = "kernel_load_adaptive.rs"]

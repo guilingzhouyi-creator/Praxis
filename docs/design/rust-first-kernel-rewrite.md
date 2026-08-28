@@ -411,6 +411,16 @@ clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus
 delivery remain adapters.
 
+The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
+accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
+interrupt counts. Its process scan combines zombie counting and idle
+ready/running detection in one pass; interrupt alerts retain deterministic
+`BTreeMap` order and use strict `>` thresholds to match the Python watchdog
+semantics. It returns only a versioned `WatchdogReport`, so hosts retain clock,
+thread, ProcessTable/IRQ access, logging, signal, restart, and shutdown
+authority. This closes the pure evaluation boundary of `os.py`, not the
+production watchdog wiring or R4/R5 runtime cutover.
+
 The process parity candidate now exposes an explicit typed-handle bridge:
 live PIDs in the substrate slot range map to generation-one `ProcessHandle`
 values, stale generations fail closed, and handle-based exit/reap stop working

@@ -337,16 +337,22 @@ worker integration target covers FIFO ordering, per-item eviction accounting,
 and closed-pool completion for this candidate. Batch admission wakes at most
 `min(submitted, resident_workers)` waiters with repeated `notify_one` calls
 instead of broadcasting to every worker; this bounds condition-variable convoy
-without changing FIFO claim order or shutdown semantics. Producers now count
-workers parked in the queue wait under the queue lock and avoid no-op wake calls
-when all workers are active; shutdown still broadcasts, and the count is not a
-correctness dependency. Single-task result admission now carries a typed
-outcome directly to the handle instead of building an intermediate wire map;
-fire-and-forget responses remain unchanged. `TaskHandle::done()` reads a
-release-published atomic completion flag without the result mutex, while
-blocking waits and value cloning retain the synchronized slot. It remains a
-measured candidate and must be rechecked through the same v3 fixed-work matrix
-before any runtime policy promotion.
+without changing FIFO claim order or shutdown semantics. It remains a measured
+candidate and must be rechecked through the same v3 fixed-work matrix before
+any runtime policy promotion. The producer now tracks workers that are actually
+parked in the queue wait under the same queue-lock boundary, so active workers
+do not receive no-op wake calls. The counter is advisory and queue-lock
+ordered; shutdown still uses `notify_all`, and a worker that observes queued
+work after a wake never depends on the counter for correctness.
+The single-task result path now uses a typed admission outcome instead of
+constructing and reparsing an intermediate `WireMap`; fire-and-forget
+submissions retain their existing wire response. Rejection, eviction,
+cancellation, deadline, and shutdown completion remain unchanged, and the
+typed path is still evaluated under the same fixed-work evidence gate.
+`TaskHandle::done()` now reads a release-published atomic completion flag
+without taking the result mutex; result cloning and blocking waits still use
+the existing synchronized value slot and Condvar. This is a polling-path
+optimization only and does not change completion ordering or error values.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal
@@ -501,9 +507,11 @@ selects at most the requested number of task handles, releases only tasks
 already in a terminal runtime state, and reports pending, unavailable, and
 scheduler-error outcomes without blocking on live work. A zero budget is
 rejected; the method does not start a background thread, change lifecycle
-state, or claim production shutdown authority. Selection snapshots each state
-under its shard lock, avoiding a second task-book lookup; tasks that become
-terminal after selection stay pending, while a concurrent reap is unavailable.
+state, or claim production shutdown authority. Selection now snapshots each
+handle's runtime state while holding its shard lock, so the sweep avoids a
+second task-book lock and map lookup per selected entry. The snapshot remains
+conservative under races: a task that becomes terminal after selection is
+reported as pending, while a concurrent reap is reported as unavailable.
 
 `submit_batch` reserves and registers every process handle before one grouped
 WorkerPool handoff; an incomplete reservation rolls back every earlier handle
@@ -545,6 +553,18 @@ snapshots. TCP/UDP discovery, TLS, sockets, EventBus events, card sync, and
 message envelopes remain transport adapters. The shared
 `kernel_peer_vectors.json` fixture covers the timeout, refresh, loss, and
 eviction lifecycle without making wall-clock or wire bytes a Rust contract.
+
+The Rust `watchdog` candidate now owns the pure evaluation half of Python
+`os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
+interrupt thresholds; `evaluate_watchdog` performs one bounded process pass
+that combines zombie counting with ready/running idle detection, then walks
+interrupt counts in deterministic key order. Zero thresholds fail closed.
+The report is a value-only handoff for the host: it does not read a clock,
+start a background thread, access ProcessTable or IRQ singletons, emit logs,
+send signals, or choose restart/shutdown policy. The reference thresholds are
+exposed as named Rust constants only for semantic mapping; deployments must
+select their own policy. Independent coverage lives in
+`tests/core/kernel_test_watchdog.rs`.
 
 The Rust `boot` candidate is limited to declarative assembly metadata. Its
 `BootPlan` validates names, rejects duplicate registrations unless an explicit
@@ -845,7 +865,7 @@ and results retain input order with per-item duplicate/validation failures.
 latency separately from the per-session workload, so p95/p99 comparisons do
 not mix admission units.
 
-The state-queue, process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
+The state-queue, process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, worker, network,

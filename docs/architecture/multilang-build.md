@@ -447,6 +447,13 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   status precedence, counts, retained details, and elapsed-time rounding.
   `tests/fixtures/kernel_health_vectors.json` is shared; module imports,
   clocks, probes, logging, and provider calls remain Python-owned.
+- The Rust `watchdog` candidate mirrors the observation/evaluation half of
+  `l1.kernel.os._watchdog_tick`: one process pass counts zombies and reports
+  idle ready/running processes, then deterministic interrupt-count alerts are
+  returned. Thresholds are explicit and zero values fail closed. The report
+  is side-effect-free and caller-driven; it does not own clocks, threads,
+  ProcessTable/IRQ singletons, logging, restart, or shutdown policy. Its
+  independent target is `tests/core/kernel_test_watchdog.rs`.
 - The Rust `swapper` candidate mirrors memory-ring planning from explicit entry
   and pressure snapshots: ring destinations, compaction filters, and action
   flags. `tests/fixtures/kernel_swapper_vectors.json` is shared; MemoryService

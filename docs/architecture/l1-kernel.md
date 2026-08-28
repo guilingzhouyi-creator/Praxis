@@ -366,6 +366,18 @@ message envelopes remain transport adapters. The shared
 `kernel_peer_vectors.json` fixture covers the timeout, refresh, loss, and
 eviction lifecycle without making wall-clock or wire bytes a Rust contract.
 
+The Rust `watchdog` candidate now owns the pure evaluation half of Python
+`os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
+interrupt thresholds; `evaluate_watchdog` performs one bounded process pass
+that combines zombie counting with ready/running idle detection, then walks
+interrupt counts in deterministic key order. Zero thresholds fail closed.
+The report is a value-only handoff for the host: it does not read a clock,
+start a background thread, access ProcessTable or IRQ singletons, emit logs,
+send signals, or choose restart/shutdown policy. The reference thresholds are
+exposed as named Rust constants only for semantic mapping; deployments must
+select their own policy. Independent coverage lives in
+`tests/core/kernel_test_watchdog.rs`.
+
 The Rust `boot` candidate is limited to declarative assembly metadata. Its
 `BootPlan` validates names, rejects duplicate registrations unless an explicit
 replacement is requested, locks before execution wiring, and resolves a
@@ -665,7 +677,7 @@ and results retain input order with per-item duplicate/validation failures.
 latency separately from the per-session workload, so p95/p99 comparisons do
 not mix admission units.
 
-The state-queue, process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
+The state-queue, process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, worker, network,

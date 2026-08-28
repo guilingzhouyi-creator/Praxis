@@ -47,6 +47,15 @@ closed-pool completion, and public task-handle semantics; the release evidence
 must be compared on throughput, queue wait, p95, and p99 before a runtime
 policy can adopt it.
 
+The `watchdog` module is a side-effect-free lifecycle evaluator for the
+Python `os.py` watchdog semantics. It accepts explicit thresholds plus
+host-supplied process and interrupt observations, combines zombie and idle
+checks in one process pass, and emits deterministic interrupt alerts. It does
+not own a clock, background thread, ProcessTable/IRQ singleton, logging,
+restart, or shutdown policy; hosts decide what to do with the report. Zero
+thresholds fail closed, and the independent target is
+`tests/core/kernel_test_watchdog.rs`.
+
 The `session` module adds the P0 session-truth mechanism needed before a clean
 AgentLoop bridge: a sharded `SessionBook`, bounded per-session history,
 authoritative `input_seq`, cursor pages, explicit crash recovery, and a
@@ -208,7 +217,7 @@ barrier; shutdown and recovery acknowledgement use already-locked helpers to
 keep lifecycle transitions and cross-book snapshots ordered without recursive
 locking.
 
-State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
+State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, and worker behavior

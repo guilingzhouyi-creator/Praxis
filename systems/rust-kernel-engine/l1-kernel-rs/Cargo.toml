@@ -410,3 +410,7 @@ path = "tests/storage/kernel_test_vfs.rs"
 [[test]]
 name = "worker"
 path = "tests/core/kernel_test_worker.rs"
+
+[[test]]
+name = "watchdog"
+path = "tests/core/kernel_test_watchdog.rs"

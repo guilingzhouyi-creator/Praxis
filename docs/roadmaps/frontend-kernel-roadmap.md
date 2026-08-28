@@ -1047,6 +1047,17 @@ T4b 机制片进一步增加 `CompositeInputActivityAdapter`：宿主可以分�
 跨平台失败/隐私证据后才能推进 T4b production 评审；任何来源 callback panic
 均按整体组合失败处理，不允许以部分结果冒充健康状态。
 
+随后补齐 Python `os.py` watchdog 的纯评估边界：新增 Rust
+`watchdog::WatchdogPolicy`、`WatchdogProcess` 与 `evaluate_watchdog`。单次
+process pass 同时统计僵尸与 READY/RUNNING 空闲超阈值，再按 `BTreeMap`
+稳定顺序生成中断突发告警；阈值边界严格使用 `>`，零阈值直接
+fail-closed。该片只返回版本化 `WatchdogReport`，不读系统时钟、不启动
+后台线程、不访问 ProcessTable/IRQ 单例，也不决定日志、信号、重启或
+shutdown；宿主仍持有 watchdog wiring 和生产生命周期权威。独立测试位于
+`tests/core/kernel_test_watchdog.rs`，下一步需把真实宿主观测、旁路审计和
+生产 shutdown/restart 证据接入 R4/R5 评审，不能把这片当作 runtime
+cutover 完成。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；
