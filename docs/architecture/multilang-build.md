@@ -331,6 +331,9 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   checkpoint before applying unclean StateStore recovery; a foreign or
   malformed attached root leaves the recovery generation and lifecycle record
   unchanged.
+  Explicit checkpoint and recovery-decision reads use the runtime admission
+  barrier; shutdown and recovery acknowledgement call non-recursive locked
+  helpers so lifecycle changes cannot cross their book snapshots.
 - `KernelRuntime::submit_batch` reserves and records every handle before one
   grouped WorkerPool handoff, rolling back all prior reservations when one
   cannot be admitted. The separate `runtime.batch_submit_reap` runner and

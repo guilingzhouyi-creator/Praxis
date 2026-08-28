@@ -242,6 +242,10 @@ failed lifecycle commit during the next reopen.
 These accessors expose lower-layer state to a future TS bridge without moving
 AgentLoop execution, provider/tool policy, PTY ownership, or production entry
 authority into the candidate.
+Explicit execution checkpoints and recovery-decision reads share the runtime
+admission barrier, so lifecycle transitions cannot interleave with their
+cross-book observation. Shutdown and recovery acknowledgement use internal
+already-locked helpers to avoid recursive locking.
 
 The persistent runtime also owns the `ConfigStore` for its assembly-selected
 Rust configuration root. `config_documents` exposes defensive snapshots, while

@@ -611,6 +611,17 @@ impl KernelRuntime {
         &self,
         clean_shutdown: bool,
     ) -> Result<ExecutionStoreDocument, RuntimeError> {
+        let _admission = self
+            .admission
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.checkpoint_execution_locked(clean_shutdown)
+    }
+
+    fn checkpoint_execution_locked(
+        &self,
+        clean_shutdown: bool,
+    ) -> Result<ExecutionStoreDocument, RuntimeError> {
         let store = self
             .execution_store
             .as_ref()
@@ -643,6 +654,14 @@ impl KernelRuntime {
     /// requesting any execution. Non-persistent runtimes cannot claim a
     /// checkpoint decision.
     pub fn recovery_decision(&self) -> Result<RecoveryDecision, RuntimeError> {
+        let _admission = self
+            .admission
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.recovery_decision_locked()
+    }
+
+    fn recovery_decision_locked(&self) -> Result<RecoveryDecision, RuntimeError> {
         let store = self
             .execution_store
             .as_ref()
@@ -665,7 +684,7 @@ impl KernelRuntime {
             .admission
             .write()
             .unwrap_or_else(PoisonError::into_inner);
-        let current = self.recovery_decision()?;
+        let current = self.recovery_decision_locked()?;
         if current != *decision {
             return Err(RuntimeError::RecoveryDecisionStale);
         }
@@ -1092,12 +1111,12 @@ impl KernelRuntime {
             return Err(RuntimeError::ShuttingDown);
         }
         if self.execution_store.is_some()
-            && let Err(error) = self.checkpoint_execution(true)
+            && let Err(error) = self.checkpoint_execution_locked(true)
         {
             // Preserve the current books as an unclean checkpoint before
             // publishing the lifecycle failure, so recovery cannot reopen
             // a stale clean document after a rejected clean shutdown.
-            let _ = self.checkpoint_execution(false);
+            let _ = self.checkpoint_execution_locked(false);
             if let Some(state_store) = &self.state_store {
                 let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
                 let _ = state_store.shutdown(false);
@@ -1113,7 +1132,7 @@ impl KernelRuntime {
                 // document. The state-store failure remains the surfaced
                 // error; best-effort demotion is itself fail-closed because
                 // recovery will reject any unresolved mismatch.
-                let _ = self.checkpoint_execution(false);
+                let _ = self.checkpoint_execution_locked(false);
                 let _ = state_store.shutdown(false);
                 return Err(map_state_store_error(error));
             }

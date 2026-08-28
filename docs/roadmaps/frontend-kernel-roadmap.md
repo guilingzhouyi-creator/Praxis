@@ -583,6 +583,9 @@ R5 cutover authority。
 unclean `StateStore` 恢复；foreign 或 malformed root 被拒绝时不会推进
 recovery generation 或修改原有 lifecycle 记录。该片仍不热加载服务、不解释
 Python settings，也不授予 R5 authority。
+显式 checkpoint 与 recovery decision 读操作现在共享 runtime admission barrier；
+shutdown 与 recovery acknowledgement 通过已持锁 helper 避免递归加锁，保证
+生命周期变化不会穿过三本 book 的一致性观测。
 
 随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
 快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与

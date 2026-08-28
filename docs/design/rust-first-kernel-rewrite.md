@@ -609,6 +609,10 @@ execution checkpoint before performing unclean `StateStore` recovery. A
 foreign or malformed attached root is rejected without advancing recovery
 generation or mutating the existing lifecycle record, keeping root validation
 side-effect-free.
+The public checkpoint and recovery-decision reads share the runtime admission
+barrier with lifecycle transitions. Shutdown and recovery acknowledgement call
+internal helpers while that barrier is already held, preventing recursive-lock
+deadlocks and cross-book observations during state changes.
 
 The independent `recovery::RecoveryTrigger` now turns a validated execution
 checkpoint plus lifecycle state into a side-effect-free `RecoveryDecision`:

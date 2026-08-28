@@ -203,6 +203,10 @@ The persistent constructor validates the selected configuration root and
 execution checkpoint before applying unclean `StateStore` recovery, so a
 foreign or malformed attached root does not advance the recovery generation or
 mutate the prior lifecycle record.
+Explicit checkpoint and recovery-decision reads take the runtime admission
+barrier; shutdown and recovery acknowledgement use already-locked helpers to
+keep lifecycle transitions and cross-book snapshots ordered without recursive
+locking.
 
 State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
