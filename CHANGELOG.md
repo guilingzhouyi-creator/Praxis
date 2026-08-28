@@ -7,6 +7,7 @@
 
 ### 文档
 
+- **Docs (docs)**: refresh doc stats and changelog after cutover commits
 - **Docs (roadmaps)**: instantiate G1-G6 cutover and freeze G5 interface
 - **Docs (stats)**: refresh judge dashboard
 - **Docs (stats)**: refresh snapshot before mainline merge
