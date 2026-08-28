@@ -608,8 +608,10 @@ public API from `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` as ind
 targets; `src/` must contain no `#[cfg(test)]` or inline test module. Cargo
 implicit discovery is disabled so the Python infra gate
 `tests/infra/test_rust_test_domain.py` can reject root-level or unregistered
-targets. Shared JSON fixtures stay in `tests/fixtures/`; run the isolated
-domain with `make rust-contract-test` or a bounded `cargo test --test <name>`.
+targets. Shared JSON fixtures stay in `tests/fixtures/`; run all targets as
+bounded parallel slices with `make rust-contract-test`, select a domain with
+`python scripts/py/run_rust_test_domains.py --domain runtime`, or run one
+bounded `cargo test --test <name>`.
 
 The isolated `identity_uid` module mirrors the value-only UID issuer boundary:
 prefix and body-length validation, bounded entropy candidates, collision

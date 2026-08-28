@@ -37,3 +37,10 @@ Run a bounded domain slice with:
 cargo test --manifest-path systems/rust-kernel-engine/Cargo.toml --test process_group_runtime
 cargo test --manifest-path systems/rust-kernel-engine/Cargo.toml --test session --test agent_loop
 ```
+
+Run all registered targets as bounded parallel slices with:
+
+```bash
+python scripts/py/run_rust_test_domains.py --jobs 4
+python scripts/py/run_rust_test_domains.py --domain runtime --jobs 2
+```

@@ -66,8 +66,9 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   under `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` and consume `tests/fixtures/` when
   vectors are required. `Cargo.toml` explicitly registers each historical
   target name with `autotests = false`; implementation modules contain no
-  inline test blocks. `make rust-contract-test` runs the independent domain,
-  while `cargo test --test <name>` runs one bounded target.
+  inline test blocks. `make rust-contract-test` runs every registered target as
+  bounded parallel slices through `scripts/py/run_rust_test_domains.py`, while
+  `cargo test --test <name>` runs one bounded target.
 - The Rust `substrate` module begins the Rust-first R1 base with
   generation-tagged process handles, deterministic shard planning, and
   allocation-free atomic queue metrics. It does not own process storage,

@@ -706,6 +706,10 @@ contract-version check is part of `contract_vectors.rs`; no inline test module
 remains in `lib.rs`. The worker scaling test uses only public submission and
 shutdown behavior, so the clean-break public boundary remains explicit for
 later TS and Rust runtime rebuilds.
+The build perimeter runs these targets as bounded parallel processes through
+`scripts/py/run_rust_test_domains.py`; a single target remains available for
+focused diagnosis, and no full-domain run is collapsed into one monolithic
+process.
 
 The `rule_descriptor` checker seam is fail-closed: an absent checker result
 continues to mean PASS, but a panic from an injected checker is caught and
