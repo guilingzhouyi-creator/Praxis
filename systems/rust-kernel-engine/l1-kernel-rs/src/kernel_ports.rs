@@ -366,6 +366,7 @@ impl InputActivitySnapshot {
     }
 }
 
+/// Validate a port descriptor's identity fields fail-closed.
 fn validate_descriptor(descriptor: &PortDescriptor) -> Result<(), PortRegistryError> {
     if descriptor.name.trim().is_empty() {
         return Err(PortRegistryError::InvalidName);
@@ -379,6 +380,7 @@ fn validate_descriptor(descriptor: &PortDescriptor) -> Result<(), PortRegistryEr
     Ok(())
 }
 
+/// Default transport hint for unspecified port descriptors.
 fn default_transport_hint() -> String {
     "tcp".to_owned()
 }

@@ -145,6 +145,7 @@ pub enum EntryError {
 }
 
 impl std::fmt::Display for EntryError {
+    /// Render an entry error as a human-readable message.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidConfig(message) => write!(formatter, "invalid entry config: {message}"),
@@ -220,6 +221,7 @@ pub fn execute(request: EntryRequest) -> Result<EntryReport, EntryError> {
     })
 }
 
+/// Wrap a runtime error into the entry error surface.
 fn runtime_error(error: RuntimeError) -> EntryError {
     EntryError::Runtime(format!("{error:?}"))
 }

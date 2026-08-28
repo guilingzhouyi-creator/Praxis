@@ -101,6 +101,7 @@ fn unix_timestamp() -> f64 {
         .map_or(0.0, |duration| duration.as_secs_f64())
 }
 
+/// Allocate the next monotonic message id, masked to the wire width.
 fn next_message_id() -> String {
     let value = NEXT_MESSAGE_ID.fetch_add(1, Ordering::Relaxed) & 0x000f_ffff_ffff_ffff;
     format!("{value:0IPC_MSG_ID_LENGTH$x}")
@@ -241,12 +242,14 @@ impl LockChannel {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Drop oldest queued messages beyond the pending bound, fail-closed under pressure.
     fn trim_backlog(&self, state: &mut ChannelState) {
         while state.queue.len() > self.max_pending {
             state.queue.pop_front();
         }
     }
 
+    /// Remove one queued message by id, ignoring unknown ids.
     fn remove_message(&self, state: &mut ChannelState, message_id: &str) {
         if let Some(index) = state
             .queue
@@ -306,6 +309,7 @@ impl LockBus {
 }
 
 impl Default for LockBus {
+    /// Create a default, empty lock bus.
     fn default() -> Self {
         Self::new()
     }
@@ -313,6 +317,7 @@ impl Default for LockBus {
 
 static GLOBAL_LOCK_BUS: OnceLock<Mutex<Option<Arc<LockBus>>>> = OnceLock::new();
 
+/// Initialize the process-wide lock-bus slot on first use.
 fn global_lock_bus() -> &'static Mutex<Option<Arc<LockBus>>> {
     GLOBAL_LOCK_BUS.get_or_init(|| Mutex::new(None))
 }

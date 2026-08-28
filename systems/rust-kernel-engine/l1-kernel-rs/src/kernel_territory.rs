@@ -56,6 +56,7 @@ pub fn is_within_at(target: &str, bases: &[String], working_dir: &Path) -> bool 
         .any(|base| normalized_target == base || normalized_target.starts_with(&base))
 }
 
+/// Lexically normalize a path against a working directory without IO.
 fn lexical_normalize(path: &str, working_dir: &Path) -> PathBuf {
     let raw = Path::new(path);
     let joined = if raw.is_absolute() {
@@ -78,6 +79,7 @@ fn lexical_normalize(path: &str, working_dir: &Path) -> PathBuf {
     normalized
 }
 
+/// Default lexical working directory for relative path checks.
 fn default_working_dir() -> String {
     ".".to_owned()
 }

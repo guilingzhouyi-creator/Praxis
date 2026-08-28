@@ -46,6 +46,7 @@ pub struct ReputationPolicy {
 }
 
 impl Default for ReputationPolicy {
+    /// Build a reputation policy from the module-level delta and bound constants.
     fn default() -> Self {
         Self {
             default_score: DEFAULT_REPUTATION,
@@ -218,6 +219,7 @@ impl ReputationLedger {
             .clone()
     }
 
+    /// Clamp a finite score to the policy bounds, rejecting non-finite input.
     fn normalize(&self, score: f64) -> Result<f64, &'static str> {
         if !score.is_finite() {
             return Err("reputation score must be finite");
@@ -227,6 +229,7 @@ impl ReputationLedger {
 }
 
 impl Default for ReputationLedger {
+    /// Create an empty ledger with the default policy, which always validates.
     fn default() -> Self {
         Self::new(ReputationPolicy::default()).expect("default reputation policy is valid")
     }

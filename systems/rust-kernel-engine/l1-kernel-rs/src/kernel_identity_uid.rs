@@ -46,11 +46,13 @@ impl IdentityUidIssuer {
     {
         for candidate in candidates.into_iter().take(self.max_attempts) {
             let body: String = candidate.as_ref().chars().take(self.body_length).collect();
+            // Reject candidates that cannot yield a body of the exact required length.
             if body.chars().count() != self.body_length {
                 continue;
             }
             let uid = format!("{}{}", self.prefix, body);
             let mut seen = self.lock_seen();
+            // Reuse the candidate budget to retry until the issued UID is unique.
             if seen.insert(uid.clone()) {
                 return uid;
             }
@@ -79,6 +81,7 @@ impl IdentityUidIssuer {
         self.lock_seen().clear();
     }
 
+    /// Lock the seen set, recovering from a poisoned mutex rather than panicking.
     fn lock_seen(&self) -> MutexGuard<'_, BTreeSet<String>> {
         self.seen.lock().unwrap_or_else(PoisonError::into_inner)
     }

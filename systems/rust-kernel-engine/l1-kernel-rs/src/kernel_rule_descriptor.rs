@@ -81,6 +81,7 @@ pub struct RuleDescriptor {
 }
 
 impl std::fmt::Debug for RuleDescriptor {
+    /// Debug view omitting the opaque checker callback and non-exhaustive.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("RuleDescriptor")

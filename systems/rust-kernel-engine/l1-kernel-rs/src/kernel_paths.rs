@@ -159,6 +159,7 @@ impl PathInputs {
         }
     }
 
+    /// Return the effective path separator, defaulting when unset.
     fn separator(&self) -> &str {
         if self.path_separator.is_empty() {
             if self.is_windows { "\\" } else { "/" }
@@ -550,11 +551,13 @@ impl PathStore {
 }
 
 impl Default for PathStore {
+    /// Create an empty path store.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Resolve the skill directory candidates from inputs and defaults.
 fn skill_dirs(input: &PathInputs, data_dir: &str, separator: &str) -> Vec<String> {
     if !input.skill_dir_override.is_empty() {
         return vec![input.skill_dir_override.clone(), "config/skills".to_owned()];
@@ -583,10 +586,12 @@ fn skill_dirs(input: &PathInputs, data_dir: &str, separator: &str) -> Vec<String
     }
 }
 
+/// Return `value` when non-empty, otherwise the default.
 fn fallback<'a>(value: &'a str, default: &'a str) -> &'a str {
     if value.is_empty() { default } else { value }
 }
 
+/// Join a root and child with an explicit separator, avoiding doubles.
 fn join(root: &str, child: &str, separator: &str) -> String {
     if root.is_empty() {
         return child.replace('/', separator);
@@ -599,6 +604,7 @@ fn join(root: &str, child: &str, separator: &str) -> String {
     )
 }
 
+/// Default skill scope label for unspecified inputs.
 fn default_skill_scope() -> String {
     "project".to_owned()
 }

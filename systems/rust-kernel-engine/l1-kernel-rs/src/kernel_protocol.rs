@@ -117,6 +117,7 @@ pub enum MessageKind {
 }
 
 impl MessageKind {
+    /// Parse a wire message-kind label into its typed form.
     fn parse(value: &str) -> Option<Self> {
         match value {
             "ack" => Some(Self::Ack),
@@ -143,6 +144,7 @@ pub enum ProtocolError {
 }
 
 impl Display for ProtocolError {
+    /// Render a protocol error as a human-readable message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidJson(message) => write!(formatter, "invalid json: {message}"),
@@ -241,6 +243,7 @@ const HOST_DERIVED_PAYLOAD_FIELDS: [&str; 4] = [
     "harness_auto_approved",
 ];
 
+/// Validate required payload fields per message kind, collecting errors.
 fn validate_payload(kind: MessageKind, payload: &BTreeMap<String, Value>) -> Vec<String> {
     let mut errors = Vec::new();
     if matches!(kind, MessageKind::Command | MessageKind::Control)
@@ -319,6 +322,7 @@ fn validate_payload(kind: MessageKind, payload: &BTreeMap<String, Value>) -> Vec
     errors
 }
 
+/// Accept only non-empty string values.
 fn non_empty_text(value: Option<&Value>) -> bool {
     value
         .and_then(Value::as_str)
@@ -503,6 +507,7 @@ pub fn decode_record(line: &str) -> Result<ProtocolRecord, ProtocolError> {
     Ok(record)
 }
 
+/// Fill per-type defaults for missing record fields.
 fn insert_record_defaults(record_type: &str, data: &mut BTreeMap<String, Value>) {
     let defaults: &[(&str, Value)] = match record_type {
         "session_identity" => &[
@@ -547,6 +552,7 @@ fn now_seconds() -> f64 {
         .map_or(0.0, |duration| duration.as_secs_f64())
 }
 
+/// Return the declared field set for one record type.
 fn known_record_fields(record_type: &str) -> &'static [&'static str] {
     match record_type {
         "session_identity" => &[
@@ -612,6 +618,7 @@ fn known_record_fields(record_type: &str) -> &'static [&'static str] {
     }
 }
 
+/// Return the mandatory field set for one record type.
 fn required_record_fields(record_type: &str) -> &'static [&'static str] {
     match record_type {
         "session_identity" => &["session_id", "terminal_id", "process_id"],
@@ -638,6 +645,7 @@ fn required_record_fields(record_type: &str) -> &'static [&'static str] {
     }
 }
 
+/// Validate schema version, type and required fields fail-closed.
 fn validate_record(record: &ProtocolRecord) -> Result<(), ProtocolError> {
     if record.schema_version != RECORD_SCHEMA_VERSION
         || !RECORD_TYPES.contains(&record.record_type.as_str())
@@ -797,6 +805,7 @@ fn validate_record(record: &ProtocolRecord) -> Result<(), ProtocolError> {
     Ok(())
 }
 
+/// Require a string value, optionally allowing empty text.
 fn require_text(value: &Value, name: &str, allow_empty: bool) -> Result<(), ProtocolError> {
     if !value
         .as_str()
@@ -814,6 +823,7 @@ fn require_text(value: &Value, name: &str, allow_empty: bool) -> Result<(), Prot
     Ok(())
 }
 
+/// Validate an optional string field when present.
 fn optional_text(data: &BTreeMap<String, Value>, name: &str) -> Result<(), ProtocolError> {
     if let Some(value) = data.get(name) {
         require_text(value, name, true)?;
@@ -821,6 +831,7 @@ fn optional_text(data: &BTreeMap<String, Value>, name: &str) -> Result<(), Proto
     Ok(())
 }
 
+/// Require an integer value at or above a minimum.
 fn require_u64(value: &Value, name: &str, minimum: u64) -> Result<(), ProtocolError> {
     if value.as_u64().is_none_or(|number| number < minimum) {
         return Err(ProtocolError::InvalidContract(format!(
@@ -830,6 +841,7 @@ fn require_u64(value: &Value, name: &str, minimum: u64) -> Result<(), ProtocolEr
     Ok(())
 }
 
+/// Require a finite numeric value.
 fn require_number(value: &Value, name: &str) -> Result<(), ProtocolError> {
     if value.as_f64().is_none_or(|number| !number.is_finite()) {
         return Err(ProtocolError::InvalidContract(format!(
@@ -839,6 +851,7 @@ fn require_number(value: &Value, name: &str) -> Result<(), ProtocolError> {
     Ok(())
 }
 
+/// Require an object value.
 fn require_object(value: &Value, name: &str) -> Result<(), ProtocolError> {
     if !value.is_object() {
         return Err(ProtocolError::InvalidContract(format!(
@@ -860,6 +873,7 @@ pub fn encode_record(record: &ProtocolRecord) -> Result<String, ProtocolError> {
     canonical_json(&value)
 }
 
+/// Normalize a record to canonical form, validating fail-closed.
 fn normalize_record(record: &ProtocolRecord) -> Result<ProtocolRecord, ProtocolError> {
     if record.schema_version != RECORD_SCHEMA_VERSION
         || !RECORD_TYPES.contains(&record.record_type.as_str())
@@ -900,6 +914,7 @@ pub fn canonical_json(value: &Value) -> Result<String, ProtocolError> {
         .map_err(|error| ProtocolError::Serialization(error.to_string()))
 }
 
+/// Reduce a value to its canonical wire representation.
 fn canonical_value(value: &Value) -> Result<Value, ProtocolError> {
     match value {
         Value::Null | Value::Bool(_) | Value::String(_) => Ok(value.clone()),
@@ -949,6 +964,7 @@ pub struct Outbox {
 }
 
 impl Default for Outbox {
+    /// Create an outbox at the default capacity.
     fn default() -> Self {
         Self::new(OUTBOX_MAXLEN).expect("default outbox capacity is valid")
     }
@@ -1070,6 +1086,7 @@ pub struct SessionMultiplexer {
 }
 
 impl Default for SessionMultiplexer {
+    /// Create an empty session multiplexer.
     fn default() -> Self {
         Self::new()
     }

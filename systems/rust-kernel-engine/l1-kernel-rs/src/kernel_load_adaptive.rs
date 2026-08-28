@@ -57,6 +57,7 @@ pub struct ControllerMetrics {
 }
 
 impl Default for ControllerMetrics {
+    /// Create zeroed controller metrics.
     fn default() -> Self {
         Self {
             queue_ratio: 0.0,
@@ -94,6 +95,7 @@ pub struct ControllerConfig {
 }
 
 impl Default for ControllerConfig {
+    /// Apply the default adaptive-load control parameters.
     fn default() -> Self {
         Self {
             low_ratio: LOAD_ADAPTIVE_LOW_RATIO,
@@ -323,10 +325,12 @@ impl LoadAdaptiveController {
         self.config
     }
 
+    /// Derive the slow-task threshold from the task timeout and ratio.
     fn slow_task_seconds(&self) -> f64 {
         self.config.task_timeout * self.config.slow_task_ratio
     }
 
+    /// Update the EWMA load estimate from the latest queue ratio.
     fn update_ewma(&mut self, queue_ratio: f64) -> f64 {
         if self.state.decisions_total == 0 && self.state.ewma == 0.0 {
             self.state.ewma = queue_ratio;
@@ -339,6 +343,7 @@ impl LoadAdaptiveController {
 }
 
 impl Default for LoadAdaptiveController {
+    /// Create a controller with the default configuration.
     fn default() -> Self {
         Self::with_defaults()
     }

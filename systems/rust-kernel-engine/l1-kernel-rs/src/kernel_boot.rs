@@ -217,6 +217,7 @@ impl BootPlan {
     }
 }
 
+/// Validate a step declaration: names and dependencies must be non-empty.
 fn validate_step(step: &BootStepSpec) -> Result<(), BootPlanError> {
     if step.name.trim().is_empty() || step.depends_on.iter().any(|name| name.trim().is_empty()) {
         return Err(BootPlanError::InvalidName);
@@ -224,6 +225,9 @@ fn validate_step(step: &BootStepSpec) -> Result<(), BootPlanError> {
     Ok(())
 }
 
+/// Depth-first visit of `name` and its dependencies, appending to `ordered`
+/// only after every dependency resolves; reports cycles and missing deps
+/// fail-closed with the offending path/step for caller diagnostics.
 fn visit(
     name: &str,
     steps: &BTreeMap<String, BootStepSpec>,

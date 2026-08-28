@@ -9,6 +9,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
+/// Default component protocol version for unspecified specs.
 fn default_version() -> String {
     "0.1.0".to_owned()
 }
@@ -36,6 +37,7 @@ pub struct ComponentSpec {
 }
 
 impl Default for ComponentSpec {
+    /// Create an empty component spec.
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -252,11 +254,13 @@ impl ComponentRegistry {
 }
 
 impl Default for ComponentRegistry {
+    /// Create an empty component registry.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Linearize components by dependency order, fail-closed on cycles.
 fn topological_sort(
     names: &[String],
     graph: &BTreeMap<String, Vec<String>>,

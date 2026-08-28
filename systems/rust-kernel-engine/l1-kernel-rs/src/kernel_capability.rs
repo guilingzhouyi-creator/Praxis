@@ -108,6 +108,7 @@ impl CapabilityAuthority {
 }
 
 impl Default for CapabilityAuthority {
+    /// Create an empty capability authority.
     fn default() -> Self {
         Self::new()
     }
@@ -115,6 +116,7 @@ impl Default for CapabilityAuthority {
 
 static GLOBAL_AUTHORITY: OnceLock<Mutex<Option<Arc<CapabilityAuthority>>>> = OnceLock::new();
 
+/// Initialize the process-wide authority slot on first use.
 fn global_authority() -> &'static Mutex<Option<Arc<CapabilityAuthority>>> {
     GLOBAL_AUTHORITY.get_or_init(|| Mutex::new(None))
 }

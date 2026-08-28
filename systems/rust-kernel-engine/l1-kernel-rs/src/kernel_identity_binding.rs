@@ -40,6 +40,7 @@ pub struct BindingPolicy {
 }
 
 impl Default for BindingPolicy {
+    /// Apply the default identity-binding policy limits.
     fn default() -> Self {
         Self {
             max_bindings_per_cell: DEFAULT_MAX_BINDINGS_PER_CELL,
@@ -114,6 +115,7 @@ impl WritePrincipal {
         }
     }
 
+    /// Return the effective actor, preferring the agent id when bound.
     fn actor(&self) -> &str {
         if !self.agent_id.is_empty() {
             &self.agent_id
@@ -359,6 +361,7 @@ impl IdentityBindingRegistry {
             .revision
     }
 
+    /// Validate a binding spec's identity fields fail-closed.
     fn validate_spec<'a>(
         spec: &'a BindingSpec,
         policy: &BindingPolicy,
@@ -375,6 +378,7 @@ impl IdentityBindingRegistry {
         Ok((spec.cell_id.as_str(), spec.role.as_str()))
     }
 
+    /// Deduplicate and bound the tag list for a binding spec.
     fn normalize_tags(
         mut tags: Vec<String>,
         policy: &BindingPolicy,
@@ -387,6 +391,7 @@ impl IdentityBindingRegistry {
         Ok(tags)
     }
 
+    /// Bound the max-chars value to the policy ceiling when unset.
     fn normalize_max_chars(value: usize, policy: &BindingPolicy) -> usize {
         if value == 0 {
             policy.max_fragment_chars
@@ -397,6 +402,7 @@ impl IdentityBindingRegistry {
 }
 
 impl Default for IdentityBindingRegistry {
+    /// Create a binding registry with the default policy.
     fn default() -> Self {
         Self::new(BindingPolicy::default()).expect("default identity binding policy is valid")
     }

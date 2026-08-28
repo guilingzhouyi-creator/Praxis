@@ -47,6 +47,7 @@ impl AgentLoopState {
         matches!(self, Self::Stopped | Self::Failed)
     }
 
+    /// Return whether one state can legally transition to another.
     fn can_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
@@ -224,6 +225,7 @@ struct AgentLoopRecord {
 }
 
 impl AgentLoopRecord {
+    /// Build a stable snapshot of one agent-loop record.
     fn snapshot(&self) -> AgentLoopSnapshot {
         let inner = self.read();
         snapshot_locked(&self.spec, &inner, self.lock_wait_ns())
@@ -448,18 +450,22 @@ struct AgentLoopRegistry {
 }
 
 impl AgentLoopRegistry {
+    /// Return whether a loop id is registered.
     fn contains_key(&self, loop_id: &str) -> bool {
         self.loops.contains_key(loop_id)
     }
 
+    /// Look up a loop record by id.
     fn get(&self, loop_id: &str) -> Option<&Arc<AgentLoopRecord>> {
         self.loops.get(loop_id)
     }
 
+    /// Iterate registered loop records.
     fn values(&self) -> impl Iterator<Item = &Arc<AgentLoopRecord>> {
         self.loops.values()
     }
 
+    /// Register a loop record, tracking ordered ids.
     fn insert(&mut self, loop_id: String, record: Arc<AgentLoopRecord>) {
         self.ordered_ids.insert(loop_id.clone());
         self.loops.insert(loop_id, record);
@@ -467,6 +473,7 @@ impl AgentLoopRegistry {
 }
 
 impl Default for AgentLoopBook {
+    /// Create an empty agent-loop book.
     fn default() -> Self {
         Self::new()
     }
@@ -780,6 +787,7 @@ impl AgentLoopBook {
         ))
     }
 
+    /// Transition one loop to a target state with validation.
     fn transition(
         &self,
         loop_id: &str,
@@ -791,6 +799,7 @@ impl AgentLoopBook {
         Ok(snapshot_locked(&record.spec, &inner, record.lock_wait_ns()))
     }
 
+    /// Resolve one loop record, erroring when unknown.
     fn record(&self, loop_id: &str) -> Result<Arc<AgentLoopRecord>, AgentLoopError> {
         self.read_loops()
             .get(loop_id)
@@ -807,6 +816,7 @@ impl AgentLoopBook {
     }
 }
 
+/// Validate a loop spec's identity and bounds fail-closed.
 fn validate_spec(spec: &AgentLoopSpec) -> Result<(), AgentLoopError> {
     for (name, value) in [
         ("loop_id", &spec.loop_id),
@@ -822,6 +832,7 @@ fn validate_spec(spec: &AgentLoopSpec) -> Result<(), AgentLoopError> {
     Ok(())
 }
 
+/// Apply a validated state transition to the loop inner state.
 fn transition(inner: &mut AgentLoopInner, target: AgentLoopState) -> Result<(), AgentLoopError> {
     if !inner.state.can_transition_to(target) {
         return Err(AgentLoopError::InvalidTransition {
@@ -833,6 +844,7 @@ fn transition(inner: &mut AgentLoopInner, target: AgentLoopState) -> Result<(), 
     Ok(())
 }
 
+/// Build a snapshot from already-locked loop state.
 fn snapshot_locked(
     spec: &AgentLoopSpec,
     inner: &AgentLoopInner,
@@ -849,12 +861,14 @@ fn snapshot_locked(
     }
 }
 
+/// Add to an atomic counter, saturating instead of wrapping.
 fn increment_saturating(counter: &AtomicU64, amount: u64) {
     let _ = counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
         Some(current.saturating_add(amount))
     });
 }
 
+/// Reserve command sequence ids for a batch submission.
 fn reserve_commands(inner: &AgentLoopInner, count: u64) -> u64 {
     let command_seq = inner
         .next_command_seq

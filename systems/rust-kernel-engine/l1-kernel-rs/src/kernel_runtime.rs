@@ -51,6 +51,7 @@ pub enum RuntimeTaskState {
 }
 
 impl RuntimeTaskState {
+    /// Return whether the state is terminal (no further transitions).
     fn is_terminal(self) -> bool {
         matches!(
             self,
@@ -197,6 +198,7 @@ struct RuntimeTaskBook {
 }
 
 impl RuntimeTaskBook {
+    /// Build a sharded task book with shared wait metrics.
     fn new(shard_count: u32, metrics: Arc<RuntimeLockWaitMetrics>) -> Self {
         let mut shards = Vec::with_capacity(shard_count as usize);
         for _ in 0..shard_count {
@@ -205,19 +207,23 @@ impl RuntimeTaskBook {
         Self { shards, metrics }
     }
 
+    /// Record a task state under its shard.
     fn insert(&self, handle: ProcessHandle, state: RuntimeTaskState, observed: bool) {
         self.lock_shard(handle, observed)
             .insert(handle.raw(), state);
     }
 
+    /// Read the current state of one task.
     fn state(&self, handle: ProcessHandle) -> Option<RuntimeTaskState> {
         self.lock_shard(handle, false).get(&handle.raw()).copied()
     }
 
+    /// Replace the state of one task.
     fn set_state(&self, handle: ProcessHandle, state: RuntimeTaskState) {
         self.lock_shard(handle, false).insert(handle.raw(), state);
     }
 
+    /// Cancel a task only when it is still ready, returning whether cancelled.
     fn cancel_if_ready(&self, handle: ProcessHandle) -> bool {
         let mut tasks = self.lock_shard(handle, false);
         if tasks.get(&handle.raw()) == Some(&RuntimeTaskState::Ready) {
@@ -228,10 +234,12 @@ impl RuntimeTaskBook {
         }
     }
 
+    /// Drop one task from the book.
     fn remove(&self, handle: ProcessHandle) {
         self.lock_shard(handle, false).remove(&handle.raw());
     }
 
+    /// Collect up to `limit` handles across shards for a reaper sweep.
     fn handles_up_to(&self, limit: usize) -> Vec<ProcessHandle> {
         if limit == 0 {
             return Vec::new();
@@ -251,6 +259,7 @@ impl RuntimeTaskBook {
         handles
     }
 
+    /// Return (total, terminal) task counts across all shards.
     fn snapshot_counts(&self) -> (usize, usize) {
         self.shards.iter().fold((0, 0), |(count, terminal), shard| {
             let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
@@ -261,11 +270,13 @@ impl RuntimeTaskBook {
         })
     }
 
+    /// Zero the observed admission/task-book wait metrics.
     fn reset_observed_wait(&self) {
         self.metrics.admission_wait_ns.store(0, Ordering::Release);
         self.metrics.task_book_wait_ns.store(0, Ordering::Release);
     }
 
+    /// Snapshot the observed lock-wait metrics.
     fn observed_wait(&self) -> RuntimeLockWaitSnapshot {
         RuntimeLockWaitSnapshot {
             admission_wait_ns: self.metrics.admission_wait_ns.load(Ordering::Acquire),
@@ -273,6 +284,7 @@ impl RuntimeTaskBook {
         }
     }
 
+    /// Lock the shard for one handle, optionally recording wait time.
     fn lock_shard(
         &self,
         handle: ProcessHandle,
@@ -750,6 +762,7 @@ impl KernelRuntime {
         self.tasks.observed_wait()
     }
 
+    /// Submit one action, reserving a task and binding lifecycle.
     fn submit_inner(
         &self,
         action: TaskFn,
@@ -772,6 +785,7 @@ impl KernelRuntime {
         Ok(self.runtime_task(handle, result))
     }
 
+    /// Submit a batch, rolling back reservations on partial failure.
     fn submit_batch_inner(
         &self,
         actions: Vec<TaskFn>,
@@ -813,6 +827,7 @@ impl KernelRuntime {
             .collect())
     }
 
+    /// Wrap an action with state transitions and reaping bookkeeping.
     fn bind_action(&self, handle: ProcessHandle, action: TaskFn) -> TaskFn {
         let tasks = Arc::clone(&self.tasks);
         let scheduler = Arc::clone(&self.scheduler);
@@ -833,6 +848,7 @@ impl KernelRuntime {
         })
     }
 
+    /// Build the caller-visible runtime task wrapper.
     fn runtime_task(&self, handle: ProcessHandle, result: TaskHandle) -> RuntimeTask {
         RuntimeTask {
             handle,
@@ -905,6 +921,7 @@ impl KernelRuntime {
         Ok(report)
     }
 
+    /// Reserve one task slot from the scheduler.
     fn reserve_task(&self, observed: bool) -> Result<ProcessHandle, RuntimeError> {
         let handle = self.scheduler.spawn().map_err(RuntimeError::Scheduler)?;
         self.tasks.insert(handle, RuntimeTaskState::Ready, observed);
@@ -916,6 +933,7 @@ impl KernelRuntime {
         Ok(handle)
     }
 
+    /// Reserve a batch of task slots.
     fn reserve_task_batch(
         &self,
         count: usize,
@@ -934,6 +952,7 @@ impl KernelRuntime {
         Ok(handles)
     }
 
+    /// Release reserved slots, undoing a failed batch admission.
     fn rollback_reserved_tasks(&self, handles: &[ProcessHandle]) {
         for handle in handles {
             let _ = self.scheduler.stop_direct(*handle);
@@ -942,6 +961,7 @@ impl KernelRuntime {
         }
     }
 
+    /// Acquire the admission lock, recording wait when observed.
     fn read_admission(&self, observed: bool) -> RwLockReadGuard<'_, ()> {
         if !observed {
             return self
@@ -1054,19 +1074,23 @@ impl Drop for KernelRuntime {
     }
 }
 
+/// Build a sharded task book with fresh wait metrics.
 fn runtime_task_book(shard_count: u32) -> Arc<RuntimeTaskBook> {
     let metrics = Arc::new(RuntimeLockWaitMetrics::default());
     Arc::new(RuntimeTaskBook::new(shard_count, metrics))
 }
 
+/// Map a state-store error into a runtime error.
 fn map_state_store_error(error: StateStoreError) -> RuntimeError {
     RuntimeError::StateStore(error.to_string())
 }
 
+/// Map an execution-store error into a runtime error.
 fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {
     RuntimeError::ExecutionStore(error.to_string())
 }
 
+/// Extract the capability result value, propagating failure.
 fn capability_value(result: CapabilityResult) -> Result<Value, String> {
     if !result.success {
         return Err(result.error);

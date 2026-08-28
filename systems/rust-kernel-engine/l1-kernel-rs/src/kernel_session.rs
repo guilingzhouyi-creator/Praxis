@@ -58,6 +58,7 @@ impl SessionState {
         }
     }
 
+    /// Return whether one session state can legally transition to another.
     fn can_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
@@ -610,19 +611,23 @@ struct SessionShard {
 }
 
 impl SessionShard {
+    /// Return whether a session id is registered in this shard.
     fn contains_key(&self, session_id: &str) -> bool {
         self.sessions.contains_key(session_id)
     }
 
+    /// Look up a session record by id in this shard.
     fn get(&self, session_id: &str) -> Option<&Arc<Session>> {
         self.sessions.get(session_id)
     }
 
+    /// Register a session record, tracking ordered ids.
     fn insert(&mut self, session_id: String, session: Arc<Session>) {
         self.ordered_ids.insert(session_id.clone());
         self.sessions.insert(session_id, session);
     }
 
+    /// Remove a session record, returning the dropped record when present.
     fn remove(&mut self, session_id: &str) -> Option<Arc<Session>> {
         let session = self.sessions.remove(session_id);
         if session.is_some() {
@@ -633,6 +638,7 @@ impl SessionShard {
 }
 
 impl Default for SessionBook {
+    /// Create a session book at the default shard count.
     fn default() -> Self {
         Self::new(SESSION_SHARD_COUNT).expect("default session shard count is valid")
     }
@@ -888,6 +894,7 @@ impl SessionBook {
         ))
     }
 
+    /// Map a session id to its shard using a stable hash.
     fn shard_index(&self, session_id: &str) -> usize {
         let mut hash = 2_166_136_261_u32;
         for byte in session_id.as_bytes() {
@@ -898,6 +905,7 @@ impl SessionBook {
     }
 }
 
+/// Validate a session spec's identity and capacity bounds fail-closed.
 fn validate_spec(spec: &SessionSpec) -> Result<(), SessionError> {
     validate_identity(&spec.session_id, "session_id")?;
     validate_identity(&spec.agent_id, "agent_id")?;
@@ -909,6 +917,7 @@ fn validate_spec(spec: &SessionSpec) -> Result<(), SessionError> {
     Ok(())
 }
 
+/// Reject empty or oversized identities fail-closed.
 fn validate_identity(value: &str, name: &str) -> Result<(), SessionError> {
     if value.is_empty() || value.len() > SESSION_MAX_ID_BYTES {
         return Err(SessionError::InvalidIdentity(name.to_owned()));
@@ -916,6 +925,7 @@ fn validate_identity(value: &str, name: &str) -> Result<(), SessionError> {
     Ok(())
 }
 
+/// Validate message identity and content fields fail-closed.
 fn validate_message_fields(
     message_id: &str,
     role: MessageRole,
@@ -930,6 +940,7 @@ fn validate_message_fields(
     Ok(())
 }
 
+/// Require the writable state before mutating a session.
 fn ensure_writable(state: SessionState) -> Result<(), SessionError> {
     if state == SessionState::Active {
         Ok(())
@@ -938,6 +949,7 @@ fn ensure_writable(state: SessionState) -> Result<(), SessionError> {
     }
 }
 
+/// Reject writes past the session message capacity.
 fn ensure_message_capacity(inner: &SessionInner, spec: &SessionSpec) -> Result<(), SessionError> {
     if inner.messages.len() >= spec.max_messages {
         Err(SessionError::HistoryFull)
@@ -946,6 +958,7 @@ fn ensure_message_capacity(inner: &SessionInner, spec: &SessionSpec) -> Result<(
     }
 }
 
+/// Reject duplicate message ids within one session.
 fn ensure_unique_message_id(inner: &SessionInner, message_id: &str) -> Result<(), SessionError> {
     if inner.message_ids.contains(message_id) {
         Err(SessionError::DuplicateMessage(message_id.to_owned()))
@@ -954,6 +967,7 @@ fn ensure_unique_message_id(inner: &SessionInner, message_id: &str) -> Result<()
     }
 }
 
+/// Append one input message under the already-held lock.
 fn append_input_locked(
     inner: &mut SessionInner,
     spec: &SessionSpec,
@@ -979,6 +993,7 @@ fn append_input_locked(
     Ok(message)
 }
 
+/// Validate a message batch before bulk insertion.
 fn validate_messages(
     messages: &[SessionMessage],
     next_input_seq: u64,

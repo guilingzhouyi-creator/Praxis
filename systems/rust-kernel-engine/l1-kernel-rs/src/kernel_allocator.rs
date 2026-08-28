@@ -326,6 +326,7 @@ impl Allocator {
             .collect()
     }
 
+    /// Render one agent's usage against its limits as a wire map.
     fn usage_locked(&self, state: &AllocatorState, agent_id: &str) -> WireMap {
         let limits = state
             .limits
@@ -529,6 +530,7 @@ impl ResourceLimiter {
         ok([])
     }
 
+    /// Render one agent's usage against its profile as a wire map.
     fn usage_locked(&self, state: &LimiterState, agent_id: &str) -> WireMap {
         let profile = self.profile_for(state, agent_id);
         self.resource_keys
@@ -550,6 +552,7 @@ impl ResourceLimiter {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Resolve the effective resource profile for one agent.
     fn profile_for<'a>(&'a self, state: &'a LimiterState, agent_id: &str) -> &'a ResourceProfile {
         state
             .profiles
@@ -559,6 +562,7 @@ impl ResourceLimiter {
     }
 }
 
+/// Initialize per-agent limits on first use.
 fn ensure_agent(state: &mut AllocatorState, config: &AllocatorConfig, agent_id: &str) {
     state
         .limits
@@ -568,6 +572,7 @@ fn ensure_agent(state: &mut AllocatorState, config: &AllocatorConfig, agent_id: 
     state.usage.entry(agent_id.to_owned()).or_default();
 }
 
+/// Resolve the effective limit for one agent/resource pair.
 fn limit_for(
     state: &AllocatorState,
     config: &AllocatorConfig,
@@ -583,6 +588,7 @@ fn limit_for(
         .unwrap_or(config.fallback_limit)
 }
 
+/// Read the tracked usage for one agent/resource pair.
 fn usage_for(state: &AllocatorState, agent_id: &str, resource: &str) -> u64 {
     state
         .usage
@@ -592,6 +598,7 @@ fn usage_for(state: &AllocatorState, agent_id: &str, resource: &str) -> u64 {
         .unwrap_or(0)
 }
 
+/// Record one allocation, updating usage accounting for the agent.
 fn record_allocation(
     state: &mut AllocatorState,
     agent_id: &str,
@@ -629,6 +636,7 @@ fn record_allocation(
     ])
 }
 
+/// Reclaim one agent's least-recent allocations until within its limits.
 fn reclaim_local(
     state: &mut AllocatorState,
     config: &AllocatorConfig,
@@ -675,6 +683,7 @@ fn reclaim_local(
     reclaimed
 }
 
+/// Select and reclaim a victim allocation under global pressure.
 fn reclaim_victim(
     state: &mut AllocatorState,
     config: &AllocatorConfig,
@@ -729,6 +738,7 @@ fn reclaim_victim(
     freed
 }
 
+/// Map a resource name to its configured profile bound.
 fn profile_limit(profile: &ResourceProfile, resource: &str) -> Option<u64> {
     match resource {
         "workers" => Some(profile.max_workers),
@@ -739,6 +749,7 @@ fn profile_limit(profile: &ResourceProfile, resource: &str) -> Option<u64> {
     }
 }
 
+/// Render a resource profile as a language-neutral wire map.
 fn profile_wire(profile: &ResourceProfile) -> WireMap {
     BTreeMap::from([
         ("max_tokens".to_owned(), json!(profile.max_tokens)),
@@ -749,6 +760,7 @@ fn profile_wire(profile: &ResourceProfile) -> WireMap {
     ])
 }
 
+/// Build a success wire map from ordered fields.
 fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     let mut result = BTreeMap::from_iter(
         fields
@@ -759,6 +771,7 @@ fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     result
 }
 
+/// Build a failure wire map with an error label plus ordered fields.
 fn fail<const N: usize>(error: &str, fields: [(&str, Value); N]) -> WireMap {
     let mut result = BTreeMap::from_iter(
         fields

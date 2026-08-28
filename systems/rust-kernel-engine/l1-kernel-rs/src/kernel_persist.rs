@@ -28,6 +28,7 @@ pub struct EventRecord {
 }
 
 impl EventRecord {
+    /// Build one journal event record with its sequence number.
     fn new(seq: u64, event: impl Into<String>, payload: Value) -> Self {
         Self {
             seq,
@@ -179,6 +180,7 @@ impl EventStore {
     }
 }
 
+/// Replay all journal records from an opened file.
 fn load_records(file: &File) -> io::Result<Vec<EventRecord>> {
     let reader = BufReader::new(file.try_clone()?);
     let mut records = Vec::new();
@@ -211,12 +213,14 @@ fn load_records(file: &File) -> io::Result<Vec<EventRecord>> {
     Ok(records)
 }
 
+/// Append one record to the journal file.
 fn write_record(file: &mut File, record: &EventRecord) -> io::Result<()> {
     serde_json::to_writer(&mut *file, record)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     file.write_all(b"\n")
 }
 
+/// Flush the journal file under the already-held state lock.
 fn flush_locked(state: &mut JournalState) -> io::Result<()> {
     state.file.flush()?;
     state.file.sync_data()?;

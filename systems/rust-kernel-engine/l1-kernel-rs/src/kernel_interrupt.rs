@@ -151,11 +151,13 @@ impl InterruptTable {
 }
 
 impl Default for InterruptTable {
+    /// Create an empty interrupt table.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Normalize optional interrupt payload data to a JSON value.
 fn normalize_data(data: Option<serde_json::Value>) -> serde_json::Value {
     match data {
         Some(value) if !value.is_null() => value,
