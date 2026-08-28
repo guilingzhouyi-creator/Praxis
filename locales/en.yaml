@@ -484,6 +484,14 @@ terminal:
     error: "[Error] {error}"
     unknown_tool: "[Error] Unknown tool: {tool}"
 
+# ── Selector preconnect verdict labels (shared with TS locale-catalog) ──
+selector:
+  denied: "connection denied: {reason}"
+  risk:
+    high: "high injection risk"
+    medium: "medium injection risk"
+    none: "no injection risk"
+
 # ── Core (L3 cell/tool-pipeline user-facing messages) ──
 
 core:

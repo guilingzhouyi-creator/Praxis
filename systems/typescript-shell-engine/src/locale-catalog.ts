@@ -20,7 +20,7 @@ export interface I18nOptions {
   defaultLocale?: string;
 }
 
-/** en dictionary subset — matches locales/en.yaml keys for local builtins. */
+/** en dictionary subset — mirrors locales/en.yaml keys for local builtins. */
 const EN_DICTIONARY: Record<string, string> = {
   "shell.command.help": "Show available commands",
   "shell.command.clear": "Clear the screen",
@@ -28,23 +28,41 @@ const EN_DICTIONARY: Record<string, string> = {
   "shell.command.tools": "List registered tools",
   "shell.command.status": "Show session status",
   "shell.error.unknown_command": "unknown command: /{cmd}",
-  // Terminal dialect display strings (first defined here; the Python3
-  // REPL renders these keys verbatim until locales/*.yaml catch up).
-  "terminal.help.title": "Commands",
-  "terminal.help.more": "{count} more commands",
-  "terminal.tools.total": "{count} tools registered",
-  "terminal.sys.exit": "exit {code}",
+  // Terminal dialect display strings — values synchronized with the
+  // authoritative locales/en.yaml "terminal:" section (never drift).
+  "terminal.banner.title": "Agent OS Terminal — Type 'help' for commands, 'exit' to quit",
+  "terminal.banner.l3a": "/intent <text>  → L3A direct session",
+  "terminal.banner.route": "/intent <text>@<cell>/<agent> → Route to specific Cell/Agent",
+  "terminal.banner.scout": "/scout <task>  → Scout investigation",
+  "terminal.banner.system": "$ <command>  → Raw system command (Bash/PowerShell)",
+  "terminal.banner.tool": "<tool> <args>  → Tool execution (aliases: rf→read_file)",
+  "terminal.help.title": "Commands:",
+  "terminal.help.more": "... and {count} more tools (type 'tools' to list all)",
+  "terminal.tools.total": "Total: {count} tools",
+  "terminal.l3a.parsing": "[L3A] Parsing: {intent}",
+  "terminal.l3a.routing": "[L3A] Routing to {target}/{agent}: {intent}",
+  "terminal.l3a.card": "[L3A] Card: {card_id}",
+  "terminal.l3a.domain": "        Domain: {domain}",
+  "terminal.l3a.agent": "        Agent: {agent}",
+  "terminal.l3a.type": "        Type: {card_type}",
+  "terminal.l3a.error": "[L3A] Error: {error}",
+  "terminal.scout.usage": "[Scout] Usage: !scout <task>",
+  "terminal.scout.commissioning": "[Scout] Commissioning: {task}",
+  "terminal.scout.disabled": "[Scout] Delegation disabled: scout is not available to {agent}",
+  "terminal.scout.status": "[Scout] Status: {status}",
+  "terminal.scout.findings": "[Scout] Findings ({count}):",
+  "terminal.scout.error": "[Scout] Error: {error}",
   "terminal.sys.stderr": "[stderr] {line}",
-  "terminal.exec.error": "execution failed: {error}",
-  "terminal.exec.result": "{result}",
-  "terminal.l3a.card": "card {card_id}",
-  "terminal.l3a.domain": "domain {domain}",
-  "terminal.l3a.agent": "agent {agent_id}",
-  "terminal.l3a.type": "type {card_type}",
-  "terminal.l3a.error": "intent failed: {error}",
-  "terminal.scout.status": "scout status: {status}",
-  "terminal.scout.findings": "{count} findings",
-  "terminal.scout.error": "scout failed: {error}",
+  "terminal.sys.exit": "[Exit] {code}",
+  "terminal.sys.timeout": "[Error] Command timed out after {timeout}s",
+  "terminal.sys.shell_not_found": "[Error] Shell not found",
+  "terminal.sys.error": "[Error] {error}",
+  "terminal.exec.prefix": "[Exec] {tool} {args}",
+  "terminal.exec.result": "  Result: {result}",
+  "terminal.exec.error": "[Error] {error}",
+  "terminal.exec.unknown_tool": "[Error] Unknown tool: {tool}",
+  // Selector preconnect verdict labels (defined here first; Python3
+  // locales/*.yaml carry the same keys).
   "selector.denied": "connection denied: {reason}",
   "selector.risk.high": "high injection risk",
   "selector.risk.medium": "medium injection risk",
