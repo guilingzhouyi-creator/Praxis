@@ -35,6 +35,49 @@ fn state_transitions_are_explicit() {
 }
 
 #[test]
+fn registration_rejects_blank_and_nul_names() {
+    let registry = ComponentRegistry::new();
+    assert_eq!(
+        registry.register(ComponentSpec {
+            name: "   ".to_owned(),
+            ..ComponentSpec::default()
+        }),
+        Err(BusPlanError::EmptyName)
+    );
+    assert_eq!(
+        registry.register(ComponentSpec {
+            name: "bad\0name".to_owned(),
+            ..ComponentSpec::default()
+        }),
+        Err(BusPlanError::InvalidName)
+    );
+    assert!(registry.names().is_empty());
+}
+
+#[test]
+fn duplicate_dependency_declarations_are_one_graph_edge() {
+    let registry = ComponentRegistry::new();
+    registry
+        .register(ComponentSpec {
+            name: "base".to_owned(),
+            ..ComponentSpec::default()
+        })
+        .expect("base registers");
+    registry
+        .register(ComponentSpec {
+            name: "consumer".to_owned(),
+            depends_on: vec!["base".to_owned()],
+            optional_deps: vec!["base".to_owned()],
+            ..ComponentSpec::default()
+        })
+        .expect("consumer registers");
+
+    let plan = registry.plan(&[]).expect("duplicate edge is harmless");
+    assert_eq!(plan.graph["consumer"], ["base", "base"]);
+    assert_eq!(plan.order, ["base", "consumer"]);
+}
+
+#[test]
 fn shared_bus_vectors_match_python_reference() {
     let vectors: Vec<BusVector> = serde_json::from_str(include_str!(
         "../../../../../tests/fixtures/kernel_bus_vectors.json"

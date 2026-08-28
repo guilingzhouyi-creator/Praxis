@@ -3,7 +3,7 @@
 //! Component callbacks, event routing, health providers, child-bus ownership,
 //! and thread or process lifecycle remain Python adapter responsibilities.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -87,6 +87,8 @@ pub struct DependencyPlan {
 pub enum BusPlanError {
     /// A component declared no name.
     EmptyName,
+    /// A component name contains a NUL byte.
+    InvalidName,
     /// The dependency graph contains a cycle.
     Cycle(Vec<String>),
 }
@@ -95,6 +97,7 @@ impl fmt::Display for BusPlanError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyName => write!(f, "component has empty name"),
+            Self::InvalidName => write!(f, "component name contains NUL"),
             Self::Cycle(names) => write!(f, "circular dependency detected among: {names:?}"),
         }
     }
@@ -127,8 +130,11 @@ impl ComponentRegistry {
     ///
     /// BusError on duplicate component registration or invalid metadata.
     pub fn register(&self, spec: ComponentSpec) -> Result<(), BusPlanError> {
-        if spec.name.is_empty() {
+        if spec.name.trim().is_empty() {
             return Err(BusPlanError::EmptyName);
+        }
+        if spec.name.contains('\0') {
+            return Err(BusPlanError::InvalidName);
         }
         let mut state = self.lock_state();
         if let Some(index) = state
@@ -255,45 +261,60 @@ fn topological_sort(
     names: &[String],
     graph: &BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<String>, BusPlanError> {
-    let mut in_degree = names
+    // Build reverse edges once. The former implementation rescanned every
+    // component after each pop, which made a long registry quadratic.
+    // Registration order remains the tie breaker because both the outer build
+    // loop and each dependent list follow `names`.
+    let indexes = names
         .iter()
-        .map(|name| (name.clone(), 0_usize))
-        .collect::<BTreeMap<_, _>>();
-    for name in names {
-        if let Some(dependencies) = graph.get(name) {
-            for dependency in dependencies {
-                if in_degree.contains_key(dependency) {
-                    *in_degree.get_mut(name).expect("name was initialized") += 1;
-                }
+        .enumerate()
+        .map(|(index, name)| (name.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    let mut in_degree = vec![0_usize; names.len()];
+    let mut dependents = vec![Vec::<usize>::new(); names.len()];
+    for (candidate, name) in names.iter().enumerate() {
+        let Some(dependencies) = graph.get(name) else {
+            continue;
+        };
+        // A dependency declared in both hard and optional lists is one graph
+        // edge. Preserve the public graph declaration, but do not let a
+        // duplicate edge manufacture a false cycle.
+        let mut seen = HashSet::new();
+        for dependency in dependencies {
+            let Some(&dependency_index) = indexes.get(dependency.as_str()) else {
+                continue;
+            };
+            if !seen.insert(dependency_index) {
+                continue;
             }
+            in_degree[candidate] += 1;
+            dependents[dependency_index].push(candidate);
         }
     }
     let mut queue = names
         .iter()
-        .filter(|name| in_degree.get(*name) == Some(&0))
-        .cloned()
+        .enumerate()
+        .filter(|(index, _)| in_degree[*index] == 0)
+        .map(|(index, _)| index)
         .collect::<VecDeque<_>>();
     let mut order = Vec::with_capacity(names.len());
-    while let Some(name) = queue.pop_front() {
-        order.push(name.clone());
-        for candidate in names {
-            if graph.get(candidate).is_some_and(|dependencies| {
-                dependencies.iter().any(|dependency| dependency == &name)
-            }) {
-                let degree = in_degree
-                    .get_mut(candidate)
-                    .expect("candidate was initialized");
-                *degree = degree.saturating_sub(1);
-                if *degree == 0 {
-                    queue.push_back(candidate.clone());
-                }
+    let mut emitted = vec![false; names.len()];
+    while let Some(index) = queue.pop_front() {
+        emitted[index] = true;
+        order.push(names[index].clone());
+        for &candidate in &dependents[index] {
+            in_degree[candidate] = in_degree[candidate].saturating_sub(1);
+            if in_degree[candidate] == 0 {
+                queue.push_back(candidate);
             }
         }
     }
     if order.len() != names.len() {
         let cycle = names
             .iter()
-            .filter(|name| !order.contains(name))
+            .enumerate()
+            .filter(|(index, _)| !emitted[*index])
+            .map(|(_, name)| name)
             .cloned()
             .collect();
         return Err(BusPlanError::Cycle(cycle));

@@ -598,7 +598,10 @@ clock access remain Python-owned.
 
 The isolated `bus` module mirrors SystemBus metadata, registration replacement
 in place, parent-available dependency filtering, stable Kahn planning, cycle
-errors, and explicit component state labels. The shared
+errors, and explicit component state labels. Registration rejects blank or
+NUL-containing names, and planning uses a stable O(V+E) reverse-edge pass;
+duplicate hard and optional declarations are one ordering edge while remaining
+visible in the graph snapshot. The shared
 `tests/fixtures/kernel_bus_vectors.json` covers these values. Event handlers,
 child-bus routing, health/stats providers, callbacks, and actual component
 lifecycle ownership remain Python-owned.

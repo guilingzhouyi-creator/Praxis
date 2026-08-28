@@ -895,7 +895,10 @@ provider calls remain Python adapter responsibilities.
 The SystemBus candidate uses `tests/fixtures/kernel_bus_vectors.json` to freeze
 component metadata defaults, in-place duplicate replacement, parent-available
 dependency filtering, stable topological ordering, cycle rejection, and state
-labels. It consumes only already-resolved metadata and dependency names;
+labels. Registration rejects blank or NUL-containing component names. Planning
+uses one reverse-edge build and a stable O(V+E) Kahn pass; duplicate hard and
+optional declarations remain visible in the public graph but count as one
+dependency edge. It consumes only already-resolved metadata and dependency names;
 callbacks, event routing, child-bus mounting, health/stats providers, logging,
 and runtime lifecycle ownership remain Python adapter responsibilities.
 

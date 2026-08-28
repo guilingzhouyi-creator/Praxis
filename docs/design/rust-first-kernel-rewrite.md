@@ -701,6 +701,13 @@ registry. Callback panics remain contained and are counted through the
 Rust-only `callback_panics()` diagnostic; the shared Python/Rust
 `EventBusStats` parity shape is unchanged.
 
+The SystemBus candidate now rejects blank or NUL-containing component names
+before mutating its metadata table. Its dependency planner builds reverse edges
+once for a stable O(V+E) Kahn pass instead of rescanning every registered
+component after each pop. Duplicate hard and optional declarations retain
+their wire graph entries but are treated as one ordering edge, preventing a
+false cycle while preserving registration-order tie breaking.
+
 The synchronization candidate now assigns monotonically increasing tickets to
 queued writers. A writer can acquire only when its ticket reaches the head;
 timeout removal advances the queue and wakes successors. This closes writer
