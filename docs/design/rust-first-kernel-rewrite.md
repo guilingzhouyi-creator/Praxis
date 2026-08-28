@@ -385,6 +385,16 @@ prompt content, persistence, events, and API routing in adapters. No Python
 FFI, boot integration, Port replacement, or production state migration is part
 of this work. Its shared vector intentionally covers only authorization and
 mutation lifecycle, not prompt bytes, random UID bodies, or Python persistence.
+
+The follow-on `identity_binding::IdentityBindingStore` is the first durable
+Rust metadata slice for this boundary. It writes a versioned
+`BindingCheckpoint` containing only bounded identity-routing metadata, validates
+the complete document before replacement, flushes a unique temporary sibling,
+and restores the prior in-memory checkpoint when an atomic replacement fails.
+Prompt fragments, Python persistence formats, cross-process locks, and
+production identity authority remain outside the candidate; this closes only
+the R4 metadata persistence mechanism.
+
 The following R3 mechanism slice is the transport-neutral `network::PeerBook`:
 clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus

@@ -1278,6 +1278,18 @@ bind, unbind, or clear delta is applied to the current durable JSON state.
 Each replacement uses a uniquely named sibling temporary file, so concurrent
 writers never share a `.tmp` path and unrelated bindings remain intact.
 
+The Rust `identity_binding::IdentityBindingStore` now closes the corresponding
+clean-break metadata seam with a versioned `BindingCheckpoint`. It persists only
+bounded `(cell, role, identity_id, domain_tags, max_chars, revision, updated_by)`
+metadata, rejects unsupported versions, duplicate identities, unsorted tags,
+invalid budgets, and per-Cell overflow before replacing the in-memory registry,
+and atomically flushes a unique sibling temporary file before rename. A failed
+replacement restores the previous checkpoint in memory; a rollback failure is
+reported explicitly. Prompt fragments, identity definitions, Python state
+imports, cross-process locking, and L3/API routing remain outside this
+candidate, so this is an R4 persistence mechanism and not a production
+identity authority.
+
 ## Key constants (params)
 
 - `PROCESS_DEFAULT_RING`, `PROCESS_AUDIT_MAX`, `PROCESS_TABLE_MAX`

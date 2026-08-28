@@ -237,10 +237,13 @@ It does not emit EventBus signals or own SSE/WS/webhook delivery.
 The `identity_binding` module owns only Rust-native `(cell, role)` metadata:
 write authorization, per-Cell capacity, stable identity IDs across rebinds,
 bounded domain tags, monotonic revisions, and deterministic snapshots. Prompt
-fragments, identity definitions, persistence, event emission, singleton
-ownership, and API/L2Shell routing stay outside the kernel candidate. The UID
-issuer supplies the first identity ID; the binding registry never accepts a
-client replacement on rebind.
+fragments and identity definitions stay outside the kernel candidate. Its
+`IdentityBindingStore` adds a versioned metadata-only checkpoint with strict
+validation, atomic replacement, and in-memory rollback if a durable write
+fails; Python persistence bytes, cross-process locking, event emission,
+singleton ownership, and API/L2Shell routing remain host-owned. The UID issuer
+supplies the first identity ID; the binding registry never accepts a client
+replacement on rebind.
 
 `tests/fixtures/kernel_identity_binding_vectors.json` and the matching Rust
 integration/Python adapter tests freeze only authorization and mutation

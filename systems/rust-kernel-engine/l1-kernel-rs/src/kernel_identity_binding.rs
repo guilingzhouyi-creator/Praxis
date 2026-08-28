@@ -6,7 +6,12 @@
 //! kernel state ownership.
 
 use std::collections::BTreeMap;
-use std::sync::{PoisonError, RwLock};
+use std::fmt::{Display, Formatter};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex as StdMutex, PoisonError, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +23,8 @@ pub const DEFAULT_MAX_FRAGMENT_CHARS: usize = 1_200;
 pub const DEFAULT_MAX_DOMAIN_TAGS: usize = 16;
 /// Default minimum caller clearance for a binding write.
 pub const DEFAULT_MIN_WRITE_CLEARANCE: u8 = 3;
+/// Version of the Rust-owned identity-binding checkpoint document.
+pub const IDENTITY_BINDING_DOCUMENT_VERSION: u32 = 1;
 
 /// Policy for bounded binding metadata and authorization.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -180,6 +187,130 @@ pub struct BindingRecord {
     /// Caller identity recorded for audit correlation.
     /// Last writer identity.
     pub updated_by: String,
+}
+
+/// Versioned Rust-owned checkpoint for identity-binding metadata.
+///
+/// Prompt fragments and identity definitions are deliberately absent. Those
+/// values remain L3 policy data; this checkpoint contains only the bounded
+/// metadata required to restore identity correlation and routing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BindingCheckpoint {
+    /// Checkpoint schema version.
+    pub document_version: u32,
+    /// Monotonic registry revision captured by this checkpoint.
+    pub revision: u64,
+    /// Deterministically ordered binding records.
+    pub records: Vec<BindingRecord>,
+}
+
+impl BindingCheckpoint {
+    fn validate(&self, policy: &BindingPolicy) -> Result<BindingState, &'static str> {
+        if self.document_version != IDENTITY_BINDING_DOCUMENT_VERSION {
+            return Err("unsupported identity-binding document version");
+        }
+        let mut records = BTreeMap::new();
+        for record in &self.records {
+            if record.cell_id.trim().is_empty()
+                || record.role.trim().is_empty()
+                || record.cell_id.contains('\0')
+                || record.role.contains('\0')
+            {
+                return Err("persisted binding cell and role are required");
+            }
+            if record.identity_id.trim().is_empty() || record.identity_id.contains('\0') {
+                return Err("persisted binding identity id is required");
+            }
+            if record.revision == 0 || record.revision > self.revision {
+                return Err("persisted binding revision is invalid");
+            }
+            if record.max_chars == 0 || record.max_chars > policy.max_fragment_chars {
+                return Err("persisted binding fragment budget is invalid");
+            }
+            if record.domain_tags.len() > policy.max_domain_tags
+                || record
+                    .domain_tags
+                    .iter()
+                    .any(|tag| tag.trim().is_empty() || tag.contains('\0'))
+            {
+                return Err("persisted binding domain tags are invalid");
+            }
+            let mut normalized_tags = record.domain_tags.clone();
+            normalized_tags.sort_unstable();
+            normalized_tags.dedup();
+            if normalized_tags != record.domain_tags {
+                return Err("persisted binding domain tags must be sorted and unique");
+            }
+            let key = (record.cell_id.clone(), record.role.clone());
+            if records.insert(key, record.clone()).is_some() {
+                return Err("duplicate persisted identity binding");
+            }
+        }
+        for cell_id in records.keys().map(|(cell_id, _)| cell_id) {
+            if records
+                .keys()
+                .filter(|(existing_cell, _)| existing_cell == cell_id)
+                .count()
+                > policy.max_bindings_per_cell
+            {
+                return Err("persisted binding cap reached for cell");
+            }
+        }
+        Ok(BindingState {
+            revision: self.revision,
+            records,
+        })
+    }
+}
+
+/// Fail-closed errors for the Rust-owned identity-binding store.
+#[derive(Debug)]
+pub enum IdentityBindingStoreError {
+    /// Filesystem operation failed.
+    Io(io::Error),
+    /// The requested checkpoint path is empty, malformed, or a directory.
+    InvalidPath(PathBuf),
+    /// The checkpoint bytes could not be decoded or validated.
+    InvalidDocument { path: PathBuf, message: String },
+    /// The in-memory registry rejected a mutation or checkpoint.
+    Registry(String),
+    /// A failed durable mutation could not restore the prior memory state.
+    RollbackFailed { path: PathBuf, message: String },
+}
+
+impl Display for IdentityBindingStoreError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(error) => write!(formatter, "identity-binding store I/O failed: {error}"),
+            Self::InvalidPath(path) => write!(
+                formatter,
+                "identity-binding checkpoint path is invalid: {}",
+                path.display()
+            ),
+            Self::InvalidDocument { path, message } => write!(
+                formatter,
+                "invalid identity-binding checkpoint {}: {message}",
+                path.display()
+            ),
+            Self::Registry(message) => write!(
+                formatter,
+                "identity-binding registry rejected operation: {message}"
+            ),
+            Self::RollbackFailed { path, message } => write!(
+                formatter,
+                "identity-binding rollback failed for {}: {message}",
+                path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for IdentityBindingStoreError {}
+
+impl From<io::Error> for IdentityBindingStoreError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -359,17 +490,47 @@ impl IdentityBindingRegistry {
             .revision
     }
 
+    /// Capture a versioned checkpoint containing only durable metadata.
+    pub fn checkpoint(&self) -> BindingCheckpoint {
+        let state = self.state.read().unwrap_or_else(PoisonError::into_inner);
+        BindingCheckpoint {
+            document_version: IDENTITY_BINDING_DOCUMENT_VERSION,
+            revision: state.revision,
+            records: state.records.values().cloned().collect(),
+        }
+    }
+
+    /// Restore a previously validated metadata checkpoint.
+    ///
+    /// The checkpoint replaces the registry only after all records have been
+    /// validated, so malformed or foreign state cannot partially mutate the
+    /// in-memory binding table.
+    pub fn restore_checkpoint(&self, checkpoint: BindingCheckpoint) -> Result<(), &'static str> {
+        let next = checkpoint.validate(&self.policy)?;
+        let mut state = self.state.write().unwrap_or_else(PoisonError::into_inner);
+        *state = next;
+        Ok(())
+    }
+
     fn validate_spec<'a>(
         spec: &'a BindingSpec,
         policy: &BindingPolicy,
     ) -> Result<(&'a str, &'a str), &'static str> {
-        if spec.cell_id.trim().is_empty() || spec.role.trim().is_empty() {
+        if spec.cell_id.trim().is_empty()
+            || spec.role.trim().is_empty()
+            || spec.cell_id.contains('\0')
+            || spec.role.contains('\0')
+        {
             return Err("binding cell and role are required");
         }
         if spec.domain_tags.len() > policy.max_domain_tags {
             return Err("binding domain tag cap exceeded");
         }
-        if spec.domain_tags.iter().any(|tag| tag.trim().is_empty()) {
+        if spec
+            .domain_tags
+            .iter()
+            .any(|tag| tag.trim().is_empty() || tag.contains('\0'))
+        {
             return Err("binding domain tags must not be empty");
         }
         Ok((spec.cell_id.as_str(), spec.role.as_str()))
@@ -400,4 +561,254 @@ impl Default for IdentityBindingRegistry {
     fn default() -> Self {
         Self::new(BindingPolicy::default()).expect("default identity binding policy is valid")
     }
+}
+
+/// Atomic filesystem-backed identity-binding metadata registry.
+///
+/// The store owns only the Rust checkpoint file. Writes use a unique sibling
+/// temporary file, flush it, and atomically rename it into place. Mutations
+/// publish the in-memory state only after the durable replacement succeeds;
+/// failed replacements restore the previous checkpoint or return an explicit
+/// rollback failure. Cross-process policy and prompt resolution remain host
+/// responsibilities.
+pub struct IdentityBindingStore {
+    path: PathBuf,
+    registry: IdentityBindingRegistry,
+    mutation_lock: StdMutex<()>,
+}
+
+impl IdentityBindingStore {
+    /// Open a Rust-owned identity-binding checkpoint or an empty registry.
+    pub fn open(
+        path: impl AsRef<Path>,
+        policy: BindingPolicy,
+    ) -> Result<Self, IdentityBindingStoreError> {
+        let path = path.as_ref().to_path_buf();
+        validate_store_path(&path)?;
+        let registry = IdentityBindingRegistry::new(policy)
+            .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()))?;
+        if path.exists() {
+            if path.is_dir() {
+                return Err(IdentityBindingStoreError::InvalidPath(path));
+            }
+            let checkpoint = read_checkpoint(&path)?;
+            registry.restore_checkpoint(checkpoint).map_err(|message| {
+                IdentityBindingStoreError::InvalidDocument {
+                    path: path.clone(),
+                    message: message.to_owned(),
+                }
+            })?;
+        }
+        Ok(Self {
+            path,
+            registry,
+            mutation_lock: StdMutex::new(()),
+        })
+    }
+
+    /// Return the checkpoint path owned by this store.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Return the immutable registry policy.
+    pub fn policy(&self) -> &BindingPolicy {
+        self.registry.policy()
+    }
+
+    /// Return a cloned record from the in-memory registry.
+    pub fn get(&self, cell_id: &str, role: &str) -> Option<BindingRecord> {
+        self.registry.get(cell_id, role)
+    }
+
+    /// Return deterministic metadata records from the in-memory registry.
+    pub fn snapshot(&self) -> Vec<BindingRecord> {
+        self.registry.snapshot()
+    }
+
+    /// Return the current in-memory mutation revision.
+    pub fn revision(&self) -> u64 {
+        self.registry.revision()
+    }
+
+    /// Return the current versioned metadata checkpoint.
+    pub fn checkpoint(&self) -> BindingCheckpoint {
+        self.registry.checkpoint()
+    }
+
+    /// Persist the current checkpoint without mutating registry state.
+    pub fn persist(&self) -> Result<(), IdentityBindingStoreError> {
+        let _guard = self
+            .mutation_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.persist_checkpoint_locked(&self.registry.checkpoint())
+    }
+
+    /// Reload and validate the checkpoint currently present on disk.
+    pub fn reload(&self) -> Result<(), IdentityBindingStoreError> {
+        let _guard = self
+            .mutation_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if !self.path.exists() {
+            return self
+                .registry
+                .restore_checkpoint(BindingCheckpoint {
+                    document_version: IDENTITY_BINDING_DOCUMENT_VERSION,
+                    revision: 0,
+                    records: Vec::new(),
+                })
+                .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()));
+        }
+        let checkpoint = read_checkpoint(&self.path)?;
+        self.registry
+            .restore_checkpoint(checkpoint)
+            .map_err(|message| IdentityBindingStoreError::InvalidDocument {
+                path: self.path.clone(),
+                message: message.to_owned(),
+            })
+    }
+
+    /// Durably upsert one metadata binding.
+    pub fn upsert(
+        &self,
+        spec: BindingSpec,
+        principal: &WritePrincipal,
+    ) -> Result<BindingRecord, IdentityBindingStoreError> {
+        let _guard = self
+            .mutation_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let previous = self.registry.checkpoint();
+        let record = self
+            .registry
+            .upsert(spec, principal)
+            .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()))?;
+        if let Err(error) = self.persist_checkpoint_locked(&self.registry.checkpoint()) {
+            return Err(self.rollback_after_failure(previous, error));
+        }
+        Ok(record)
+    }
+
+    /// Durably remove one metadata binding.
+    pub fn unbind(
+        &self,
+        cell_id: &str,
+        role: &str,
+        principal: &WritePrincipal,
+    ) -> Result<bool, IdentityBindingStoreError> {
+        let _guard = self
+            .mutation_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let previous = self.registry.checkpoint();
+        let removed = self
+            .registry
+            .unbind(cell_id, role, principal)
+            .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()))?;
+        if let Err(error) = self.persist_checkpoint_locked(&self.registry.checkpoint()) {
+            return Err(self.rollback_after_failure(previous, error));
+        }
+        Ok(removed)
+    }
+
+    /// Durably remove all metadata bindings belonging to one Cell.
+    pub fn clear_cell(
+        &self,
+        cell_id: &str,
+        principal: &WritePrincipal,
+    ) -> Result<usize, IdentityBindingStoreError> {
+        let _guard = self
+            .mutation_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let previous = self.registry.checkpoint();
+        let removed = self
+            .registry
+            .clear_cell(cell_id, principal)
+            .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()))?;
+        if let Err(error) = self.persist_checkpoint_locked(&self.registry.checkpoint()) {
+            return Err(self.rollback_after_failure(previous, error));
+        }
+        Ok(removed)
+    }
+
+    fn persist_checkpoint_locked(
+        &self,
+        checkpoint: &BindingCheckpoint,
+    ) -> Result<(), IdentityBindingStoreError> {
+        checkpoint
+            .validate(self.registry.policy())
+            .map_err(|message| IdentityBindingStoreError::Registry(message.to_owned()))?;
+        let bytes = serde_json::to_vec(checkpoint).map_err(|error| {
+            IdentityBindingStoreError::InvalidDocument {
+                path: self.path.clone(),
+                message: error.to_string(),
+            }
+        })?;
+        atomic_write(&self.path, &bytes)
+    }
+
+    fn rollback_after_failure(
+        &self,
+        previous: BindingCheckpoint,
+        error: IdentityBindingStoreError,
+    ) -> IdentityBindingStoreError {
+        if let Err(rollback_error) = self.registry.restore_checkpoint(previous) {
+            return IdentityBindingStoreError::RollbackFailed {
+                path: self.path.clone(),
+                message: format!("{error}; restore failed: {rollback_error}"),
+            };
+        }
+        error
+    }
+}
+
+fn validate_store_path(path: &Path) -> Result<(), IdentityBindingStoreError> {
+    if path.as_os_str().is_empty() || path.to_string_lossy().contains('\0') {
+        return Err(IdentityBindingStoreError::InvalidPath(path.to_path_buf()));
+    }
+    Ok(())
+}
+
+fn read_checkpoint(path: &Path) -> Result<BindingCheckpoint, IdentityBindingStoreError> {
+    let mut file = File::open(path)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
+    serde_json::from_slice(&bytes).map_err(|error| IdentityBindingStoreError::InvalidDocument {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })
+}
+
+fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), IdentityBindingStoreError> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| IdentityBindingStoreError::InvalidPath(path.to_path_buf()))?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    let temporary = parent.join(format!(".{file_name}.tmp-{}-{nonce}", std::process::id()));
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .truncate(true)
+            .write(true)
+            .open(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&temporary, path)?;
+        let directory = File::open(parent)?;
+        let _ = directory.sync_all();
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map_err(IdentityBindingStoreError::Io)
 }

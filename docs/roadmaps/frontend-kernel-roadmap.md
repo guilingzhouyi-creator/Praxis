@@ -503,8 +503,12 @@ hysteresis/cooldown、六类 schema stamp、ordered migration 与 fail-closed �
 ID 且失败替换保留旧快照；共享 `kernel_constitution_vectors.json` 只冻结规则元数据，不接管 Markdown、姿态
 provider 或生产 policy routing。
 `identity_binding` Rust candidate 已收敛 `(cell, role)` 元数据、
-fail-closed 写门、Cell 容量、UID rebind 稳定性、revision 与确定性 snapshot；prompt/definition、持久化、
-事件和 API/L2Shell 仍由适配器持有，不能作为 Python registry 的兼容迁移。
+fail-closed 写门、Cell 容量、UID rebind 稳定性、revision 与确定性 snapshot。
+随后新增 `IdentityBindingStore` R4 元数据持久化切片：采用版本化
+`BindingCheckpoint`，只写入 bounded identity-routing metadata，在完整校验后以
+唯一临时文件原子替换，并在写失败时恢复内存 checkpoint；prompt/definition、
+Python persistence bytes、跨进程锁、事件和 API/L2Shell 仍由适配器持有，
+不能作为 Python registry 的兼容迁移。
 随后新增 `network` Rust candidate，已收敛 caller-clocked PeerBook 的 endpoint 校验、self-ignore、timeout、
 loss-once、eviction grace 与 deterministic health/list；TCP/UDP/TLS、socket、EventBus、card sync 和 message
 envelope 仍留在 transport adapter，不授予 Rust runtime authority。

@@ -230,6 +230,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   `tests/fixtures/kernel_identity_binding_vectors.json` is consumed by the
   Rust integration test and the Python adapter test for authorization and
   mutation lifecycle only.
+  `IdentityBindingStore` adds a separate versioned Rust checkpoint with strict
+  metadata validation, atomic replacement, and in-memory rollback on write
+  failure. The checkpoint intentionally excludes prompt content and Python
+  persistence; cross-process locking and production identity authority remain
+  host-owned.
 - The Rust `network` module is a clock-injected `PeerBook` candidate for
   endpoint validation, self-ignore, liveness timeout, loss-once, eviction
   grace, and deterministic health/list views. `kernel_peer_vectors.json` is
