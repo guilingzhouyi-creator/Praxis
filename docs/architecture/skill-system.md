@@ -442,7 +442,7 @@ fail the gate); the guidance graph must stay **acyclic**
 - The 12 universal principles do **not** live in per-skill files — they are
   normalized into `config/skills/_shared/principles.md` and injected by the
   loader at load time (`_strip_universal_principles` + shared-layer injection).
-  Editing a principle touches one file, not 21.
+  Editing a principle touches one file, not 23.
 - `rules` are parsed by `_extract_rules` (DO/DON'T); `procedures` by
   `_extract_procedures` (`{step, description}` — symmetric with the LLM
   SkillArchitect contract `{step, action, description}`).
