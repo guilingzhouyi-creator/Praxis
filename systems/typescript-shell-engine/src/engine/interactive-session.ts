@@ -99,7 +99,7 @@ export function project(frontend: string, state: SessionState): Record<string, u
   return fn(state);
 }
 
-/** One frontend view bound to a session: attach, replay, project. */
+/** One frontend view bound to a session: attach, replay, ack, detach. */
 export class SessionView {
   public lastAcked = -1;
   private identity: Record<string, unknown> = {};
@@ -123,6 +123,23 @@ export class SessionView {
   async replay(sessionId: string, lastAcked = -1): Promise<Message[]> {
     this.lastAcked = lastAcked;
     return this.bridge.replay(sessionId, this.viewId, lastAcked);
+  }
+
+  /**
+   * Advance this view's ack cursor on the host (host keeps the outbox
+   * authority; the client only mirrors the cursor). Idempotent per seq.
+   */
+  async ack(sessionId: string, ackSeq: number): Promise<void> {
+    if (ackSeq <= this.lastAcked) return;
+    this.lastAcked = ackSeq;
+    await this.bridge.ack(ackSeq, this.viewId, sessionId);
+  }
+
+  /** Detach this view from the host session (session state stays on host). */
+  async detach(sessionId: string): Promise<void> {
+    await this.bridge.detach(sessionId, this.viewId);
+    this.lastAcked = -1;
+    this.identity = {};
   }
 
   /** Compose the projection input (identity + unacked events). */

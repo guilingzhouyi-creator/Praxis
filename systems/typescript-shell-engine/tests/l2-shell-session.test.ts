@@ -112,6 +112,42 @@ describe("SessionView end-to-end", () => {
     expect(decodeMessage(received[0]).message?.payload.view_id).toBe("v-1");
     expect(decodeMessage(received[1]).message?.payload.op).toBe("recovery");
   });
+
+  it("acks monotonic (idempotent per seq) and carries the view id", async () => {
+    const received: string[] = [];
+    const bridge = new ProtocolBridge({ sessionId: "s-1", transport: sessionHost(received) });
+    const view = new SessionView("v-1", bridge);
+
+    await view.ack("s-9", 4);
+    expect(view.lastAcked).toBe(4);
+    expect(decodeMessage(received[0]).message).toMatchObject({
+      kind: "ack",
+      payload: { ack_seq: 4, view_id: "v-1" },
+    });
+
+    await view.ack("s-9", 3); // older seq: no-op, no second wire call
+    expect(received).toHaveLength(1);
+    await view.ack("s-9", 5);
+    expect(view.lastAcked).toBe(5);
+    expect(received).toHaveLength(2);
+  });
+
+  it("detaches, resets its cursor and drops the identity", async () => {
+    const received: string[] = [];
+    const bridge = new ProtocolBridge({ sessionId: "s-1", transport: sessionHost(received) });
+    const view = new SessionView("v-1", bridge);
+
+    await view.attach("s-9");
+    await view.ack("s-9", 3);
+    await view.detach("s-9");
+
+    expect(decodeMessage(received[2]).message).toMatchObject({
+      kind: "control",
+      payload: { op: "detach", session_id: "s-9", view_id: "v-1" },
+    });
+    expect(view.lastAcked).toBe(-1);
+    expect(view["identity"]).toEqual({});
+  });
 });
 
 describe("builtins", () => {

@@ -186,6 +186,16 @@ export class SessionManager {
     await this.bridge.ack(ackSeq, viewId, sessionId);
   }
 
+  /** Detach one view: drop the local mirror state + control message to host. */
+  async detach(sessionId: string, viewId: string): Promise<void> {
+    const mux = this.sessions.get(sessionId);
+    if (mux) {
+      mux.detach(viewId);
+      if (mux.listViews().length === 0) this.sessions.delete(sessionId);
+    }
+    await this.bridge.detach(sessionId, viewId);
+  }
+
   /** Replay one view's window: local mirror + recovery control to host. */
   async replay(sessionId: string, viewId: string, lastAcked = -1): Promise<Message[]> {
     const mux = this.multiplexer(sessionId);

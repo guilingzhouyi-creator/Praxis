@@ -201,4 +201,27 @@ describe("SessionManager over a fake bridge", () => {
     expect(events).toEqual([]);
     expect(manager.listSessions()).toContain("s-9");
   });
+
+  it("detach drops the local mirror and forwards the control to the host", async () => {
+    const received: string[] = [];
+    const manager = new SessionManager(fakeBridge(received));
+    await manager.attach("s-9", "web");
+    expect(manager.listSessions()).toContain("s-9");
+
+    await manager.detach("s-9", "web");
+    expect(received[received.length - 1]).toContain('"op":"detach"');
+    expect(received[received.length - 1]).toContain('"session_id":"s-9"');
+    // Last view gone: the empty multiplexer is released from the registry.
+    expect(manager.listSessions()).not.toContain("s-9");
+  });
+
+  it("detach keeps the session while other views are attached", async () => {
+    const received: string[] = [];
+    const manager = new SessionManager(fakeBridge(received));
+    await manager.attach("s-9", "web");
+    await manager.attach("s-9", "tui");
+    await manager.detach("s-9", "web");
+    expect(manager.listSessions()).toContain("s-9");
+    expect(manager.watermark("s-9")).toBe(-1); // tui still attached
+  });
 });
