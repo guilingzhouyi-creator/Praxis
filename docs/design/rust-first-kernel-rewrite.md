@@ -708,6 +708,11 @@ component after each pop. Duplicate hard and optional declarations retain
 their wire graph entries but are treated as one ordering edge, preventing a
 false cycle while preserving registration-order tie breaking.
 
+The string-event schema candidate now applies the same fail-closed identity
+boundary to event names and owners: blank or NUL-containing values are
+rejected before the owner map changes. Conflict rejection, same-owner updates,
+sorted snapshots, and reset remain unchanged.
+
 The synchronization candidate now assigns monotonically increasing tickets to
 queued writers. A writer can acquire only when its ticket reaches the head;
 timeout removal advances the queue and wakes successors. This closes writer

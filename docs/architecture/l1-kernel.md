@@ -829,9 +829,10 @@ candidate performs no clock or thread-pool I/O; Python retains sampling,
 
 The schema candidate uses `tests/fixtures/kernel_schema_vectors.json` to freeze
 owner-conflict rejection, same-owner idempotent updates, sorted snapshots,
-membership checks, and reset. It does not load the L3 event catalog, emit
-signals, or decide event ownership at boot; those remain Python-owned policy
-and registration inputs.
+membership checks, and reset. Event names and owners reject blank or
+NUL-containing identities before mutation. It does not load the L3 event
+catalog, emit signals, or decide event ownership at boot; those remain
+Python-owned policy and registration inputs.
 
 The rule-descriptor candidate uses
 `tests/fixtures/kernel_rule_descriptor_vectors.json` to freeze MUST/SHOULD/MAY

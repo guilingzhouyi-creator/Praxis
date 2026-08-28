@@ -606,6 +606,11 @@ visible in the graph snapshot. The shared
 child-bus routing, health/stats providers, callbacks, and actual component
 lifecycle ownership remain Python-owned.
 
+The isolated `schema` module rejects blank or NUL-containing event names and
+owners before mutation while retaining owner-conflict rejection, same-owner
+updates, sorted snapshots, and reset. The L3 catalog and boot registration
+remain Python-owned.
+
 The isolated `health` module mirrors explicit subsystem-result aggregation:
 status precedence, healthy/degraded/failed counts, subsystem retention, and
 elapsed-time rounding. The shared
