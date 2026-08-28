@@ -30,20 +30,30 @@ class TestTerminalManager:
 
         reset_manager()
         mgr = get_manager()
-        r = mgr.create(cwd=".")
-        assert r.get("success"), f"create failed: {r}"
-        assert "id" in r
+        try:
+            r = mgr.create(cwd=".")
+            assert r.get("success"), f"create failed: {r}"
+            assert "id" in r
+        finally:
+            # The spawned interactive shell must be reaped — without this
+            # the leaked subprocess holds pipes and hangs pytest at exit
+            # when the whole module runs together (single tests pass
+            # because exit happens before the reader thread blocks).
+            mgr.killall()
 
     def test_get_session(self):
         from l2.shell_session import get_manager, reset_manager
 
         reset_manager()
         mgr = get_manager()
-        r = mgr.create()
-        sid = r["id"]
-        sess = mgr.get(sid)
-        assert sess is not None
-        assert sess.id == sid
+        try:
+            r = mgr.create()
+            sid = r["id"]
+            sess = mgr.get(sid)
+            assert sess is not None
+            assert sess.id == sid
+        finally:
+            mgr.killall()
 
     def test_get_manager_singleton(self):
         from l2.shell_session import get_manager, reset_manager
