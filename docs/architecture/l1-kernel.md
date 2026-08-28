@@ -472,6 +472,9 @@ manifest, separate kernel-config and runtime-settings documents, monotonic
 revisions, and per-document atomic rename plus `sync_all`. Missing, foreign,
 divergent, or future roots fail closed; `praxis.yaml`, Python settings,
 engineering-debug policy, and provider wiring remain outside this store.
+Config and setting updates stage a cloned document and publish it in memory
+only after the corresponding atomic write succeeds, so failed writes do not
+advance a revision or expose a value absent from disk.
 
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process

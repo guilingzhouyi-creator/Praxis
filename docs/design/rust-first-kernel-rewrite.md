@@ -486,6 +486,9 @@ clock ownership, and runtime session state remain adapter obligations. The
 `config_store` candidate now supplies the independent JSON manifest/config/
 settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
+Each config/setting mutation uses a staged document and commits the in-memory
+revision only after its atomic file replacement succeeds; a failed write
+therefore leaves the prior value and revision available for a safe retry.
 
 The discovery candidate keeps the same adapter-owned three-tier semantics while
 adding a Rust-owned admission seam: blank, NUL-containing, or overlong

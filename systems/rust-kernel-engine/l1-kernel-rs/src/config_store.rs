@@ -298,9 +298,12 @@ impl ConfigStore {
     pub fn set_config(&mut self, key: impl Into<String>, value: Value) -> Result<(), ConfigError> {
         let key = key.into();
         validate_key(&key)?;
-        self.config.values.insert(key, value);
-        self.config.revision = self.config.revision.saturating_add(1);
-        self.persist_document(CONFIG_FILE, &self.config.clone())
+        let mut next = self.config.clone();
+        next.values.insert(key, value);
+        next.revision = next.revision.saturating_add(1);
+        self.persist_document(CONFIG_FILE, &next)?;
+        self.config = next;
+        Ok(())
     }
 
     /// Set one runtime setting and persist the document.
@@ -311,9 +314,12 @@ impl ConfigStore {
     pub fn set_setting(&mut self, key: impl Into<String>, value: Value) -> Result<(), ConfigError> {
         let key = key.into();
         validate_key(&key)?;
-        self.settings.values.insert(key, value);
-        self.settings.revision = self.settings.revision.saturating_add(1);
-        self.persist_document(SETTINGS_FILE, &self.settings.clone())
+        let mut next = self.settings.clone();
+        next.values.insert(key, value);
+        next.revision = next.revision.saturating_add(1);
+        self.persist_document(SETTINGS_FILE, &next)?;
+        self.settings = next;
+        Ok(())
     }
 
     /// Persist both documents as separate atomic updates.

@@ -105,3 +105,27 @@ fn future_documents_fail_closed_on_reopen() {
     ));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn failed_document_write_keeps_in_memory_revision_and_value_unchanged() {
+    let root = temp_root("rollback");
+    let mut store = ConfigStore::open(&root, 1).expect("fresh config root");
+    let previous = store.config().clone();
+    let config = root.join(CONFIG_FILE);
+    fs::remove_file(&config).expect("remove config");
+    fs::create_dir(&config).expect("block config replacement");
+
+    assert!(store.set_config("scheduler.max_workers", json!(8)).is_err());
+    assert_eq!(store.config(), &previous);
+
+    fs::remove_dir(&config).expect("remove blocking directory");
+    store
+        .set_config("scheduler.max_workers", json!(8))
+        .expect("retry after restoring config target");
+    assert_eq!(store.config().revision, previous.revision + 1);
+    assert_eq!(store.config().values["scheduler.max_workers"], json!(8));
+    drop(store);
+    let reopened = ConfigStore::open(&root, 1).expect("reopen config root");
+    assert_eq!(reopened.config().values["scheduler.max_workers"], json!(8));
+    fs::remove_dir_all(root).expect("remove test root");
+}
