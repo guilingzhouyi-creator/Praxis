@@ -175,4 +175,25 @@ agents:
     const out = await route("/agents", ctx);
     expect(out.kind).toBe("bridge");
   });
+
+  it("propagates the session id to local dispatcher calls", async () => {
+    const dispatcher = new Dispatcher();
+    let seenSession = "";
+    dispatcher.register("status", (args, ctx) => {
+      seenSession = ctx.sessionId;
+      return { kind: "local", data: { ok: true } };
+    });
+    const bridge = new ProtocolBridge({
+      sessionId: "s-default",
+      transport: async () => [],
+    });
+    const ctx: RouteContext = { dispatcher, bridge, sessionId: "s-42" };
+    const out = await route("/status", ctx);
+    expect(out.kind).toBe("local");
+    expect(seenSession).toBe("s-42");
+    // Without an explicit session id, the bridge's configured id is used.
+    const outDefault = await route("/status", { ...ctx, sessionId: undefined });
+    expect(outDefault.kind).toBe("local");
+    expect(seenSession).toBe("s-default");
+  });
 });

@@ -175,6 +175,7 @@ export class CommandCatalog {
   /** Parse commands.yaml text and replace the current metadata (returns count). */
   loadDefaults(yamlText: string): number {
     this.entries.clear();
+    this.namesCache = []; // stale even when the entry COUNT is unchanged
     let current: CommandEntry | null = null;
     let listField: string | null = null;
     const pushListItem = (value: unknown): void => {
@@ -258,6 +259,7 @@ export class CommandCatalog {
     return this.namesCache;
   }
 
+  /** Look up one command entry by canonical name. */
   get(name: string): CommandEntry | undefined {
     return this.entries.get(name);
   }

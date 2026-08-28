@@ -108,6 +108,16 @@ describe("command catalog parsing", () => {
     expect(catalog.commandNames()).toEqual(["x"]);
   });
 
+  it("invalidates the name cache even when the entry count is unchanged", () => {
+    const catalog = parseCommandCatalog("a:\n  category: session\nb:\n  category: session");
+    expect(catalog.commandNames()).toEqual(["a", "b"]);
+    // Same count, different names: the old cache must not be served.
+    catalog.loadDefaults("y:\n  category: session\nz:\n  category: session");
+    expect(catalog.commandNames()).toEqual(["y", "z"]);
+    expect(catalog.has("a")).toBe(false);
+    expect(catalog.get("y")?.category).toBe("session");
+  });
+
   it("keeps helper display limit constant in sync with the reference", () => {
     // SHELL_AUTOCOMPLETE_DISPLAY_LIMIT in kernel params/system.py
     expect(HELP_DISPLAY_LIMIT).toBe(15);
