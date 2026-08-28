@@ -124,6 +124,7 @@ impl CancellationError {
 }
 
 impl Display for CancellationError {
+    /// Render a cancellation error as a human-readable message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         if self.reason.is_empty() {
             formatter.write_str("operation cancelled")

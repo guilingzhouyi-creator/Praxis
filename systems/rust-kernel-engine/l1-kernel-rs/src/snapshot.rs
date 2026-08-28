@@ -32,6 +32,7 @@ pub enum BookSnapshotPageError {
 }
 
 impl fmt::Display for BookSnapshotPageError {
+    /// Render a snapshot-page error as a human-readable message.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidLimit { limit, max } => {

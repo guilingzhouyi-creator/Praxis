@@ -50,6 +50,7 @@ pub struct OutboxRegistry {
 }
 
 impl Default for OutboxRegistry {
+    /// Create an empty outbox registry.
     fn default() -> Self {
         Self::new()
     }

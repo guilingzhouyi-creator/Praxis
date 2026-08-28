@@ -18,6 +18,7 @@ pub struct ProtocolHostConfig {
 }
 
 impl Default for ProtocolHostConfig {
+    /// Apply the default protocol host configuration.
     fn default() -> Self {
         Self {
             max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
@@ -57,6 +58,7 @@ pub enum ProtocolHostError {
 }
 
 impl Display for ProtocolHostError {
+    /// Render a protocol-host error as a human-readable message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::FrameTooLarge {
@@ -86,6 +88,7 @@ pub struct ProtocolHost {
 }
 
 impl Default for ProtocolHost {
+    /// Create a protocol host with the default configuration.
     fn default() -> Self {
         Self::new(ProtocolHostConfig::default())
     }

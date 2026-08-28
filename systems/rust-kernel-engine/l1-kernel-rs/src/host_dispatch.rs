@@ -83,6 +83,7 @@ impl RouterConfig {
 }
 
 impl Default for RouterConfig {
+    /// Apply the default router configuration.
     fn default() -> Self {
         Self {
             intent_buffer_cap: DEFAULT_INTENT_BUFFER_CAP,
@@ -357,6 +358,7 @@ impl HostRouter {
         self.audit.stats()
     }
 
+    /// Route a control message to its session and operation handler.
     fn route_control(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let op = message
             .payload
@@ -379,6 +381,7 @@ impl HostRouter {
         result
     }
 
+    /// Handle the attach control operation.
     fn control_attach(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let session_id = target_session(message);
         let terminal_id = message
@@ -429,6 +432,7 @@ impl HostRouter {
         Ok(vec![event])
     }
 
+    /// Handle the detach control operation.
     fn control_detach(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let session_id = target_session(message);
         let view_id = message
@@ -445,6 +449,7 @@ impl HostRouter {
         Ok(Vec::new())
     }
 
+    /// Handle the resume control operation.
     fn control_resume(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let session_id = target_session(message);
         let mut sessions = self.lock_sessions();
@@ -455,6 +460,7 @@ impl HostRouter {
         Ok(Vec::new())
     }
 
+    /// Handle the recovery control operation.
     fn control_recovery(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let session_id = target_session(message);
         let after = message
@@ -491,6 +497,7 @@ impl HostRouter {
         Ok(vec![event])
     }
 
+    /// Apply an ack to the session's outbox.
     fn apply_ack(&self, message: &Message) -> Result<Vec<Message>, ProtocolError> {
         let session_id = target_session(message);
         let ack_seq = message
@@ -512,6 +519,7 @@ impl HostRouter {
         Ok(Vec::new())
     }
 
+    /// Route an ack message to its owning agent.
     fn route_ack(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let agent_id = self.agent_id_for(&message.session_id);
         let result = self.apply_ack(&message);
@@ -519,6 +527,7 @@ impl HostRouter {
         result
     }
 
+    /// Route an intent message to its owning agent.
     fn route_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let agent_id = self.agent_id_for(&message.session_id);
         let result = self.forward_intent(message);
@@ -526,6 +535,7 @@ impl HostRouter {
         result
     }
 
+    /// Forward an intent to the upstream L3 authority.
     fn forward_intent(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
         let upstream = self.lock_upstream().clone();
         match upstream {
@@ -571,6 +581,7 @@ impl HostRouter {
         self.upstream.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Resolve the owning agent id for a session.
     fn agent_id_for(&self, session_id: &str) -> String {
         if self.lock_sessions().get(session_id).is_some() {
             session_id.to_owned()
@@ -579,6 +590,7 @@ impl HostRouter {
         }
     }
 
+    /// Record a dispatch intent in the audit log.
     fn audit_dispatch(
         &self,
         kind: &str,
@@ -598,6 +610,7 @@ impl HostRouter {
         );
     }
 
+    /// Record a dispatch outcome in the audit log.
     fn audit_outcome(
         &self,
         result: &Result<Vec<Message>, ProtocolError>,
@@ -614,6 +627,7 @@ impl HostRouter {
         }
     }
 
+    /// Build the response envelope for a capability result.
     fn response_envelope(&self, request: &Message, result: &CapabilityResult) -> Message {
         let output = if result.success {
             match result.data.get("echo") {
@@ -656,6 +670,7 @@ impl HostRouter {
         self.denial_envelope(request, error)
     }
 
+    /// Build a result envelope for a session.
     fn envelope(
         &self,
         request: &Message,
@@ -665,6 +680,7 @@ impl HostRouter {
         self.envelope_for_session(request, &request.session_id, kind, payload)
     }
 
+    /// Build a session-targeted result envelope.
     fn envelope_for_session(
         &self,
         request: &Message,

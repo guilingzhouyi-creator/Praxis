@@ -73,6 +73,7 @@ pub struct ProcessAdapter {
 }
 
 impl Default for ProcessAdapter {
+    /// Create a process adapter with default limits.
     fn default() -> Self {
         Self {
             config: ProcessAdapterConfig::standard(),
@@ -159,6 +160,7 @@ impl ProcessAdapter {
         )
     }
 
+    /// Execute a command with bounded capture and timeout.
     fn execute(
         &self,
         mut command: Command,
@@ -240,6 +242,7 @@ struct WaitResult {
     timed_out: bool,
 }
 
+/// Wait for a child with a timeout, polling at a fixed interval.
 fn wait_bounded(child: &mut Child, timeout: Duration, poll_interval: Duration) -> WaitResult {
     let started = Instant::now();
     loop {
@@ -269,6 +272,7 @@ fn wait_bounded(child: &mut Child, timeout: Duration, poll_interval: Duration) -
     }
 }
 
+/// Capture a stream into a bounded buffer on a background thread.
 fn capture_stream<R>(mut reader: R, max_output_bytes: usize) -> JoinHandle<Vec<u8>>
 where
     R: Read + Send + 'static,
@@ -290,6 +294,7 @@ where
     })
 }
 
+/// Join a capture thread and decode its bytes as UTF-8.
 fn join_capture(reader: Option<JoinHandle<Vec<u8>>>) -> String {
     reader
         .and_then(|reader| reader.join().ok())
@@ -297,6 +302,7 @@ fn join_capture(reader: Option<JoinHandle<Vec<u8>>>) -> String {
         .unwrap_or_default()
 }
 
+/// Compose a process result from the wait outcome and captured output.
 fn result_from_wait(wait: WaitResult, stdout: String, stderr: String) -> ProcessResult {
     if wait.timed_out {
         return ProcessResult {
@@ -319,6 +325,7 @@ fn result_from_wait(wait: WaitResult, stdout: String, stderr: String) -> Process
     }
 }
 
+/// Build a structured failure result.
 fn failed_result(error_kind: &str, stderr: &str) -> ProcessResult {
     ProcessResult {
         returncode: PROCESS_RETURN_EXECUTION_ERROR,
@@ -329,6 +336,7 @@ fn failed_result(error_kind: &str, stderr: &str) -> ProcessResult {
     }
 }
 
+/// Apply caller options (cwd, env, limits) to a command.
 fn apply_options(command: &mut Command, options: Option<&ProcessOptions>) {
     let Some(options) = options else {
         return;
@@ -342,6 +350,7 @@ fn apply_options(command: &mut Command, options: Option<&ProcessOptions>) {
     }
 }
 
+/// Report an invalid working directory from options.
 fn invalid_cwd(options: Option<&ProcessOptions>) -> Option<String> {
     let cwd = options.and_then(|options| options.cwd.as_deref())?;
     match Path::new(cwd).metadata() {

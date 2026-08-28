@@ -26,6 +26,7 @@ pub enum TaskState {
 }
 
 impl TaskState {
+    /// Return whether one task state can legally transition to another.
     fn can_transition(self, next: Self) -> bool {
         matches!(
             (self, next),

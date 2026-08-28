@@ -50,6 +50,7 @@ impl SessionLifecycle {
         }
     }
 
+    /// Return whether one session lifecycle state can legally transition.
     fn can_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
@@ -86,6 +87,7 @@ impl SessionBinding {
         Ok(binding)
     }
 
+    /// Validate the lifecycle declaration fail-closed.
     fn validate(&self) -> Result<(), ProtocolError> {
         for (name, value) in [
             ("terminal_id", self.terminal_id.as_str()),
@@ -231,6 +233,7 @@ pub struct SessionRegistry {
 }
 
 impl Default for SessionRegistry {
+    /// Create an empty session registry.
     fn default() -> Self {
         Self::new()
     }
@@ -303,6 +306,7 @@ impl SessionRegistry {
     }
 }
 
+/// Current unix time in whole seconds.
 fn now_epoch_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -96,6 +96,7 @@ pub struct ProcessResult {
 }
 
 impl Default for ProcessResult {
+    /// Create a default process result.
     fn default() -> Self {
         Self {
             returncode: 0,

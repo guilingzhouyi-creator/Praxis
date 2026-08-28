@@ -112,6 +112,7 @@ impl ProcessBenchmarkCommand {
     }
 }
 
+/// Return whether an argument invokes a shell (e.g. `-c`).
 fn is_shell_invocation_switch(argument: &str) -> bool {
     ["-c", "/c", "-command", "/command"]
         .iter()
@@ -587,6 +588,7 @@ pub fn run_agent_loop_batch(
     Ok(report)
 }
 
+/// Run the agent-loop benchmark mode.
 fn run_agent_loop_mode(
     spec: FixedWorkSpec,
     cached_handle: bool,
@@ -731,6 +733,7 @@ pub fn run_process_group(spec: FixedWorkSpec) -> Result<BenchmarkReport, &'stati
     Ok(report)
 }
 
+/// Run one process-group benchmark round.
 fn run_process_group_round(
     total_work: usize,
     worker_count: usize,
@@ -826,6 +829,7 @@ fn run_process_group_round(
     })
 }
 
+/// Run one managed-process benchmark round.
 fn run_managed_process_round(
     total_work: usize,
     worker_count: usize,
@@ -911,6 +915,7 @@ fn run_managed_process_round(
     })
 }
 
+/// Run one process-bridge benchmark round.
 fn run_process_bridge_round(
     total_work: usize,
     worker_count: usize,
@@ -1010,6 +1015,7 @@ fn run_process_bridge_round(
     })
 }
 
+/// Run one process-adapter benchmark round.
 fn run_process_adapter_round(
     total_work: usize,
     worker_count: usize,
@@ -1142,6 +1148,7 @@ pub fn run_terminal_book_batch(
     Ok(report)
 }
 
+/// Run the queue-contention benchmark mode.
 fn run_queue_contention_mode(
     spec: FixedWorkSpec,
     queue_capacity: usize,
@@ -1165,6 +1172,7 @@ fn run_queue_contention_mode(
     Ok(report)
 }
 
+/// Run one terminal-book benchmark round.
 fn run_terminal_book_round(
     total_work: usize,
     worker_count: usize,
@@ -1253,6 +1261,7 @@ fn run_terminal_book_round(
     })
 }
 
+/// Run one terminal-book batch benchmark round.
 fn run_terminal_book_batch_round(
     total_work: usize,
     worker_count: usize,
@@ -1359,6 +1368,7 @@ fn run_terminal_book_batch_round(
     })
 }
 
+/// Run one session-book benchmark round.
 fn run_session_book_round(
     total_work: usize,
     worker_count: usize,
@@ -1436,6 +1446,7 @@ fn run_session_book_round(
     })
 }
 
+/// Run one session-book batch benchmark round.
 fn run_session_book_batch_round(
     total_work: usize,
     worker_count: usize,
@@ -1527,6 +1538,7 @@ fn run_session_book_batch_round(
     })
 }
 
+/// Run one session-book snapshot-page benchmark round.
 fn run_session_book_snapshot_page_round(
     total_work: usize,
     worker_count: usize,
@@ -1622,6 +1634,7 @@ fn run_session_book_snapshot_page_round(
     })
 }
 
+/// Run one agent-loop snapshot-page benchmark round.
 fn run_agent_loop_book_snapshot_page_round(
     total_work: usize,
     worker_count: usize,
@@ -1666,6 +1679,7 @@ fn run_agent_loop_book_snapshot_page_round(
     run_snapshot_page_round(book, total_work, worker_count, round, reader)
 }
 
+/// Run one terminal snapshot-page benchmark round.
 fn run_terminal_book_snapshot_page_round(
     total_work: usize,
     worker_count: usize,
@@ -1708,6 +1722,7 @@ fn run_terminal_book_snapshot_page_round(
     run_snapshot_page_round(book, total_work, worker_count, round, reader)
 }
 
+/// Run one generic snapshot-page benchmark round.
 fn run_snapshot_page_round<B>(
     book: Arc<B>,
     total_work: usize,

@@ -680,6 +680,7 @@ impl ProcessGroupBook {
             .collect()
     }
 
+    /// Build bounded reaper plans across groups for a sweep.
     fn reaper_plans(&self, max_groups: usize, max_members: usize) -> (u64, Vec<ReaperPlan>) {
         let state = self.lock_state();
         let mut remaining = max_members;
@@ -834,6 +835,7 @@ impl ProcessReaper {
     }
 }
 
+/// Reject empty, oversized or NUL-containing group names fail-closed.
 fn validate_name(name: &str) -> Result<(), ProcessGroupError> {
     if name.is_empty() || name.len() > PROCESS_GROUP_MAX_NAME_BYTES || name.contains('\0') {
         Err(ProcessGroupError::InvalidInput("name"))
@@ -842,10 +844,12 @@ fn validate_name(name: &str) -> Result<(), ProcessGroupError> {
     }
 }
 
+/// Bound a reason string to the max name width.
 fn bounded_reason(reason: String) -> String {
     reason.chars().take(PROCESS_GROUP_MAX_NAME_BYTES).collect()
 }
 
+/// Allocate the next group id, failing at capacity.
 fn next_group_id(state: &mut GroupBookState) -> Result<ProcessGroupId, ProcessGroupError> {
     let id = ProcessGroupId::new(state.next_id).ok_or(ProcessGroupError::Capacity)?;
     state.next_id = state
@@ -855,6 +859,7 @@ fn next_group_id(state: &mut GroupBookState) -> Result<ProcessGroupId, ProcessGr
     Ok(id)
 }
 
+/// Map a member terminal outcome to its final state.
 fn terminal_state(outcome: MemberTerminal) -> GroupMemberState {
     match outcome {
         MemberTerminal::Exited(returncode) => GroupMemberState::Exited { returncode },
@@ -867,6 +872,7 @@ fn terminal_state(outcome: MemberTerminal) -> GroupMemberState {
     }
 }
 
+/// Mark one member terminal within its group record.
 fn mark_terminal_member(
     group: &mut ProcessGroupRecord,
     handle: ProcessHandle,
@@ -890,6 +896,7 @@ fn mark_terminal_member(
     Ok(())
 }
 
+/// Build a stable snapshot of one process group.
 fn snapshot(group: &ProcessGroupRecord) -> ProcessGroupSnapshot {
     ProcessGroupSnapshot {
         contract_version: PROCESS_GROUP_CONTRACT_VERSION,
@@ -911,6 +918,7 @@ fn snapshot(group: &ProcessGroupRecord) -> ProcessGroupSnapshot {
     }
 }
 
+/// Derive the termination plan for one group.
 fn termination_plan(group: &ProcessGroupRecord) -> ProcessGroupTerminationPlan {
     ProcessGroupTerminationPlan {
         contract_version: PROCESS_GROUP_CONTRACT_VERSION,

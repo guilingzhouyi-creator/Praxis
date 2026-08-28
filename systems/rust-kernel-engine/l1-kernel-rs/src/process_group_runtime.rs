@@ -375,6 +375,7 @@ impl ProcessGroupRuntime {
         Ok(self.groups.snapshot(group)?)
     }
 
+    /// Require an active group state before runtime operations.
     fn ensure_active(&self, group: ProcessGroupId) -> Result<(), ProcessGroupRuntimeError> {
         let state = self.groups.state(group)?;
         if matches!(state, crate::process_group::ProcessGroupState::Active) {
@@ -386,6 +387,7 @@ impl ProcessGroupRuntime {
         }
     }
 
+    /// Reap and clean up members that never reached admission.
     fn cleanup_unadmitted(
         &self,
         handle: ProcessHandle,
@@ -400,6 +402,7 @@ impl ProcessGroupRuntime {
         Err(ProcessGroupRuntimeError::Group(group_error))
     }
 
+    /// Observe a process and reap it when terminal.
     fn observe_and_reap(&self, handle: ProcessHandle, timeout: Duration) -> ReaperObservation {
         match self.processes.wait(handle, Duration::ZERO) {
             Ok(ManagedWaitResult::Finished(result)) => self.reap_terminal(handle, result, false),
@@ -429,6 +432,7 @@ impl ProcessGroupRuntime {
         }
     }
 
+    /// Reap a terminal member and update its group record.
     fn reap_terminal(
         &self,
         handle: ProcessHandle,
@@ -459,6 +463,7 @@ impl ProcessGroupRuntime {
     }
 }
 
+/// Extract a validated group id from a snapshot.
 fn group_id(snapshot: &ProcessGroupSnapshot) -> Result<ProcessGroupId, ProcessGroupRuntimeError> {
     ProcessGroupId::new(snapshot.group_id).ok_or(ProcessGroupRuntimeError::Group(
         ProcessGroupError::UnknownGroup,

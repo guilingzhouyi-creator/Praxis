@@ -118,6 +118,7 @@ impl RecoveryTrigger {
         }
     }
 
+    /// Compute the recovery decision for one action.
     fn decision(
         action: RecoveryAction,
         lifecycle: LifecycleState,
