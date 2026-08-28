@@ -112,6 +112,7 @@ struct ChannelState {
     queue: VecDeque<LockMessage>,
     responses: BTreeMap<String, Value>,
     handlers: Vec<Handler>,
+    handler_panics: u64,
 }
 
 /// Thread-safe bounded channel dedicated to one synchronization primitive.
@@ -138,6 +139,7 @@ impl LockChannel {
                 queue: VecDeque::new(),
                 responses: BTreeMap::new(),
                 handlers: Vec::new(),
+                handler_panics: 0,
             }),
             response_ready: Condvar::new(),
         }
@@ -153,9 +155,14 @@ impl LockChannel {
         };
 
         for handler in handlers {
-            let reply = catch_unwind(AssertUnwindSafe(|| handler(&message)))
-                .ok()
-                .flatten();
+            let reply = match catch_unwind(AssertUnwindSafe(|| handler(&message))) {
+                Ok(reply) => reply,
+                Err(_) => {
+                    let mut state = self.lock_state();
+                    state.handler_panics = state.handler_panics.saturating_add(1);
+                    None
+                }
+            };
             if let Some(reply) = reply {
                 self.respond(&message.msg_id, reply);
             }
@@ -221,6 +228,13 @@ impl LockChannel {
     /// Return the retained historical message count.
     pub fn pending_count(&self) -> usize {
         self.lock_state().queue.len()
+    }
+
+    /// Return the number of handler panics contained by this channel.
+    ///
+    /// This Rust-only diagnostic does not alter the shared IPC stats shape.
+    pub fn handler_panics(&self) -> u64 {
+        self.lock_state().handler_panics
     }
 
     fn lock_state(&self) -> std::sync::MutexGuard<'_, ChannelState> {

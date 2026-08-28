@@ -611,6 +611,11 @@ owners before mutation while retaining owner-conflict rejection, same-owner
 updates, sorted snapshots, and reset. The L3 catalog and boot registration
 remain Python-owned.
 
+The isolated `ipc` module contains handler panics and exposes a Rust-only
+`LockChannel::handler_panics()` diagnostic without changing the shared
+request/response or `LockBus` statistics shape. Socket transport and
+cross-process ownership remain outside the candidate.
+
 The isolated `health` module mirrors explicit subsystem-result aggregation:
 status precedence, healthy/degraded/failed counts, subsystem retention, and
 elapsed-time rounding. The shared

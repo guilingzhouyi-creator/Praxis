@@ -713,6 +713,11 @@ boundary to event names and owners: blank or NUL-containing values are
 rejected before the owner map changes. Conflict rejection, same-owner updates,
 sorted snapshots, and reset remain unchanged.
 
+The lock-IPC candidate now counts contained handler panics through a
+Rust-only `handler_panics()` diagnostic. Normal send/request behavior and the
+shared `LockBus` statistics remain unchanged; socket transport and
+cross-process ownership stay adapter-owned.
+
 The synchronization candidate now assigns monotonically increasing tickets to
 queued writers. A writer can acquire only when its ticket reaches the head;
 timeout removal advances the queue and wakes successors. This closes writer

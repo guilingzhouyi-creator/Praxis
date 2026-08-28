@@ -791,6 +791,11 @@ and runtime routing remain Python-owned in the preflight branch. The future
 Rust-first build may own a redesigned implementation after its semantic
 invariants, performance evidence, and clean cutover/recovery path are frozen.
 
+The lock-IPC candidate contains handler panics and exposes a Rust-only
+`handler_panics()` diagnostic; the retained `LockBus` statistics and
+request/response wire values are unchanged. Socket transport and cross-process
+ownership remain outside the candidate boundary.
+
 The VFS candidate owns only the language-neutral mechanism: a bounded mount
 table with longest-prefix lookup, ring/read-only authorization, virtual files,
 and TTL-bounded provider-read cache invalidation. `read_from_provider` and
