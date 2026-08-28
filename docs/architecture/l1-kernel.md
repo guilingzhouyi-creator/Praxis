@@ -358,9 +358,13 @@ decision values; a future R4 adapter owns probes and side effects.
 The Rust `state_store` candidate is the first filesystem-bearing R4 adapter.
 It creates only the fresh Rust root selected by the validated manifest, writes
 manifest/lifecycle/checkpoint documents through `sync_all` plus atomic rename,
-and exposes clean resume and unclean recovery. Divergent or
-migration-required roots fail closed; Python state and Python boot authority
-never cross this seam.
+and exposes clean resume and unclean recovery. Checkpoint generations advance
+only after both document writes succeed; a failed lifecycle/checkpoint commit
+restores the in-memory lifecycle and generation, and the prior lifecycle bytes
+are restored when the second-file write fails. Divergent or migration-required
+roots fail closed; Python state and Python boot authority never cross this seam.
+Failed renames remove their private temporary file before returning the I/O
+error, so a rejected checkpoint cannot accumulate stale artifacts.
 
 The Rust `ports` candidate translates the mechanism value surface and adapter
 discovery metadata. `PortResult`, `Endpoint`, `Message`, and the

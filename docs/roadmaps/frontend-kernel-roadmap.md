@@ -560,6 +560,9 @@ provider；随后新增 `state_store::StateStore` filesystem adapter，按 manif
 以临时文件 + `sync_all` + 原子 rename 持久化 manifest/lifecycle/checkpoint，并将 clean resume、unclean
 recovery、分歧/迁移 root fail-closed 固定下来。该片仍不读取 Python 状态、不接管 Python boot/runtime，
 也不解除 G3/G6；协议 v1 与配置存储已在独立 Rust 边界收敛。
+随后封口 `StateStore` 的失败原子性：checkpoint generation 仅在 lifecycle 与 checkpoint
+双写成功后提交；第二文件失败时恢复旧 lifecycle 字节，调用方可观察到的内存 lifecycle/generation
+同时回滚，避免失败持久化后继续沿用脏代际。
 
 随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
 快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与

@@ -183,6 +183,8 @@ impl StateStore {
     ///
     /// InvalidTransition unless currently halted/installing.
     pub fn begin_boot(&mut self) -> Result<(), StateStoreError> {
+        let previous = self.lifecycle.snapshot();
+        let previous_generation = self.generation;
         let state = self.lifecycle.state();
         let transitions = match state {
             LifecycleState::Halted => vec![LifecycleState::Installing, LifecycleState::Booting],
@@ -202,7 +204,7 @@ impl StateStore {
         record.last_shutdown_clean = false;
         record.last_boot_success = false;
         self.lifecycle.restore(record)?;
-        self.persist()
+        self.persist_after(previous, previous_generation)
     }
 
     /// Mark the boot as active and durable.
@@ -211,9 +213,11 @@ impl StateStore {
     ///
     /// InvalidTransition unless currently booting.
     pub fn mark_active(&mut self) -> Result<(), StateStoreError> {
+        let previous = self.lifecycle.snapshot();
+        let previous_generation = self.generation;
         self.transition(LifecycleState::Active)?;
         self.lifecycle.record_boot_success();
-        self.persist()
+        self.persist_after(previous, previous_generation)
     }
 
     /// Record a clean or unclean shutdown and persist it durably.
@@ -223,6 +227,8 @@ impl StateStore {
     /// InvalidTransition unless active/draining; `clean=false` records an
     /// unclean shutdown for later recovery classification.
     pub fn shutdown(&mut self, clean: bool) -> Result<(), StateStoreError> {
+        let previous = self.lifecycle.snapshot();
+        let previous_generation = self.generation;
         let state = self.lifecycle.state();
         if state == LifecycleState::Active {
             self.transition(LifecycleState::Draining)?;
@@ -239,7 +245,7 @@ impl StateStore {
             self.transition(LifecycleState::Crashed)?;
         }
         self.lifecycle.record_shutdown(clean);
-        self.persist()
+        self.persist_after(previous, previous_generation)
     }
 
     /// Convert an unclean open into an explicit crashed state before recovery.
@@ -251,10 +257,12 @@ impl StateStore {
         if self.action != StateAction::Recover {
             return Ok(());
         }
+        let previous = self.lifecycle.snapshot();
+        let previous_generation = self.generation;
         if self.lifecycle.state() != LifecycleState::Crashed {
             self.transition(LifecycleState::Crashed)?;
         }
-        self.persist()
+        self.persist_after(previous, previous_generation)
     }
 
     /// Persist lifecycle.json and runtime/checkpoint.json atomically per file.
@@ -264,11 +272,11 @@ impl StateStore {
     /// Io/serialization failures surfaced as StateStoreError variants;
     /// writes are atomic via temp-file rename.
     pub fn persist(&mut self) -> Result<(), StateStoreError> {
-        self.generation = self.generation.saturating_add(1);
+        let next_generation = self.generation.saturating_add(1);
         let lifecycle = self.lifecycle.encode()?;
         let checkpoint = StateCheckpoint {
             checkpoint_version: CHECKPOINT_VERSION,
-            generation: self.generation,
+            generation: next_generation,
             lifecycle: self.lifecycle.snapshot(),
         };
         let checkpoint_bytes =
@@ -276,8 +284,17 @@ impl StateStore {
                 path: self.root.join(CHECKPOINT_FILE),
                 message: error.to_string(),
             })?;
-        atomic_write(&self.root.join(LIFECYCLE_FILE), &lifecycle)?;
-        atomic_write(&self.root.join(CHECKPOINT_FILE), &checkpoint_bytes)?;
+        let lifecycle_path = self.root.join(LIFECYCLE_FILE);
+        let checkpoint_path = self.root.join(CHECKPOINT_FILE);
+        let previous_lifecycle = fs::read(&lifecycle_path).ok();
+        atomic_write(&lifecycle_path, &lifecycle)?;
+        if let Err(error) = atomic_write(&checkpoint_path, &checkpoint_bytes) {
+            if let Some(previous) = previous_lifecycle {
+                let _ = atomic_write(&lifecycle_path, &previous);
+            }
+            return Err(error);
+        }
+        self.generation = next_generation;
         Ok(())
     }
 
@@ -296,6 +313,21 @@ impl StateStore {
             Ok(())
         } else {
             Err(StateStoreError::InvalidTransition { from, to: target })
+        }
+    }
+
+    fn persist_after(
+        &mut self,
+        previous: LifecycleRecord,
+        previous_generation: u64,
+    ) -> Result<(), StateStoreError> {
+        match self.persist() {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let _ = self.lifecycle.restore(previous);
+                self.generation = previous_generation;
+                Err(error)
+            }
         }
     }
 
@@ -484,7 +516,10 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StateStoreError> {
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
-    fs::rename(&temporary, path)?;
+    if let Err(error) = fs::rename(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(StateStoreError::Io(error));
+    }
     if let Ok(directory) = File::open(parent) {
         let _ = directory.sync_all();
     }

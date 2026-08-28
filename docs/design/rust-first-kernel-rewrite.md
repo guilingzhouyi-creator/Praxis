@@ -431,7 +431,11 @@ filesystem-bearing adapter for a new Rust root only: it validates the manifest,
 creates declared directories/files, and atomically persists lifecycle and
 runtime checkpoint records. Clean roots resume; unclean roots require an
 explicit recovery transition. Divergent or migration-required roots fail
-closed. No Python state, FFI, or Python boot authority crosses this seam.
+closed. Checkpoint generation is committed only after the lifecycle and
+checkpoint writes succeed; failed transitions restore the prior in-memory
+lifecycle/generation and roll back the lifecycle document when its paired
+checkpoint write fails; failed renames remove their private temporary files.
+No Python state, FFI, or Python boot authority crosses this seam.
 
 The mechanism port boundary is now represented by `ports::PortRegistry` and
 its value types. This preserves only deterministic descriptor registration and
