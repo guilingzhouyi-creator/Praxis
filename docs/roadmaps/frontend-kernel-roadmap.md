@@ -427,6 +427,10 @@ ops/s，逐任务 baseline 约为 1.20M/0.28M/0.07M ops/s；batch-submit queue w
 0.09/0.18/1.21 ms，baseline 约为 0.96/24.40/210.48 ms，双方均为 0 error/0 rejection。
 该数据支持 admission 优化候选，但 batch p95/p99 是批次级分布，不能直接替代逐任务尾延迟，仍需
 在统一量化标准下持续对照后才能进入 runtime policy。
+随后将 WorkerPool 的唤醒边界收窄为实际处于队列等待的 idle waiter：等待计数在 queue lock 内登记，
+producer 只对当前 waiter 发 `notify_one`，活跃 worker 不再承担无效唤醒调用。该计数仅是唤醒优化，
+不是正确性依赖；shutdown 仍使用 `notify_all`，FIFO、claim batch、取消和 drain 语义保持不变。需在同一
+fixed-work 吞吐、p95/p99、queue-wait 矩阵中复测后，才能决定是否提升为 runtime policy。
 随后在 `state_queue` 增加 `ProcessHandleAllocator`：Rust 侧以有界 slot、释放代际递增、旧 handle 拒绝和
 容量/重复释放 fail-closed 固定可复用身份候选；该候选暂不替换 generation-one `ProcessTable` bridge，也不
 接管调度或 boot authority。

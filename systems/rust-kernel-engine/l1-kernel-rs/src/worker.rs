@@ -207,6 +207,7 @@ impl QueueState {
 struct Metrics {
     pool_size: AtomicUsize,
     active: AtomicUsize,
+    idle_waiters: AtomicUsize,
     completed: AtomicU64,
     claim_wait_ns: AtomicU64,
     rejected: AtomicU64,
@@ -522,8 +523,8 @@ impl WorkerPool {
     }
 
     fn notify_waiting_workers(&self, submitted: usize) {
-        let worker_count = self.metrics.pool_size.load(Ordering::Acquire).max(1);
-        let wake_count = submitted.min(worker_count);
+        let waiting = self.metrics.idle_waiters.load(Ordering::Acquire);
+        let wake_count = submitted.min(waiting);
         for _ in 0..wake_count {
             self.queue.not_empty.notify_one();
         }
@@ -686,10 +687,12 @@ fn claim_batch(
         if inner.closed {
             return false;
         }
+        metrics.idle_waiters.fetch_add(1, Ordering::AcqRel);
         let (next, timed_out) = queue
             .not_empty
             .wait_timeout(inner, idle_timeout)
             .unwrap_or_else(PoisonError::into_inner);
+        metrics.idle_waiters.fetch_sub(1, Ordering::AcqRel);
         inner = next;
         if timed_out.timed_out() {
             drop(inner);

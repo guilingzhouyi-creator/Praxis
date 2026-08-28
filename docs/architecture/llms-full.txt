@@ -337,9 +337,11 @@ worker integration target covers FIFO ordering, per-item eviction accounting,
 and closed-pool completion for this candidate. Batch admission wakes at most
 `min(submitted, resident_workers)` waiters with repeated `notify_one` calls
 instead of broadcasting to every worker; this bounds condition-variable convoy
-without changing FIFO claim order or shutdown semantics. It remains a measured
-candidate and must be rechecked through the same v3 fixed-work matrix before
-any runtime policy promotion.
+without changing FIFO claim order or shutdown semantics. Producers now count
+workers parked in the queue wait under the queue lock and avoid no-op wake calls
+when all workers are active; shutdown still broadcasts, and the count is not a
+correctness dependency. It remains a measured candidate and must be rechecked
+through the same v3 fixed-work matrix before any runtime policy promotion.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal

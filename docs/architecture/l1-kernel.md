@@ -151,7 +151,11 @@ and closed-pool completion for this candidate. Batch admission wakes at most
 instead of broadcasting to every worker; this bounds condition-variable convoy
 without changing FIFO claim order or shutdown semantics. It remains a measured
 candidate and must be rechecked through the same v3 fixed-work matrix before
-any runtime policy promotion.
+any runtime policy promotion. The producer now tracks workers that are actually
+parked in the queue wait under the same queue-lock boundary, so active workers
+do not receive no-op wake calls. The counter is advisory and queue-lock
+ordered; shutdown still uses `notify_all`, and a worker that observes queued
+work after a wake never depends on the counter for correctness.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal

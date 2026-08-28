@@ -1,6 +1,6 @@
 //! Public integration coverage for worker cancellation and deadlines.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -136,6 +136,41 @@ fn batch_submission_wakes_multiple_workers_without_losing_fifo_work() {
         );
     }
     assert_eq!(pool.stats()["rejected"], 0);
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
+fn idle_workers_wake_for_new_work_without_waiting_for_idle_timeout() {
+    let pool = WorkerPool::new(WorkerConfig::new(4, 4, 8, Duration::from_secs(5)))
+        .expect("valid worker pool");
+    thread::sleep(Duration::from_millis(20));
+
+    let completed = Arc::new(AtomicUsize::new(0));
+    let started = Instant::now();
+    let handles = (0..4)
+        .map(|_| {
+            let completed = Arc::clone(&completed);
+            Box::new(move || {
+                completed.fetch_add(1, Ordering::Release);
+                Ok(json!(true))
+            }) as l1_kernel_rs::worker::TaskFn
+        })
+        .collect::<Vec<_>>();
+    let handles = pool.submit_result_batch(handles);
+    for handle in handles {
+        assert_eq!(
+            handle.result(Some(Duration::from_millis(500))).unwrap(),
+            json!(true)
+        );
+    }
+    assert_eq!(completed.load(Ordering::Acquire), 4);
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "idle workers did not wake promptly"
+    );
     assert_eq!(
         pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
         true

@@ -100,8 +100,10 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   propagation for the existing single-task path, and shutdown drain rules;
   admission wakes only the smaller of the submitted batch and resident worker
   count through repeated `notify_one` calls, avoiding an unconditional
-  condition-variable broadcast. Evidence must compare throughput, queue wait,
-  and tail latency before any runtime policy promotion.
+  condition-variable broadcast. Producers now further limit those calls to
+  workers observed waiting under the queue lock; shutdown still broadcasts and
+  the counter is not a correctness dependency. Evidence must compare
+  throughput, queue wait, and tail latency before any runtime policy promotion.
 - The Rust `session` candidate provides a sharded `SessionBook` with bounded
   history, authoritative `input_seq` admission, cursor paging, explicit
   created/active/closing/closed/crashed lifecycle, and versioned checkpoint

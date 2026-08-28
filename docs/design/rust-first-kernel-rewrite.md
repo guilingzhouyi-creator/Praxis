@@ -188,6 +188,10 @@ calls, avoiding an unconditional condition-variable broadcast. FIFO claims,
 oldest-pending eviction, task completion, and shutdown behavior remain
 unchanged. This is still an evidence-backed candidate: the same v3 fixed-work
 matrix must show a repeatable throughput/tail win before runtime promotion.
+The producer now counts workers parked in the queue wait while holding the
+queue-lock boundary and limits notifications to actual idle waiters; active
+workers therefore avoid no-op wake calls. The count is only a wake optimization
+and never a correctness dependency, while shutdown continues to broadcast.
 The Rust `agent_loop` candidate now provides the logical routing seam between
 SessionBook truth and TerminalBook correlation. It validates
 agent/cell/session/terminal identity, models loop lifecycle, and holds loop
