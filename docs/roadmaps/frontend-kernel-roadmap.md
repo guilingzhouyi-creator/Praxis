@@ -442,7 +442,9 @@ checkpoint、clean resume 与 unclean recovery，但不导入 Python 状态，�
 executor 均在进入 worker queue 前 fail-closed 并记审计；真实 tool pipeline/provider 仍留在适配器。
 随后补齐 `KernelRuntime::reap_finished(max_tasks)`：按调用方预算选择 task handle，只回收已确认 terminal 的任务，
 并返回 `pending/unavailable/errors` 计数；零预算 fail-closed。该接口不启动后台 reaper、不改变 lifecycle，
-仅为后续 shutdown/recovery ownership 提供有界机制候选。
+仅为后续 shutdown/recovery ownership 提供有界机制候选。当前选择阶段在单次 shard 锁内同时快照 handle 与
+runtime state，移除逐 handle 的二次加锁/查表；若状态在选择后才终止则保守记为 pending，并发 reap 则记为
+unavailable，稳定 shard/BTree 顺序与预算上限不变。
 随后完善 `KernelRuntime` 的并发 admission：以 lifecycle `RwLock` 的共享侧覆盖 active-state 校验、handle
 reservation、按 scheduler shard 划分的 task-book 登记和 WorkerPool handoff；boot 使用独占侧，shutdown 先发布
 `Draining` 再取得独占侧排空已准入任务。任务在

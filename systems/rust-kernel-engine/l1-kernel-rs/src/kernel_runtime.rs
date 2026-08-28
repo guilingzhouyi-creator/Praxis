@@ -235,23 +235,29 @@ impl RuntimeTaskBook {
         self.lock_shard(handle, false).remove(&handle.raw());
     }
 
-    fn handles_up_to(&self, limit: usize) -> Vec<ProcessHandle> {
+    /// Select a bounded, deterministic prefix with the state observed under
+    /// the same shard lock.
+    ///
+    /// Reaper callers need both values. Returning the snapshot together with
+    /// each handle avoids a second lock acquisition and map lookup per entry,
+    /// while retaining the existing shard order and `BTreeMap` ordering.
+    fn entries_up_to(&self, limit: usize) -> Vec<(ProcessHandle, RuntimeTaskState)> {
         if limit == 0 {
             return Vec::new();
         }
-        let mut handles = Vec::with_capacity(limit);
+        let mut entries = Vec::with_capacity(limit);
         for shard in &self.shards {
             let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
-            for raw in tasks.keys() {
-                if handles.len() == limit {
-                    return handles;
+            for (raw, state) in tasks.iter() {
+                if entries.len() == limit {
+                    return entries;
                 }
                 if let Some(handle) = ProcessHandle::from_raw(*raw) {
-                    handles.push(handle);
+                    entries.push((handle, *state));
                 }
             }
         }
-        handles
+        entries
     }
 
     fn snapshot_counts(&self) -> (usize, usize) {
@@ -985,16 +991,12 @@ impl KernelRuntime {
         if max_tasks == 0 {
             return Err(RuntimeError::InvalidReapBudget);
         }
-        let handles = self.tasks.handles_up_to(max_tasks);
+        let entries = self.tasks.entries_up_to(max_tasks);
         let mut report = RuntimeReapReport {
-            inspected: handles.len() as u64,
+            inspected: entries.len() as u64,
             ..RuntimeReapReport::default()
         };
-        for handle in handles {
-            let Some(state) = self.tasks.state(handle) else {
-                report.unavailable = report.unavailable.saturating_add(1);
-                continue;
-            };
+        for (handle, state) in entries {
             if !state.is_terminal() {
                 report.pending = report.pending.saturating_add(1);
                 continue;

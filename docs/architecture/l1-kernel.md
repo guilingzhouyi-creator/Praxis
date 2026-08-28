@@ -306,7 +306,11 @@ selects at most the requested number of task handles, releases only tasks
 already in a terminal runtime state, and reports pending, unavailable, and
 scheduler-error outcomes without blocking on live work. A zero budget is
 rejected; the method does not start a background thread, change lifecycle
-state, or claim production shutdown authority.
+state, or claim production shutdown authority. Selection now snapshots each
+handle's runtime state while holding its shard lock, so the sweep avoids a
+second task-book lock and map lookup per selected entry. The snapshot remains
+conservative under races: a task that becomes terminal after selection is
+reported as pending, while a concurrent reap is reported as unavailable.
 
 `submit_batch` reserves and registers every process handle before one grouped
 WorkerPool handoff; an incomplete reservation rolls back every earlier handle

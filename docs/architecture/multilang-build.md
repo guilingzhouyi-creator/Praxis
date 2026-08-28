@@ -358,8 +358,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - `KernelRuntime::reap_finished(max_tasks)` is a bounded caller-driven
   lifecycle seam. It selects no more than the supplied budget, reaps only
   already-terminal tasks, and reports pending/unavailable/error outcomes;
-  zero budgets fail closed. It does not start a background reaper or change
-  runtime lifecycle authority.
+  zero budgets fail closed. Selection snapshots state under the shard lock so
+  each selected entry avoids a second task-book lookup; a task becoming
+  terminal after selection remains conservatively pending, while a concurrent
+  reap is unavailable. It does not start a background reaper or change runtime
+  lifecycle authority.
 - The Rust `protocol` module is the retained R4 wire-boundary candidate. It
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips

@@ -661,7 +661,10 @@ provider, or production authority.
 reaper mechanism: it selects at most the caller budget, releases only terminal
 task slots, and returns explicit pending/unavailable/error counts. A zero
 budget is rejected. This is a caller-owned preparation for later shutdown and
-recovery integration, not a background reaper or production authority.
+recovery integration, not a background reaper or production authority. The
+bounded prefix now carries each task's state from the same shard-lock snapshot
+used for selection, removing the previous second lock/map lookup while keeping
+stable shard/B-tree order and conservative concurrent-reap accounting.
 
 The next bounded batch slice adds `submit_batch` and
 `submit_batch_observed`. It reserves every generation-safe process handle and
