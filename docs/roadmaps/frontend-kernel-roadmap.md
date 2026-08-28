@@ -569,6 +569,10 @@ mutation，先完成两个文档的 staged 校验，再按 config→settings 原
 独立 `kernel_test_config_store.rs` 覆盖内存、磁盘与临时文件清理；该片仍只拥有
 Rust-owned JSON 根，不导入 Python 配置、不决定 engineering-debug 策略，也不提升为
 R5 cutover authority。
+随后将 `ConfigStore` 挂入 `KernelRuntime::open_persistent` 的 Rust-owned
+运行时边界：`config_documents` 提供防御性快照，单文档与成对 mutation
+通过 runtime owner 持久化后才返回；非持久 runtime 对配置访问 fail-closed。
+该片仍不热加载服务、不解释 Python settings，也不授予 R5 authority。
 
 随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
 快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与

@@ -238,6 +238,13 @@ These accessors expose lower-layer state to a future TS bridge without moving
 AgentLoop execution, provider/tool policy, PTY ownership, or production entry
 authority into the candidate.
 
+The persistent runtime also owns the `ConfigStore` for its assembly-selected
+Rust configuration root. `config_documents` exposes defensive snapshots, while
+`set_config`, `set_setting`, and `set_config_and_setting` are explicit mutation
+surfaces that return only after the corresponding atomic write succeeds. A
+non-persistent runtime has no configuration owner and fails closed; these
+methods do not hot-reload services or interpret Python settings.
+
 The separate `recovery` module provides a pure `RecoveryTrigger` decision over
 the validated execution document and lifecycle state: `fresh`, `resume_clean`,
 `recover_unclean`, or `reject`. `KernelRuntime::recovery_decision` exposes this

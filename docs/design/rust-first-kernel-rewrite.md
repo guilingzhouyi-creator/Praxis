@@ -588,6 +588,14 @@ state. The books remain metadata/state seams only: AgentLoop execution,
 provider/tool policy, PTY ownership, and TS/L2 routing are not granted by these
 accessors.
 
+The same persistent runtime now owns the assembly-selected `ConfigStore`.
+`config_documents` is a defensive read model, while `set_config`,
+`set_setting`, and `set_config_and_setting` provide explicit Rust-owned
+mutation boundaries that publish snapshots only after atomic persistence
+succeeds. Non-persistent runtimes fail closed instead of inventing a
+configuration root; these methods do not reload providers or interpret Python
+settings.
+
 The independent `recovery::RecoveryTrigger` now turns a validated execution
 checkpoint plus lifecycle state into a side-effect-free `RecoveryDecision`:
 fresh roots are `fresh`, clean halted roots are `resume_clean`, crashed roots

@@ -191,6 +191,11 @@ fresh Rust `StateStore`, records clean lifecycle checkpoints, and requires an
 explicit recovery path after an unclean close. `submit_gated` evaluates the
 Rust G1-G5 chain before invoking the single CapabilityAuthority, so an empty
 whitelist or unwired executor cannot enter the worker queue.
+Persistent runtimes also hold the assembly-selected `ConfigStore`: defensive
+document snapshots and explicit single-document or paired mutation methods
+persist through the Rust owner before returning. Non-persistent runtimes fail
+closed for configuration access, and this boundary does not reload services or
+import Python settings.
 
 State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,

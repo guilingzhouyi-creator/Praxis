@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 use crate::agent_loop::AgentLoopBook;
 use crate::assembly::{AssemblyError, AssemblySpec, KernelAssembly};
 use crate::capability::CapabilityAuthority;
+use crate::config_store::{ConfigDocument, ConfigError, ConfigStore};
 use crate::contract::{CapabilityRequest, CapabilityResult};
 use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
@@ -144,6 +145,8 @@ pub enum RuntimeError {
     GateBlocked(GateDecision),
     /// The Rust-owned state root rejected or failed to persist.
     StateStore(String),
+    /// The Rust-owned configuration root rejected or failed to open.
+    ConfigStore(String),
     /// The requested lifecycle operation is not valid in the current phase.
     InvalidLifecycle(LifecycleState),
     /// The task handle is absent or has already been reaped.
@@ -368,6 +371,7 @@ pub struct KernelRuntime {
     assembly: KernelAssembly,
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
+    config_store: Option<StdMutex<ConfigStore>>,
     execution_store: Option<StdMutex<ExecutionStore>>,
     sessions: SessionBook,
     terminals: TerminalBook,
@@ -403,6 +407,7 @@ impl KernelRuntime {
             assembly,
             lifecycle: Arc::new(LifecycleRegistry::new()),
             state_store: None,
+            config_store: None,
             execution_store: None,
             sessions,
             terminals: TerminalBook::new(),
@@ -438,11 +443,17 @@ impl KernelRuntime {
             )));
         }
         let assembly = KernelAssembly::assemble(spec).map_err(RuntimeError::Assembly)?;
+        let assembly_snapshot = assembly.snapshot();
         let mut state_store = StateStore::open(root, assembly.snapshot().contract_version)
             .map_err(map_state_store_error)?;
         if state_store.action() == crate::state_layout::StateAction::Recover {
             state_store.recover().map_err(map_state_store_error)?;
         }
+        let config_store = ConfigStore::open(
+            &assembly_snapshot.config_manifest.config_root,
+            assembly_snapshot.config_manifest.contract_version,
+        )
+        .map_err(map_config_store_error)?;
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
         let execution_document = execution_store
@@ -467,6 +478,7 @@ impl KernelRuntime {
             assembly,
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
+            config_store: Some(StdMutex::new(config_store)),
             execution_store: Some(StdMutex::new(execution_store)),
             sessions: execution_state.sessions,
             terminals: execution_state.terminals,
@@ -509,6 +521,84 @@ impl KernelRuntime {
     /// Return the Rust-owned logical AgentLoop identity book.
     pub const fn agent_loops(&self) -> &AgentLoopBook {
         &self.agent_loops
+    }
+
+    /// Return a defensive snapshot of the Rust-owned configuration documents.
+    ///
+    /// The runtime exposes values for adapters and future TS projections but
+    /// does not expose mutable access to the underlying store. Non-persistent
+    /// runtimes have no configuration root and fail closed.
+    pub fn config_documents(&self) -> Result<(ConfigDocument, ConfigDocument), RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        Ok((store.config().clone(), store.settings().clone()))
+    }
+
+    /// Set one Rust-owned kernel configuration value through the runtime owner.
+    ///
+    /// This persists only the clean-break JSON document and does not hot-reload
+    /// active services or interpret Python settings. The returned document is
+    /// a defensive snapshot after the atomic replacement succeeds.
+    pub fn set_config(
+        &self,
+        key: impl Into<String>,
+        value: Value,
+    ) -> Result<ConfigDocument, RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_config(key, value)
+            .map_err(map_config_store_error)?;
+        Ok(store.config().clone())
+    }
+
+    /// Set one Rust-owned runtime setting through the runtime owner.
+    ///
+    /// This persists only the clean-break JSON document and leaves active
+    /// service reconfiguration to a future versioned adapter boundary.
+    pub fn set_setting(
+        &self,
+        key: impl Into<String>,
+        value: Value,
+    ) -> Result<ConfigDocument, RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_setting(key, value)
+            .map_err(map_config_store_error)?;
+        Ok(store.settings().clone())
+    }
+
+    /// Set one config value and one runtime setting through the runtime owner.
+    ///
+    /// The underlying store stages both documents and restores the first
+    /// replacement if the second fails. Neither returned snapshot advances
+    /// until the paired persistence boundary succeeds.
+    pub fn set_config_and_setting(
+        &self,
+        config_key: impl Into<String>,
+        config_value: Value,
+        setting_key: impl Into<String>,
+        setting_value: Value,
+    ) -> Result<(ConfigDocument, ConfigDocument), RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_config_and_setting(config_key, config_value, setting_key, setting_value)
+            .map_err(map_config_store_error)?;
+        Ok((store.config().clone(), store.settings().clone()))
     }
 
     /// Persist the three execution books through the Rust-owned checkpoint.
@@ -1061,6 +1151,10 @@ fn runtime_task_book(shard_count: u32) -> Arc<RuntimeTaskBook> {
 
 fn map_state_store_error(error: StateStoreError) -> RuntimeError {
     RuntimeError::StateStore(error.to_string())
+}
+
+fn map_config_store_error(error: ConfigError) -> RuntimeError {
+    RuntimeError::ConfigStore(error.to_string())
 }
 
 fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {

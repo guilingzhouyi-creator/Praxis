@@ -370,6 +370,12 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   surfaced as a distinct fail-closed error. It never parses Python YAML,
   imports Python settings, executes migrations, or decides engineering debug
   policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
+- `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
+  Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
+  and the explicit `set_config`, `set_setting`, and paired mutation methods
+  persist through the owner before returning. Non-persistent runtimes fail
+  closed for these calls; no Python settings import or live service reload is
+  implied.
 - The Rust `terminal` module is the lower-layer AgentLoop terminal substrate.
   `TerminalBook` owns unique terminal/session/process bindings, terminal
   lifecycle terminality, and bounded opaque input/output mailboxes with
