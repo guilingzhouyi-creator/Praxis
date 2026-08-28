@@ -9,7 +9,17 @@ import { describe, expect, it } from "vitest";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
 import { encodeMessage, makeMessage } from "../src/wire-envelope.ts";
-import { preselect, selectByAgentId, selectByRole, toRoster } from "../src/engine/agent-selector.ts";
+import {
+  INJECTION_HIGH_RISK_THRESHOLD,
+  INJECTION_MEDIUM_RISK_THRESHOLD,
+  preconnectImpact,
+  preselect,
+  riskLevelOf,
+  selectByAgentId,
+  selectByRole,
+  toRoster,
+} from "../src/engine/agent-selector.ts";
+import { parseCommandCatalog } from "../src/engine/command-catalog.ts";
 import { BUILTIN_COMMANDS, Completer, DEFAULT_ALIASES } from "../src/engine/command-completion.ts";
 import { registerCommandGroups } from "../src/engine/command-groups.ts";
 
@@ -64,6 +74,56 @@ describe("selector projection", () => {
   });
 });
 
+describe("preconnect impact projection", () => {
+  it("grades risk levels at the reference thresholds", () => {
+    // INJECTION_*_THRESHOLD in kernel params/agent.py: medium 0.3, high 0.7
+    expect(INJECTION_MEDIUM_RISK_THRESHOLD).toBe(0.3);
+    expect(INJECTION_HIGH_RISK_THRESHOLD).toBe(0.7);
+    expect(riskLevelOf(0)).toBe("none");
+    expect(riskLevelOf(0.3)).toBe("none"); // strictly greater than threshold
+    expect(riskLevelOf(0.31)).toBe("medium");
+    expect(riskLevelOf(0.7)).toBe("medium");
+    expect(riskLevelOf(0.71)).toBe("high");
+  });
+
+  it("projects an allowed preconnect with no risk", () => {
+    const impact = preconnectImpact({ allowed: true, reason: "ok", injection_risk: 0 });
+    expect(impact).toEqual({
+      allowed: true,
+      reason: "ok",
+      risk: 0,
+      riskLevel: "none",
+      label: "selector.risk.none",
+    });
+  });
+
+  it("projects a denied preconnect with a risk label", () => {
+    const impact = preconnectImpact({
+      allowed: false,
+      reason: "prompt_injection_suspected",
+      injection_risk: 0.8342,
+    });
+    expect(impact).toEqual({
+      allowed: false,
+      reason: "prompt_injection_suspected",
+      risk: 0.83,
+      riskLevel: "high",
+      label: "selector.denied",
+    });
+  });
+
+  it("defaults missing host fields safely", () => {
+    const impact = preconnectImpact({});
+    expect(impact).toEqual({
+      allowed: false,
+      reason: "",
+      risk: 0,
+      riskLevel: "none",
+      label: "selector.denied",
+    });
+  });
+});
+
 describe("completer", () => {
   it("candidates merge tools, builtins and aliases, sorted", () => {
     const c = new Completer({ toolNames: ["grep", "read_file"] });
@@ -90,6 +150,15 @@ describe("completer", () => {
   it("exposes the builtin list and default aliases", () => {
     expect(BUILTIN_COMMANDS).toContain("help");
     expect(DEFAULT_ALIASES.rf).toBe("read_file");
+  });
+
+  it("merges command catalog names and aliases into candidates", () => {
+    const catalog = parseCommandCatalog("agents:\n  help: \"h\"\n  aliases: [\"ls\"]");
+    const c = new Completer({ catalog });
+    const names = c.candidates();
+    expect(names).toContain("agents");
+    expect(names).toContain("ls");
+    expect(c.complete("age")).toEqual(["agents"]);
   });
 });
 

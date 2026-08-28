@@ -6,7 +6,11 @@
  * names, tool names and aliases by prefix, plus filesystem-style partials
  * after a space. Pure local logic — candidate source data (tool registry,
  * shell_aliases config) comes from the host via bridge, never owned here.
+ * When a CommandCatalog is injected, its command names and aliases are
+ * merged into the candidates (same source the Python completer uses).
  */
+
+import type { CommandCatalog } from "./command-catalog.ts";
 
 /** Builtin command names always available (mirrors shell_completer builtins). */
 export const BUILTIN_COMMANDS = ["help", "exit", "clear", "history", "tools", "status"];
@@ -32,20 +36,30 @@ export interface CompleterOptions {
   toolNames?: string[];
   /** Alias map (defaults to DEFAULT_ALIASES). */
   aliases?: Record<string, string>;
+  /** Optional command catalog; command names + aliases join the candidates. */
+  catalog?: CommandCatalog;
 }
 
 export class Completer {
   private toolNames: string[];
   private aliases: Record<string, string>;
+  private catalog: CommandCatalog | undefined;
 
   constructor(options: CompleterOptions = {}) {
     this.toolNames = options.toolNames ?? [];
     this.aliases = options.aliases ?? DEFAULT_ALIASES;
+    this.catalog = options.catalog;
   }
 
-  /** All candidate names: tools + builtins + aliases (sorted, deduped). */
+  /** All candidate names: tools + builtins + aliases + catalog names. */
   candidates(): string[] {
-    const names = new Set<string>([...this.toolNames, ...BUILTIN_COMMANDS, ...Object.keys(this.aliases)]);
+    const names = new Set<string>([
+      ...this.toolNames,
+      ...BUILTIN_COMMANDS,
+      ...Object.keys(this.aliases),
+      ...(this.catalog?.commandNames() ?? []),
+      ...(this.catalog?.aliases() ?? []),
+    ]);
     return [...names].sort();
   }
 
