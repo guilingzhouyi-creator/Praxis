@@ -826,8 +826,10 @@ queries. Rust admission now rejects blank, NUL-containing, overlong section
 identities, and invalid nested object keys before mutation; document application
 stages a complete copy and commits it once, so malformed later sections cannot
 partially apply. A deterministic source/registry snapshot is available for the
-future TS/L2 bridge. It does not scan directories, parse YAML, emit logs,
-register boot sources, or mutate the Python runtime registry.
+future TS/L2 bridge; checked reads and section-presence queries validate the
+same identity boundary before exposing a view. It does not scan directories,
+parse YAML, emit logs, register boot sources, or mutate the Python runtime
+registry.
 
 The load-adaptive candidate uses
 `tests/fixtures/kernel_load_adaptive_vectors.json` to freeze EWMA smoothing,

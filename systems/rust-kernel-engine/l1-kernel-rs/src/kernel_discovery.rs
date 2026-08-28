@@ -153,6 +153,18 @@ impl DiscoveryRegistry {
         self.lock().registry.get(name).cloned().unwrap_or(default)
     }
 
+    /// Read a merged section with explicit identity validation.
+    pub fn try_get_config(&self, name: &str, default: Value) -> Result<Value, DiscoveryError> {
+        validate_section(name)?;
+        Ok(self.get_config(name, default))
+    }
+
+    /// Report whether a validated section is currently registered.
+    pub fn has_section(&self, name: &str) -> Result<bool, DiscoveryError> {
+        validate_section(name)?;
+        Ok(self.lock().registry.contains_key(name))
+    }
+
     /// Return the originally registered defaults for a section.
     pub fn get_source(&self, name: &str, default: Value) -> Value {
         self.lock().sources.get(name).cloned().unwrap_or(default)

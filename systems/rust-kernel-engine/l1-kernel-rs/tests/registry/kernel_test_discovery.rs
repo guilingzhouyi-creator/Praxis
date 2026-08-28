@@ -155,6 +155,12 @@ fn runtime_identity_and_shape_errors_are_explicit() {
     registry
         .try_register("scalar", json!("default"))
         .expect("register scalar");
+    assert!(registry.has_section("scalar").expect("valid section"));
+    assert!(!registry.has_section("missing").expect("valid section"));
+    assert!(matches!(
+        registry.try_get_config("\0", Value::Null),
+        Err(DiscoveryError::InvalidSection(section)) if section == "\0"
+    ));
     let error = registry
         .try_set_config("scalar", "key", json!(1))
         .expect_err("scalar section cannot receive object key");

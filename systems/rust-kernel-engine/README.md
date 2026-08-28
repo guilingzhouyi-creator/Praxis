@@ -520,7 +520,8 @@ unknown-section ignore behavior, runtime key updates, and tool/service fallback
 queries. Section/key identities are bounded and fail closed on blank, NUL, or
 invalid nested object keys. Checked document application validates all sections
 before atomically committing a staged registry view, and `DiscoverySnapshot`
-exposes a deterministic read model for the future TS/L2 bridge.
+exposes a deterministic read model for the future TS/L2 bridge; checked reads
+and presence queries retain the same fail-closed identity boundary.
 `tests/fixtures/kernel_discovery_vectors.json` is consumed by both languages.
 YAML parsing, discovery-directory scans, logging, boot registration, and Python
 registry mutation remain adapter-owned; public behavior and shared vectors are
