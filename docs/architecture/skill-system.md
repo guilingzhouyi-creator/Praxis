@@ -97,7 +97,7 @@ never breaks the mutation).
   `_persist_skill_md()` writes them back — never add a persisted field to
   one side without the other, or skills degrade to tag-less form after
   reboot.
-- **Sources**: `config/skills/` (21 built-in, read-only), evolved dirs
+- **Sources**: `config/skills/` (23 built-in, read-only), evolved dirs
   (project: `.praxis/skills/evolved/`; global: `data_dir/skills/evolved/`),
   lean dir (`.praxis/skills/lean/`, failure traces).
 - **Built-in contract** (`tests/infra/test_skill_contracts.py`): ≥7 skills,
