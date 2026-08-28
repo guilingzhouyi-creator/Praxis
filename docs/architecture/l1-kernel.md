@@ -371,7 +371,10 @@ restores the in-memory lifecycle and generation, and the prior lifecycle bytes
 are restored when the second-file write fails. Divergent or migration-required
 roots fail closed; Python state and Python boot authority never cross this seam.
 Failed renames remove their private temporary file before returning the I/O
-error, so a rejected checkpoint cannot accumulate stale artifacts.
+error, so a rejected checkpoint cannot accumulate stale artifacts. If a
+paired rollback itself fails, `StateStoreError::RollbackFailed` makes that
+split-root risk explicit instead of hiding it; if the prior lifecycle file was
+absent, rollback removes the newly staged file.
 
 The Rust `ports` candidate translates the mechanism value surface and adapter
 discovery metadata. `PortResult`, `Endpoint`, `Message`, and the

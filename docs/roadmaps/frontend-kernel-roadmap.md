@@ -563,6 +563,9 @@ recovery、分歧/迁移 root fail-closed 固定下来。该片仍不读取 Pyth
 随后封口 `StateStore` 的失败原子性：checkpoint generation 仅在 lifecycle 与 checkpoint
 双写成功后提交；第二文件失败时恢复旧 lifecycle 字节，调用方可观察到的内存 lifecycle/generation
 同时回滚，避免失败持久化后继续沿用脏代际。
+随后补齐其异常根处理：缺失的旧 lifecycle 文件在失败 pair 中会删除新暂存文件，
+回滚本身失败则返回显式 `RollbackFailed`，不再静默接受 split root；失败 rename
+临时文件仍必须清理。
 随后补齐 `ConfigStore` 的跨文档失败边界：新增显式成对 config/setting
 mutation，先完成两个文档的 staged 校验，再按 config→settings 原子替换；
 第二个替换失败时恢复首个文档并清理临时文件，回滚失败显式 fail-closed。

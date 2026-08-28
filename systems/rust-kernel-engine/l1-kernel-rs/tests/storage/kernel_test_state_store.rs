@@ -143,3 +143,41 @@ fn failed_checkpoint_write_rolls_back_lifecycle_and_generation() {
     assert_eq!(reopened.generation(), previous_generation + 1);
     fs::remove_dir_all(root).expect("remove test root");
 }
+
+#[test]
+fn failed_checkpoint_write_removes_new_lifecycle_when_previous_missing() {
+    let root = temp_root("rollback-missing-lifecycle");
+    let mut store = StateStore::open(&root, 1).expect("initialize");
+    let lifecycle = root.join("lifecycle.json");
+    let checkpoint = root.join("runtime/checkpoint.json");
+    fs::remove_file(&lifecycle).expect("remove lifecycle");
+    fs::remove_file(&checkpoint).expect("remove checkpoint");
+    fs::create_dir(&checkpoint).expect("block checkpoint replacement");
+
+    assert!(store.persist().is_err());
+    assert!(
+        !lifecycle.exists(),
+        "failed pair must restore the lifecycle file absence"
+    );
+    let temporary_files = fs::read_dir(&root)
+        .expect("state root")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".lifecycle.json.tmp-")
+        })
+        .count();
+    assert_eq!(
+        temporary_files, 0,
+        "failed rename must clean lifecycle temp"
+    );
+
+    fs::remove_dir(&checkpoint).expect("remove checkpoint blocker");
+    store
+        .persist()
+        .expect("retry after restoring checkpoint target");
+    assert!(lifecycle.is_file());
+    fs::remove_dir_all(root).expect("remove test root");
+}

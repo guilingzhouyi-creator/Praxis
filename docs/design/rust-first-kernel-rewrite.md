@@ -435,6 +435,9 @@ closed. Checkpoint generation is committed only after the lifecycle and
 checkpoint writes succeed; failed transitions restore the prior in-memory
 lifecycle/generation and roll back the lifecycle document when its paired
 checkpoint write fails; failed renames remove their private temporary files.
+Missing prior lifecycle bytes are removed during rollback, and a failed
+restoration is surfaced as a dedicated `RollbackFailed` error rather than
+silently accepting a split root.
 No Python state, FFI, or Python boot authority crosses this seam.
 
 The mechanism port boundary is now represented by `ports::PortRegistry` and

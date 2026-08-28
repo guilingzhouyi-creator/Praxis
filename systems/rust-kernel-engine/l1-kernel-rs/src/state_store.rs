@@ -65,6 +65,8 @@ pub enum StateStoreError {
     },
     /// The lifecycle registry rejected a restore operation.
     Lifecycle(LifecycleError),
+    /// A paired lifecycle/checkpoint update could not restore lifecycle bytes.
+    RollbackFailed { path: PathBuf, message: String },
 }
 
 impl Display for StateStoreError {
@@ -88,6 +90,11 @@ impl Display for StateStoreError {
                 )
             }
             Self::Lifecycle(error) => write!(f, "lifecycle restore failed: {}", error.message),
+            Self::RollbackFailed { path, message } => write!(
+                f,
+                "state pair rollback failed for {}: {message}",
+                path.display()
+            ),
         }
     }
 }
@@ -286,11 +293,16 @@ impl StateStore {
             })?;
         let lifecycle_path = self.root.join(LIFECYCLE_FILE);
         let checkpoint_path = self.root.join(CHECKPOINT_FILE);
-        let previous_lifecycle = fs::read(&lifecycle_path).ok();
+        let previous_lifecycle = read_optional(&lifecycle_path)?;
         atomic_write(&lifecycle_path, &lifecycle)?;
         if let Err(error) = atomic_write(&checkpoint_path, &checkpoint_bytes) {
-            if let Some(previous) = previous_lifecycle {
-                let _ = atomic_write(&lifecycle_path, &previous);
+            if let Err(rollback_error) =
+                restore_optional(&lifecycle_path, previous_lifecycle.as_deref())
+            {
+                return Err(StateStoreError::RollbackFailed {
+                    path: lifecycle_path,
+                    message: format!("{error}; restore failed: {rollback_error}"),
+                });
             }
             return Err(error);
         }
@@ -485,6 +497,25 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, StateStoreE
         path: path.to_path_buf(),
         message: error.to_string(),
     })
+}
+
+fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, StateStoreError> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(StateStoreError::Io(error)),
+    }
+}
+
+fn restore_optional(path: &Path, previous: Option<&[u8]>) -> Result<(), StateStoreError> {
+    match previous {
+        Some(bytes) => atomic_write(path, bytes),
+        None => match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(StateStoreError::Io(error)),
+        },
+    }
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StateStoreError> {

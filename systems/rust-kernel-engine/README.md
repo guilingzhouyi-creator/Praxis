@@ -275,6 +275,9 @@ only the fresh Rust root described by `state_layout`, persists manifest and
 lifecycle/checkpoint documents using per-file atomic rename plus `sync_all`,
 and exposes clean-resume and unclean-recovery actions. It rejects divergent
 or migration-required roots and never imports Python state.
+Paired lifecycle/checkpoint rollback removes a newly staged lifecycle when no
+prior file existed and reports a dedicated error if restoration fails; failed
+rename temporaries are cleaned.
 The durable lifecycle/recovery behavior is exercised through the public
 `tests/storage/kernel_test_state_store.rs` target.
 

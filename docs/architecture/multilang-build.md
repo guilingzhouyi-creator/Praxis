@@ -266,8 +266,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `state_store` module is the filesystem-bearing R4 adapter behind
   that manifest. It creates only a fresh Rust root, persists manifest and
   lifecycle/checkpoint records with per-file atomic rename plus `sync_all`,
-  and exposes clean resume versus explicit unclean recovery. It rejects
-  divergent or migration-required roots and never imports Python state.
+  and exposes clean resume versus explicit unclean recovery. Paired write
+  rollback is explicit: missing prior lifecycle bytes are removed, failed
+  restoration returns a dedicated error, and failed rename temporaries are
+  cleaned. It rejects divergent or migration-required roots and never imports
+  Python state.
 - The Rust `ports` module translates the mechanism-port value surface and
   declarative registration metadata: `PortResult`, `Endpoint`, `Message`, and
   privacy-preserving `InputActivitySnapshot`, plus a deterministic
