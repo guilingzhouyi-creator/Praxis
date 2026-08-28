@@ -5,6 +5,7 @@ import fixtures from "../../../tests/fixtures/protocol_v1_records.json";
 import {
   RECORD_SCHEMA_VERSION,
   RecordValidationError,
+  canonicalJson,
   decodeRecord,
   encodeRecord,
   type AnyRecord,
@@ -39,6 +40,36 @@ describe("TS-neutral records", () => {
 
     const future = { ...fixture, schema_version: RECORD_SCHEMA_VERSION + 1 };
     expect(() => decodeRecord(JSON.stringify(future))).toThrow(RecordValidationError);
+  });
+
+  it("rejects records missing required fields", () => {
+    const fixture = fixtures[0] as Record<string, unknown>;
+    const missing = { ...fixture, data: { ...(fixture.data as Record<string, unknown>) } };
+    delete (missing.data as Record<string, unknown>).session_id;
+    expect(() => decodeRecord(JSON.stringify(missing))).toThrow(/missing record fields: session_id/);
+  });
+
+  it("rejects unknown record types and non-object record data", () => {
+    const fixture = fixtures[0] as Record<string, unknown>;
+    expect(() => decodeRecord(JSON.stringify({ ...fixture, record_type: "no_such_type" }))).toThrow(/unknown record_type/);
+    expect(() => decodeRecord(JSON.stringify({ ...fixture, data: "not-an-object" }))).toThrow(/must be an object/);
+    expect(() => decodeRecord(JSON.stringify({ ...fixture, data: null }))).toThrow(/must be an object/);
+    expect(() => decodeRecord("{\"record_type\":\"session_identity\"}")).toThrow(RecordValidationError);
+  });
+
+  it("rejects unparsable lines and non-finite payload values", () => {
+    expect(() => decodeRecord("{not json")).toThrow(RecordValidationError);
+    expect(() => canonicalJson(Number.NaN)).toThrow(/non-finite number/);
+    expect(() => canonicalJson({ a: undefined })).toThrow(/undefined value at a/);
+  });
+
+  it("rejects payloads that are not objects and string arrays with empty items", () => {
+    const event = fixtures.find((f) => (f as { record_type: string }).record_type === "event_envelope") as Record<string, unknown>;
+    expect(() => decodeRecord(JSON.stringify({ ...event, data: { ...(event.data as Record<string, unknown>), payload: "x" } }))).toThrow(/payload must be an object/);
+
+    const summary = fixtures.find((f) => (f as { record_type: string }).record_type === "decision_summary") as Record<string, unknown>;
+    expect(() => decodeRecord(JSON.stringify({ ...summary, data: { ...(summary.data as Record<string, unknown>), evidence_refs: ["ok", ""] } }))).toThrow(/must be a string array/);
+    expect(() => decodeRecord(JSON.stringify({ ...summary, data: { ...(summary.data as Record<string, unknown>), evidence_refs: [42] } }))).toThrow(/must be a string array/);
   });
 });
 

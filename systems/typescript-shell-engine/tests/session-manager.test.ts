@@ -89,6 +89,36 @@ describe("SessionMultiplexer", () => {
     mux.emit(makeMessage("s-1", 1, "event", { name: "a" }));
     expect(mux.replay("web", -1).map((event) => event.seq)).toEqual([2, 3]);
   });
+
+  it("rejects an invalid mirror capacity at construction", () => {
+    expect(() => new SessionMultiplexer("s-1", { maxEvents: 0 })).toThrow(/safe integer >= 1/);
+    expect(() => new SessionMultiplexer("s-1", { maxEvents: 1.5 })).toThrow(/safe integer >= 1/);
+    expect(() => new SessionMultiplexer("s-1", { maxEvents: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/safe integer >= 1/);
+  });
+
+  it("never mirrors ack messages into the replay stream", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    mux.emit(makeMessage("s-1", 1, "ack", { ack_seq: 1 }));
+    expect(mux.viewState("web")?.unacked).toHaveLength(0);
+  });
+
+  it("deduplicates identical events by key", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.attach("web");
+    const event = makeMessage("s-1", 1, "event", { name: "a" });
+    mux.emit(event);
+    mux.emit(event);
+    expect(mux.viewState("web")?.unacked).toHaveLength(1);
+  });
+
+  it("treats unknown views as no-ops and reports an empty watermark", () => {
+    const mux = new SessionMultiplexer("s-1");
+    mux.ack("ghost", 5);
+    expect(mux.replay("ghost", 3)).toEqual([]);
+    expect(mux.viewState("ghost")).toBeUndefined();
+    expect(mux.watermark()).toBe(-1);
+  });
 });
 
 describe("SessionManager over a fake bridge", () => {
@@ -142,5 +172,33 @@ describe("SessionManager over a fake bridge", () => {
     const requests = received.map((line) => JSON.parse(line) as { session_id: string; payload: Record<string, unknown> });
     expect(requests.map((request) => request.session_id)).toEqual(["s-a", "s-b", "s-b", "s-a"]);
     expect(requests[2].payload).toMatchObject({ ack_seq: 3, view_id: "tui" });
+  });
+
+  it("falls back to the merged local window when the host replies without events", async () => {
+    // Attach answers with one event (populating the local mirror), while the
+    // recovery control reply stays empty so hostEvents is empty.
+    const quietTransport: Transport = async (line) => {
+      const decoded = JSON.parse(line) as Message;
+      if (decoded.kind === "control" && decoded.payload.op === "attach") {
+        return [
+          encodeMessage(
+            makeMessage(decoded.session_id, 100, "event", { name: "session.attached", data: { session_id: decoded.payload.session_id } }),
+          ),
+        ];
+      }
+      return [];
+    };
+    const manager = new SessionManager(new ProtocolBridge({ sessionId: "s-1", transport: quietTransport }));
+    await manager.attach("s-9", "web");
+    const events = await manager.replay("s-9", "web", -1);
+    expect(events.some((event) => event.payload.name === "session.attached")).toBe(true);
+  });
+
+  it("returns the local window unchanged when both host and mirror are empty", async () => {
+    const silent = new ProtocolBridge({ sessionId: "s-1", transport: async () => [] });
+    const manager = new SessionManager(silent);
+    const events = await manager.replay("s-9", "web", -1);
+    expect(events).toEqual([]);
+    expect(manager.listSessions()).toContain("s-9");
   });
 });
