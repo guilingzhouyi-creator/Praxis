@@ -650,6 +650,54 @@ fn nonpersistent_runtime_has_no_configuration_owner() {
 }
 
 #[test]
+fn runtime_configuration_pair_failure_preserves_both_documents() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("persistent runtime");
+    let before = runtime.config_documents().expect("configuration documents");
+    let config_path = root.join("config/config.json");
+    let settings_path = root.join("config/settings.json");
+    let before_config_bytes = std::fs::read(&config_path).expect("config bytes");
+    std::fs::remove_file(&settings_path).expect("remove settings file");
+    std::fs::create_dir(&settings_path).expect("block settings replacement");
+
+    assert!(matches!(
+        runtime.set_config_and_setting(
+            "scheduler.max_workers",
+            json!(8),
+            "terminal.preferred",
+            json!("bash"),
+        ),
+        Err(RuntimeError::ConfigStore(_))
+    ));
+    assert_eq!(
+        runtime.config_documents().expect("configuration documents"),
+        before
+    );
+    assert_eq!(
+        std::fs::read(&config_path).expect("rolled-back config bytes"),
+        before_config_bytes
+    );
+    assert_eq!(
+        std::fs::read_dir(root.join("config"))
+            .expect("config entries")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".config.json.tmp-")
+            })
+            .count(),
+        0,
+        "runtime pair failure must clean staged config files"
+    );
+    std::fs::remove_dir(&settings_path).expect("remove settings blocker");
+    std::fs::remove_dir_all(root).expect("remove runtime root");
+}
+
+#[test]
 fn persistent_runtime_owns_and_restores_execution_books() {
     let root = temp_root();
     let root_text = root.to_string_lossy().to_string();

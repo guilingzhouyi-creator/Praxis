@@ -10,6 +10,8 @@ use l1_kernel_rs::entry::{
 use l1_kernel_rs::ports::{PortDescriptor, PortKind};
 use l1_kernel_rs::recovery::RecoveryAction;
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig};
+use l1_kernel_rs::state_layout::StateAction;
+use l1_kernel_rs::state_store::StateStore;
 use l1_kernel_rs::worker::WorkerConfig;
 
 fn temp_root(label: &str) -> std::path::PathBuf {
@@ -94,7 +96,31 @@ fn boot_once_returns_active_and_clean_halted_snapshots() {
         reopened.recovery_decision().expect("decision").action,
         RecoveryAction::ResumeClean
     );
+    assert!(root.join("config/manifest.json").is_file());
+    assert!(root.join("config/config.json").is_file());
+    assert!(root.join("config/settings.json").is_file());
     std::fs::remove_dir_all(root).expect("remove root");
+}
+
+#[test]
+fn entry_rejects_foreign_config_root_before_boot() {
+    let root = temp_root("foreign-state");
+    let foreign = temp_root("foreign-config");
+    std::fs::create_dir_all(&foreign).expect("foreign config root");
+    std::fs::write(foreign.join("python-settings.json"), b"{}").expect("foreign settings");
+    let mut request = request(&root, EntryOperation::BootOnce);
+    request.assembly = request.assembly.with_config_root(foreign.to_string_lossy());
+
+    let result = execute(request);
+    assert!(matches!(
+        result,
+        Err(EntryError::Runtime(message)) if message.contains("config root is not Rust-owned")
+    ));
+    let state_store = StateStore::open(&root, 1).expect("state root remains reusable");
+    assert_eq!(state_store.action(), StateAction::Resume);
+    assert_eq!(state_store.lifecycle().state().as_str(), "halted");
+    std::fs::remove_dir_all(root).expect("remove state root");
+    std::fs::remove_dir_all(foreign).expect("remove foreign config root");
 }
 
 #[test]
