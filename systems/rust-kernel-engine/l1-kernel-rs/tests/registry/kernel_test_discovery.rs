@@ -1,6 +1,9 @@
 //! Independent configuration-discovery mechanism tests for the Rust kernel.
 
-use l1_kernel_rs::discovery::{DiscoveryDocument, DiscoveryRegistry};
+use l1_kernel_rs::discovery::{
+    DiscoveryDocument, DiscoveryError, DiscoveryRegistry, DiscoverySnapshot,
+    MAX_DISCOVERY_IDENTITY_BYTES,
+};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
@@ -97,4 +100,96 @@ fn shared_discovery_vectors_match_python_reference() {
             );
         }
     }
+}
+
+#[test]
+fn invalid_registration_is_rejected_without_state_mutation() {
+    let registry = DiscoveryRegistry::new();
+    assert!(!registry.register(" ", json!({"timeout": 30})));
+    assert!(!registry.register("tool\0", json!({"timeout": 30})));
+    assert!(!registry.register("x".repeat(MAX_DISCOVERY_IDENTITY_BYTES + 1), json!({})));
+    assert_eq!(registry.sections(), Vec::<String>::new());
+
+    let error = registry
+        .try_register("tool", json!({"bad\0key": true}))
+        .expect_err("invalid nested key must fail closed");
+    assert!(matches!(error, DiscoveryError::InvalidObjectKey(key) if key == "bad\0key"));
+    assert_eq!(registry.snapshot(), DiscoverySnapshot::default());
+}
+
+#[test]
+fn invalid_document_is_transactional_and_preserves_previous_override() {
+    let registry = DiscoveryRegistry::new();
+    registry
+        .try_register("tool", json!({"timeout": 30, "mode": "safe"}))
+        .expect("register");
+    registry
+        .try_apply_document(&DiscoveryDocument {
+            sections: [("tool".to_owned(), json!({"timeout": 45}))]
+                .into_iter()
+                .collect(),
+        })
+        .expect("valid document");
+
+    let invalid = DiscoveryDocument {
+        sections: [
+            ("tool".to_owned(), json!({"mode": "debug"})),
+            ("bad\0section".to_owned(), json!({"ignored": true})),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let error = registry
+        .try_apply_document(&invalid)
+        .expect_err("invalid section must reject the whole document");
+    assert!(matches!(error, DiscoveryError::InvalidSection(section) if section == "bad\0section"));
+    assert_eq!(
+        registry.get_config("tool", Value::Null),
+        json!({"timeout": 45, "mode": "safe"})
+    );
+}
+
+#[test]
+fn runtime_identity_and_shape_errors_are_explicit() {
+    let registry = DiscoveryRegistry::new();
+    registry
+        .try_register("scalar", json!("default"))
+        .expect("register scalar");
+    let error = registry
+        .try_set_config("scalar", "key", json!(1))
+        .expect_err("scalar section cannot receive object key");
+    assert!(matches!(
+        error,
+        DiscoveryError::NonObjectSection(section) if section == "scalar"
+    ));
+
+    let error = registry
+        .try_set_config("tool", " ", json!(1))
+        .expect_err("blank key must fail closed");
+    assert!(matches!(error, DiscoveryError::InvalidKey(key) if key == " "));
+    assert!(!registry.set_config("tool\0", "key", json!(1)));
+}
+
+#[test]
+fn snapshot_is_deterministic_and_reset_restores_sources() {
+    let registry = DiscoveryRegistry::new();
+    registry
+        .try_register("zeta", json!({"z": 1}))
+        .expect("register zeta");
+    registry
+        .try_register("alpha", json!({"a": 1}))
+        .expect("register alpha");
+    registry
+        .try_set_config("zeta", "z", json!(2))
+        .expect("runtime override");
+
+    assert_eq!(
+        registry.sections(),
+        vec!["alpha".to_owned(), "zeta".to_owned()]
+    );
+    let snapshot = registry.snapshot();
+    assert_eq!(snapshot.sources["zeta"], json!({"z": 1}));
+    assert_eq!(snapshot.registry["zeta"], json!({"z": 2}));
+    registry.reset();
+    assert_eq!(registry.snapshot().registry, snapshot.sources);
 }

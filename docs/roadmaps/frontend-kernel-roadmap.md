@@ -536,6 +536,10 @@ prompt/persistence provider、Python state import、migration callback 与配置
 随后将 `platform` 的 3 项、`paths` 的 5 项、`discovery` 的 3 项和 `lifecycle` 的 6 项机制测试迁移到独立
 target，覆盖 provider-neutral command/path 计算、三层 discovery merge、生命周期 FSM/checkpoint 与 reset；
 命令执行、环境探测、YAML 扫描、时钟、持久化和 Python boot wiring 仍由适配器持有。
+discovery 候选随后补齐 Rust 侧身份边界：section/key 的空白、NUL、长度和嵌套
+对象键在写入前 fail-closed，文档合并采用 staged copy 一次提交，并提供确定性
+snapshot/有序 section 读模型。该片只服务后续 TS/L2 读桥，不接管 YAML 扫描、
+boot 注册或 Python registry 权威。
 随后将 `contract` 的 5 项、`ipc` 的 6 项、`persist` 的 3 项和 `assembly` 的 3 项机制测试迁移到独立 target；
 它们通过公开值/锁 IPC/JSONL journal/assembly snapshot API 验证，共享 vector target 继续保留，socket、SQLite、
 多进程 replay、provider wiring、filesystem side effects 和 runtime authority 仍不进入候选内核。

@@ -483,6 +483,15 @@ clock ownership, and runtime session state remain adapter obligations. The
 settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
 
+The discovery candidate keeps the same adapter-owned three-tier semantics while
+adding a Rust-owned admission seam: blank, NUL-containing, or overlong
+section/key identities and invalid nested object keys fail closed before
+mutation. `try_apply_document` validates the complete parsed document, applies
+overrides to a staged registry copy, and commits once, preserving the previous
+view on failure. `DiscoverySnapshot` and ordered section views are deterministic
+read models for the future TS/L2 bridge; directory scanning, YAML parsing,
+logging, and boot registration remain outside the candidate.
+
 The `preflight` candidate is the next R4 entry preparation slice. It accepts
 only a caller-supplied `AssemblySpec` and `StateProbe`, validates both through
 the existing assembly boundary, and emits a versioned report containing the

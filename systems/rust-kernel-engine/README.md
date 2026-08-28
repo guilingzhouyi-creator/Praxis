@@ -517,10 +517,14 @@ The isolated `discovery` module mirrors the three-tier configuration registry:
 registered defaults and source snapshots, already parsed section overrides,
 object shallow merge, scalar replacement, null-section default retention,
 unknown-section ignore behavior, runtime key updates, and tool/service fallback
-queries. `tests/fixtures/kernel_discovery_vectors.json` is consumed by both
-languages. YAML parsing, discovery-directory scans, logging, boot registration,
-and Python registry mutation remain adapter-owned; public behavior and shared
-vectors are isolated in `tests/registry/kernel_test_discovery.rs`.
+queries. Section/key identities are bounded and fail closed on blank, NUL, or
+invalid nested object keys. Checked document application validates all sections
+before atomically committing a staged registry view, and `DiscoverySnapshot`
+exposes a deterministic read model for the future TS/L2 bridge.
+`tests/fixtures/kernel_discovery_vectors.json` is consumed by both languages.
+YAML parsing, discovery-directory scans, logging, boot registration, and Python
+registry mutation remain adapter-owned; public behavior and shared vectors are
+isolated in `tests/registry/kernel_test_discovery.rs`.
 
 The isolated `load_adaptive` module mirrors the pure worker-sizing control law:
 EWMA smoothing, hysteresis, target-band HOLD, bounded GROW/SHRINK and
