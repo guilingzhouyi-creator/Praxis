@@ -342,9 +342,11 @@ workers parked in the queue wait under the queue lock and avoid no-op wake calls
 when all workers are active; shutdown still broadcasts, and the count is not a
 correctness dependency. Single-task result admission now carries a typed
 outcome directly to the handle instead of building an intermediate wire map;
-fire-and-forget responses remain unchanged. It remains a measured candidate
-and must be rechecked through the same v3 fixed-work matrix before any runtime
-policy promotion.
+fire-and-forget responses remain unchanged. `TaskHandle::done()` reads a
+release-published atomic completion flag without the result mutex, while
+blocking waits and value cloning retain the synchronized slot. It remains a
+measured candidate and must be rechecked through the same v3 fixed-work matrix
+before any runtime policy promotion.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal

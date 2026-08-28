@@ -161,6 +161,10 @@ constructing and reparsing an intermediate `WireMap`; fire-and-forget
 submissions retain their existing wire response. Rejection, eviction,
 cancellation, deadline, and shutdown completion remain unchanged, and the
 typed path is still evaluated under the same fixed-work evidence gate.
+`TaskHandle::done()` now reads a release-published atomic completion flag
+without taking the result mutex; result cloning and blocking waits still use
+the existing synchronized value slot and Condvar. This is a polling-path
+optimization only and does not change completion ordering or error values.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal

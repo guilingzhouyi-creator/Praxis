@@ -196,7 +196,9 @@ The single-result submission path also carries a typed admission outcome
 directly to the `TaskHandle`, skipping an intermediate JSON/BTreeMap response.
 The fire-and-forget wire boundary remains unchanged, and all rejection,
 eviction, cancellation, deadline, and shutdown completion semantics stay under
-the same evidence gate.
+the same evidence gate. `TaskHandle::done()` uses a release-published atomic
+completion flag for lock-free polling; the result mutex and Condvar remain the
+authority for value observation and blocking waits.
 The Rust `agent_loop` candidate now provides the logical routing seam between
 SessionBook truth and TerminalBook correlation. It validates
 agent/cell/session/terminal identity, models loop lifecycle, and holds loop

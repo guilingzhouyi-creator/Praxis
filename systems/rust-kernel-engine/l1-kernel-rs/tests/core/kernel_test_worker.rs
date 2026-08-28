@@ -399,6 +399,37 @@ fn submit_result_returns_json_and_updates_stats() {
 }
 
 #[test]
+fn task_done_tracks_completion_without_observing_result_value() {
+    let pool = WorkerPool::new(WorkerConfig::new(1, 1, 1, Duration::from_secs(1)))
+        .expect("valid worker pool");
+    let started = Arc::new(AtomicBool::new(false));
+    let release = Arc::new(AtomicBool::new(false));
+    let task_started = Arc::clone(&started);
+    let task_release = Arc::clone(&release);
+    let handle = pool.submit_result(Box::new(move || {
+        task_started.store(true, Ordering::Release);
+        while !task_release.load(Ordering::Acquire) {
+            thread::yield_now();
+        }
+        Ok(json!("done"))
+    }));
+    while !started.load(Ordering::Acquire) {
+        thread::yield_now();
+    }
+    assert!(!handle.done());
+    release.store(true, Ordering::Release);
+    assert_eq!(
+        handle.result(Some(Duration::from_secs(1))).unwrap(),
+        json!("done")
+    );
+    assert!(handle.done());
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
 fn submit_result_after_shutdown_completes_handle_with_structured_failure() {
     let pool = configured_pool();
     assert_eq!(pool.shutdown(false, None)["success"], true);

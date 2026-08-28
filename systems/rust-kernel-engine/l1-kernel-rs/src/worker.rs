@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, MutexGuard, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -69,6 +69,7 @@ struct TaskState {
     result: StdMutex<Option<Result<Value, TaskHandleError>>>,
     ready: Condvar,
     cancellation: CancellationToken,
+    completed: AtomicBool,
 }
 
 /// Result handle for a submitted task.
@@ -84,17 +85,14 @@ impl TaskHandle {
                 result: StdMutex::new(None),
                 ready: Condvar::new(),
                 cancellation: CancellationToken::new(),
+                completed: AtomicBool::new(false),
             }),
         }
     }
 
     /// Return whether the task has completed.
     pub fn done(&self) -> bool {
-        self.state
-            .result
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some()
+        self.state.completed.load(Ordering::Acquire)
     }
 
     /// Wait for and return the task value, or a structured failure.
@@ -162,6 +160,7 @@ impl TaskHandle {
             .unwrap_or_else(PoisonError::into_inner);
         if slot.is_none() {
             *slot = Some(result);
+            self.state.completed.store(true, Ordering::Release);
             self.state.ready.notify_all();
         }
     }

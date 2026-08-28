@@ -434,6 +434,9 @@ fixed-work 吞吐、p95/p99、queue-wait 矩阵中复测后，才能决定是否
 随后将单任务 `submit_result` 的准入返回改为 typed outcome，直接完成 `TaskHandle`，跳过中间
 `WireMap`/JSON 构造与解析；fire-and-forget 的 wire 响应保持不变。拒绝、淘汰、取消、deadline 和 shutdown
 完成语义不变，仍需在统一 fixed-work 证据门下复测，不能仅凭局部微基准提升为 runtime policy。
+随后将 `TaskHandle::done()` 改为读取 release-published 原子完成标志，轮询不再争用结果互斥锁；
+结果值复制与阻塞等待仍由原有同步槽和 Condvar 负责，完成顺序与错误值不变。该片仍需统一 fixed-work
+证据复测，不单独作为 runtime policy 依据。
 随后在 `state_queue` 增加 `ProcessHandleAllocator`：Rust 侧以有界 slot、释放代际递增、旧 handle 拒绝和
 容量/重复释放 fail-closed 固定可复用身份候选；该候选暂不替换 generation-one `ProcessTable` bridge，也不
 接管调度或 boot authority。

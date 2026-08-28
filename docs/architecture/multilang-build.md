@@ -104,7 +104,9 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   workers observed waiting under the queue lock; shutdown still broadcasts and
   the counter is not a correctness dependency. Single-task result admission
   uses a typed outcome rather than an intermediate wire map, while
-  fire-and-forget responses remain unchanged. Evidence must compare throughput,
+  fire-and-forget responses remain unchanged. `TaskHandle::done()` reads an
+  atomic completion flag without the result mutex, while result waits and value
+  cloning retain the synchronized slot. Evidence must compare throughput,
   queue wait, and tail latency before any runtime policy promotion.
 - The Rust `session` candidate provides a sharded `SessionBook` with bounded
   history, authoritative `input_seq` admission, cursor paging, explicit
