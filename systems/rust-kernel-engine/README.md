@@ -199,6 +199,9 @@ document snapshots and explicit single-document or paired mutation methods
 persist through the Rust owner before returning. Non-persistent runtimes fail
 closed for configuration access, and this boundary does not reload services or
 import Python settings.
+The persistent constructor validates the selected configuration root before
+applying unclean `StateStore` recovery, so a foreign configuration failure
+does not advance the recovery generation or mutate the prior lifecycle record.
 
 State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,

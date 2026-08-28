@@ -446,14 +446,15 @@ impl KernelRuntime {
         let assembly_snapshot = assembly.snapshot();
         let mut state_store = StateStore::open(root, assembly.snapshot().contract_version)
             .map_err(map_state_store_error)?;
-        if state_store.action() == crate::state_layout::StateAction::Recover {
-            state_store.recover().map_err(map_state_store_error)?;
-        }
+        let needs_recovery = state_store.action() == crate::state_layout::StateAction::Recover;
         let config_store = ConfigStore::open(
             &assembly_snapshot.config_manifest.config_root,
             assembly_snapshot.config_manifest.contract_version,
         )
         .map_err(map_config_store_error)?;
+        if needs_recovery {
+            state_store.recover().map_err(map_state_store_error)?;
+        }
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
         let execution_document = execution_store

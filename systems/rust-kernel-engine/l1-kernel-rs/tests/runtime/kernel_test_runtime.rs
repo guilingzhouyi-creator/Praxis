@@ -14,6 +14,8 @@ use l1_kernel_rs::ports::{PortDescriptor, PortKind};
 use l1_kernel_rs::recovery::RecoveryAction;
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig, RuntimeError, RuntimeTaskState};
 use l1_kernel_rs::session::{SessionSpec, SessionState};
+use l1_kernel_rs::state_layout::StateAction;
+use l1_kernel_rs::state_store::StateStore;
 use l1_kernel_rs::terminal::{TerminalSpec, TerminalState};
 use l1_kernel_rs::worker::{TaskHandleError, WorkerConfig};
 use serde_json::json;
@@ -587,6 +589,40 @@ fn persistent_runtime_rejects_foreign_configuration_root() {
         &root,
     );
     assert!(matches!(result, Err(RuntimeError::ConfigStore(_))));
+    std::fs::remove_dir_all(root).expect("remove state root");
+    std::fs::remove_dir_all(config_root).expect("remove foreign config root");
+}
+
+#[test]
+fn foreign_configuration_rejection_does_not_advance_unclean_state_recovery() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .checkpoint_execution(false)
+            .expect("unclean checkpoint");
+    }
+    let before = StateStore::open(&root, 1).expect("unclean state root");
+    let before_generation = before.generation();
+    let before_lifecycle = before.lifecycle().snapshot();
+    let config_root = temp_root();
+    std::fs::create_dir_all(&config_root).expect("foreign config root");
+    std::fs::write(config_root.join("python-settings.json"), b"{}").expect("foreign config");
+
+    let result = KernelRuntime::open_persistent(
+        spec(root_text).with_config_root(config_root.to_string_lossy().to_string()),
+        config(2, 2),
+        &root,
+    );
+    assert!(matches!(result, Err(RuntimeError::ConfigStore(_))));
+
+    let after = StateStore::open(&root, 1).expect("state root remains unclean");
+    assert_eq!(after.action(), StateAction::Recover);
+    assert_eq!(after.generation(), before_generation);
+    assert_eq!(after.lifecycle().snapshot(), before_lifecycle);
     std::fs::remove_dir_all(root).expect("remove state root");
     std::fs::remove_dir_all(config_root).expect("remove foreign config root");
 }
