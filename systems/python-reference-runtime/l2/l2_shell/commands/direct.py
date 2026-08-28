@@ -16,7 +16,7 @@ from l2.shells.terminal import intent_direct, scout_commission
 
 def _session() -> Any:
     """Return the current shell session (family-backed state)."""
-    from l2.l2_shell.state import get_state
+    from l2.l2_shell import get_state
 
     return get_state()
 

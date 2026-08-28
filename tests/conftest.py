@@ -74,7 +74,7 @@ _RESETS = {
     "l3.boot.boot_registry": ("reset_registry", None),
     "l1.kernel.settings": ("reset_settings", None),
     "l1.kernel.errors": ("reset_error_capture_handler", None),
-    "l2.l2_shell.state": ("reset_state", None),
+    "l2.l2_shell": ("reset_state", None),
     "l2.shells.family": ("reset_family", None),
     "l3.cell.peers.l3a": ("reset_daemon", None),
     "l3.cell.peers.l3a.session_json": ("reset_sequences", None),

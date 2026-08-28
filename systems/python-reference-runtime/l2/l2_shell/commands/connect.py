@@ -77,9 +77,8 @@ def _cmd_connect(args: list[str]) -> dict:
     if not args:
         return {"success": False, "error": _t("shell.app_error.usage_connect")}
     from l1.kernel.params.agent import DEFAULT_CELL_ID
+    from l2.l2_shell import get_state
     from l3.cell import get_cell
-
-    from ..state import get_state
 
     agent_id = args[0]
     terms = get_terminals()
@@ -99,7 +98,7 @@ def _cmd_connect(args: list[str]) -> dict:
 
 
 def _cmd_disconnect(args: list[str]) -> dict:
-    from ..state import get_state
+    from l2.l2_shell import get_state
 
     state = get_state()
     if not state.is_direct():
@@ -116,7 +115,7 @@ def _cmd_disconnect(args: list[str]) -> dict:
 
 
 def _cmd_mode(args: list[str]) -> dict:
-    from ..state import get_state
+    from l2.l2_shell import get_state
 
     state = get_state()
     if args:

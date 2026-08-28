@@ -45,4 +45,30 @@ rustHostSuite("e2e Rust protocol host", () => {
     expect(replay.some((message) => message.kind === "ack")).toBe(true);
     expect(replay.some((message) => message.kind === "event" && message.payload.name === "session.recovered")).toBe(true);
   }, 30_000);
+
+  it("denies unregistered commands fail-closed with a trailing ack", async () => {
+    const responses = await bridge.command("no-such-command-xyz");
+    expect(
+      responses.some(
+        (message) =>
+          message.kind === "result" && message.payload.success === false && String(message.payload.error).includes("unregistered command"),
+      ),
+    ).toBe(true);
+    expect(responses.some((message) => message.kind === "ack")).toBe(true);
+  }, 30_000);
+
+  it("keeps one view's replay window intact after another view acks", async () => {
+    await bridge.attach("s-multi", "view-a");
+    await bridge.attach("s-multi", "view-b");
+    const ackResponses = await bridge.ack(100, "view-a", "s-multi");
+    expect(ackResponses.some((message) => message.kind === "ack")).toBe(true);
+    // Non-destructive R1: view-a acking must not erase view-b's replay window.
+    const replay = await bridge.replay("s-multi", "view-b", -1);
+    const recovered = replay.find((message) => message.kind === "event" && message.payload.name === "session.recovered");
+    expect(recovered).toBeDefined();
+    const nested = recovered?.payload as { data?: { replay?: Array<{ kind: string; payload: { name?: string } }> } };
+    const replayedEvents = nested?.data?.replay ?? [];
+    expect(replayedEvents.length).toBeGreaterThan(0);
+    expect(replayedEvents.some((event) => event.kind === "event" && event.payload.name === "session.attached")).toBe(true);
+  }, 30_000);
 });

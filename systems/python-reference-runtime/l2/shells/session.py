@@ -10,10 +10,10 @@ from l1.kernel.params.agent import DEFAULT_CELL_ID
 class ShellSession:
     """Mutable per-session state for a shell — mode, cell, agent, session id.
 
-    Replaces the legacy process-global ShellState singleton: every shell
-    owns one or more sessions, so concurrent frontends never share mutable
-    state.  The engine's ``dispatch()`` accepts a session for direct-mode
-    routing; legacy callers fall back to the deprecated global singleton.
+    Every shell owns one or more sessions, so concurrent frontends never
+    share mutable state.  The engine's ``dispatch()`` accepts a session for
+    direct-mode routing; legacy callers without an explicit session use the
+    family-backed accessor ``l2.l2_shell.get_state``.
     """
 
     def __init__(self, shell: str = "", session_id: str = "") -> None:

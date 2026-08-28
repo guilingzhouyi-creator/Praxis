@@ -495,8 +495,7 @@ class TestAutoDisconnect:
         Guards against the old `from .cell import get_cell` (missing module) and
         the unimported SIGNAL_TARGET_L3 (NameError) inside _auto_disconnect.
         """
-        from l2.l2_shell import _direct_message, reset_state
-        from l2.l2_shell.state import get_state
+        from l2.l2_shell import _direct_message, get_state, reset_state
 
         reset_state()
         s = get_state()
@@ -511,8 +510,7 @@ class TestAutoDisconnect:
 
     def test_direct_message_cell_error_falls_back(self, mocker):
         """D1/D2 regression: exception in send_direct_message also falls back."""
-        from l2.l2_shell import _direct_message, reset_state
-        from l2.l2_shell.state import get_state
+        from l2.l2_shell import _direct_message, get_state, reset_state
 
         reset_state()
         s = get_state()

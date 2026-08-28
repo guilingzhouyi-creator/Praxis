@@ -39,7 +39,7 @@ class TestModuleImports:
         assert callable(get_state)
 
     def test_state_module(self):
-        from l2.l2_shell.state import get_state
+        from l2.l2_shell import get_state
 
         s = get_state()
         assert s.mode == "L3A"

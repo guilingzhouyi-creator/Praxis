@@ -64,6 +64,58 @@
         "payload": { "event_type": "boundary" }
       },
       "expected_line": "{\"kind\":\"event\",\"payload\":{\"event_type\":\"boundary\"},\"seq\":9007199254740991,\"session_id\":\"s-boundary\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
+    },
+    {
+      "name": "ack_advance_cursor",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 6,
+        "ts": 1,
+        "trace_id": "",
+        "kind": "ack",
+        "payload": { "ack_seq": 5 }
+      },
+      "expected_line": "{\"kind\":\"ack\",\"payload\":{\"ack_seq\":5},\"seq\":6,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
+    },
+    {
+      "name": "command_with_args",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 2,
+        "ts": 1,
+        "trace_id": "",
+        "kind": "command",
+        "payload": { "name": "status", "args": ["--json"] }
+      },
+      "expected_line": "{\"kind\":\"command\",\"payload\":{\"args\":[\"--json\"],\"name\":\"status\"},\"seq\":2,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
+    },
+    {
+      "name": "control_attach",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 3,
+        "ts": 1,
+        "trace_id": "",
+        "kind": "control",
+        "payload": { "op": "attach", "session_id": "s-9" }
+      },
+      "expected_line": "{\"kind\":\"control\",\"payload\":{\"op\":\"attach\",\"session_id\":\"s-9\"},\"seq\":3,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
+    },
+    {
+      "name": "stream_chunk_incremental",
+      "fields": {
+        "v": 1,
+        "session_id": "s-1",
+        "seq": 4,
+        "ts": 1,
+        "trace_id": "",
+        "kind": "stream_chunk",
+        "payload": { "data": "partial", "done": false }
+      },
+      "expected_line": "{\"kind\":\"stream_chunk\",\"payload\":{\"data\":\"partial\",\"done\":false},\"seq\":4,\"session_id\":\"s-1\",\"trace_id\":\"\",\"ts\":1,\"v\":1}"
     }
   ],
   "invalid_frames": [
