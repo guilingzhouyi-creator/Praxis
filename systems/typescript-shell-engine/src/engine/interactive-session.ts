@@ -28,10 +28,12 @@ function summarize(event: Message): string {
   return event.kind;
 }
 
+/** Project a session state into the web frontend shape. */
 export function projectWeb(state: SessionState): Record<string, unknown> {
   return { frontend: "web", session: state.identity, events: state.events };
 }
 
+/** Project a session state into the TUI frontend shape. */
 export function projectTui(state: SessionState): Record<string, unknown> {
   const rows = state.events.map((event) => ({
     seq: event.seq,
@@ -46,6 +48,7 @@ export function projectTui(state: SessionState): Record<string, unknown> {
   };
 }
 
+/** Project a session state into the desktop frontend shape. */
 export function projectDesktop(state: SessionState): Record<string, unknown> {
   const blocks: Record<string, unknown>[] = [
     { type: "heading", text: `Session ${String(state.identity.session_id ?? "")}` },

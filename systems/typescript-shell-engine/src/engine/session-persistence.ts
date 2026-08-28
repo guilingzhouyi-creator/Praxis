@@ -27,19 +27,23 @@ export interface StoreEnvelope<T = JsonObject> {
 export class InMemorySessionPersistence implements ISessionPersistence {
   private store = new Map<string, SessionSnapshot>();
 
+  /** Persist one snapshot, overwriting any existing entry. */
   async save(snapshot: SessionSnapshot): Promise<void> {
     this.store.set(snapshot.session_id, { ...snapshot });
   }
 
+  /** Load a snapshot by id, returning undefined when absent. */
   async load(sessionId: string): Promise<SessionSnapshot | undefined> {
     const found = this.store.get(sessionId);
     return found ? { ...found } : undefined;
   }
 
+  /** List all persisted session ids. */
   async list(): Promise<string[]> {
     return [...this.store.keys()];
   }
 
+  /** Remove one persisted snapshot. */
   async remove(sessionId: string): Promise<void> {
     this.store.delete(sessionId);
   }

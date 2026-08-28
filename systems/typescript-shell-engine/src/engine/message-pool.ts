@@ -78,6 +78,7 @@ export class MessagePool {
     return { pooled: this.pool.length };
   }
 
+  /** Top up the pool with reset messages. */
   private fill(
     msg: PoolableMessage,
     sessionId: string, seq: number, kind: string, traceId: string,

@@ -52,6 +52,7 @@ export class SessionMultiplexer {
     return state;
   }
 
+  /** Detach a view (idempotent). */
   detach(viewId: string): void {
     this.views.delete(viewId);
   }
@@ -159,6 +160,7 @@ export class SessionManager {
 
   constructor(private readonly bridge: ProtocolBridge) {}
 
+  /** Resolve or lazily create the session multiplexer. */
   private multiplexer(sessionId: string): SessionMultiplexer {
     let mux = this.sessions.get(sessionId);
     if (!mux) {

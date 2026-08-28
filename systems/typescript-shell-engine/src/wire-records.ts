@@ -168,44 +168,52 @@ const DEFAULT_FIELDS: { [K in RecordType]: JsonObject } = {
   evidence_ref: { digest: "", trace_id: "", metadata: {} },
 };
 
+/** Narrow unknown values to plain JSON objects. */
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Return whether an object owns the given field. */
 function hasField(object: JsonObject, field: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, field);
 }
 
+/** Require a string value, optionally allowing empty text. */
 function requireText(value: unknown, name: string, allowEmpty = false): void {
   if (typeof value !== "string" || (!allowEmpty && value.length === 0)) {
     throw new RecordValidationError(`${name} must be a ${allowEmpty ? "string" : "non-empty string"}`);
   }
 }
 
+/** Require an integer at or above a minimum. */
 function requireInteger(value: unknown, name: string, minimum = 0): void {
   if (typeof value !== "number" || !Number.isInteger(value) || value < minimum) {
     throw new RecordValidationError(`${name} must be an integer >= ${minimum}`);
   }
 }
 
+/** Require a finite numeric timestamp. */
 function requireTimestamp(value: unknown): void {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new RecordValidationError("ts must be a number");
   }
 }
 
+/** Require a plain object value. */
 function requireObject(value: unknown, name: string): asserts value is JsonObject {
   if (!isObject(value)) {
     throw new RecordValidationError(`${name} must be an object`);
   }
 }
 
+/** Require an array of non-empty strings. */
 function requireStringArray(value: unknown, name: string): void {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.length === 0)) {
     throw new RecordValidationError(`${name} must be a string array`);
   }
 }
 
+/** Validate required and known fields for one record type. */
 function validateData(recordType: RecordType, data: JsonObject): void {
   for (const field of REQUIRED_FIELDS[recordType]) {
     if (!hasField(data, field)) {
@@ -272,10 +280,12 @@ function validateData(recordType: RecordType, data: JsonObject): void {
   }
 }
 
+/** Current unix time in seconds. */
 function nowSeconds(): number {
   return Date.now() / 1000;
 }
 
+/** Normalize a raw record, filling defaults and validating fail-closed. */
 function normalizeRecord(raw: unknown): AnyRecord {
   requireObject(raw, "record");
   const recordType = raw.record_type;
@@ -295,6 +305,7 @@ function normalizeRecord(raw: unknown): AnyRecord {
   return { record_type: recordType as RecordType, schema_version: RECORD_SCHEMA_VERSION, data } as unknown as AnyRecord;
 }
 
+/** Sort JSON keys recursively for canonical serialization. */
 function sortJson(value: unknown): JsonValue {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") {
@@ -314,25 +325,25 @@ function sortJson(value: unknown): JsonValue {
   throw new RecordValidationError(`unsupported JSON value: ${typeof value}`);
 }
 
+/** Serialize JSON values with recursively sorted keys for Python3 parity. */
 export function canonicalJson(value: unknown): string {
-  /** Serialize JSON values with recursively sorted keys for Python3 parity. */
   const encoded = JSON.stringify(sortJson(value));
   if (encoded === undefined) throw new RecordValidationError("value cannot be encoded as JSON");
   return encoded;
 }
 
+/** Normalize a record and discard forward-compatible unknown fields. */
 export function toRecordEnvelope(record: AnyRecord): AnyRecord {
-  /** Normalize a record and discard forward-compatible unknown fields. */
   return normalizeRecord(record);
 }
 
+/** Serialize a record using the Python3 reference's canonical JSON rules. */
 export function encodeRecord(record: AnyRecord): string {
-  /** Serialize a record using the Python3 reference's canonical JSON rules. */
   return canonicalJson(toRecordEnvelope(record));
 }
 
+/** Decode one record and fail closed on malformed JSON or schema versions. */
 export function decodeRecord(line: string): AnyRecord {
-  /** Decode one record and fail closed on malformed JSON or schema versions. */
   if (typeof line !== "string" || line.trim().length === 0) {
     throw new RecordValidationError("record line must be non-empty text");
   }
