@@ -295,14 +295,26 @@ all are render-only — the host keeps execution and verdict authority.
 
 | Module | Mirrors (Python) | Responsibility |
 |---|---|---|
-| `engine/command-catalog.ts` | `l2/commands.py` metadata + `config/commands.yaml` | Parses the shared YAML subset (commands, aliases, args, examples), alias reverse index, revision counter |
+| `engine/command-catalog.ts` | `l2/commands.py` metadata + `config/commands.yaml` | Parses the shared YAML subset (commands, aliases, args, examples), alias reverse index, revision counter; bounded name cache |
 | `engine/terminal-view.ts` | `l2/shells/terminal.py` result shapes | Normalized dict projections for help/tools/intent/scout/system/tool views |
 | `engine/agent-selector.ts` (preconnectImpact + riskLevelOf) | `l2/selector.py` `preconnect()` result | Display-safe verdict projection and injection-risk grading at the reference thresholds (0.3 / 0.7) |
 
 Integration: `builtins.ts` renders full-surface `/help` from the catalog;
-`route.ts` resolves catalog aliases of local handlers before bridging;
-`command-completion.ts` merges catalog command names/aliases into candidates;
-`locale-catalog.ts` carries the terminal/selector display keys (en subset).
+`route.ts` resolves catalog aliases of local handlers before bridging and
+routes local dispatch through a session id; `command-completion.ts` merges
+catalog command names/aliases into candidates; `command-groups.ts` registers
+all eight domains (settings/system/memory/model/selector/card/l3a/tool) with
+local arity validation; `locale-catalog.ts` carries the terminal/selector
+display keys, value-locked to `locales/en.yaml` by a parity test.
+
+### Phase A backend hardening (2026-08-28)
+
+| Area | Change |
+|---|---|
+| `connection-manager.ts` | Closeable transports are released on disconnect and when a failed probe is replaced (no lingering children/sockets); close is best-effort and idempotent |
+| `session-manager.ts` / `interactive-session.ts` | `SessionManager.detach` releases the per-session multiplexer when its last view leaves; `SessionView.ack`/`detach` complete the view lifecycle (monotonic ack, cursor reset) |
+| `l3-bridge-interface.ts` | `IL3Bridge.session` domain completes the typed control plane (attach/detach/ack/replay/resume) |
+| `projection-cache.ts` | FIFO-bounded at 256 entries instead of unbounded growth |
 
 ## Contract surfaces
 
