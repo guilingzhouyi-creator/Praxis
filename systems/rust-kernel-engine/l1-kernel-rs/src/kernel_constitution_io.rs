@@ -331,6 +331,11 @@ impl TerritoryConstitution {
     }
 
     fn validate(&self) -> Result<(), ConstitutionIoError> {
+        if self.source.contains('\0') {
+            return Err(ConstitutionIoError::InvalidValue {
+                field: "source".to_owned(),
+            });
+        }
         if !self.default_reputation.is_finite() || !(0.0..=1.0).contains(&self.default_reputation) {
             return Err(ConstitutionIoError::InvalidReputation(
                 self.default_reputation.to_string(),
@@ -344,7 +349,7 @@ impl TerritoryConstitution {
             validate_territories(territories)?;
         }
         for (gate, description) in &self.gate_rules {
-            if gate.is_empty() || description.contains('\0') {
+            if gate.is_empty() || gate.contains('\0') || description.contains('\0') {
                 return Err(ConstitutionIoError::InvalidValue {
                     field: gate.clone(),
                 });
@@ -491,7 +496,10 @@ fn validate_territories(territories: &[String]) -> Result<(), ConstitutionIoErro
 }
 
 fn validate_path(path: &Path) -> Result<(), ConstitutionStoreError> {
-    if path.as_os_str().is_empty() || path.file_name().is_none() {
+    if path.as_os_str().is_empty()
+        || path.file_name().is_none()
+        || path.to_string_lossy().contains('\0')
+    {
         return Err(ConstitutionStoreError::Path(
             ConstitutionIoError::InvalidPath,
         ));

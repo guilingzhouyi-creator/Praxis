@@ -218,6 +218,38 @@ fn invalid_replacement_keeps_memory_and_disk_unchanged() {
 }
 
 #[test]
+fn render_and_open_reject_nul_boundaries() {
+    let source_invalid = TerritoryConstitution::blank("test\0source");
+    let error = source_invalid
+        .render()
+        .expect_err("NUL source must fail closed");
+    assert!(matches!(
+        error,
+        ConstitutionIoError::InvalidValue { field } if field == "source"
+    ));
+
+    let mut gate_invalid = TerritoryConstitution::blank("test");
+    gate_invalid
+        .gate_rules
+        .insert("G\0".to_owned(), "description".to_owned());
+    let error = gate_invalid
+        .render()
+        .expect_err("NUL gate key must fail closed");
+    assert!(matches!(
+        error,
+        ConstitutionIoError::InvalidValue { field } if field == "G\0"
+    ));
+
+    let invalid_path = std::path::PathBuf::from("constitution\0.md");
+    assert!(matches!(
+        ConstitutionStore::open(invalid_path),
+        Err(ConstitutionStoreError::Path(
+            ConstitutionIoError::InvalidPath
+        ))
+    ));
+}
+
+#[test]
 fn concurrent_updates_keep_disk_and_memory_versions_aligned() {
     let root = temp_root("concurrent");
     fs::create_dir_all(&root).expect("root");

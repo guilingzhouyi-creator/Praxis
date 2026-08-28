@@ -1065,7 +1065,8 @@ cutover 完成。
 发布内存快照。临时文件使用排他创建，rename 后在宿主支持时同步父目录，
 避免并发写入覆盖临时文件或目录项未持久化。`kernel_test_constitution_io.rs` 以独立 policy target
 覆盖 malformed known values、失败回滚、重开恢复和 8 线程磁盘/内存版本
-对齐。该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
+对齐；source、GateChain key 和所选路径中的 NUL 在变更前直接 fail-closed。
+该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
 EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此
 宣称完成。
 

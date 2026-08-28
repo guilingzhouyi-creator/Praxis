@@ -63,7 +63,8 @@ deterministic renderer for territory/GateChain values, plus a
 while publishing the in-memory snapshot only after success. Temporary siblings
 are opened exclusively and the parent directory is synced after rename where
 supported. Failed writes retain the prior snapshot and remove their temporary
-sibling; concurrent updates are serialized per store. The independent target
+sibling; source, GateChain keys, and selected paths reject embedded NULs
+before mutation. Concurrent updates are serialized per store. The independent target
 `tests/policy/kernel_test_constitution_io.rs` covers malformed scalar rejection,
 versioned updates, proposal merge, deterministic diffs, rollback, reopen, and
 concurrent disk/memory alignment. SettingsCenter discovery, providers,

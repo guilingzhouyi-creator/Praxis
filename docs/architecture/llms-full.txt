@@ -1111,9 +1111,10 @@ territory identities, and computes stable territory diffs. `ConstitutionStore`
 keeps an in-memory snapshot aligned with an atomically replaced, flushed file;
 failed writes leave both the prior snapshot and temporary-file directory
 unchanged. Temporary siblings use exclusive creation and the parent directory
-is synced after rename where the host supports directory syncing; concurrent
-updates are serialized per store. This is a filesystem-bearing R4 candidate
-only: SettingsCenter discovery, provider
+is synced after rename where the host supports directory syncing. Source,
+GateChain keys, and selected paths reject embedded NULs before mutation;
+concurrent updates are serialized per store. This is a filesystem-bearing R4
+candidate only: SettingsCenter discovery, provider
 selection, prompt injection, EventBus effects, and production Constitution
 authority remain outside the module. Independent coverage lives in
 `systems/rust-kernel-engine/l1-kernel-rs/tests/policy/kernel_test_constitution_io.rs`.

@@ -503,7 +503,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   computes stable territory diffs, and persists through flushed atomic
   replacement while keeping its in-memory snapshot unchanged on failed writes.
   Temporary siblings use exclusive creation and the parent directory is synced
-  after rename where supported.
+  after rename where supported; source, GateChain keys, and selected paths
+  reject embedded NULs before mutation.
   `tests/policy/kernel_test_constitution_io.rs` covers parser fail-closed
   behavior, versioned updates, proposal merge, deterministic diffs, rollback,
   reopen, and concurrent disk/memory version alignment. SettingsCenter
