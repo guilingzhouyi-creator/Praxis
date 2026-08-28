@@ -156,6 +156,11 @@ parked in the queue wait under the same queue-lock boundary, so active workers
 do not receive no-op wake calls. The counter is advisory and queue-lock
 ordered; shutdown still uses `notify_all`, and a worker that observes queued
 work after a wake never depends on the counter for correctness.
+The single-task result path now uses a typed admission outcome instead of
+constructing and reparsing an intermediate `WireMap`; fire-and-forget
+submissions retain their existing wire response. Rejection, eviction,
+cancellation, deadline, and shutdown completion remain unchanged, and the
+typed path is still evaluated under the same fixed-work evidence gate.
 
 The Rust `agent_loop` candidate is the logical routing seam above the session
 and terminal substrates. `AgentLoopBook` validates agent/cell/session/terminal

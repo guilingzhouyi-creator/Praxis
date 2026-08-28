@@ -192,6 +192,11 @@ The producer now counts workers parked in the queue wait while holding the
 queue-lock boundary and limits notifications to actual idle waiters; active
 workers therefore avoid no-op wake calls. The count is only a wake optimization
 and never a correctness dependency, while shutdown continues to broadcast.
+The single-result submission path also carries a typed admission outcome
+directly to the `TaskHandle`, skipping an intermediate JSON/BTreeMap response.
+The fire-and-forget wire boundary remains unchanged, and all rejection,
+eviction, cancellation, deadline, and shutdown completion semantics stay under
+the same evidence gate.
 The Rust `agent_loop` candidate now provides the logical routing seam between
 SessionBook truth and TerminalBook correlation. It validates
 agent/cell/session/terminal identity, models loop lifecycle, and holds loop

@@ -399,6 +399,23 @@ fn submit_result_returns_json_and_updates_stats() {
 }
 
 #[test]
+fn submit_result_after_shutdown_completes_handle_with_structured_failure() {
+    let pool = configured_pool();
+    assert_eq!(pool.shutdown(false, None)["success"], true);
+
+    let handle = pool.submit_result(Box::new(|| Ok(json!("must not run"))));
+    assert_eq!(
+        handle.result(Some(Duration::from_secs(1))),
+        Err(TaskHandleError::Failed("pool is shut down".to_owned()))
+    );
+    assert_eq!(pool.stats()["rejected"], 1);
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
 fn single_worker_preserves_fifo_order_across_claim_batches() {
     let pool = WorkerPool::new(WorkerConfig::new(1, 1, 32, Duration::from_secs(1)))
         .expect("valid worker pool");

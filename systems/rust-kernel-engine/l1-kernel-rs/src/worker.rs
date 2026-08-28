@@ -203,6 +203,12 @@ impl QueueState {
     }
 }
 
+struct AdmissionOutcome {
+    queued: usize,
+    evicted_handles: Vec<TaskHandle>,
+    evicted_count: u64,
+}
+
 #[derive(Debug, Default)]
 struct Metrics {
     pool_size: AtomicUsize,
@@ -350,15 +356,13 @@ impl WorkerPool {
 
     fn submit_result_with_deadline(&self, action: TaskFn, deadline: Option<Instant>) -> TaskHandle {
         let handle = TaskHandle::new();
-        let result = self.enqueue(action, Some(handle.clone()), deadline);
-        if result.get("success") != Some(&json!(true)) {
-            handle.complete(Err(TaskHandleError::Failed(
-                result
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .unwrap_or("task rejected")
-                    .to_owned(),
-            )));
+        let task = Task {
+            action: Some(action),
+            handle: Some(handle.clone()),
+            deadline,
+        };
+        if let Err(error) = self.admit_result_task(task) {
+            handle.complete(Err(TaskHandleError::Failed(error)));
         }
         handle
     }
@@ -475,27 +479,45 @@ impl WorkerPool {
         if tasks.is_empty() {
             return ok([("submitted", json!(true))]);
         }
+        let result = self.admit_tasks(tasks);
+        match result {
+            Ok(outcome) => {
+                self.finish_admission(outcome);
+                ok([("submitted", json!(true))])
+            }
+            Err(error) => fail(&error, []),
+        }
+    }
+
+    fn admit_result_task(&self, task: Task) -> Result<(), String> {
+        let outcome = self.admit_tasks(vec![task])?;
+        self.finish_admission(outcome);
+        Ok(())
+    }
+
+    fn admit_tasks(&self, tasks: Vec<Task>) -> Result<AdmissionOutcome, String> {
+        debug_assert!(!tasks.is_empty());
         let batch_size = tasks.len();
         let mut queue = self.queue.lock();
         if queue.closed {
             let rejected = tasks.len().try_into().unwrap_or(u64::MAX);
             drop(queue);
             self.metrics.rejected.fetch_add(rejected, Ordering::Relaxed);
-            return fail("pool is shut down", []);
+            return Err("pool is shut down".to_owned());
         }
         let mut evicted_handles = Vec::new();
-        let mut rejected = 0_u64;
+        let mut evicted_count = 0_u64;
         for task in tasks {
             if queue.queue.len() >= self.queue.capacity {
                 if let Some(mut evicted) = queue.queue.pop_front() {
                     if let Some(evicted_handle) = evicted.handle.take() {
                         evicted_handles.push(evicted_handle);
                     }
-                    rejected = rejected.saturating_add(1);
+                    evicted_count = evicted_count.saturating_add(1);
                 } else {
                     drop(queue);
                     self.metrics.rejected.fetch_add(1, Ordering::Relaxed);
-                    return fail("queue full and eviction failed", []);
+                    return Err("queue full and eviction failed".to_owned());
                 }
             }
             queue.queue.push_back(task);
@@ -503,16 +525,25 @@ impl WorkerPool {
         let queued = queue.queue.len();
         self.notify_waiting_workers(batch_size);
         drop(queue);
-        for handle in evicted_handles {
+        Ok(AdmissionOutcome {
+            queued,
+            evicted_handles,
+            evicted_count,
+        })
+    }
+
+    fn finish_admission(&self, outcome: AdmissionOutcome) {
+        for handle in outcome.evicted_handles {
             handle.complete(Err(TaskHandleError::Failed(
                 "task evicted by backpressure".to_owned(),
             )));
         }
-        if rejected > 0 {
-            self.metrics.rejected.fetch_add(rejected, Ordering::Relaxed);
+        if outcome.evicted_count > 0 {
+            self.metrics
+                .rejected
+                .fetch_add(outcome.evicted_count, Ordering::Relaxed);
         }
-        self.maybe_grow_worker(queued);
-        ok([("submitted", json!(true))])
+        self.maybe_grow_worker(outcome.queued);
     }
 
     fn maybe_grow_worker(&self, queued: usize) {
