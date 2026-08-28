@@ -64,7 +64,7 @@ precommit:
 
 clean:
 	python -c "import shutil, pathlib; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
-	python -c "import shutil, pathlib; [shutil.rmtree(p, ignore_errors=True) for p in [pathlib.Path('.ruff_cache'), pathlib.Path('.pytest_cache'), pathlib.Path('htmlcov')]]"
+	python -c "import shutil, pathlib; [shutil.rmtree(p, ignore_errors=True) for p in [pathlib.Path('.ruff_cache'), pathlib.Path('.pytest_cache'), pathlib.Path('htmlcov'), pathlib.Path('systems/typescript-shell-engine/coverage')]]"
 	python -c "import os; [os.remove(f) for f in ['.coverage'] if os.path.exists(f)]"
 	rm -rf *.egg-info 2>/dev/null; true
 

@@ -93,6 +93,7 @@ memories/
 
 # ── Node (opencode skills + node_modules) ──
 node_modules/
+coverage/
 opencode.json
 .reasonix/
 
