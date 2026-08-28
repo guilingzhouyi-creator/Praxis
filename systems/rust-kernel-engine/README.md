@@ -614,7 +614,10 @@ implicit discovery is disabled so the Python infra gate
 targets. Shared JSON fixtures stay in `tests/fixtures/`; run all targets as
 bounded parallel slices with `make rust-contract-test`, select a domain with
 `python scripts/py/run_rust_test_domains.py --domain runtime`, or run one
-bounded `cargo test --test <name>`.
+bounded `cargo test --test <name>`. The slice runner enforces a finite
+per-target timeout (300 seconds by default), kills timed-out process groups,
+and emits compact passing output; use `--timeout` and `--verbose` for focused
+diagnostics.
 
 The isolated `identity_uid` module mirrors the value-only UID issuer boundary:
 prefix and body-length validation, bounded entropy candidates, collision

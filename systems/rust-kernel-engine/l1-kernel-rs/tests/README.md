@@ -44,3 +44,9 @@ Run all registered targets as bounded parallel slices with:
 python scripts/py/run_rust_test_domains.py --jobs 4
 python scripts/py/run_rust_test_domains.py --domain runtime --jobs 2
 ```
+
+Each target is bounded to 300 seconds by default. Use `--timeout <seconds>` to
+tighten or extend that limit; an expired target is terminated together with its
+process group and is reported as a failed slice. Passing Cargo output is
+suppressed in normal mode to keep sliced logs small; add `--verbose` when
+diagnosing a successful target.

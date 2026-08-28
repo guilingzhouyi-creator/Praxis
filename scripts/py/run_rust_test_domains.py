@@ -4,12 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
+import signal
 import subprocess
 import sys
+import time
 import tomllib
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +44,8 @@ class TargetResult:
     command: tuple[str, ...]
     returncode: int
     output: str
+    duration_seconds: float
+    timed_out: bool = False
 
 
 def _targets_by_domain() -> dict[str, tuple[str, ...]]:
@@ -71,8 +77,40 @@ def _selected_domains(requested: Sequence[str] | None, grouped: dict[str, tuple[
     return tuple(domain for domain in DOMAINS if domain in requested)
 
 
-def _run_target(domain: str, target: str) -> TargetResult:
-    """Run exactly one Cargo integration target in its own process."""
+def _decode_output(output: str | bytes | None) -> str:
+    """Normalize subprocess output across text and mocked process APIs."""
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output
+
+
+def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    """Terminate a timed-out Cargo process and every child in its session."""
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def _run_target(domain: str, target: str, timeout_seconds: float) -> TargetResult:
+    """Run one Cargo integration target with a bounded process lifetime."""
     command = (
         "cargo",
         "test",
@@ -81,23 +119,60 @@ def _run_target(domain: str, target: str) -> TargetResult:
         "--test",
         target,
     )
-    completed = subprocess.run(
+    started = time.monotonic()
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    except OSError as error:
+        return TargetResult(
+            domain,
+            target,
+            command,
+            127,
+            f"unable to start Cargo target: {error}",
+            time.monotonic() - started,
+        )
+
+    try:
+        output, _ = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        _terminate_process_group(process)
+        output, _ = process.communicate()
+        elapsed = time.monotonic() - started
+        detail = _decode_output(output).rstrip()
+        timeout_note = f"target timed out after {timeout_seconds:g}s; process group terminated"
+        combined = f"{detail}\n{timeout_note}" if detail else timeout_note
+        return TargetResult(domain, target, command, 124, combined, elapsed, timed_out=True)
+
+    return TargetResult(
+        domain,
+        target,
         command,
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
+        process.returncode,
+        _decode_output(output),
+        time.monotonic() - started,
     )
-    return TargetResult(domain, target, command, completed.returncode, completed.stdout)
 
 
-def _run_selected(grouped: dict[str, tuple[str, ...]], domains: Sequence[str], jobs: int) -> list[TargetResult]:
+def _run_selected(
+    grouped: dict[str, tuple[str, ...]],
+    domains: Sequence[str],
+    jobs: int,
+    timeout_seconds: float,
+) -> list[TargetResult]:
     """Run selected targets with bounded parallelism and stable reporting order."""
     work = [(domain, target) for domain in domains for target in grouped[domain]]
     results: dict[tuple[str, str], TargetResult] = {}
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        futures = {executor.submit(_run_target, domain, target): (domain, target) for domain, target in work}
+        futures = {
+            executor.submit(_run_target, domain, target, timeout_seconds): (domain, target) for domain, target in work
+        }
         for future in as_completed(futures):
             key = futures[future]
             results[key] = future.result()
@@ -129,11 +204,25 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=max(1, min(4, os.cpu_count() or 1)),
         help="maximum concurrent Cargo target processes (default: %(default)s)",
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        metavar="SECONDS",
+        help="maximum runtime for each target before terminating its process group (default: %(default)s)",
+    )
     parser.add_argument("--list", action="store_true", help="list selected domains and targets")
     parser.add_argument("--dry-run", action="store_true", help="print commands without running targets")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="include passing target output; failures always include their captured output",
+    )
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error("--jobs must be >= 1")
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("--timeout must be a finite value greater than zero")
     return args
 
 
@@ -157,14 +246,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"cargo test --manifest-path {MANIFEST} --test {target}")
         return 0
 
-    results = _run_selected(grouped, domains, args.jobs)
+    results = _run_selected(grouped, domains, args.jobs, args.timeout)
     failures = 0
     for result in results:
-        status = "PASS" if result.returncode == 0 else "FAIL"
-        print(f"\n[{status}] {result.domain}/{result.target}")
+        status = "TIMEOUT" if result.timed_out else ("PASS" if result.returncode == 0 else "FAIL")
+        print(f"\n[{status}] {result.domain}/{result.target} ({result.duration_seconds:.2f}s)")
         if result.returncode != 0:
             failures += 1
-        print(result.output.rstrip())
+        if args.verbose or result.returncode != 0:
+            print(result.output.rstrip())
     print(f"\nRust test slices: {len(results) - failures} passed, {failures} failed")
     return 1 if failures else 0
 

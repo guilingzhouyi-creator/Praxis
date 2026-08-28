@@ -68,7 +68,10 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   target name with `autotests = false`; implementation modules contain no
   inline test blocks. `make rust-contract-test` runs every registered target as
   bounded parallel slices through `scripts/py/run_rust_test_domains.py`, while
-  `cargo test --test <name>` runs one bounded target.
+  `cargo test --test <name>` runs one bounded target. The slice runner applies
+  a 300-second per-target timeout by default, terminates the target's process
+  group on expiry, reports timeout/launch failures as failed slices, and keeps
+  passing output compact unless `--verbose` is requested.
 - The Rust `substrate` module begins the Rust-first R1 base with
   generation-tagged process handles, deterministic shard planning, and
   allocation-free atomic queue metrics. It does not own process storage,

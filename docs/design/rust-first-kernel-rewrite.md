@@ -719,7 +719,9 @@ later TS and Rust runtime rebuilds.
 The build perimeter runs these targets as bounded parallel processes through
 `scripts/py/run_rust_test_domains.py`; a single target remains available for
 focused diagnosis, and no full-domain run is collapsed into one monolithic
-process.
+process. Each target has a finite 300-second timeout by default. Expired
+targets terminate their process group and become explicit failures, while
+passing output stays compact unless `--verbose` is selected.
 
 The `rule_descriptor` checker seam is fail-closed: an absent checker result
 continues to mean PASS, but a panic from an injected checker is caught and
