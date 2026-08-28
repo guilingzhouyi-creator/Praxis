@@ -109,11 +109,13 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 - 工具执行走 `l1.kernel.capability.invoke_capability`（W6.1 单门 + fail-closed + audit）；G1 fail-closed；`_execute_tool_spec` 私有化；`_l3a_intent` 修复（改走 `l3.cell.peers.l3`）；删除 `shell_session.py` 死代码（main 上仍存在，见 E5）。
 - 验收：门禁测试绿；默认 L3A 意图路径可用；L2 无 Popen。
 
-### 6.2 P1 边界迁移 — ⚠️ 曾合入后被 edc5caa6 回退（2026-08-25 复核）
+### 6.2 P1 边界迁移 — ⚠️ 曾合入后被 edc5caa6 回退（2026-08-25 复核；2026-08-28 定论）
 
 > ⚠️ **main 现状复核**：`systems/python-reference-runtime/l2/bridge.py`、`systems/python-reference-runtime/l3/services/injection_guard.py` 已被 `edc5caa6`
 > 移除且未回补——下述 ✅ 记录的是合入当时（08-20/21）的状态；main 上 L2→L3/L4 直连回归。
-> 重做边界迁移或改为协议客户端形态收敛之前，本阶段不得视为完成。
+> **定论（2026-08-28）**：本阶段**不再回补**——TS L2 是终态权威（操作员 08-23 方向），TS 侧 `engine/bridge.ts`
+> 已是协议 v1 客户端形态（见 `l2-ts-rewrite-mapping.md` §1 注记），进程内 Python bridge 被该形态取代；
+> 本阶段状态维持"方向被取代"，不构成割接前置（G1–G6 阶梯见 §5.3/§5.4）。
 
 - **L3 command bridge 清零**：`systems/python-reference-runtime/l2/bridge.py` 为 L2→L3 唯一受控边界（92 函数 / 49 allowlist）；26 个文件 allowlist 条目清零；非桥 L2→L3 直连 44 → 0（余 8 条 L2→L4 独立边界：ci_review/mcp_bridge/api_handlers/llm/cron/i18n）。
 - **selector**：dict 数据 API（`cell_ids`/`cell_liveness`/`cell_agent_reachable`/`cell_territory`，对象句柄零泄漏）；注入策略迁 L3（`l3/services/injection_guard.py`——模式表/阈值裁决/LLM reviewer 下沉）。
@@ -121,13 +123,18 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 - **i18n 收编**：47 处 f-string error 串 → `shell.app_error.*`（31 key × 4 locale）；`test_i18n_l2_regression` 正则已补 f-string 盲区。
 - 验收：业务文件零直连（仅 bridge.py 保留）；策略写操作全部经桥。
 
-### 6.3 P2 协议 v1 — 🟡 参考实现与契约钉在 main，接线层不在（2026-08-25 复核）
+### 6.3 P2 协议 v1 — 🟡 参考实现与契约钉在 main，接线层不在（2026-08-25 复核；2026-08-28 定论）
 
 > ⚠️ **main 现状复核**：`systems/python-reference-runtime/l2/protocol/{envelope,records,schema,host}.py` 与
 > `tests/l2/test_protocol_v1.py`、`test_protocol_records.py` 在 main；`projection.py`、
 > `tests/l2/test_projection.py`、`tests/l4/test_shell_protocol.py` 不在 main；
 > `systems/python-reference-runtime/l4` 全目录无 ProtocolHost/envelope 接线（web 双模式与 ws envelope 分支随 edc5caa6 移除未回补）——
 > "多前端同会话可恢复"验收在当前 main 不成立，仅 stdio host（`python -m l2.protocol`）可用。
+> **定论（2026-08-28）**：Python 侧 `projection.py` 与 web/ws 接线**不再回补**——投影由 TS 引擎
+> `engine/interactive-session.ts`（projectWeb/Tui/Desktop/Vscode 四形状 + 未知回退 web）承担，
+> 多前端会话语义由 `engine/session-manager.ts`（per-view 游标 + 共享水位=落后视图）实现；
+> "多前端同会话可恢复"验收已由 G3 反转 e2e（多视图非破坏性 ack）与 G4 持久化互读验证（见
+> `l2-ts-rewrite-mapping.md` §5.3 执行序）。
 
 - **参考实现**：`systems/python-reference-runtime/l2/protocol/`（envelope/schema/records/host/projection）+ 契约钉；**TS parity mirror**：`systems/typescript-shell-engine/`（共享 fixture + Vitest）。
 - **接入**：web 端点双模式（`/api/v2/shell` 检测 envelope 走共享 ProtocolHost，旧 dict 兼容）；会话值层 `SessionIdentity`；多前端统一调用（`SessionCursor` 每视图游标 + 单一 ProtocolHost 入口，前端只做线格式适配）。

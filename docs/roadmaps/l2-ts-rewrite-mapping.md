@@ -102,6 +102,56 @@ G1 覆盖达标 → G2 向量冻结 → G3 反转 e2e 绿 → G4 持久化互读
 
 每步独立提交、独立证据；任一步失败回退上一步状态。
 
+> **执行序实例化（2026-08-28，feature/l2-g-cutover）**：
+>
+> | 阶梯 | 状态 | 证据 |
+> |---|---|---|
+> | G1 覆盖达标 | ✅ 已达成 | authority 四模块 stmts/branch：envelope 98.97/98.18、bridge 97.36/90.69、records 95.93/90.54、session-manager 99.06/93.02（门槛 95/90） |
+> | G2 向量冻结 | ✅ 已达成 | `protocol_v1_conformance.json` canonical_envelopes 补全 7 KIND（ack/command/control/event/intent/result/stream_chunk）；TS/Python3 逐字节一致（three-way-vectors + test_conformance_vectors 44 passed）；Rust gate 待二进制构建后纳入（见 §5.4 线缆契约） |
+> | G3 反转 e2e 绿 | ✅ Rust host 变体已达成 | `e2e.rust.stdio` 4 例启用并扩展（command 往返 / attach-recovery / 未注册命令 fail-closed / 多视图非破坏性 ack）；`PRAXIS_RUST_HOST_BIN` 指向 `rust-protocol-host`（D2 后 G3 的 Rust 变体按 l1-l2-docking §3 定义满足） |
+> | G4 持久化互读 | ✅ 已达成 | `session-store.e2e.test.ts` 双向 round-trip（Rust probe emit→TS 读、TS 写→Rust validate）+ `store_version:99` fail-closed；共享 fixture 双端消费 |
+> | G5 切默认+开关 | ⏳ L2 侧接口已冻结（§5.4），Rust 前置未就绪 | Rust host 接入 boot/Port 生产路径（Rust 侧 Agent）；验收清单见 §5.4 |
+> | G6 移除 Python3 host | ⏳ G5 后一个版本 | 见 §5.4 |
+
 > **实例化（2026-08-23）**：TS-L2 × Rust-L1 线缆对接的阶段计划、里程碑表与风险册见
 > `docs/roadmaps/l1-l2-docking.md`（D0 语义修复 → D1 Rust 协议主机 → D2 缝合）。
 > 其 M-D2 完成即满足本阶梯 G3 的 Rust host 变体；M-D2 后由 G1–G6 接管割接。
+
+### 5.4 G5 切默认：L2 侧接口对齐规格（2026-08-28，供 Rust 侧 Agent 执行）
+
+> 本阶梯 R3 教训：Rust 侧由另一 Agent（GPT-5.6Terra）推进，L2 侧只锁定
+> **接口契约与开关语义**，不在本阶梯做 Rust 实现；Rust host 接入 boot/Port
+> 属 Rust 侧前置。以下为 L2 侧冻结的对接面，Rust 侧改动必须逐条满足。
+
+**开关语义（TS 侧已实现，`src/engine/transports/rust-host.ts`）**：
+
+| 项 | 语义 |
+|---|---|
+| `PRAXIS_RUST_HOST` | 显式取值 `1/true/yes/on/rust` 才启用 Rust；默认及未知值回 Python（`isRustHostEnabled`/`resolveHostImplementation`） |
+| `PRAXIS_RUST_HOST_BIN` | 指定 host 可执行文件路径；未设置时回退命令名 `rust-protocol-host`（PATH 解析，`defaultRustHostBinary`） |
+| `PRAXIS_PYTHON` / `PRAXIS_PYTHON_HOST_CWD` | Python 回滚路径的显式解释器与 cwd（`createConfiguredHostTransport`） |
+| child 生命周期 | 出错/退出即时拒绝 pending 请求（`recordProcessError`）；`close()` 幂等；stderr 独立捕获 |
+
+**Rust host 必须满足的线缆契约（三端一致，改动须同步向量）**：
+
+1. 行协议：stdin 一行一 envelope，stdout 一行一响应，canonical JSON 键序（sortKeys）；
+   Python3/TS/Rust 同输入必须逐字节一致（共享 `protocol_v1_conformance.json`）。
+2. 帧上限：1 MiB UTF-8 字节上限三端固定；超限请求在 TS 适配层先拒绝（不写入 host）。
+3. 错误通道：host 侧错误走 stderr，不污染 stdout JSONL 流。
+4. KIND 路由：command（L1 面直答、未注册 fail-closed denial + trailing ack）、
+   control（attach/ack/recovery，per-view cursor + 共享水位=最落后视图，非破坏性 ack）、
+   intent 经透传管道转 L3 权威面（本计划范围外，只透传）。
+5. 执行门：`$` 系统命令强制携带 ring/danger 元数据并经 capability 门裁决，审计含拒绝路径。
+
+**G5 前置（Rust 侧，GPT-5.6Terra 执行）**：rust-protocol-host 接入 boot/Port 生产路径，
+从 candidate-only 变为可配置默认候选；三方向量持续同步（R4：任何一侧改动必须同步向量）。
+
+**G5 切默认验收（L2 侧动作，Rust 前置就绪后）**：
+
+- [ ] 默认 host 从 Python 切 Rust，`PRAXIS_RUST_HOST=0/off` 等可回切 Python（显式开关）
+- [ ] e2e 矩阵全绿：`e2e.stdio`（TS→Python）+ `e2e.rust.stdio`（TS→Rust）+ 反转方向
+- [ ] 三方向量（TS/Python/Rust）逐字节一致无回归
+- [ ] 保留 Python host 一个版本周期 → G6 移除
+
+**G6 移除 Python3 host（G5 后一个版本）**：移除 `python -m l2.protocol`/`ProtocolHost`；
+验收：全链路无 Python host 引用，TS↔Rust 直连为唯一生产路径。
