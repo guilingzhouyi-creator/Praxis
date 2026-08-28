@@ -48,7 +48,7 @@ export class ConfigReader {
       const payload = (await this.bridge.settingsGet(key))[0]?.payload as
         | Record<string, unknown>
         | undefined;
-      const raw = (payload?.[key] ?? (payload as any)?.value) as unknown;
+      const raw = (payload?.[key] ?? payload?.value) as unknown;
       if (typeof raw === "string") {
         this.cache.set(key, { value: raw, expiresAt: Date.now() + this.ttlMs });
         return raw;

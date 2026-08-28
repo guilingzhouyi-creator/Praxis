@@ -24,6 +24,13 @@ export interface IL3Bridge {
     get(key?: string): Promise<Message[]>;
     set(key: string, value: unknown): Promise<Message[]>;
   };
+  session: {
+    attach(sessionId: string, viewId?: string): Promise<Message[]>;
+    detach(sessionId: string, viewId?: string): Promise<Message[]>;
+    ack(ackSeq: number, viewId?: string, sessionId?: string): Promise<Message[]>;
+    replay(sessionId: string, viewId?: string, lastAcked?: number): Promise<Message[]>;
+    resume(sessionId: string, viewId?: string, lastAcked?: number): Promise<Message[]>;
+  };
   memory: {
     digest(): Promise<Message[]>;
     recall(query: string, limit?: number): Promise<Message[]>;
@@ -58,6 +65,13 @@ export function createL3Bridge(bridge: ProtocolBridge): IL3Bridge {
     settings: {
       get: (key = "") => bridge.settingsGet(key),
       set: (key, value) => bridge.settingsSet(key, value),
+    },
+    session: {
+      attach: (sessionId, viewId) => bridge.attach(sessionId, viewId),
+      detach: (sessionId, viewId) => bridge.detach(sessionId, viewId),
+      ack: (ackSeq, viewId, sessionId) => bridge.ack(ackSeq, viewId, sessionId),
+      replay: (sessionId, viewId, lastAcked = -1) => bridge.replay(sessionId, viewId, lastAcked),
+      resume: (sessionId, viewId, lastAcked = -1) => bridge.resume(sessionId, viewId, lastAcked),
     },
     memory: {
       digest: () => bridge.memoryDigest(),
