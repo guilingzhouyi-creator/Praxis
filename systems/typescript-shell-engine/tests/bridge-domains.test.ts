@@ -93,20 +93,26 @@ describe("ProtocolBridge domain helpers", () => {
     void raw;
     await bridge.attach("s2");
     await bridge.attach("s2", "view-web");
+    await bridge.detach("s2");
+    await bridge.detach("s2", "view-web");
     await bridge.ack(7);
     await bridge.ack(7, "view-tui");
+    await bridge.resume("s3", undefined, -1);
     await bridge.replay("s2", undefined, -1);
     await bridge.replay("s2", "view-cli", 4);
     const kinds = seen.map((m) => (m as { kind: string }).kind);
-    expect(kinds).toEqual(["control", "control", "ack", "ack", "control", "control"]);
+    expect(kinds).toEqual(["control", "control", "control", "control", "ack", "ack", "control", "control", "control"]);
     const payloads = seen.map((m) => m.payload as Record<string, unknown>);
     expect(payloads[1]).toHaveProperty("view_id", "view-web");
-    expect(payloads[2]).toEqual({ ack_seq: 7 });
-    expect(payloads[3]).toEqual({ ack_seq: 7, view_id: "view-tui" });
-    expect(payloads[5]).toMatchObject({ op: "recovery", session_id: "s2", last_acked: 4, view_id: "view-cli" });
+    expect(payloads[2]).toMatchObject({ op: "detach", session_id: "s2" });
+    expect(payloads[3]).toMatchObject({ op: "detach", session_id: "s2", view_id: "view-web" });
+    expect(payloads[4]).toEqual({ ack_seq: 7 });
+    expect(payloads[5]).toEqual({ ack_seq: 7, view_id: "view-tui" });
+    expect(payloads[6]).toMatchObject({ op: "resume", session_id: "s3", last_acked: -1 });
+    expect(payloads[8]).toMatchObject({ op: "recovery", session_id: "s2", last_acked: 4, view_id: "view-cli" });
     expect(seen[0].session_id).toBe("s2");
-    expect(seen[2].session_id).toBe("sess");
-    expect(seen[4].session_id).toBe("s2");
+    expect(seen[4].session_id).toBe("sess");
+    expect(seen[6].session_id).toBe("s3");
   });
 
   it("batch preserves command order", async () => {
