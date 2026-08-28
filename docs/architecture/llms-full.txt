@@ -437,10 +437,10 @@ Rust configuration root. `config_documents` exposes defensive snapshots, while
 surfaces that return only after the corresponding atomic write succeeds. A
 non-persistent runtime has no configuration owner and fails closed; these
 methods do not hot-reload services or interpret Python settings.
-Persistent open validates this configuration root before applying an unclean
-state recovery transition. A foreign or otherwise invalid configuration root
-therefore fails without advancing the `StateStore` recovery generation or
-mutating its lifecycle record.
+Persistent open validates the selected configuration root and execution
+checkpoint before applying an unclean state recovery transition. A foreign or
+otherwise invalid attached root therefore fails without advancing the
+`StateStore` recovery generation or mutating its lifecycle record.
 
 The separate `recovery` module provides a pure `RecoveryTrigger` decision over
 the validated execution document and lifecycle state: `fresh`, `resume_clean`,

@@ -452,9 +452,6 @@ impl KernelRuntime {
             assembly_snapshot.config_manifest.contract_version,
         )
         .map_err(map_config_store_error)?;
-        if needs_recovery {
-            state_store.recover().map_err(map_state_store_error)?;
-        }
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
         let execution_document = execution_store
@@ -463,6 +460,9 @@ impl KernelRuntime {
         let execution_state = execution_store
             .load_state(config.shard_count as usize)
             .map_err(map_execution_store_error)?;
+        if needs_recovery {
+            state_store.recover().map_err(map_state_store_error)?;
+        }
         let recovery_action =
             match RecoveryTrigger::decide(lifecycle.state(), Some(&execution_document)).action {
                 RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,

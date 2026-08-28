@@ -327,9 +327,10 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   During persistent clean shutdown, a StateStore commit failure demotes the
   already-written execution checkpoint to unclean before returning, so reopen
   cannot pair a failed lifecycle write with a falsely clean execution document.
-  Persistent open validates the selected configuration root before applying
-  unclean StateStore recovery; a foreign configuration failure leaves the
-  recovery generation and lifecycle record unchanged.
+  Persistent open validates the selected configuration root and execution
+  checkpoint before applying unclean StateStore recovery; a foreign or
+  malformed attached root leaves the recovery generation and lifecycle record
+  unchanged.
 - `KernelRuntime::submit_batch` reserves and records every handle before one
   grouped WorkerPool handoff, rolling back all prior reservations when one
   cannot be admitted. The separate `runtime.batch_submit_reap` runner and

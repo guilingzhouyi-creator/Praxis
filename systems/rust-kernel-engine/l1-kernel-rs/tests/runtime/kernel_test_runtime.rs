@@ -628,6 +628,35 @@ fn foreign_configuration_rejection_does_not_advance_unclean_state_recovery() {
 }
 
 #[test]
+fn execution_checkpoint_rejection_does_not_advance_unclean_state_recovery() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .checkpoint_execution(false)
+            .expect("unclean checkpoint");
+    }
+    let before = StateStore::open(&root, 1).expect("unclean state root");
+    let before_generation = before.generation();
+    let before_lifecycle = before.lifecycle().snapshot();
+    let execution_checkpoint = root.join("snapshots/execution/checkpoint.json");
+    std::fs::write(&execution_checkpoint, b"{\"store_version\":")
+        .expect("corrupt execution checkpoint");
+
+    let result = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root);
+    assert!(matches!(result, Err(RuntimeError::ExecutionStore(_))));
+
+    let after = StateStore::open(&root, 1).expect("state root remains unclean");
+    assert_eq!(after.action(), StateAction::Recover);
+    assert_eq!(after.generation(), before_generation);
+    assert_eq!(after.lifecycle().snapshot(), before_lifecycle);
+    std::fs::remove_dir_all(root).expect("remove state root");
+}
+
+#[test]
 fn runtime_configuration_owner_persists_mutations_for_reopen() {
     let root = temp_root();
     let root_text = root.to_string_lossy().to_string();

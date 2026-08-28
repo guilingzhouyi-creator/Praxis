@@ -604,10 +604,11 @@ mutation boundaries that publish snapshots only after atomic persistence
 succeeds. Non-persistent runtimes fail closed instead of inventing a
 configuration root; these methods do not reload providers or interpret Python
 settings.
-The persistent constructor opens and validates that configuration root before
-performing unclean `StateStore` recovery. A foreign configuration root is
-rejected without advancing recovery generation or mutating the existing
-lifecycle record, keeping root validation side-effect-free.
+The persistent constructor opens and validates the configuration root and
+execution checkpoint before performing unclean `StateStore` recovery. A
+foreign or malformed attached root is rejected without advancing recovery
+generation or mutating the existing lifecycle record, keeping root validation
+side-effect-free.
 
 The independent `recovery::RecoveryTrigger` now turns a validated execution
 checkpoint plus lifecycle state into a side-effect-free `RecoveryDecision`:
