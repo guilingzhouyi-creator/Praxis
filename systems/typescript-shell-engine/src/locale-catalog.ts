@@ -25,7 +25,30 @@ const EN_DICTIONARY: Record<string, string> = {
   "shell.command.help": "Show available commands",
   "shell.command.clear": "Clear the screen",
   "shell.command.lang": "Show current locale / switch locale",
+  "shell.command.tools": "List registered tools",
+  "shell.command.status": "Show session status",
   "shell.error.unknown_command": "unknown command: /{cmd}",
+  // Terminal dialect display strings (first defined here; the Python3
+  // REPL renders these keys verbatim until locales/*.yaml catch up).
+  "terminal.help.title": "Commands",
+  "terminal.help.more": "{count} more commands",
+  "terminal.tools.total": "{count} tools registered",
+  "terminal.sys.exit": "exit {code}",
+  "terminal.sys.stderr": "[stderr] {line}",
+  "terminal.exec.error": "execution failed: {error}",
+  "terminal.exec.result": "{result}",
+  "terminal.l3a.card": "card {card_id}",
+  "terminal.l3a.domain": "domain {domain}",
+  "terminal.l3a.agent": "agent {agent_id}",
+  "terminal.l3a.type": "type {card_type}",
+  "terminal.l3a.error": "intent failed: {error}",
+  "terminal.scout.status": "scout status: {status}",
+  "terminal.scout.findings": "{count} findings",
+  "terminal.scout.error": "scout failed: {error}",
+  "selector.denied": "connection denied: {reason}",
+  "selector.risk.high": "high injection risk",
+  "selector.risk.medium": "medium injection risk",
+  "selector.risk.none": "no injection risk",
 };
 
 export class I18n {

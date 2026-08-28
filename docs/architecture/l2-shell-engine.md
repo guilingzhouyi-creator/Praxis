@@ -288,6 +288,22 @@ The TS engine is a *host-agnostic frontend of L3*: it never re-implements
 AgentLoop/Tool Pipeline/Workflow/Scheduler/Memory/Planning. The L3 host remains
 the single authority; TS L2 is a pure projector + dispatcher + bridge client.
 
+### Phase A local projection modules (2026-08-28)
+
+Pure local metadata/display projections added to close the mapping gaps below;
+all are render-only — the host keeps execution and verdict authority.
+
+| Module | Mirrors (Python) | Responsibility |
+|---|---|---|
+| `engine/command-catalog.ts` | `l2/commands.py` metadata + `config/commands.yaml` | Parses the shared YAML subset (commands, aliases, args, examples), alias reverse index, revision counter |
+| `engine/terminal-view.ts` | `l2/shells/terminal.py` result shapes | Normalized dict projections for help/tools/intent/scout/system/tool views |
+| `engine/agent-selector.ts` (preconnectImpact + riskLevelOf) | `l2/selector.py` `preconnect()` result | Display-safe verdict projection and injection-risk grading at the reference thresholds (0.3 / 0.7) |
+
+Integration: `builtins.ts` renders full-surface `/help` from the catalog;
+`route.ts` resolves catalog aliases of local handlers before bridging;
+`command-completion.ts` merges catalog command names/aliases into candidates;
+`locale-catalog.ts` carries the terminal/selector display keys (en subset).
+
 ## Contract surfaces
 
 - **L3**: `invoke_gated` (tools), L3 command bridge (control commands, to be
