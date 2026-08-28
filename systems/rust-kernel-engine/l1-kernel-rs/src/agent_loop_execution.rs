@@ -249,6 +249,7 @@ impl<'runtime> AgentLoopExecutionBridge<'runtime> {
         self.runtime.reap(task.handle())
     }
 
+    /// Submit one input, reserving loop admission atomically.
     fn submit_inner(
         &self,
         loop_id: &str,
@@ -285,6 +286,7 @@ impl<'runtime> AgentLoopExecutionBridge<'runtime> {
     }
 }
 
+/// Execute one loop input against the worker handle.
 fn execute_input(
     handle: AgentLoopHandle,
     session: Arc<Session>,
@@ -338,6 +340,7 @@ fn execute_input(
     .map_err(|error| format!("execution report serialization failed: {error}"))
 }
 
+/// Build a failure record for admission errors.
 fn admission_failure(error: AgentLoopError) -> AgentLoopExecutionFailure {
     AgentLoopExecutionFailure {
         stage: AgentLoopExecutionStage::Admission,
@@ -347,6 +350,7 @@ fn admission_failure(error: AgentLoopError) -> AgentLoopExecutionFailure {
     }
 }
 
+/// Build a failure record for event-admission errors.
 fn event_failure(error: AgentLoopError, input: AgentLoopReceipt) -> AgentLoopExecutionFailure {
     AgentLoopExecutionFailure {
         stage: AgentLoopExecutionStage::EventAdmission,
@@ -356,10 +360,12 @@ fn event_failure(error: AgentLoopError, input: AgentLoopReceipt) -> AgentLoopExe
     }
 }
 
+/// Serialize a failure record for wire delivery.
 fn encode_failure(failure: AgentLoopExecutionFailure) -> String {
     serde_json::to_string(&failure).unwrap_or_else(|_| "agent loop execution failed".to_owned())
 }
 
+/// Parse a worker report, rejecting malformed payloads.
 fn parse_report(value: Value) -> Result<AgentLoopExecutionReport, AgentLoopExecutionWaitError> {
     let report: AgentLoopExecutionReport = serde_json::from_value(value)
         .map_err(|error| AgentLoopExecutionWaitError::InvalidReport(error.to_string()))?;

@@ -256,6 +256,7 @@ struct AuditEntry {
 }
 
 impl AuditEntry {
+    /// Render one audit entry as a language-neutral wire map.
     fn to_wire(&self) -> WireMap {
         BTreeMap::from([
             ("op".to_owned(), json!(self.op)),
@@ -589,6 +590,7 @@ impl ProcessTable {
             .collect()
     }
 
+    /// Transition a process by name, idempotent when requested.
     fn transition_by_name(&self, name: &str, action: &str, idempotent: bool) -> bool {
         let mut state = self.lock_state();
         let Some(pid) = state.name_index.get(name).copied() else {
@@ -606,6 +608,7 @@ impl ProcessTable {
         apply_transition(pcb, action)
     }
 
+    /// Apply a closure to one PCB, failing when the pid is unknown.
     fn with_pcb(&self, pid: u64, update: impl FnOnce(&mut Pcb)) -> bool {
         let mut state = self.lock_state();
         let Some(pcb) = state.processes.get_mut(&pid) else {
@@ -620,6 +623,7 @@ impl ProcessTable {
     }
 }
 
+/// Apply a validated state transition action to a PCB.
 fn apply_transition(pcb: &mut Pcb, action: &str) -> bool {
     let next = match (pcb.state, action) {
         (ProcessState::Ready, "run") => Some(ProcessState::Running),
@@ -643,6 +647,7 @@ fn apply_transition(pcb: &mut Pcb, action: &str) -> bool {
     true
 }
 
+/// Append a bounded audit entry, evicting the oldest past the cap.
 fn append_audit(state: &mut TableState, max: usize, op: &str, pid: u64, name: &str, detail: &str) {
     state.audit_log.push_back(AuditEntry {
         op: op.to_owned(),

@@ -296,6 +296,7 @@ impl ManagedProcessBook {
         Ok(result)
     }
 
+    /// Spawn a command and register it in the book.
     fn spawn_command(&self, mut command: Command) -> Result<ProcessHandle, ManagedProcessError> {
         let handle = self
             .allocator
@@ -337,6 +338,7 @@ impl ManagedProcessBook {
         Ok(handle)
     }
 
+    /// Resolve a managed process by handle.
     fn lookup(&self, handle: ProcessHandle) -> Result<Arc<ManagedProcess>, ManagedProcessError> {
         self.read_processes()
             .get(&handle)
@@ -344,6 +346,7 @@ impl ManagedProcessBook {
             .ok_or(ManagedProcessError::UnknownHandle)
     }
 
+    /// Lock the process table for reading.
     fn read_processes(
         &self,
     ) -> std::sync::RwLockReadGuard<'_, HashMap<ProcessHandle, Arc<ManagedProcess>>> {
@@ -352,6 +355,7 @@ impl ManagedProcessBook {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Lock the process table for writing.
     fn write_processes(
         &self,
     ) -> std::sync::RwLockWriteGuard<'_, HashMap<ProcessHandle, Arc<ManagedProcess>>> {
@@ -383,6 +387,7 @@ impl Drop for ManagedProcessBook {
     }
 }
 
+/// Observe a process exit, recording the status.
 fn observe_exit(inner: &mut ManagedProcessInner) -> Result<bool, ManagedProcessError> {
     let observed = inner
         .child
@@ -398,6 +403,7 @@ fn observe_exit(inner: &mut ManagedProcessInner) -> Result<bool, ManagedProcessE
     }
 }
 
+/// Wait for a child with a timeout.
 fn wait_child(
     child: &mut Child,
     timeout: Duration,
@@ -420,6 +426,7 @@ fn wait_child(
     }
 }
 
+/// Finalize a managed process record after exit or kill.
 fn finish(inner: &mut ManagedProcessInner, status: Option<ExitStatus>, killed: bool) {
     inner.child.take();
     inner.stdin.take();
@@ -442,6 +449,7 @@ fn finish(inner: &mut ManagedProcessInner, status: Option<ExitStatus>, killed: b
     };
 }
 
+/// Capture a stream into a bounded buffer on a background thread.
 fn capture_stream<R>(mut reader: R, max_output_bytes: usize) -> JoinHandle<Vec<u8>>
 where
     R: Read + Send + 'static,
@@ -463,6 +471,7 @@ where
     })
 }
 
+/// Join a capture thread and decode its bytes as UTF-8.
 fn join_capture(reader: Option<JoinHandle<Vec<u8>>>) -> String {
     reader
         .and_then(|value| value.join().ok())
@@ -470,6 +479,7 @@ fn join_capture(reader: Option<JoinHandle<Vec<u8>>>) -> String {
         .unwrap_or_default()
 }
 
+/// Map a spawn error into the managed-process error surface.
 fn map_spawn_error(error: std::io::Error) -> ManagedProcessError {
     if error.kind() == std::io::ErrorKind::NotFound {
         ManagedProcessError::NotFound(error.to_string())
@@ -478,6 +488,7 @@ fn map_spawn_error(error: std::io::Error) -> ManagedProcessError {
     }
 }
 
+/// Apply caller options to a command.
 fn apply_options(command: &mut Command, options: Option<&ProcessOptions>) {
     let Some(options) = options else {
         return;
@@ -491,6 +502,7 @@ fn apply_options(command: &mut Command, options: Option<&ProcessOptions>) {
     }
 }
 
+/// Report an invalid working directory from options.
 fn invalid_cwd(options: Option<&ProcessOptions>) -> Option<String> {
     let cwd = options.and_then(|value| value.cwd.as_deref())?;
     match Path::new(cwd).metadata() {

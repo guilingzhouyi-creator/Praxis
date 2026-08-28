@@ -319,10 +319,12 @@ pub enum PlatformError {
     InvalidTcpPort,
 }
 
+/// Default path separator for the target platform.
 fn default_path_separator() -> String {
     "/".to_owned()
 }
 
+/// Join a root and child path with an explicit separator, avoiding doubles.
 fn join_path(root: &str, child: &str, separator: &str) -> String {
     if root.is_empty() {
         return child.to_owned();

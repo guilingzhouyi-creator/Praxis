@@ -164,6 +164,7 @@ impl QueueMetrics {
 }
 
 impl Default for QueueMetrics {
+    /// Create zeroed queue metrics.
     fn default() -> Self {
         Self::new()
     }

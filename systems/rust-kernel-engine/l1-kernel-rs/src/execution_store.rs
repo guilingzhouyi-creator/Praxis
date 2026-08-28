@@ -95,6 +95,7 @@ pub enum ExecutionStoreError {
 }
 
 impl std::fmt::Display for ExecutionStoreError {
+    /// Render an execution-store error as a human-readable message.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(error) => write!(formatter, "execution store I/O failed: {error}"),
@@ -410,6 +411,7 @@ impl ExecutionStore {
     }
 }
 
+/// Build the empty execution-store document shape.
 fn empty_document() -> ExecutionStoreDocument {
     ExecutionStoreDocument {
         store_version: EXECUTION_STORE_VERSION,
@@ -421,11 +423,13 @@ fn empty_document() -> ExecutionStoreDocument {
     }
 }
 
+/// Mark a session snapshot as cleanly shut down.
 fn clean_session(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     snapshot.clean_shutdown = true;
     snapshot
 }
 
+/// Mark a session snapshot as crash-recovered.
 fn crash_session(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     if snapshot.state != SessionState::Closed {
         snapshot.state = SessionState::Crashed;
@@ -434,6 +438,7 @@ fn crash_session(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     snapshot
 }
 
+/// Reset terminal state after crash recovery.
 fn recover_terminal(mut snapshot: TerminalSnapshot) -> TerminalSnapshot {
     snapshot.process_id = None;
     snapshot.input_depth = 0;
@@ -447,6 +452,7 @@ fn recover_terminal(mut snapshot: TerminalSnapshot) -> TerminalSnapshot {
     snapshot
 }
 
+/// Reset agent-loop state after crash recovery.
 fn recover_loop(mut snapshot: AgentLoopSnapshot) -> AgentLoopSnapshot {
     if matches!(
         snapshot.state,
@@ -460,6 +466,7 @@ fn recover_loop(mut snapshot: AgentLoopSnapshot) -> AgentLoopSnapshot {
     snapshot
 }
 
+/// Validate an execution-store document fail-closed.
 fn validate_document(
     document: &ExecutionStoreDocument,
     path: &Path,
@@ -624,6 +631,7 @@ fn validate_document(
     Ok(())
 }
 
+/// Validate a terminal snapshot's invariants.
 fn validate_terminal_snapshot(
     snapshot: &TerminalSnapshot,
     path: &Path,
@@ -649,6 +657,7 @@ fn validate_terminal_snapshot(
     Ok(())
 }
 
+/// Load an execution-store document from disk.
 fn read_document(path: &Path) -> Result<ExecutionStoreDocument, ExecutionStoreError> {
     let mut file = File::open(path)?;
     let mut bytes = Vec::new();
@@ -659,6 +668,7 @@ fn read_document(path: &Path) -> Result<ExecutionStoreDocument, ExecutionStoreEr
     })
 }
 
+/// Write bytes atomically via a temporary file and rename.
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ExecutionStoreError> {
     let parent = path.parent().ok_or_else(|| {
         ExecutionStoreError::Io(io::Error::new(

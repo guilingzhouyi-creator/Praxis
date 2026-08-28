@@ -31,6 +31,7 @@ pub struct SummaryInput {
     pub healthy_status: String,
 }
 
+/// Provide the default status string treated as healthy when none is configured.
 fn default_healthy_status() -> String {
     "PASS".to_owned()
 }

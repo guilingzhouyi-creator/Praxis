@@ -79,6 +79,7 @@ export class CommandHistory<T = unknown> {
     return this.entries.length;
   }
 
+  /** Clear all history entries. */
   clear(): void {
     this.entries.length = 0;
   }

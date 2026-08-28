@@ -306,6 +306,7 @@ impl TerminalProbe {
         })
     }
 
+    /// Return whether an observation qualifies a terminal as eligible.
     fn is_eligible(&self, observation: &TerminalObservation) -> bool {
         (!self.config.require_available || observation.available)
             && (!self.config.require_interactive || observation.interactive)

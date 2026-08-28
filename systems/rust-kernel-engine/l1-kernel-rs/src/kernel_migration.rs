@@ -76,14 +76,17 @@ impl MigrationRunner {
             if version.as_str() <= current {
                 continue;
             }
+            // Entries are sorted at registration, so the first version past the target stops the scan.
             if version.as_str() > target {
                 break;
             }
+            // Fail closed on panic: capture it and surface a stable, non-panicking error.
             let result = catch_unwind(AssertUnwindSafe(|| function()))
                 .map_err(|_| "migration callback panicked".to_owned());
             match result.and_then(|result| result) {
                 Ok(()) => report.applied.push(version),
                 Err(error) => {
+                    // Stop the run at the first error so later migrations are not attempted.
                     report.errors.push(MigrationFailure { version, error });
                     break;
                 }
@@ -92,6 +95,7 @@ impl MigrationRunner {
         report
     }
 
+    /// Lock the entry list, recovering from a poisoned mutex rather than panicking.
     fn lock_entries(&self) -> MutexGuard<'_, Vec<MigrationEntry>> {
         self.entries.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -105,6 +109,7 @@ impl Default for MigrationRunner {
 
 static GLOBAL_MIGRATIONS: OnceLock<Mutex<Option<Arc<MigrationRunner>>>> = OnceLock::new();
 
+/// Initialize the process-wide runner slot on first use, returning the shared mutex.
 fn global_migrations() -> &'static Mutex<Option<Arc<MigrationRunner>>> {
     GLOBAL_MIGRATIONS.get_or_init(|| Mutex::new(None))
 }

@@ -216,6 +216,7 @@ impl ProcessTableGroupRuntime {
         self.spawn_args_for_agent(group, args, options, "system")
     }
 
+    /// Build spawn args for one agent, applying constraints.
     fn spawn_args_for_agent(
         &self,
         group: ProcessGroupId,
@@ -582,6 +583,7 @@ impl ProcessTableGroupRuntime {
         Arc::clone(&self.audit)
     }
 
+    /// Require an active group state before runtime operations.
     fn ensure_active(&self, group: ProcessGroupId) -> Result<(), ProcessTableGroupRuntimeError> {
         let state = self.groups.state(group)?;
         if state == ProcessGroupState::Active {
@@ -593,6 +595,7 @@ impl ProcessTableGroupRuntime {
         }
     }
 
+    /// Observe a process and reap it when terminal.
     fn observe_and_reap(&self, handle: ProcessHandle, timeout: Duration) -> ReaperObservation {
         match self.bridge.wait(handle, Duration::ZERO) {
             Ok(crate::managed_process::ManagedWaitResult::Finished(result)) => {
@@ -632,6 +635,7 @@ impl ProcessTableGroupRuntime {
         }
     }
 
+    /// Reap a terminal member and update its group record.
     fn reap_terminal(
         &self,
         handle: ProcessHandle,
@@ -658,6 +662,7 @@ impl ProcessTableGroupRuntime {
     }
 }
 
+/// Extract a validated group id from a snapshot.
 fn group_id(
     snapshot: &ProcessGroupSnapshot,
 ) -> Result<ProcessGroupId, ProcessTableGroupRuntimeError> {

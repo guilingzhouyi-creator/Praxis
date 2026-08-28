@@ -125,6 +125,7 @@ impl QueueState {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Count one contained callback panic.
     fn record_callback_panic(&self) {
         let mut inner = self.lock();
         inner.callback_panics = inner.callback_panics.saturating_add(1);
@@ -364,6 +365,7 @@ impl EventBus {
         Ok(())
     }
 
+    /// Accept builtin signal types; reject unknown ones fail-closed.
     fn ensure_signal_type(&self, event_type: &str) -> bool {
         if BUILTIN_SIGNAL_TYPES.contains(&event_type) {
             return true;
@@ -371,6 +373,7 @@ impl EventBus {
         self.register_signal_type(event_type).is_ok()
     }
 
+    /// Record a signal in the bounded history ring.
     fn append_history(&self, signal: Signal) {
         let mut history = self.history.lock().unwrap_or_else(PoisonError::into_inner);
         history.push_back(signal);
@@ -379,6 +382,7 @@ impl EventBus {
         }
     }
 
+    /// Collect typed and wildcard callbacks for one signal type.
     fn callbacks_for(&self, event_type: &str) -> Vec<Callback> {
         let typed = self
             .listeners
@@ -397,6 +401,7 @@ impl EventBus {
             .collect()
     }
 
+    /// Submit a dispatch task, rejecting when closed or at capacity.
     fn try_submit(&self, task: Task) -> bool {
         let mut queue = self.queue.lock();
         if queue.closed || queue.inflight >= queue.max_queued {
@@ -410,6 +415,7 @@ impl EventBus {
         true
     }
 
+    /// Take and join all worker threads during shutdown.
     fn join_workers(&self) {
         let workers =
             std::mem::take(&mut *self.workers.lock().unwrap_or_else(PoisonError::into_inner));
@@ -428,6 +434,7 @@ impl Drop for EventBus {
     }
 }
 
+/// Worker loop: drain dispatchable tasks until the queue closes.
 fn worker_loop(queue: Arc<QueueState>) {
     loop {
         let task = {
@@ -463,6 +470,7 @@ fn worker_loop(queue: Arc<QueueState>) {
     }
 }
 
+/// Pop the oldest dispatchable task, skipping stale ones.
 fn pop_dispatchable(inner: &mut QueueInner) -> Option<Task> {
     let index = inner
         .queue
@@ -475,6 +483,7 @@ fn pop_dispatchable(inner: &mut QueueInner) -> Option<Task> {
     Some(task)
 }
 
+/// Invoke a callback, containing panics and returning success.
 fn safe_call(callback: &Callback, signal: &Signal) -> bool {
     catch_unwind(AssertUnwindSafe(|| callback(signal))).is_ok()
 }

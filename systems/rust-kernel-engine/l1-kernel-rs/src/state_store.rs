@@ -68,6 +68,7 @@ pub enum StateStoreError {
 }
 
 impl Display for StateStoreError {
+    /// Render a state-store error as a human-readable message.
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(error) => write!(f, "state store I/O failed: {error}"),
@@ -290,6 +291,7 @@ impl StateStore {
         read_json(&self.root.join(CHECKPOINT_FILE))
     }
 
+    /// Transition the store lifecycle, validating fail-closed.
     fn transition(&self, target: LifecycleState) -> Result<(), StateStoreError> {
         let from = self.lifecycle.state();
         if self.lifecycle.transition(target) {
@@ -299,6 +301,7 @@ impl StateStore {
         }
     }
 
+    /// Initialize the store at a root path.
     fn initialize(
         root: PathBuf,
         contract_version: u32,
@@ -342,6 +345,7 @@ impl StateStore {
         Ok(store)
     }
 
+    /// Restore the store from a root path.
     fn restore(
         root: PathBuf,
         contract_version: u32,
@@ -385,6 +389,7 @@ impl StateStore {
     }
 }
 
+/// Probe a root path and classify its state.
 fn probe_root(root: &Path) -> Result<StateProbe, StateStoreError> {
     if !root.exists() {
         return Ok(StateProbe {
@@ -421,6 +426,7 @@ fn probe_root(root: &Path) -> Result<StateProbe, StateStoreError> {
     })
 }
 
+/// Validate on-disk entries against the layout.
 fn validate_entries_on_disk(
     root: &Path,
     manifest: &StateLayoutManifest,
@@ -445,6 +451,7 @@ fn validate_entries_on_disk(
     Ok(())
 }
 
+/// Read and deserialize a JSON file.
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, StateStoreError> {
     let mut file = File::open(path).map_err(StateStoreError::Io)?;
     let mut bytes = Vec::new();
@@ -455,6 +462,7 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, StateStoreE
     })
 }
 
+/// Write bytes atomically via a temporary file and rename.
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StateStoreError> {
     let parent = path.parent().ok_or_else(|| {
         StateStoreError::Io(io::Error::new(

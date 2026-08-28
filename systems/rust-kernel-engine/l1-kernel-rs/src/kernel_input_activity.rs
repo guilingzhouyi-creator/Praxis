@@ -114,6 +114,7 @@ pub struct InputActivityProbeConfig {
 }
 
 impl Default for InputActivityProbeConfig {
+    /// Apply the default probe timing thresholds.
     fn default() -> Self {
         Self {
             idle_after_seconds: DEFAULT_IDLE_AFTER_SECONDS,
@@ -157,6 +158,7 @@ pub enum InputActivityProbeError {
 }
 
 impl Display for InputActivityProbeError {
+    /// Render a probe error as a human-readable message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidConfig(reason) => {
@@ -246,6 +248,7 @@ impl CompositeInputActivityAdapter {
         self.sources.len()
     }
 
+    /// Combine per-source permissions, granting when any source grants.
     fn aggregate_permission(permissions: &[InputActivityPermission]) -> InputActivityPermission {
         if permissions.contains(&InputActivityPermission::Granted) {
             InputActivityPermission::Granted
@@ -256,6 +259,7 @@ impl CompositeInputActivityAdapter {
         }
     }
 
+    /// Stop every source, containing adapter panics.
     fn stop_sources(&self) {
         for source in &self.sources {
             safe_stop(source.as_ref());
@@ -496,10 +500,12 @@ impl HostInputActivityPort {
     }
 }
 
+/// Stop one adapter, containing panics at the kernel boundary.
 fn safe_stop(adapter: &dyn InputActivityHostAdapter) {
     let _ = catch_unwind(AssertUnwindSafe(|| adapter.stop()));
 }
 
+/// Build a fail-closed unknown snapshot with the given permission.
 fn unknown_snapshot(permission: InputActivityPermission) -> InputActivitySnapshot {
     InputActivitySnapshot {
         state: InputActivityState::Unknown,
@@ -616,6 +622,7 @@ impl InputActivityProbe {
         })
     }
 
+    /// Validate one observation against timing and identity invariants.
     fn validate_observation(
         &self,
         now: f64,

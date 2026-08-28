@@ -40,6 +40,7 @@ pub enum DiscoveryError {
 }
 
 impl std::fmt::Display for DiscoveryError {
+    /// Render a discovery error as a human-readable message.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidSection(section) => {
@@ -234,6 +235,7 @@ impl DiscoveryRegistry {
         self.lock().registry.keys().cloned().collect()
     }
 
+    /// Read one section key with a caller-supplied default.
     fn get_section_key(&self, section: &str, key: &str, default: Value) -> Value {
         let state = self.lock();
         state
@@ -251,11 +253,13 @@ impl DiscoveryRegistry {
 }
 
 impl Default for DiscoveryRegistry {
+    /// Create an empty discovery registry.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Deep-merge an override value into the current document.
 fn merge_value(current: &mut Value, override_value: &Value) {
     if let (Some(current_map), Some(overrides)) =
         (current.as_object_mut(), override_value.as_object())
@@ -268,6 +272,7 @@ fn merge_value(current: &mut Value, override_value: &Value) {
     *current = override_value.clone();
 }
 
+/// Reject invalid section identities fail-closed.
 fn validate_section(section: &str) -> Result<(), DiscoveryError> {
     if !valid_identity(section) {
         return Err(DiscoveryError::InvalidSection(section.to_owned()));
@@ -275,6 +280,7 @@ fn validate_section(section: &str) -> Result<(), DiscoveryError> {
     Ok(())
 }
 
+/// Reject invalid key identities fail-closed.
 fn validate_key(key: &str) -> Result<(), DiscoveryError> {
     if !valid_identity(key) {
         return Err(DiscoveryError::InvalidKey(key.to_owned()));
@@ -282,6 +288,7 @@ fn validate_key(key: &str) -> Result<(), DiscoveryError> {
     Ok(())
 }
 
+/// Validate nested object keys inside a stored value.
 fn validate_value_keys(value: &Value) -> Result<(), DiscoveryError> {
     let Value::Object(values) = value else {
         return Ok(());
@@ -295,6 +302,7 @@ fn validate_value_keys(value: &Value) -> Result<(), DiscoveryError> {
     Ok(())
 }
 
+/// Accept non-empty identities without NUL bytes.
 fn valid_identity(identity: &str) -> bool {
     !identity.trim().is_empty()
         && !identity.contains('\0')

@@ -13,6 +13,7 @@ use serde_json::{Map, Value, json};
 
 const DESCRIPTION_LIMIT: usize = 200;
 
+/// Return an empty opaque metadata map for the `RegisterableSpec` default.
 fn empty_metadata() -> Map<String, Value> {
     Map::new()
 }
@@ -39,10 +40,12 @@ pub struct RegisterableSpec {
     pub version: String,
 }
 
+/// Return the default category applied when a descriptor omits one.
 fn default_category() -> String {
     "other".to_owned()
 }
 
+/// Return the default semantic version applied when a descriptor omits one.
 fn default_version() -> String {
     "1.0.0".to_owned()
 }
@@ -143,6 +146,7 @@ impl MapRegistry {
 
     /// Register a descriptor, rejecting duplicates unless overwrite is enabled.
     pub fn register(&self, spec: RegisterableSpec, _source: &str) -> bool {
+        // Mutate under the lock but capture the callback so it runs outside it.
         let callback = {
             let mut state = self.lock_state();
             if state.items.contains_key(&spec.name) {
@@ -156,6 +160,7 @@ impl MapRegistry {
             state.registers += 1;
             self.lock_register_callback().clone()
         };
+        // Contain a panicking adapter callback; count it instead of poisoning the registry.
         if let Some(callback) = callback
             && catch_unwind(AssertUnwindSafe(|| callback(spec.name.clone(), spec))).is_err()
         {
@@ -166,6 +171,7 @@ impl MapRegistry {
 
     /// Remove a descriptor by name and report whether it existed.
     pub fn unregister(&self, name: &str) -> bool {
+        // Mutate under the lock but capture the callback so it runs outside it.
         let callback = {
             let mut state = self.lock_state();
             if state.items.remove(name).is_none() {
@@ -175,6 +181,7 @@ impl MapRegistry {
             state.unregisters += 1;
             self.lock_unregister_callback().clone()
         };
+        // Contain a panicking adapter callback; count it instead of poisoning the registry.
         if let Some(callback) = callback
             && catch_unwind(AssertUnwindSafe(|| callback(name.to_owned()))).is_err()
         {
@@ -230,16 +237,19 @@ impl MapRegistry {
         count
     }
 
+    /// Lock the registry state, recovering the mutex if it was poisoned by a panic.
     fn lock_state(&self) -> MutexGuard<'_, RegistryState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Lock the register callback slot, recovering the mutex if it was poisoned.
     fn lock_register_callback(&self) -> MutexGuard<'_, Option<RegisterCallback>> {
         self.on_register
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Lock the unregister callback slot, recovering the mutex if it was poisoned.
     fn lock_unregister_callback(&self) -> MutexGuard<'_, Option<UnregisterCallback>> {
         self.on_unregister
             .lock()

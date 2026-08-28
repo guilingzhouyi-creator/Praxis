@@ -88,19 +88,23 @@ export class SessionCheckpointError extends Error {
 const SESSION_STATES: readonly RustSessionState[] = ["created", "active", "closing", "closed", "crashed"];
 const MESSAGE_ROLES: readonly RustMessageRole[] = ["system", "user", "assistant", "tool"];
 
+/** Narrow unknown values to plain records. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Measure the UTF-8 byte length of a string. */
 function textBytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
+/** Require a plain record value. */
 function requireRecord(value: unknown, name: string): Record<string, unknown> {
   if (!isRecord(value)) throw new SessionCheckpointError(`${name} must be an object`);
   return value;
 }
 
+/** Require a non-empty string within a byte bound. */
 function requireText(value: unknown, name: string, maxBytes: number): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new SessionCheckpointError(`${name} must be a non-empty string`);
@@ -109,6 +113,7 @@ function requireText(value: unknown, name: string, maxBytes: number): string {
   return value;
 }
 
+/** Require a safe integer at or above a minimum. */
 function requireSafeUint(value: unknown, name: string, minimum = 0): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum) {
     throw new SessionCheckpointError(`${name} must be a safe integer >= ${minimum}`);
@@ -116,11 +121,13 @@ function requireSafeUint(value: unknown, name: string, minimum = 0): number {
   return value;
 }
 
+/** Require a boolean value. */
 function requireBoolean(value: unknown, name: string): boolean {
   if (typeof value !== "boolean") throw new SessionCheckpointError(`${name} must be a boolean`);
   return value;
 }
 
+/** Parse and validate a Rust session spec. */
 function parseSpec(value: unknown): RustSessionSpec {
   const raw = requireRecord(value, "session spec");
   const maxMessages = requireSafeUint(raw.max_messages, "max_messages", 1);
@@ -136,6 +143,7 @@ function parseSpec(value: unknown): RustSessionSpec {
   };
 }
 
+/** Parse and validate one session message. */
 function parseMessage(value: unknown, maxMessages: number): RustSessionMessage {
   const raw = requireRecord(value, "session message");
   const role = raw.role;
@@ -162,6 +170,7 @@ function parseMessage(value: unknown, maxMessages: number): RustSessionMessage {
   };
 }
 
+/** Parse and validate a session snapshot. */
 function parseSnapshot(value: unknown): RustSessionSnapshot {
   const raw = requireRecord(value, "session snapshot");
   if (raw.contract_version !== SESSION_CONTRACT_VERSION) {
@@ -210,6 +219,7 @@ function parseSnapshot(value: unknown): RustSessionSnapshot {
   };
 }
 
+/** Parse and validate a session checkpoint. */
 function parseCheckpoint(value: unknown): RustSessionCheckpoint {
   const raw = requireRecord(value, "session checkpoint");
   if (raw.checkpoint_version !== SESSION_CHECKPOINT_VERSION) {

@@ -62,6 +62,7 @@ impl NotificationBuffer {
             return Err("notification timestamp must be finite");
         }
         let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        // Fail the buffer over open-ended growth: evict the oldest entry at capacity.
         if entries.len() == self.capacity {
             entries.pop_front();
             *self.dropped.lock().unwrap_or_else(PoisonError::into_inner) += 1;
@@ -77,6 +78,7 @@ impl NotificationBuffer {
     /// Return retained notifications newest first; zero means no limit.
     pub fn recent(&self, limit: usize) -> Vec<Notification> {
         let entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        // A zero limit is the documented "no limit" sentinel, so cap only when positive.
         let count = if limit == 0 {
             entries.len()
         } else {

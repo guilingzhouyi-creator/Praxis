@@ -45,6 +45,7 @@ export interface SshTransportOptions {
   createClient?: () => Client;
 }
 
+/** Create an SSH JSONL transport over an ssh2 exec channel. */
 export function createSshTransport(options: SshTransportOptions): Transport {
   const {
     host,

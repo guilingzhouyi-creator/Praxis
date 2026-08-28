@@ -33,20 +33,24 @@ import {
 
 // ── Runtime helpers ────────────────────────────────────────────────────
 
+/** Narrow unknown values to plain JSON objects. */
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Narrow numbers to integers at or above a minimum. */
 function isInteger(value: unknown, minimum = 0): value is number {
   // JSON.parse stores numbers as IEEE-754 doubles; unsafe integers would be
   // silently rounded before the protocol validator could inspect them.
   return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum;
 }
 
+/** Narrow numbers to wire-safe sequence values within the safe bound. */
 function isWireSequence(value: unknown, minimum = 0): value is number {
   return isInteger(value, minimum) && value <= MAX_SAFE_SEQUENCE;
 }
 
+/** Current unix time in seconds. */
 function nowSeconds(): number {
   return Date.now() / 1000;
 }
@@ -67,6 +71,7 @@ export function makeMessage(
 
 const CONTROL_OPS_SET = new Set<string>(["attach", "detach", "resume", "recovery", "ack"]);
 
+/** Validate required payload fields per message kind, collecting errors. */
 function validatePayload(kind: MessageKind, payload: JsonObject): string[] {
   const errors: string[] = [];
   // R4: authorization fields are host-derived (adapter-injected GateRequest
@@ -110,8 +115,8 @@ function validatePayload(kind: MessageKind, payload: JsonObject): string[] {
 const REQUIRED_FIELDS = new Set(["v", "session_id", "seq", "ts", "kind", "payload"]);
 const KINDS_SET = new Set<string>(["ack", "command", "control", "event", "intent", "result", "stream_chunk"]);
 
+/** Return validation errors; empty = valid. */
 export function validateMessage(message: unknown): string[] {
-  /** Return validation errors; empty = valid. */
   if (!isObject(message)) return ["envelope must be an object"];
   const rec = message as Record<string, unknown>;
   const errors: string[] = [];
@@ -137,15 +142,15 @@ export function validateMessage(message: unknown): string[] {
   return errors;
 }
 
+/** Serialize a valid envelope with recursively sorted keys. */
 export function encodeMessage(message: Message): string {
-  /** Serialize a valid envelope with recursively sorted keys. */
   const errors = validateMessage(message);
   if (errors.length > 0) throw new Error(errors.join("; "));
   return canonicalJson(message);
 }
 
+/** Decode and validate one JSONL envelope without throwing parse errors. */
 export function decodeMessage(line: string): DecodedMessage {
-  /** Decode and validate one JSONL envelope without throwing parse errors. */
   if (typeof line !== "string" || line.trim().length === 0) return { message: null, error: "empty line" };
   let raw: unknown;
   try {

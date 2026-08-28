@@ -84,19 +84,23 @@ export class ExecutionCheckpointError extends Error {
 const TERMINAL_STATES: readonly RustTerminalState[] = ["created", "ready", "running", "stopped", "closed"];
 const LOOP_STATES: readonly RustAgentLoopState[] = ["created", "ready", "running", "paused", "closing", "stopped", "failed"];
 
+/** Narrow unknown values to plain records. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Require a plain record value. */
 function requireRecord(value: unknown, name: string): Record<string, unknown> {
   if (!isRecord(value)) throw new ExecutionCheckpointError(`${name} must be an object`);
   return value;
 }
 
+/** Measure the UTF-8 byte length of a string. */
 function textBytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
+/** Require a non-empty identity without NUL bytes, within a byte bound. */
 function requireIdentity(value: unknown, name: string, maxBytes?: number): string {
   if (typeof value !== "string" || value.trim().length === 0 || value.includes("\0")) {
     throw new ExecutionCheckpointError(`${name} must be a non-empty identity`);
@@ -107,6 +111,7 @@ function requireIdentity(value: unknown, name: string, maxBytes?: number): strin
   return value;
 }
 
+/** Require a safe integer at or above a minimum. */
 function requireSafeUint(value: unknown, name: string, minimum = 0): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum) {
     throw new ExecutionCheckpointError(`${name} must be a safe integer >= ${minimum}`);
@@ -114,16 +119,19 @@ function requireSafeUint(value: unknown, name: string, minimum = 0): number {
   return value;
 }
 
+/** Require a boolean value. */
 function requireBoolean(value: unknown, name: string): boolean {
   if (typeof value !== "boolean") throw new ExecutionCheckpointError(`${name} must be a boolean`);
   return value;
 }
 
+/** Require a safe integer when present, else null. */
 function optionalSafeUint(value: unknown, name: string): number | null {
   if (value === null) return null;
   return requireSafeUint(value, name, 1);
 }
 
+/** Require sorted, duplicate-free identifiers across a set. */
 function sortedUnique<T extends string>(values: readonly T[], name: string): void {
   let previous: string | undefined;
   for (const value of values) {
@@ -134,6 +142,7 @@ function sortedUnique<T extends string>(values: readonly T[], name: string): voi
   }
 }
 
+/** Parse and validate a terminal snapshot. */
 function parseTerminal(value: unknown): RustTerminalSnapshot {
   const raw = requireRecord(value, "terminal snapshot");
   const state = raw.state;
@@ -163,6 +172,7 @@ function parseTerminal(value: unknown): RustTerminalSnapshot {
   };
 }
 
+/** Parse and validate an agent-loop snapshot. */
 function parseLoop(value: unknown): RustAgentLoopSnapshot {
   const raw = requireRecord(value, "AgentLoop snapshot");
   if (raw.contract_version !== AGENT_LOOP_CONTRACT_VERSION) {

@@ -364,6 +364,7 @@ impl Semaphore {
     }
 }
 
+/// Drop one agent from a waiter list, preserving order.
 fn remove_waiter(waiters: &mut Vec<String>, agent_id: &str) {
     waiters.retain(|waiter| waiter != agent_id);
 }
@@ -638,6 +639,7 @@ impl RwLock {
         self.read_lock_with_timeout_and_cancellation(agent_id, self.timeout, Some(cancellation))
     }
 
+    /// Acquire the read lock, honoring timeout and cancellation fail-closed.
     fn read_lock_with_timeout_and_cancellation(
         &self,
         agent_id: &str,
@@ -697,6 +699,7 @@ impl RwLock {
         self.write_lock_with_optional_cancellation(agent_id, Some(cancellation))
     }
 
+    /// Acquire the write lock with optional cancellation support.
     fn write_lock_with_optional_cancellation(
         &self,
         agent_id: &str,
@@ -835,6 +838,7 @@ impl RwLock {
     }
 }
 
+/// Drop a mutex waiter and clear the owner when no waiters remain.
 fn drop_waiter(state: &mut MutexState, agent_id: &str) {
     state.waiters.retain(|waiter| waiter.agent_id != agent_id);
     if state.owner.is_empty() && state.waiters.is_empty() {
@@ -842,6 +846,7 @@ fn drop_waiter(state: &mut MutexState, agent_id: &str) {
     }
 }
 
+/// Remove one writer ticket from the queue, keeping others ordered.
 fn remove_writer_ticket(state: &mut RwLockState, ticket: u64) {
     if let Some(index) = state
         .writer_queue
@@ -853,6 +858,7 @@ fn remove_writer_ticket(state: &mut RwLockState, ticket: u64) {
     }
 }
 
+/// Build a success wire map from ordered fields.
 fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     let mut result = BTreeMap::from_iter(
         fields
@@ -863,6 +869,7 @@ fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     result
 }
 
+/// Build a failure wire map with an error label plus ordered fields.
 fn fail_with<const N: usize>(error: &str, fields: [(&str, Value); N]) -> WireMap {
     let mut result = BTreeMap::from_iter(
         fields

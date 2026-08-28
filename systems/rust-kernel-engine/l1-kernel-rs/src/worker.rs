@@ -78,6 +78,7 @@ pub struct TaskHandle {
 }
 
 impl TaskHandle {
+    /// Create an empty task handle.
     fn new() -> Self {
         Self {
             state: Arc::new(TaskState {
@@ -154,6 +155,7 @@ impl TaskHandle {
         self.state.cancellation.reason()
     }
 
+    /// Complete a task with its final result.
     fn complete(&self, result: Result<Value, TaskHandleError>) {
         let mut slot = self
             .state
@@ -186,6 +188,7 @@ struct QueueState {
 }
 
 impl QueueState {
+    /// Create a bounded worker queue.
     fn new(capacity: usize) -> Self {
         Self {
             capacity,
@@ -347,6 +350,7 @@ impl WorkerPool {
         Ok(handles)
     }
 
+    /// Submit one action with an optional execution deadline.
     fn submit_result_with_deadline(&self, action: TaskFn, deadline: Option<Instant>) -> TaskHandle {
         let handle = TaskHandle::new();
         let result = self.enqueue(action, Some(handle.clone()), deadline);
@@ -457,6 +461,7 @@ impl WorkerPool {
         ])
     }
 
+    /// Enqueue one task, applying backpressure rules.
     fn enqueue(
         &self,
         action: TaskFn,
@@ -470,6 +475,7 @@ impl WorkerPool {
         }])
     }
 
+    /// Enqueue a batch and report per-task acceptance.
     fn enqueue_tasks(&self, tasks: Vec<Task>) -> WireMap {
         if tasks.is_empty() {
             return ok([("submitted", json!(true))]);
@@ -514,6 +520,7 @@ impl WorkerPool {
         ok([("submitted", json!(true))])
     }
 
+    /// Grow the pool when the queue stays above the growth threshold.
     fn maybe_grow_worker(&self, queued: usize) {
         let workers = self.metrics.pool_size.load(Ordering::Acquire);
         if workers < self.config.max_workers && queued > workers.saturating_mul(2) {
@@ -521,6 +528,7 @@ impl WorkerPool {
         }
     }
 
+    /// Wake waiting workers to claim submitted tasks.
     fn notify_waiting_workers(&self, submitted: usize) {
         let worker_count = self.metrics.pool_size.load(Ordering::Acquire).max(1);
         let wake_count = submitted.min(worker_count);
@@ -529,6 +537,7 @@ impl WorkerPool {
         }
     }
 
+    /// Spawn one additional worker within the pool bound.
     fn add_worker(&self) {
         let grew =
             self.metrics
@@ -553,6 +562,7 @@ impl WorkerPool {
             .push(handle);
     }
 
+    /// Take and join all workers during shutdown.
     fn join_workers(&self) {
         let workers =
             std::mem::take(&mut *self.workers.lock().unwrap_or_else(PoisonError::into_inner));
@@ -573,12 +583,14 @@ impl Drop for WorkerPool {
     }
 }
 
+/// Compute the deadline instant for a timeout.
 fn deadline_after(timeout: Duration) -> Instant {
     Instant::now()
         .checked_add(timeout)
         .unwrap_or_else(Instant::now)
 }
 
+/// Execute one task, converting panics into failures.
 fn execute_task(
     action: TaskFn,
     deadline: Option<Instant>,
@@ -602,6 +614,7 @@ fn execute_task(
     }
 }
 
+/// Worker loop: claim batches and execute until shutdown.
 fn worker_loop(
     queue: Arc<QueueState>,
     metrics: Arc<Metrics>,
@@ -654,6 +667,7 @@ fn worker_loop(
     }
 }
 
+/// Claim up to one batch of queued tasks.
 fn claim_batch(
     queue: &QueueState,
     batch: &mut Vec<Task>,
@@ -714,6 +728,7 @@ enum Outcome {
     Failed,
 }
 
+/// Build a success wire map from ordered fields.
 fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     let mut result = std::collections::BTreeMap::from_iter(
         fields
@@ -724,6 +739,7 @@ fn ok<const N: usize>(fields: [(&str, Value); N]) -> WireMap {
     result
 }
 
+/// Build a failure wire map with an error label plus ordered fields.
 fn fail<const N: usize>(error: &str, fields: [(&str, Value); N]) -> WireMap {
     let mut result = std::collections::BTreeMap::from_iter(
         fields

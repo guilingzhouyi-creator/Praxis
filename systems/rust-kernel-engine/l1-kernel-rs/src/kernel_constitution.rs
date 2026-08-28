@@ -296,6 +296,7 @@ pub struct ConstitutionPolicy {
 }
 
 impl Default for ConstitutionPolicy {
+    /// Apply the default constitution policy tables.
     fn default() -> Self {
         Self {
             file_actions: set([
@@ -457,6 +458,7 @@ impl ConstitutionEngine {
         }
     }
 
+    /// Evaluate one rule kind against the action input.
     fn evaluate_rule(&self, rule: &ConstitutionRule, input: &ConstitutionInput) -> CheckResult {
         match rule.kind {
             RuleKind::Territory => {
@@ -557,11 +559,13 @@ impl ConstitutionEngine {
 }
 
 impl Default for ConstitutionEngine {
+    /// Create a constitution engine with builtin rules.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Assemble the builtin constitutional rule set.
 fn builtin_rules() -> Vec<ConstitutionRule> {
     vec![
         rule(
@@ -703,6 +707,7 @@ fn builtin_rules() -> Vec<ConstitutionRule> {
     ]
 }
 
+/// Build one constitution rule declaration.
 fn rule<const N: usize>(
     id: &str,
     section: &str,
@@ -722,6 +727,7 @@ fn rule<const N: usize>(
     }
 }
 
+/// Filter rules matching the action's category.
 fn relevant_rules(rules: &[ConstitutionRule], action: &str) -> Vec<ConstitutionRule> {
     let category = action_category(action);
     rules
@@ -735,6 +741,7 @@ fn relevant_rules(rules: &[ConstitutionRule], action: &str) -> Vec<ConstitutionR
         .collect()
 }
 
+/// Classify an action string into its policy category.
 fn action_category(action: &str) -> ActionCategory {
     if matches!(
         action,
@@ -798,6 +805,7 @@ fn action_category(action: &str) -> ActionCategory {
     }
 }
 
+/// Return whether a rule kind governs the given category.
 fn rule_applies_to(kind: RuleKind, category: ActionCategory) -> bool {
     match kind {
         RuleKind::Territory => category == ActionCategory::File,
@@ -816,6 +824,7 @@ fn rule_applies_to(kind: RuleKind, category: ActionCategory) -> bool {
     }
 }
 
+/// Render a rule check description for evidence.
 fn describe(rule: &ConstitutionRule, input: &ConstitutionInput) -> String {
     format!(
         "{}: {} (action={}, agent={}, target={})",

@@ -275,6 +275,7 @@ impl Mailbox {
         })
     }
 
+    /// Enqueue one payload frame, counting oversized frames as dropped.
     fn push(&mut self, stream: TerminalStream, data: Vec<u8>) -> Result<(), TerminalError> {
         if data.len() > TERMINAL_MAX_FRAME_BYTES {
             self.dropped = self.dropped.saturating_add(1);
@@ -297,6 +298,7 @@ impl Mailbox {
         Ok(())
     }
 
+    /// Enqueue several payloads for one stream, preserving order.
     fn push_batch(
         &mut self,
         stream: TerminalStream,
@@ -308,10 +310,12 @@ impl Mailbox {
             .collect()
     }
 
+    /// Pop the oldest buffered frame, if any.
     fn pop(&mut self) -> Option<TerminalFrame> {
         self.frames.pop_front()
     }
 
+    /// Pop up to `limit` frames for one batch delivery.
     fn pop_batch(&mut self, limit: usize) -> Vec<TerminalFrame> {
         let count = limit.min(self.frames.len());
         self.frames.drain(..count).collect()
@@ -329,6 +333,7 @@ struct TerminalRecord {
 }
 
 impl TerminalRecord {
+    /// Build a stable read snapshot of one terminal record.
     fn snapshot(&self) -> TerminalSnapshot {
         TerminalSnapshot {
             terminal_id: self.terminal_id.clone(),
@@ -903,6 +908,7 @@ impl TerminalBook {
         ))
     }
 
+    /// Resolve the shared handle for one terminal id.
     fn record_handle(
         &self,
         terminal_id: &str,
@@ -920,6 +926,7 @@ impl TerminalBook {
     }
 }
 
+/// Reject empty or NUL-containing identity strings fail-closed.
 fn validate_identity(value: &str) -> Result<(), TerminalError> {
     if value.trim().is_empty() || value.contains('\0') {
         return Err(TerminalError::InvalidIdentity);
@@ -927,6 +934,7 @@ fn validate_identity(value: &str) -> Result<(), TerminalError> {
     Ok(())
 }
 
+/// Look up a terminal record by id, erroring when unknown.
 fn get_record(
     inner: &TerminalInner,
     terminal_id: &str,
@@ -940,10 +948,12 @@ fn get_record(
         })
 }
 
+/// Lock the shared record, recovering from a poisoned mutex rather than panicking.
 fn lock_record(record: &Arc<Mutex<TerminalRecord>>) -> MutexGuard<'_, TerminalRecord> {
     record.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Reject operations on a closed terminal with a structured error.
 fn reject_closed(record: &TerminalRecord, operation: &str) -> Result<(), TerminalError> {
     if record.state == TerminalState::Closed {
         return Err(TerminalError::InvalidState {
@@ -955,6 +965,7 @@ fn reject_closed(record: &TerminalRecord, operation: &str) -> Result<(), Termina
     Ok(())
 }
 
+/// Require the RUNNING state before stateful terminal operations.
 fn require_running(
     record: &TerminalRecord,
     terminal_id: &str,

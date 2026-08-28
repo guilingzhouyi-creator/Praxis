@@ -71,6 +71,7 @@ pub fn aggregate_health(
     }
 }
 
+/// Round a float to a precision using half-even semantics.
 fn round_half_even(value: f64, precision: u32) -> f64 {
     let factor = 10_f64.powi(precision as i32);
     let sign = if value.is_sign_negative() { -1.0 } else { 1.0 };

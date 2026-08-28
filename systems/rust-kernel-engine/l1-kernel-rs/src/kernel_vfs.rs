@@ -156,6 +156,7 @@ pub struct VfsError {
 }
 
 impl VfsError {
+    /// Construct a structured VFS error from code and message.
     fn new(code: VfsErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -250,6 +251,7 @@ pub struct VfsConfig {
 }
 
 impl Default for VfsConfig {
+    /// Apply the default mount and cache limits.
     fn default() -> Self {
         Self {
             max_mounts: VFS_DEFAULT_MAX_MOUNTS,
@@ -381,6 +383,7 @@ impl MountTable {
         self.mounts.is_empty()
     }
 
+    /// Rebuild the prefix index from the current mount table.
     fn rebuild_prefixes(&mut self) {
         self.prefixes = self.mounts.keys().cloned().collect();
         self.prefixes
@@ -402,6 +405,7 @@ struct BoundedTextStore {
 }
 
 impl BoundedTextStore {
+    /// Create a bounded text store with the given capacity.
     fn new(capacity: usize) -> Self {
         Self {
             capacity,
@@ -410,6 +414,7 @@ impl BoundedTextStore {
         }
     }
 
+    /// Insert or replace a virtual file, pruning oldest entries past capacity.
     fn insert(&mut self, path: String, content: String) {
         if self.capacity == 0 {
             return;
@@ -422,6 +427,7 @@ impl BoundedTextStore {
         self.prune();
     }
 
+    /// Read a stored virtual file by path.
     fn get(&self, path: &str) -> Option<String> {
         self.values.get(path).cloned()
     }
@@ -431,6 +437,7 @@ impl BoundedTextStore {
         self.order.retain(|entry| entry != path);
     }
 
+    /// Evict oldest entries until within capacity.
     fn prune(&mut self) {
         while self.values.len() > self.capacity {
             if let Some(path) = self.order.pop_front() {
@@ -455,6 +462,7 @@ struct CacheStore {
 }
 
 impl CacheStore {
+    /// Create a TTL cache with the given capacity and entry lifetime.
     fn new(capacity: usize, ttl: Duration) -> Self {
         Self {
             capacity,
@@ -464,6 +472,7 @@ impl CacheStore {
         }
     }
 
+    /// Read a cached value, treating expired entries as missing.
     fn get(&mut self, path: &str, now: Instant) -> Option<String> {
         let entry = self.values.get(path)?;
         if now >= entry.expires_at {
@@ -473,6 +482,7 @@ impl CacheStore {
         Some(entry.content.clone())
     }
 
+    /// Insert or refresh a cached value, evicting expired entries first.
     fn insert(&mut self, path: String, content: String, now: Instant) {
         if self.capacity == 0 || self.ttl.is_zero() {
             return;
@@ -496,6 +506,7 @@ impl CacheStore {
         self.order.retain(|entry| entry != path);
     }
 
+    /// Drop every cached path sharing the given prefix.
     fn remove_prefix(&mut self, prefix: &str) {
         let paths = self
             .values
@@ -508,6 +519,7 @@ impl CacheStore {
         }
     }
 
+    /// Evict expired entries and, if still over capacity, the oldest live ones.
     fn prune(&mut self, now: Instant) {
         let expired = self
             .values
@@ -756,6 +768,7 @@ impl Vfs {
         }
     }
 
+    /// Check path access against mount provenance, fail-closed on unknown mounts.
     fn authorize(
         &self,
         path: &str,
@@ -814,6 +827,7 @@ pub struct VfsStats {
     pub virtual_files: usize,
 }
 
+/// Reject empty, non-absolute or NUL-containing paths fail-closed.
 fn validate_path(path: &str, mount_name: bool) -> Result<(), VfsError> {
     if path.is_empty() || !path.starts_with('/') || path.contains('\0') {
         return Err(VfsError::new(
@@ -836,6 +850,7 @@ fn validate_path(path: &str, mount_name: bool) -> Result<(), VfsError> {
     Ok(())
 }
 
+/// Return whether `path` lies under the mount `prefix` using boundary rules.
 fn path_matches(prefix: &str, path: &str) -> bool {
     prefix == "/"
         || path == prefix
@@ -844,6 +859,7 @@ fn path_matches(prefix: &str, path: &str) -> bool {
             .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
+/// Strip the mount prefix to yield the provider-relative path.
 fn relative_path(prefix: &str, path: &str) -> String {
     if prefix == "/" {
         return path.trim_start_matches('/').to_owned();
@@ -854,10 +870,12 @@ fn relative_path(prefix: &str, path: &str) -> String {
         .to_owned()
 }
 
+/// Build the canonical not-found error for a path.
 fn not_found(path: &str) -> VfsError {
     VfsError::new(VfsErrorCode::NotFound, format!("file not found: '{path}'"))
 }
 
+/// Build the provider-required error for an operation on an unmounted path.
 fn provider_required(operation: &str, resolution: &MountResolution) -> VfsError {
     VfsError::new(
         VfsErrorCode::ProviderRequired,

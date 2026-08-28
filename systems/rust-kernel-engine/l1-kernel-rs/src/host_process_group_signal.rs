@@ -78,6 +78,7 @@ impl ProcessGroupSignalPort for HostProcessGroupSignalPort {
     }
 }
 
+/// Validate a termination plan fail-closed before signaling.
 fn validate_plan(plan: &ProcessGroupTerminationPlan) -> Result<(), String> {
     if plan.contract_version != PROCESS_GROUP_CONTRACT_VERSION {
         return Err("unsupported process-group plan contract".to_owned());

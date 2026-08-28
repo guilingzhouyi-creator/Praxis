@@ -308,6 +308,7 @@ pub fn decide_state_action(
     }
 }
 
+/// Reject empty or NUL-containing roots fail-closed.
 fn validate_root(root: &str) -> Result<(), StateLayoutError> {
     if root.trim().is_empty() || root.contains('\0') {
         return Err(StateLayoutError::InvalidRoot);
@@ -315,6 +316,7 @@ fn validate_root(root: &str) -> Result<(), StateLayoutError> {
     Ok(())
 }
 
+/// Reject unsafe relative layout paths fail-closed.
 fn validate_relative_path(path: &str) -> Result<(), StateLayoutError> {
     if path.is_empty()
         || path.starts_with('/')
@@ -339,6 +341,7 @@ const fn entry_kind_rank(kind: StateEntryKind) -> u8 {
     }
 }
 
+/// Validate a state probe's expectations fail-closed.
 fn validate_probe(probe: &StateProbe) -> Result<(), StateLayoutError> {
     if !probe.root_exists {
         if probe.root_empty || probe.manifest_version.is_some() || probe.clean_shutdown.is_some() {

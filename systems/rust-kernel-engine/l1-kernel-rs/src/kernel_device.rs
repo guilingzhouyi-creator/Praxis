@@ -68,6 +68,7 @@ pub struct DeviceRecord {
     pub version: String,
 }
 
+/// Default device health label for fresh records.
 fn default_health() -> String {
     HEALTHY.to_owned()
 }
@@ -230,6 +231,7 @@ impl DeviceTable {
     }
 }
 
+/// Render a device record as a language-neutral JSON summary.
 fn summary(device: &DeviceRecord) -> Value {
     json!({
         "name": device.name,

@@ -52,6 +52,7 @@ impl LifecycleState {
         }
     }
 
+    /// Return whether one lifecycle phase can legally transition to another.
     fn can_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
@@ -99,6 +100,7 @@ pub struct LifecycleRecord {
 }
 
 impl Default for LifecycleRecord {
+    /// Create a lifecycle record in the initial phase.
     fn default() -> Self {
         Self {
             install_version: 0,
@@ -136,6 +138,7 @@ pub struct LifecycleError {
 }
 
 impl LifecycleError {
+    /// Construct a structured lifecycle error from code and message.
     fn new(code: LifecycleErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -317,6 +320,7 @@ impl LifecycleRegistry {
 }
 
 impl Default for LifecycleRegistry {
+    /// Create an empty lifecycle registry.
     fn default() -> Self {
         Self::new()
     }
@@ -324,6 +328,7 @@ impl Default for LifecycleRegistry {
 
 static GLOBAL_LIFECYCLE: OnceLock<Mutex<Option<Arc<LifecycleRegistry>>>> = OnceLock::new();
 
+/// Initialize the process-wide lifecycle slot on first use.
 fn global_lifecycle() -> &'static Mutex<Option<Arc<LifecycleRegistry>>> {
     GLOBAL_LIFECYCLE.get_or_init(|| Mutex::new(None))
 }
@@ -353,6 +358,7 @@ pub fn transition(target: LifecycleState) -> bool {
     get_lifecycle().transition(target)
 }
 
+/// Render the current unix time as a compact string.
 fn unix_timestamp() -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)

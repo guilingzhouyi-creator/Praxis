@@ -59,6 +59,7 @@ pub struct VersionError {
 }
 
 impl VersionError {
+    /// Construct a structured version error from code and message.
     fn new(code: VersionErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -276,6 +277,7 @@ impl VersionRegistry {
 }
 
 impl Default for VersionRegistry {
+    /// Create an empty version registry.
     fn default() -> Self {
         Self::new()
     }
@@ -312,6 +314,7 @@ where
 
 static GLOBAL_VERSIONING: OnceLock<Mutex<Option<Arc<VersionRegistry>>>> = OnceLock::new();
 
+/// Initialize the process-wide versioning slot on first use.
 fn global_versioning() -> &'static Mutex<Option<Arc<VersionRegistry>>> {
     GLOBAL_VERSIONING.get_or_init(|| Mutex::new(None))
 }
@@ -331,6 +334,7 @@ pub fn reset_versioning() {
         .unwrap_or_else(PoisonError::into_inner) = None;
 }
 
+/// Read the `_version` field of a document, erroring when absent.
 fn read_version(object: &Map<String, Value>, kind: &str) -> Result<u64, VersionError> {
     let Some(value) = object.get("_version") else {
         return Ok(0);
@@ -343,6 +347,7 @@ fn read_version(object: &Map<String, Value>, kind: &str) -> Result<u64, VersionE
     })
 }
 
+/// Default initial versions for every known document kind.
 fn default_kinds() -> [(&'static str, u64); 6] {
     [
         ("snapshot", SNAPSHOT_VERSION),

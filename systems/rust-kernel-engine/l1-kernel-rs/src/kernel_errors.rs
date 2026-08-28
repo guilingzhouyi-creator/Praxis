@@ -92,6 +92,7 @@ impl KernelError {
 }
 
 impl fmt::Display for KernelError {
+    /// Render a kernel error as "[code] message".
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "[{}] {}", self.code, self.message)
     }
@@ -198,11 +199,13 @@ impl ErrorCatalog {
 }
 
 impl Default for ErrorCatalog {
+    /// Create a catalog seeded with the builtin error table.
     fn default() -> Self {
         Self::builtin()
     }
 }
 
+/// Resolve the builtin message for an error code, falling back to the code.
 fn default_message(code: &str) -> String {
     ErrorCatalog::builtin()
         .get(code)

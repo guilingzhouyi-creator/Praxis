@@ -98,6 +98,7 @@ impl KernelScheduler {
         self.state
             .transition(handle, TaskState::Ready, TaskState::Running)
             .map_err(|_| SchedulerError::InvalidState)?;
+        // Fail closed on backpressure: roll back to READY so no half-admitted process is left RUNNING.
         if self.queue.try_push(WorkItem { handle, sequence }) {
             Ok(())
         } else {
@@ -134,6 +135,7 @@ impl KernelScheduler {
             {
                 return Some(item);
             }
+            // Skip stale/stopped items but keep queue accounting balanced for what was dequeued.
             self.queue.record_complete();
         }
         None

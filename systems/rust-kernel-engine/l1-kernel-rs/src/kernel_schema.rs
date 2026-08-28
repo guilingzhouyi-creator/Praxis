@@ -73,16 +73,19 @@ impl EventSchemaRegistry {
         self.lock_events().clear();
     }
 
+    /// Lock the event catalog, recovering the mutex if it was poisoned by a panic.
     fn lock_events(&self) -> MutexGuard<'_, BTreeMap<String, EventSchema>> {
         self.events.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
+/// Accept non-empty identifiers that contain no NUL terminator.
 fn valid_identity(value: &str) -> bool {
     !value.trim().is_empty() && !value.contains('\0')
 }
 
 impl Default for EventSchemaRegistry {
+    /// Create an empty schema registry.
     fn default() -> Self {
         Self::new()
     }
@@ -90,6 +93,7 @@ impl Default for EventSchemaRegistry {
 
 static GLOBAL_SCHEMA: OnceLock<Mutex<Option<Arc<EventSchemaRegistry>>>> = OnceLock::new();
 
+/// Return the lazily initialized process-wide schema slot, allocating it on first use.
 fn global_schema() -> &'static Mutex<Option<Arc<EventSchemaRegistry>>> {
     GLOBAL_SCHEMA.get_or_init(|| Mutex::new(None))
 }

@@ -180,11 +180,13 @@ impl AuditLog {
 }
 
 impl Default for AuditLog {
+    /// Create an empty audit log.
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Current unix time in seconds.
 fn unix_timestamp() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -26,6 +26,7 @@ pub struct PeerPolicy {
 }
 
 impl Default for PeerPolicy {
+    /// Apply the default peer policy.
     fn default() -> Self {
         Self {
             timeout_ms: DEFAULT_PEER_TIMEOUT_MS,
@@ -95,6 +96,7 @@ impl PeerAnnouncement {
         }
     }
 
+    /// Validate the peer declaration fail-closed.
     fn validate(&self) -> Result<(), &'static str> {
         if self.peer_id.trim().is_empty() {
             return Err("peer id is required");
@@ -156,6 +158,7 @@ pub struct PeerObservation {
 }
 
 impl PeerObservation {
+    /// Build an empty peer observation.
     fn empty() -> Self {
         Self {
             joined: None,
@@ -358,6 +361,7 @@ impl PeerBook {
 }
 
 impl Default for PeerBook {
+    /// Create a peer book with the default policy.
     fn default() -> Self {
         Self::new("local", PeerPolicy::default()).expect("default peer policy is valid")
     }

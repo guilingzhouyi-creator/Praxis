@@ -295,6 +295,7 @@ impl GateLedger {
 }
 
 impl Default for GateLedger {
+    /// Create an empty gate ledger.
     fn default() -> Self {
         Self::new()
     }
@@ -341,6 +342,7 @@ pub struct GatePolicy {
 }
 
 impl Default for GatePolicy {
+    /// Apply the default danger-level policy table.
     fn default() -> Self {
         let danger_levels = BTreeMap::from([
             ("deploy".to_owned(), 5),
@@ -604,6 +606,7 @@ impl GateChain {
         self.finish(request, now, steps, overall)
     }
 
+    /// Evaluate the identity gate (G1), passing for interactive requests.
     fn check_identity(&self, request: &GateRequest) -> GateStep {
         if request.interactive {
             return GateStep {
@@ -659,6 +662,7 @@ impl GateChain {
         }
     }
 
+    /// Evaluate the escalation gate (G4), passing below the danger threshold.
     fn check_escalation(&self, request: &GateRequest, danger: u8) -> GateStep {
         if danger < self.policy.escalation_danger {
             return step("G4", GateDecision::Pass, "");
@@ -676,6 +680,7 @@ impl GateChain {
         )
     }
 
+    /// Record the terminal gate-chain verdict with full ledger evidence.
     fn finish(
         &self,
         request: &GateRequest,
@@ -702,6 +707,7 @@ impl GateChain {
 }
 
 impl Default for GateChain {
+    /// Create a gate chain with the default policy.
     fn default() -> Self {
         Self::new()
     }
@@ -711,6 +717,7 @@ fn default_interactive_ring() -> u8 {
     1
 }
 
+/// Build one gate-step result.
 fn step(gate: &str, result: GateDecision, reason: &str) -> GateStep {
     GateStep {
         gate: gate.to_owned(),
@@ -725,6 +732,7 @@ fn step(gate: &str, result: GateDecision, reason: &str) -> GateStep {
     }
 }
 
+/// Build a G5 reputation-gate step with score evidence.
 fn g5_step(result: GateDecision, score: f64, reputation: f64, reason: &str) -> GateStep {
     GateStep {
         gate: "G5".to_owned(),
@@ -739,6 +747,7 @@ fn g5_step(result: GateDecision, score: f64, reputation: f64, reason: &str) -> G
     }
 }
 
+/// Keep the Warn verdict if either step warned.
 fn retain_warning(current: GateDecision, next: GateDecision) -> GateDecision {
     if current == GateDecision::Warn || next == GateDecision::Warn {
         GateDecision::Warn

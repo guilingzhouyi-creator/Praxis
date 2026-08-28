@@ -268,6 +268,7 @@ impl KernelAssembly {
     }
 }
 
+/// Map a config error into the assembly error surface.
 fn map_config_error(error: ConfigError) -> AssemblyError {
     let mapped = match error {
         ConfigError::InvalidRoot => ConfigAssemblyError::InvalidRoot,

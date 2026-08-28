@@ -96,6 +96,7 @@ export function resolveHostImplementation(env: NodeJS.ProcessEnv = process.env):
   return isRustHostEnabled(env) ? "rust" : "python";
 }
 
+/** Resolve the spawn command and args for a host implementation. */
 function spawnSpec(options: HostTransportOptions, host: HostImplementation, env: NodeJS.ProcessEnv): {
   command: string;
   args: readonly string[];

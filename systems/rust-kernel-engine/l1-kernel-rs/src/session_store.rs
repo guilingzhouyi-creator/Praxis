@@ -52,6 +52,7 @@ pub enum SessionStoreError {
 }
 
 impl std::fmt::Display for SessionStoreError {
+    /// Render a store error as a human-readable message.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(error) => write!(formatter, "session store I/O failed: {error}"),
@@ -233,6 +234,7 @@ impl SessionStore {
     }
 }
 
+/// Build the empty store document shape.
 fn empty_document() -> SessionStoreDocument {
     SessionStoreDocument {
         store_version: SESSION_STORE_VERSION,
@@ -242,11 +244,13 @@ fn empty_document() -> SessionStoreDocument {
     }
 }
 
+/// Mark a snapshot as cleanly shut down.
 fn clean_snapshot(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     snapshot.clean_shutdown = true;
     snapshot
 }
 
+/// Mark a snapshot as crash-recovered.
 fn crash_snapshot(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     if snapshot.state != SessionState::Closed {
         snapshot.state = SessionState::Crashed;
@@ -255,6 +259,7 @@ fn crash_snapshot(mut snapshot: SessionSnapshot) -> SessionSnapshot {
     snapshot
 }
 
+/// Mark a checkpoint as crash-recovered.
 fn crash_checkpoint(checkpoint: SessionCheckpoint) -> SessionCheckpoint {
     SessionCheckpoint {
         checkpoint_version: checkpoint.checkpoint_version,
@@ -262,6 +267,7 @@ fn crash_checkpoint(checkpoint: SessionCheckpoint) -> SessionCheckpoint {
     }
 }
 
+/// Validate a store document fail-closed before use.
 fn validate_document(
     document: &SessionStoreDocument,
     path: &Path,
@@ -308,6 +314,7 @@ fn validate_document(
     Ok(())
 }
 
+/// Load a store document from disk.
 fn read_document(path: &Path) -> Result<SessionStoreDocument, SessionStoreError> {
     let mut file = File::open(path)?;
     let mut bytes = Vec::new();
@@ -318,6 +325,7 @@ fn read_document(path: &Path) -> Result<SessionStoreDocument, SessionStoreError>
     })
 }
 
+/// Write bytes atomically via a temporary file and rename.
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), SessionStoreError> {
     let parent = path.parent().ok_or_else(|| {
         SessionStoreError::Io(io::Error::new(

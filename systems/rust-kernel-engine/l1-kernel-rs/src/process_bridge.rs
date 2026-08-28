@@ -353,6 +353,7 @@ impl ProcessTableBridge {
         Ok(report)
     }
 
+    /// Spawn a process and register its binding atomically.
     fn spawn_registered(
         &self,
         spawn: impl FnOnce(&ManagedProcessBook) -> Result<ProcessHandle, ManagedProcessError>,
@@ -397,6 +398,7 @@ impl ProcessTableBridge {
         Ok(table_handle)
     }
 
+    /// Record a process exit and remove its binding.
     fn record_exit(
         &self,
         handle: ProcessHandle,
@@ -417,6 +419,7 @@ impl ProcessTableBridge {
         Ok(())
     }
 
+    /// Resolve the binding for one handle, erroring when unknown.
     fn binding(&self, handle: ProcessHandle) -> Result<Arc<ProcessBinding>, ProcessBridgeError> {
         self.read_bindings()
             .get(&handle)
@@ -424,12 +427,14 @@ impl ProcessTableBridge {
             .ok_or(ProcessBridgeError::TableUnavailable)
     }
 
+    /// Lock the binding table for reading.
     fn read_bindings(
         &self,
     ) -> std::sync::RwLockReadGuard<'_, HashMap<ProcessHandle, Arc<ProcessBinding>>> {
         self.bindings.read().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Lock the binding table for writing.
     fn write_bindings(
         &self,
     ) -> std::sync::RwLockWriteGuard<'_, HashMap<ProcessHandle, Arc<ProcessBinding>>> {

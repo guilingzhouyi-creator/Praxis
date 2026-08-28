@@ -103,6 +103,7 @@ impl ConfigLayoutManifest {
         })
     }
 
+    /// Validate the layout version fail-closed.
     fn validate_version(&self) -> Result<(), ConfigError> {
         if self.layout_version != CONFIG_LAYOUT_VERSION {
             return Err(ConfigError::UnsupportedLayout(self.layout_version));
@@ -126,6 +127,7 @@ pub struct ConfigDocument {
 }
 
 impl Default for ConfigDocument {
+    /// Create a default config document.
     fn default() -> Self {
         Self {
             document_version: CONFIG_DOCUMENT_VERSION,
@@ -136,6 +138,7 @@ impl Default for ConfigDocument {
 }
 
 impl ConfigDocument {
+    /// Validate the document version and fields fail-closed.
     fn validate(&self) -> Result<(), ConfigError> {
         if self.document_version != CONFIG_DOCUMENT_VERSION {
             return Err(ConfigError::UnsupportedDocument(self.document_version));
@@ -175,6 +178,7 @@ pub enum ConfigError {
 }
 
 impl Display for ConfigError {
+    /// Render a config error as a human-readable message.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(error) => write!(formatter, "config store I/O failed: {error}"),
@@ -327,6 +331,7 @@ impl ConfigStore {
         self.persist_document(SETTINGS_FILE, &self.settings)
     }
 
+    /// Initialize the config store at a root path.
     fn initialize(root: PathBuf, contract_version: u32) -> Result<Self, ConfigError> {
         fs::create_dir_all(&root)?;
         let manifest =
@@ -347,6 +352,7 @@ impl ConfigStore {
         Ok(store)
     }
 
+    /// Persist a document atomically to disk.
     fn persist_document(
         &self,
         filename: &str,
@@ -361,6 +367,7 @@ impl ConfigStore {
     }
 }
 
+/// Accept safe relative paths without traversal components.
 fn is_safe_relative_path(path: &str) -> bool {
     !path.trim().is_empty()
         && !path.starts_with('/')
@@ -370,10 +377,12 @@ fn is_safe_relative_path(path: &str) -> bool {
             .any(|part| part.is_empty() || part == "." || part == "..")
 }
 
+/// Return whether a directory exists and is empty.
 fn is_empty_directory(path: &Path) -> Result<bool, ConfigError> {
     Ok(path.is_dir() && path.read_dir()?.next().is_none())
 }
 
+/// Reject empty or NUL-containing config keys fail-closed.
 fn validate_key(key: &str) -> Result<(), ConfigError> {
     if key.trim().is_empty() || key.contains('\0') {
         return Err(ConfigError::InvalidKey(key.to_owned()));
@@ -381,6 +390,7 @@ fn validate_key(key: &str) -> Result<(), ConfigError> {
     Ok(())
 }
 
+/// Read and deserialize a JSON file.
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, ConfigError> {
     let mut file = File::open(path)?;
     let mut bytes = Vec::new();
@@ -391,6 +401,7 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, ConfigError
     })
 }
 
+/// Write bytes atomically via a temporary file and rename.
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
     let parent = path.parent().ok_or(ConfigError::InvalidRoot)?;
     fs::create_dir_all(parent)?;

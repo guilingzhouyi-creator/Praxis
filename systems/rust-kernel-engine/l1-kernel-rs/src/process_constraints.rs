@@ -440,6 +440,7 @@ impl ProcessConstraintEvaluator {
         })
     }
 
+    /// Validate terminal constraints for one process spec.
     fn check_terminal(
         &self,
         spec: &AgentProcessSpec,
@@ -504,6 +505,7 @@ impl ProcessConstraintEvaluator {
         }
     }
 
+    /// Validate the cwd against allowed prefixes.
     fn check_cwd(&self, spec: &AgentProcessSpec, violations: &mut Vec<ProcessConstraintViolation>) {
         let Some(prefixes) = &self.policy.allowed_cwd_prefixes else {
             return;
@@ -523,6 +525,7 @@ impl ProcessConstraintEvaluator {
         }
     }
 
+    /// Validate environment variables against policy.
     fn check_environment(
         &self,
         spec: &AgentProcessSpec,
@@ -544,6 +547,7 @@ impl ProcessConstraintEvaluator {
     }
 }
 
+/// Return whether a path is within a prefix using boundary rules.
 fn path_within_prefix(path: &str, prefix: &str) -> bool {
     let path = path.trim_end_matches(['/', '\\']);
     let prefix = prefix.trim_end_matches(['/', '\\']);
@@ -553,6 +557,7 @@ fn path_within_prefix(path: &str, prefix: &str) -> bool {
             .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('\\'))
 }
 
+/// Detect `..` or `.` components in a path.
 fn has_parent_or_current_component(path: &str) -> bool {
     path.split(['/', '\\'])
         .any(|component| component == "." || component == "..")

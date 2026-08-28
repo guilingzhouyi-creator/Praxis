@@ -19,6 +19,7 @@ export interface HttpTransportOptions {
   fetchImpl?: typeof fetch;
 }
 
+/** Create an HTTP transport posting envelopes to the shell endpoint. */
 export function createHttpTransport(options: HttpTransportOptions): Transport {
   const { baseUrl, path = "/api/v2/shell", timeoutMs = 10000 } = options;
   const fetchImpl = options.fetchImpl ?? fetch;
