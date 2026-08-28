@@ -22,6 +22,9 @@ export type ConnectionState =
 
 export type TransportFactory = () => Transport;
 
+/** A transport that also owns an underlying resource (child, socket, stream). */
+export type CloseableTransport = Transport & { close: () => void };
+
 export interface ConnectionOptions {
   factory: TransportFactory;
   sessionId: string;
@@ -34,10 +37,16 @@ export interface ConnectionOptions {
  *
  * State machine `disconnected → connecting → connected → reconnecting`
  * with exponential backoff; `on()` preserves `TypedEventEmitter` typing.
+ *
+ * Transports that expose a `close()` (managed hosts, sockets) are released
+ * on disconnect AND when a failed probe replaces them, so a lingering child
+ * process or socket never survives the manager's state — reconnects stack
+ * only live transports.
  */
 export class ConnectionManager {
   private state: ConnectionState = { status: "disconnected" };
   private bridgeInstance: ProtocolBridge | undefined;
+  private currentTransport: Transport | undefined;
   private readonly emitter = new TypedEventEmitter();
 
   constructor(private readonly opts: ConnectionOptions) {
@@ -85,11 +94,18 @@ export class ConnectionManager {
         async () => {
           const t = this.opts.factory();
           const probe = new ProtocolBridge({ sessionId: this.opts.sessionId, transport: t });
-          await probe.systemStatus();
+          try {
+            await probe.systemStatus();
+          } catch (err) {
+            this.closeTransport(t); // a failed probe must not leak its child/socket
+            throw err;
+          }
           return t;
         },
         { maxRetries: this.opts.maxRetries ?? 3, baseDelayMs: this.opts.baseDelayMs ?? 500 },
       );
+      this.closeTransport(this.currentTransport); // idempotent; replaces a stale live one
+      this.currentTransport = transport;
       this.bridgeInstance = new ProtocolBridge({ sessionId: this.opts.sessionId, transport });
       this.setState({ status: "connected" });
       await this.emitter.emit("health:change", { healthy: true, latencyMs: 0 });
@@ -100,11 +116,24 @@ export class ConnectionManager {
     }
   }
 
-  /** Disconnect gracefully and release the bridge. */
+  /** Disconnect gracefully, release the transport resource, and drop the bridge. */
   disconnect(): void {
+    this.closeTransport(this.currentTransport);
+    this.currentTransport = undefined;
     this.setState({ status: "disconnected" });
     this.bridgeInstance = undefined;
     void this.emitter.emit("transport:close", {});
+  }
+
+  /** Best-effort release of a transport's underlying resource (no-op otherwise). */
+  private closeTransport(transport: Transport | undefined): void {
+    const close = (transport as CloseableTransport | undefined)?.close;
+    if (typeof close !== "function") return;
+    try {
+      close();
+    } catch {
+      // Release is best-effort: a throwing close must not break the FSM.
+    }
   }
 
   private setState(next: ConnectionState): void {
