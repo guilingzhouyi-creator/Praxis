@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/wire-envelope.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
+import { parseCommandCatalog } from "../src/engine/command-catalog.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
 import { project, projectDesktop, projectTui, projectVscode, projectWeb, SessionView } from "../src/engine/interactive-session.ts";
 
@@ -111,6 +112,42 @@ describe("SessionView end-to-end", () => {
     expect(decodeMessage(received[0]).message?.payload.view_id).toBe("v-1");
     expect(decodeMessage(received[1]).message?.payload.op).toBe("recovery");
   });
+
+  it("acks monotonic (idempotent per seq) and carries the view id", async () => {
+    const received: string[] = [];
+    const bridge = new ProtocolBridge({ sessionId: "s-1", transport: sessionHost(received) });
+    const view = new SessionView("v-1", bridge);
+
+    await view.ack("s-9", 4);
+    expect(view.lastAcked).toBe(4);
+    expect(decodeMessage(received[0]).message).toMatchObject({
+      kind: "ack",
+      payload: { ack_seq: 4, view_id: "v-1" },
+    });
+
+    await view.ack("s-9", 3); // older seq: no-op, no second wire call
+    expect(received).toHaveLength(1);
+    await view.ack("s-9", 5);
+    expect(view.lastAcked).toBe(5);
+    expect(received).toHaveLength(2);
+  });
+
+  it("detaches, resets its cursor and drops the identity", async () => {
+    const received: string[] = [];
+    const bridge = new ProtocolBridge({ sessionId: "s-1", transport: sessionHost(received) });
+    const view = new SessionView("v-1", bridge);
+
+    await view.attach("s-9");
+    await view.ack("s-9", 3);
+    await view.detach("s-9");
+
+    expect(decodeMessage(received[2]).message).toMatchObject({
+      kind: "control",
+      payload: { op: "detach", session_id: "s-9", view_id: "v-1" },
+    });
+    expect(view.lastAcked).toBe(-1);
+    expect(view["identity"]).toEqual({});
+  });
 });
 
 describe("builtins", () => {
@@ -136,5 +173,57 @@ describe("builtins", () => {
     const dispatcher = new Dispatcher();
     registerBuiltins(dispatcher);
     expect((await dispatcher.dispatch({ name: "memory", args: ["digest"] }, { sessionId: "s-1" })).kind).toBe("bridge");
+  });
+});
+
+describe("builtins with command catalog", () => {
+  const catalog = parseCommandCatalog(`
+agents:
+  category: session
+  help: "List all agents"
+  aliases: ["ls"]
+mode:
+  category: session
+  help: "Show/switch mode"
+  args:
+    - {name: sub, optional: true, description: "sub-mode"}
+`);
+
+  it("renders the full command surface on bare /help", async () => {
+    const dispatcher = new Dispatcher();
+    registerBuiltins(dispatcher, { catalog });
+    const out = await dispatcher.dispatch({ name: "help", args: [] }, { sessionId: "s-1" });
+    expect(out).toMatchObject({
+      kind: "local",
+      data: {
+        type: "help",
+        commands: [
+          { name: "agents", help: "List all agents" },
+          { name: "mode", help: "Show/switch mode" },
+        ],
+        more: 0,
+      },
+    });
+  });
+
+  it("shows one command's details on /help <name>", async () => {
+    const dispatcher = new Dispatcher();
+    registerBuiltins(dispatcher, { catalog });
+    const out = await dispatcher.dispatch({ name: "help", args: ["mode"] }, { sessionId: "s-1" });
+    expect(out).toMatchObject({
+      kind: "local",
+      data: { command: "mode", registered: true, category: "session", args: [{ name: "sub", optional: true }] },
+    });
+    const missing = await dispatcher.dispatch({ name: "help", args: ["ghost"] }, { sessionId: "s-1" });
+    expect(missing).toEqual({ kind: "local", data: { command: "ghost", registered: false } });
+  });
+
+  it("keeps the non-catalog shape untouched for existing callers", async () => {
+    const dispatcher = new Dispatcher();
+    registerBuiltins(dispatcher);
+    expect(await dispatcher.dispatch({ name: "help", args: [] }, { sessionId: "s-1" })).toEqual({
+      kind: "local",
+      data: { commands: ["clear", "help", "lang"] },
+    });
   });
 });

@@ -4,7 +4,10 @@ import {
   Outbox,
 } from "../src/wire-envelope.ts";
 import { HOST_DERIVED_FIELDS } from "../src/wire-types.ts";
-import { parseRoute, splitArgs } from "../src/engine/route.ts";
+import { parseRoute, route, splitArgs, type RouteContext } from "../src/engine/route.ts";
+import { Dispatcher } from "../src/engine/dispatcher.ts";
+import { parseCommandCatalog } from "../src/engine/command-catalog.ts";
+import { registerBuiltins } from "../src/engine/builtins.ts";
 import { ProtocolBridge } from "../src/engine/bridge.ts";
 import type { Message } from "../src/wire-envelope.ts";
 
@@ -110,5 +113,87 @@ describe("bridge: undecodable responses surface as errors (R7 twin)", () => {
     });
     await bridge.command("status");
     expect(events).toEqual([{ label: "command:status", responseCount: 1 }]);
+  });
+});
+
+describe("route integration: catalog alias resolution", () => {
+  const catalog = parseCommandCatalog(`
+agents:
+  category: session
+  help: "List all agents"
+  aliases: ["ls"]
+`);
+
+  function setup(received: string[]): RouteContext {
+    const dispatcher = new Dispatcher();
+    registerBuiltins(dispatcher, { catalog });
+    const bridge = new ProtocolBridge({
+      sessionId: "s-1",
+      transport: async (line: string) => {
+        received.push(line);
+        return [
+          JSON.stringify({
+            v: 1, session_id: "s-1", seq: 99, ts: 1.0, kind: "result",
+            payload: { success: true, name: String(decodeMessage(line).message?.payload.name ?? "") },
+          }),
+        ];
+      },
+    });
+    return { dispatcher, bridge, catalog };
+  }
+
+  it("runs an alias of a LOCAL handler without touching the host", async () => {
+    const received: string[] = [];
+    const ctx = setup(received);
+    // "ls" aliases "agents" which is NOT local → still bridges (host stays
+    // the authority for real commands); routing alone never executes the
+    // transport, so nothing is sent from this decision.
+    const out = await route("/ls", ctx);
+    expect(out.kind).toBe("bridge");
+    expect(received).toHaveLength(0);
+
+    // A catalog alias pointing at a local builtin resolves locally:
+    const localAlias = parseCommandCatalog("help:\n  help: \"h\"\n  aliases: [\"hlp\"]");
+    const dispatcher = new Dispatcher();
+    registerBuiltins(dispatcher, { catalog: localAlias });
+    const localBridge = new ProtocolBridge({
+      sessionId: "s-1",
+      transport: async () => {
+        received.push("HOST_TOUCHED");
+        return [];
+      },
+    });
+    const local = await route("/hlp", { dispatcher, bridge: localBridge, catalog: localAlias });
+    expect(local.kind).toBe("local");
+    expect(received).toHaveLength(0); // host untouched
+  });
+
+  it("keeps bridging unknown names when no catalog is injected", async () => {
+    const received: string[] = [];
+    const ctx = setup(received);
+    ctx.catalog = undefined;
+    const out = await route("/agents", ctx);
+    expect(out.kind).toBe("bridge");
+  });
+
+  it("propagates the session id to local dispatcher calls", async () => {
+    const dispatcher = new Dispatcher();
+    let seenSession = "";
+    dispatcher.register("status", (args, ctx) => {
+      seenSession = ctx.sessionId;
+      return { kind: "local", data: { ok: true } };
+    });
+    const bridge = new ProtocolBridge({
+      sessionId: "s-default",
+      transport: async () => [],
+    });
+    const ctx: RouteContext = { dispatcher, bridge, sessionId: "s-42" };
+    const out = await route("/status", ctx);
+    expect(out.kind).toBe("local");
+    expect(seenSession).toBe("s-42");
+    // Without an explicit session id, the bridge's configured id is used.
+    const outDefault = await route("/status", { ...ctx, sessionId: undefined });
+    expect(outDefault.kind).toBe("local");
+    expect(seenSession).toBe("s-default");
   });
 });

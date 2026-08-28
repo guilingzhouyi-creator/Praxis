@@ -131,6 +131,21 @@ export class ProtocolBridge {
   // ── Selector domain ──
   async cellLiveness(): Promise<Message[]> { return this.command("cell_liveness", []); }
 
+  // ── Session/control domain (host owns outbox + cursors; client mirrors) ──
+  /** Detach one view from a session (host keeps the session state). */
+  async detach(sessionId: string, viewId?: string): Promise<Message[]> {
+    const payload: Record<string, string> = { op: "detach", session_id: sessionId };
+    if (viewId) payload.view_id = viewId;
+    return this.send("control", payload, sessionId);
+  }
+
+  /** Resume/recover a session outbox from `lastAcked` (host replays unacked). */
+  async resume(sessionId: string, viewId?: string, lastAcked = -1): Promise<Message[]> {
+    const payload: Record<string, string | number> = { op: "resume", session_id: sessionId, last_acked: lastAcked };
+    if (viewId) payload.view_id = viewId;
+    return this.send("control", payload, sessionId);
+  }
+
   // ── Card domain ──
   async cardSubmit(cardYaml: string): Promise<Message[]> { return this.command("card_submit", [cardYaml]); }
   async cardApprove(cardId: string): Promise<Message[]> { return this.command("card_approve", [cardId]); }

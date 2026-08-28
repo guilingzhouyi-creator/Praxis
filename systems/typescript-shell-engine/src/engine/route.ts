@@ -9,6 +9,7 @@
  */
 
 import type { ProtocolBridge } from "./bridge.ts";
+import type { CommandCatalog } from "./command-catalog.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 
 /**
@@ -145,6 +146,20 @@ export interface RouteContext {
   bridge: ProtocolBridge;
   /** Direct-mode flag; when false, bare text routes to L3A intent. */
   direct?: boolean;
+  /**
+   * Optional session id for local dispatcher calls. Host sessions are
+   * isolated per id (host.py lazy ShellSession), so a hardcoded default
+   * would cross-pollute sessions in multi-session frontends. Defaults to
+   * the bridge's configured session id.
+   */
+  sessionId?: string;
+  /**
+   * Optional shared command catalog. When present, unknown `/engine`
+   * names resolve through the alias reverse index first, so an alias of
+   * a LOCAL handler executes locally instead of round-tripping to the
+   * host (host authority for everything else is unchanged).
+   */
+  catalog?: CommandCatalog;
 }
 
 export type RouteOutcome =
@@ -157,6 +172,7 @@ export type RouteOutcome =
  * anything else routes to the bridge (host authority) or L3A fallback.
  */
 export async function route(line: string, ctx: RouteContext): Promise<RouteOutcome> {
+  const sessionId = ctx.sessionId ?? ctx.bridge.sessionId;
   const parsed = parseRoute(line);
   switch (parsed.kind) {
     case "empty":
@@ -168,8 +184,18 @@ export async function route(line: string, ctx: RouteContext): Promise<RouteOutco
       return { kind: "bridge", name: "__system", args: [parsed.command] };
     case "engine": {
       const handler = ctx.dispatcher.has(parsed.name);
-      if (!handler) return { kind: "bridge", name: parsed.name, args: parsed.args };
-      const result = await ctx.dispatcher.dispatch({ name: parsed.name, args: parsed.args }, { sessionId: "s-1" });
+      if (!handler) {
+        // Alias of a LOCAL handler (from commands.yaml metadata): run it
+        // locally; everything else still falls through to the bridge.
+        const resolved = ctx.catalog?.resolveAlias(parsed.name);
+        if (resolved && ctx.dispatcher.has(resolved)) {
+          const aliased = await ctx.dispatcher.dispatch({ name: resolved, args: parsed.args }, { sessionId });
+          if (aliased.kind === "local") return { kind: "local", result: aliased.data };
+          return { kind: "bridge", name: aliased.command, args: aliased.args };
+        }
+        return { kind: "bridge", name: parsed.name, args: parsed.args };
+      }
+      const result = await ctx.dispatcher.dispatch({ name: parsed.name, args: parsed.args }, { sessionId });
       if (result.kind === "local") return { kind: "local", result: result.data };
       return { kind: "bridge", name: result.command, args: result.args };
     }

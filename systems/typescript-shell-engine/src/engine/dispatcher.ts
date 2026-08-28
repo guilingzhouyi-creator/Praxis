@@ -48,10 +48,12 @@ export class Dispatcher {
   private readonly handlers = new Map<string, CommandHandler>();
   private wildcard: WildcardHandler | undefined;
   private middleware: MiddlewareChain | undefined;
+  private namesCache: string[] = [];
 
   /** Register a handler for an exact command name. */
   register(name: string, handler: CommandHandler): void {
     this.handlers.set(name, handler);
+    this.namesCache = [];
   }
 
   /** Register a catch-all for unregistered commands (before bridge fallback). */
@@ -69,9 +71,12 @@ export class Dispatcher {
     this.middleware = chain;
   }
 
-  /** Registered command names (stable, sorted). */
+  /** Registered command names (stable, sorted; cached between registrations). */
   listCommands(): string[] {
-    return [...this.handlers.keys()].sort();
+    if (this.namesCache.length !== this.handlers.size) {
+      this.namesCache = [...this.handlers.keys()].sort();
+    }
+    return this.namesCache;
   }
 
   /** Dispatch a parsed command; unknown names hit wildcard → bridge fallback. */

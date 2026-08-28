@@ -122,4 +122,81 @@ describe("ConnectionManager", () => {
     });
     await expect(manager.connect()).rejects.toThrow("sync factory failure");
   });
+
+  it("releases a closeable transport on disconnect", async () => {
+    let closed = 0;
+    const manager = new ConnectionManager({
+      factory: () => {
+        const transport = (async () => [JSON.stringify(makeMessage("s-1", 1, "result", { success: true }))]) as unknown as {
+          (line: string): Promise<string[]>;
+          close: () => void;
+        };
+        transport.close = () => {
+          closed++;
+        };
+        return transport;
+      },
+      sessionId: "s-1",
+    });
+    await manager.connect();
+    expect(closed).toBe(0);
+    manager.disconnect();
+    expect(closed).toBe(1);
+    // Idempotent disconnect: no double-close.
+    manager.disconnect();
+    expect(closed).toBe(1);
+  });
+
+  it("closes a failed probe's transport so reconnection never leaks children", async () => {
+    const closed: string[] = [];
+    let attempts = 0;
+    const manager = new ConnectionManager({
+      factory: () => {
+        const n = ++attempts;
+        const t = (async () => [JSON.stringify(makeMessage("s-1", 1, "result", { success: true }))]) as unknown as {
+          (line: string): Promise<string[]>;
+          close: () => void;
+        };
+        t.close = () => {
+          closed.push(`transport-${n}`);
+        };
+        if (n <= 2) {
+          // First two probes fail at the protocol level.
+          const broken = async () => {
+            throw new Error(`probe failure ${n}`);
+          };
+          const bt = broken as typeof t;
+          bt.close = () => closed.push(`transport-${n}`);
+          return bt;
+        }
+        return t;
+      },
+      sessionId: "s-1",
+      maxRetries: 2,
+      baseDelayMs: 1,
+    });
+    await manager.connect();
+    expect(attempts).toBe(3);
+    expect(closed).toEqual(["transport-1", "transport-2"]);
+    manager.disconnect();
+    expect(closed).toEqual(["transport-1", "transport-2", "transport-3"]);
+  });
+
+  it("tolerates a throwing close (best-effort release)", async () => {
+    const manager = new ConnectionManager({
+      factory: () => {
+        const t = (async () => [JSON.stringify(makeMessage("s-1", 1, "result", { success: true }))]) as unknown as {
+          (line: string): Promise<string[]>;
+          close: () => void;
+        };
+        t.close = () => {
+          throw new Error("close exploded");
+        };
+        return t;
+      },
+      sessionId: "s-1",
+    });
+    await manager.connect();
+    expect(() => manager.disconnect()).not.toThrow();
+  });
 });
