@@ -108,6 +108,10 @@ name = "constitution"
 path = "tests/policy/kernel_test_constitution.rs"
 
 [[test]]
+name = "constitution_io"
+path = "tests/policy/kernel_test_constitution_io.rs"
+
+[[test]]
 name = "constitution_vectors"
 path = "tests/policy/constitution_vectors.rs"
 
@@ -410,3 +414,7 @@ path = "tests/storage/kernel_test_vfs.rs"
 [[test]]
 name = "worker"
 path = "tests/core/kernel_test_worker.rs"
+
+[[test]]
+name = "watchdog"
+path = "tests/core/kernel_test_watchdog.rs"

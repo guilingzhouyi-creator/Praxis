@@ -47,6 +47,30 @@ closed-pool completion, and public task-handle semantics; the release evidence
 must be compared on throughput, queue wait, p95, and p99 before a runtime
 policy can adopt it.
 
+The `watchdog` module is a side-effect-free lifecycle evaluator for the
+Python `os.py` watchdog semantics. It accepts explicit thresholds plus
+host-supplied process and interrupt observations, combines zombie and idle
+checks in one process pass, and emits deterministic interrupt alerts. It does
+not own a clock, background thread, ProcessTable/IRQ singleton, logging,
+restart, or shutdown policy; hosts decide what to do with the report. Zero
+thresholds fail closed, and the independent target is
+`tests/core/kernel_test_watchdog.rs`.
+
+The `constitution_io` module is the first filesystem-bearing Constitution
+candidate. It owns a strict, Rust-native `TerritoryConstitution` parser and
+deterministic renderer for territory/GateChain values, plus a
+`ConstitutionStore` that flushes and atomically replaces the selected document
+while publishing the in-memory snapshot only after success. Temporary siblings
+are opened exclusively and the parent directory is synced after rename where
+supported. Failed writes retain the prior snapshot and remove their temporary
+sibling; source, GateChain keys, and selected paths reject embedded NULs
+before mutation. Concurrent updates are serialized per store. The independent target
+`tests/policy/kernel_test_constitution_io.rs` covers malformed scalar rejection,
+versioned updates, proposal merge, deterministic diffs, rollback, reopen, and
+concurrent disk/memory alignment. SettingsCenter discovery, providers,
+prompt/EventBus wiring, and production policy authority remain outside this
+candidate.
+
 The `session` module adds the P0 session-truth mechanism needed before a clean
 AgentLoop bridge: a sharded `SessionBook`, bounded per-session history,
 authoritative `input_seq`, cursor pages, explicit crash recovery, and a
@@ -191,8 +215,24 @@ fresh Rust `StateStore`, records clean lifecycle checkpoints, and requires an
 explicit recovery path after an unclean close. `submit_gated` evaluates the
 Rust G1-G5 chain before invoking the single CapabilityAuthority, so an empty
 whitelist or unwired executor cannot enter the worker queue.
+If a persistent clean StateStore commit fails after the execution checkpoint
+was written, the runtime demotes that checkpoint to unclean and best-effort
+marks the root crashed before returning the state-store error.
+Persistent runtimes also hold the assembly-selected `ConfigStore`: defensive
+document snapshots and explicit single-document or paired mutation methods
+persist through the Rust owner before returning. Non-persistent runtimes fail
+closed for configuration access, and this boundary does not reload services or
+import Python settings.
+The persistent constructor validates the selected configuration root and
+execution checkpoint before applying unclean `StateStore` recovery, so a
+foreign or malformed attached root does not advance the recovery generation or
+mutate the prior lifecycle record.
+Explicit checkpoint and recovery-decision reads take the runtime admission
+barrier; shutdown and recovery acknowledgement use already-locked helpers to
+keep lifecycle transitions and cross-book snapshots ordered without recursive
+locking.
 
-State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, territory, sync,
+State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, and worker behavior
@@ -221,10 +261,13 @@ It does not emit EventBus signals or own SSE/WS/webhook delivery.
 The `identity_binding` module owns only Rust-native `(cell, role)` metadata:
 write authorization, per-Cell capacity, stable identity IDs across rebinds,
 bounded domain tags, monotonic revisions, and deterministic snapshots. Prompt
-fragments, identity definitions, persistence, event emission, singleton
-ownership, and API/L2Shell routing stay outside the kernel candidate. The UID
-issuer supplies the first identity ID; the binding registry never accepts a
-client replacement on rebind.
+fragments and identity definitions stay outside the kernel candidate. Its
+`IdentityBindingStore` adds a versioned metadata-only checkpoint with strict
+validation, atomic replacement, and in-memory rollback if a durable write
+fails; Python persistence bytes, cross-process locking, event emission,
+singleton ownership, and API/L2Shell routing remain host-owned. The UID issuer
+supplies the first identity ID; the binding registry never accepts a client
+replacement on rebind.
 
 `tests/fixtures/kernel_identity_binding_vectors.json` and the matching Rust
 integration/Python adapter tests freeze only authorization and mutation
@@ -270,6 +313,9 @@ only the fresh Rust root described by `state_layout`, persists manifest and
 lifecycle/checkpoint documents using per-file atomic rename plus `sync_all`,
 and exposes clean-resume and unclean-recovery actions. It rejects divergent
 or migration-required roots and never imports Python state.
+Paired lifecycle/checkpoint rollback removes a newly staged lifecycle when no
+prior file existed and reports a dedicated error if restoration fails; failed
+rename temporaries are cleaned.
 The durable lifecycle/recovery behavior is exercised through the public
 `tests/storage/kernel_test_state_store.rs` target.
 
@@ -406,9 +452,13 @@ a versioned JSON manifest with separate `config.json` and `settings.json`
 documents, tracks monotonic revisions, and uses per-document atomic rename plus
 `sync_all`. It resumes only a matching Rust root and rejects foreign/future
 layouts; Python YAML/settings import, migration callbacks, provider wiring, and
-engineering-debug policy remain outside the store.
-`tests/storage/kernel_test_config_store.rs` covers manifest ordering, fresh-root revisions, foreign
-roots, invalid keys, and future-document rejection through the public API.
+engineering-debug policy remain outside the store. Single-document mutations
+publish staged values only after replacement succeeds; the explicit paired
+mutation restores the first replacement if the second fails and reports a
+rollback failure explicitly. Failed rename temporaries are removed.
+`tests/storage/kernel_test_config_store.rs` covers manifest ordering, fresh-root
+revisions, foreign roots, invalid keys, future-document rejection, paired
+rollback, and temporary-file cleanup through the public API.
 
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
@@ -585,8 +635,13 @@ public API from `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` as ind
 targets; `src/` must contain no `#[cfg(test)]` or inline test module. Cargo
 implicit discovery is disabled so the Python infra gate
 `tests/infra/test_rust_test_domain.py` can reject root-level or unregistered
-targets. Shared JSON fixtures stay in `tests/fixtures/`; run the isolated
-domain with `make rust-contract-test` or a bounded `cargo test --test <name>`.
+targets. Shared JSON fixtures stay in `tests/fixtures/`; run all targets as
+bounded parallel slices with `make rust-contract-test`, select a domain with
+`python scripts/py/run_rust_test_domains.py --domain runtime`, or run one
+bounded `cargo test --test <name>`. The slice runner enforces a finite
+per-target timeout (300 seconds by default), kills timed-out process groups,
+and emits compact passing output; use `--timeout` and `--verbose` for focused
+diagnostics.
 
 The isolated `identity_uid` module mirrors the value-only UID issuer boundary:
 prefix and body-length validation, bounded entropy candidates, collision
@@ -605,7 +660,9 @@ The isolated `bus` module mirrors SystemBus metadata, registration replacement
 in place, parent-available dependency filtering, stable Kahn planning, cycle
 errors, and explicit component state labels. Registration rejects blank or
 NUL-containing names, and planning uses a stable O(V+E) reverse-edge pass;
-duplicate hard and optional declarations are one ordering edge while remaining
+registration and direct metadata lookup use a hash index while the ordered
+component vector preserves deterministic names and plan tie breaking; duplicate
+hard and optional declarations are one ordering edge while remaining
 visible in the graph snapshot. The shared
 `tests/fixtures/kernel_bus_vectors.json` covers these values. Event handlers,
 child-bus routing, health/stats providers, callbacks, and actual component

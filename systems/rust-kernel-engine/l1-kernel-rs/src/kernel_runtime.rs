@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 use crate::agent_loop::AgentLoopBook;
 use crate::assembly::{AssemblyError, AssemblySpec, KernelAssembly};
 use crate::capability::CapabilityAuthority;
+use crate::config_store::{ConfigDocument, ConfigError, ConfigStore};
 use crate::contract::{CapabilityRequest, CapabilityResult};
 use crate::execution_store::{ExecutionStore, ExecutionStoreDocument, ExecutionStoreError};
 use crate::gatechain::{GateChain, GateDecision, GateRequest};
@@ -145,6 +146,8 @@ pub enum RuntimeError {
     GateBlocked(GateDecision),
     /// The Rust-owned state root rejected or failed to persist.
     StateStore(String),
+    /// The Rust-owned configuration root rejected or failed to open.
+    ConfigStore(String),
     /// The requested lifecycle operation is not valid in the current phase.
     InvalidLifecycle(LifecycleState),
     /// The task handle is absent or has already been reaped.
@@ -239,24 +242,29 @@ impl RuntimeTaskBook {
         self.lock_shard(handle, false).remove(&handle.raw());
     }
 
-    /// Collect up to `limit` handles across shards for a reaper sweep.
-    fn handles_up_to(&self, limit: usize) -> Vec<ProcessHandle> {
+    /// Select a bounded, deterministic prefix with the state observed under
+    /// the same shard lock.
+    ///
+    /// Reaper callers need both values. Returning the snapshot together with
+    /// each handle avoids a second lock acquisition and map lookup per entry,
+    /// while retaining the existing shard order and `BTreeMap` ordering.
+    fn entries_up_to(&self, limit: usize) -> Vec<(ProcessHandle, RuntimeTaskState)> {
         if limit == 0 {
             return Vec::new();
         }
-        let mut handles = Vec::with_capacity(limit);
+        let mut entries = Vec::with_capacity(limit);
         for shard in &self.shards {
             let tasks = shard.lock().unwrap_or_else(PoisonError::into_inner);
-            for raw in tasks.keys() {
-                if handles.len() == limit {
-                    return handles;
+            for (raw, state) in tasks.iter() {
+                if entries.len() == limit {
+                    return entries;
                 }
                 if let Some(handle) = ProcessHandle::from_raw(*raw) {
-                    handles.push(handle);
+                    entries.push((handle, *state));
                 }
             }
         }
-        handles
+        entries
     }
 
     /// Return (total, terminal) task counts across all shards.
@@ -380,6 +388,7 @@ pub struct KernelRuntime {
     assembly: KernelAssembly,
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
+    config_store: Option<StdMutex<ConfigStore>>,
     execution_store: Option<StdMutex<ExecutionStore>>,
     sessions: SessionBook,
     terminals: TerminalBook,
@@ -415,6 +424,7 @@ impl KernelRuntime {
             assembly,
             lifecycle: Arc::new(LifecycleRegistry::new()),
             state_store: None,
+            config_store: None,
             execution_store: None,
             sessions,
             terminals: TerminalBook::new(),
@@ -450,11 +460,15 @@ impl KernelRuntime {
             )));
         }
         let assembly = KernelAssembly::assemble(spec).map_err(RuntimeError::Assembly)?;
+        let assembly_snapshot = assembly.snapshot();
         let mut state_store = StateStore::open(root, assembly.snapshot().contract_version)
             .map_err(map_state_store_error)?;
-        if state_store.action() == crate::state_layout::StateAction::Recover {
-            state_store.recover().map_err(map_state_store_error)?;
-        }
+        let needs_recovery = state_store.action() == crate::state_layout::StateAction::Recover;
+        let config_store = ConfigStore::open(
+            &assembly_snapshot.config_manifest.config_root,
+            assembly_snapshot.config_manifest.contract_version,
+        )
+        .map_err(map_config_store_error)?;
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
         let execution_document = execution_store
@@ -463,6 +477,9 @@ impl KernelRuntime {
         let execution_state = execution_store
             .load_state(config.shard_count as usize)
             .map_err(map_execution_store_error)?;
+        if needs_recovery {
+            state_store.recover().map_err(map_state_store_error)?;
+        }
         let recovery_action =
             match RecoveryTrigger::decide(lifecycle.state(), Some(&execution_document)).action {
                 RecoveryAction::Fresh | RecoveryAction::ResumeClean => None,
@@ -479,6 +496,7 @@ impl KernelRuntime {
             assembly,
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
+            config_store: Some(StdMutex::new(config_store)),
             execution_store: Some(StdMutex::new(execution_store)),
             sessions: execution_state.sessions,
             terminals: execution_state.terminals,
@@ -523,12 +541,101 @@ impl KernelRuntime {
         &self.agent_loops
     }
 
+    /// Return a defensive snapshot of the Rust-owned configuration documents.
+    ///
+    /// The runtime exposes values for adapters and future TS projections but
+    /// does not expose mutable access to the underlying store. Non-persistent
+    /// runtimes have no configuration root and fail closed.
+    pub fn config_documents(&self) -> Result<(ConfigDocument, ConfigDocument), RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        Ok((store.config().clone(), store.settings().clone()))
+    }
+
+    /// Set one Rust-owned kernel configuration value through the runtime owner.
+    ///
+    /// This persists only the clean-break JSON document and does not hot-reload
+    /// active services or interpret Python settings. The returned document is
+    /// a defensive snapshot after the atomic replacement succeeds.
+    pub fn set_config(
+        &self,
+        key: impl Into<String>,
+        value: Value,
+    ) -> Result<ConfigDocument, RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_config(key, value)
+            .map_err(map_config_store_error)?;
+        Ok(store.config().clone())
+    }
+
+    /// Set one Rust-owned runtime setting through the runtime owner.
+    ///
+    /// This persists only the clean-break JSON document and leaves active
+    /// service reconfiguration to a future versioned adapter boundary.
+    pub fn set_setting(
+        &self,
+        key: impl Into<String>,
+        value: Value,
+    ) -> Result<ConfigDocument, RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_setting(key, value)
+            .map_err(map_config_store_error)?;
+        Ok(store.settings().clone())
+    }
+
+    /// Set one config value and one runtime setting through the runtime owner.
+    ///
+    /// The underlying store stages both documents and restores the first
+    /// replacement if the second fails. Neither returned snapshot advances
+    /// until the paired persistence boundary succeeds.
+    pub fn set_config_and_setting(
+        &self,
+        config_key: impl Into<String>,
+        config_value: Value,
+        setting_key: impl Into<String>,
+        setting_value: Value,
+    ) -> Result<(ConfigDocument, ConfigDocument), RuntimeError> {
+        let store = self
+            .config_store
+            .as_ref()
+            .ok_or_else(|| RuntimeError::ConfigStore("runtime is not persistent".to_owned()))?;
+        let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .set_config_and_setting(config_key, config_value, setting_key, setting_value)
+            .map_err(map_config_store_error)?;
+        Ok((store.config().clone(), store.settings().clone()))
+    }
+
     /// Persist the three execution books through the Rust-owned checkpoint.
     ///
     /// This API is explicit for callers that need an unclean checkpoint before
     /// a host restart. A clean checkpoint is also written automatically during
     /// a successful persistent shutdown, before its lifecycle becomes halted.
     pub fn checkpoint_execution(
+        &self,
+        clean_shutdown: bool,
+    ) -> Result<ExecutionStoreDocument, RuntimeError> {
+        let _admission = self
+            .admission
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.checkpoint_execution_locked(clean_shutdown)
+    }
+
+    fn checkpoint_execution_locked(
         &self,
         clean_shutdown: bool,
     ) -> Result<ExecutionStoreDocument, RuntimeError> {
@@ -564,6 +671,14 @@ impl KernelRuntime {
     /// requesting any execution. Non-persistent runtimes cannot claim a
     /// checkpoint decision.
     pub fn recovery_decision(&self) -> Result<RecoveryDecision, RuntimeError> {
+        let _admission = self
+            .admission
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.recovery_decision_locked()
+    }
+
+    fn recovery_decision_locked(&self) -> Result<RecoveryDecision, RuntimeError> {
         let store = self
             .execution_store
             .as_ref()
@@ -586,7 +701,7 @@ impl KernelRuntime {
             .admission
             .write()
             .unwrap_or_else(PoisonError::into_inner);
-        let current = self.recovery_decision()?;
+        let current = self.recovery_decision_locked()?;
         if current != *decision {
             return Err(RuntimeError::RecoveryDecisionStale);
         }
@@ -891,16 +1006,12 @@ impl KernelRuntime {
         if max_tasks == 0 {
             return Err(RuntimeError::InvalidReapBudget);
         }
-        let handles = self.tasks.handles_up_to(max_tasks);
+        let entries = self.tasks.entries_up_to(max_tasks);
         let mut report = RuntimeReapReport {
-            inspected: handles.len() as u64,
+            inspected: entries.len() as u64,
             ..RuntimeReapReport::default()
         };
-        for handle in handles {
-            let Some(state) = self.tasks.state(handle) else {
-                report.unavailable = report.unavailable.saturating_add(1);
-                continue;
-            };
+        for (handle, state) in entries {
             if !state.is_terminal() {
                 report.pending = report.pending.saturating_add(1);
                 continue;
@@ -1021,12 +1132,12 @@ impl KernelRuntime {
             return Err(RuntimeError::ShuttingDown);
         }
         if self.execution_store.is_some()
-            && let Err(error) = self.checkpoint_execution(true)
+            && let Err(error) = self.checkpoint_execution_locked(true)
         {
             // Preserve the current books as an unclean checkpoint before
             // publishing the lifecycle failure, so recovery cannot reopen
             // a stale clean document after a rejected clean shutdown.
-            let _ = self.checkpoint_execution(false);
+            let _ = self.checkpoint_execution_locked(false);
             if let Some(state_store) = &self.state_store {
                 let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
                 let _ = state_store.shutdown(false);
@@ -1035,7 +1146,17 @@ impl KernelRuntime {
         }
         if let Some(state_store) = &self.state_store {
             let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
-            state_store.shutdown(true).map_err(map_state_store_error)?;
+            if let Err(error) = state_store.shutdown(true) {
+                // The execution checkpoint was already published as clean.
+                // Demote it before returning so a later reopen cannot pair a
+                // crashed/unclean lifecycle with a falsely clean execution
+                // document. The state-store failure remains the surfaced
+                // error; best-effort demotion is itself fail-closed because
+                // recovery will reject any unresolved mismatch.
+                let _ = self.checkpoint_execution_locked(false);
+                let _ = state_store.shutdown(false);
+                return Err(map_state_store_error(error));
+            }
         } else {
             if !self.lifecycle.transition(LifecycleState::Halted) {
                 return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));
@@ -1085,7 +1206,10 @@ fn map_state_store_error(error: StateStoreError) -> RuntimeError {
     RuntimeError::StateStore(error.to_string())
 }
 
-/// Map an execution-store error into a runtime error.
+fn map_config_store_error(error: ConfigError) -> RuntimeError {
+    RuntimeError::ConfigStore(error.to_string())
+}
+
 fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {
     RuntimeError::ExecutionStore(error.to_string())
 }

@@ -188,6 +188,17 @@ calls, avoiding an unconditional condition-variable broadcast. FIFO claims,
 oldest-pending eviction, task completion, and shutdown behavior remain
 unchanged. This is still an evidence-backed candidate: the same v3 fixed-work
 matrix must show a repeatable throughput/tail win before runtime promotion.
+The producer now counts workers parked in the queue wait while holding the
+queue-lock boundary and limits notifications to actual idle waiters; active
+workers therefore avoid no-op wake calls. The count is only a wake optimization
+and never a correctness dependency, while shutdown continues to broadcast.
+The single-result submission path also carries a typed admission outcome
+directly to the `TaskHandle`, skipping an intermediate JSON/BTreeMap response.
+The fire-and-forget wire boundary remains unchanged, and all rejection,
+eviction, cancellation, deadline, and shutdown completion semantics stay under
+the same evidence gate. `TaskHandle::done()` uses a release-published atomic
+completion flag for lock-free polling; the result mutex and Condvar remain the
+authority for value observation and blocking waits.
 The Rust `agent_loop` candidate now provides the logical routing seam between
 SessionBook truth and TerminalBook correlation. It validates
 agent/cell/session/terminal identity, models loop lifecycle, and holds loop
@@ -385,10 +396,30 @@ prompt content, persistence, events, and API routing in adapters. No Python
 FFI, boot integration, Port replacement, or production state migration is part
 of this work. Its shared vector intentionally covers only authorization and
 mutation lifecycle, not prompt bytes, random UID bodies, or Python persistence.
+
+The follow-on `identity_binding::IdentityBindingStore` is the first durable
+Rust metadata slice for this boundary. It writes a versioned
+`BindingCheckpoint` containing only bounded identity-routing metadata, validates
+the complete document before replacement, flushes a unique temporary sibling,
+and restores the prior in-memory checkpoint when an atomic replacement fails.
+Prompt fragments, Python persistence formats, cross-process locks, and
+production identity authority remain outside the candidate; this closes only
+the R4 metadata persistence mechanism.
+
 The following R3 mechanism slice is the transport-neutral `network::PeerBook`:
 clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus
 delivery remain adapters.
+
+The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
+accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
+interrupt counts. Its process scan combines zombie counting and idle
+ready/running detection in one pass; interrupt alerts retain deterministic
+`BTreeMap` order and use strict `>` thresholds to match the Python watchdog
+semantics. It returns only a versioned `WatchdogReport`, so hosts retain clock,
+thread, ProcessTable/IRQ access, logging, signal, restart, and shutdown
+authority. This closes the pure evaluation boundary of `os.py`, not the
+production watchdog wiring or R4/R5 runtime cutover.
 
 The process parity candidate now exposes an explicit typed-handle bridge:
 live PIDs in the substrate slot range map to generation-one `ProcessHandle`
@@ -431,7 +462,14 @@ filesystem-bearing adapter for a new Rust root only: it validates the manifest,
 creates declared directories/files, and atomically persists lifecycle and
 runtime checkpoint records. Clean roots resume; unclean roots require an
 explicit recovery transition. Divergent or migration-required roots fail
-closed. No Python state, FFI, or Python boot authority crosses this seam.
+closed. Checkpoint generation is committed only after the lifecycle and
+checkpoint writes succeed; failed transitions restore the prior in-memory
+lifecycle/generation and roll back the lifecycle document when its paired
+checkpoint write fails; failed renames remove their private temporary files.
+Missing prior lifecycle bytes are removed during rollback, and a failed
+restoration is surfaced as a dedicated `RollbackFailed` error rather than
+silently accepting a split root.
+No Python state, FFI, or Python boot authority crosses this seam.
 
 The mechanism port boundary is now represented by `ports::PortRegistry` and
 its value types. This preserves only deterministic descriptor registration and
@@ -482,6 +520,13 @@ clock ownership, and runtime session state remain adapter obligations. The
 `config_store` candidate now supplies the independent JSON manifest/config/
 settings root with atomic document updates; Python YAML/settings migration and
 engineering-debug policy remain explicitly out of scope.
+Each config/setting mutation uses a staged document and commits the in-memory
+revision only after its atomic file replacement succeeds; a failed write
+therefore leaves the prior value and revision available for a safe retry. The
+explicit paired config/setting mutation stages both documents, restores the
+first replacement if the second atomic rename fails, and reports rollback
+failure instead of silently accepting a split root. The config adapter also
+cleans failed rename temporaries.
 
 The discovery candidate keeps the same adapter-owned three-tier semantics while
 adding a Rust-owned admission seam: blank, NUL-containing, or overlong
@@ -577,6 +622,29 @@ state. The books remain metadata/state seams only: AgentLoop execution,
 provider/tool policy, PTY ownership, and TS/L2 routing are not granted by these
 accessors.
 
+If the subsequent clean `StateStore` commit fails, the runtime demotes the
+execution document to an unclean checkpoint and best-effort records a crashed
+state before returning the original state-store error. This closes the
+cross-store ordering gap so recovery cannot observe a clean execution document
+paired with a failed lifecycle commit.
+
+The same persistent runtime now owns the assembly-selected `ConfigStore`.
+`config_documents` is a defensive read model, while `set_config`,
+`set_setting`, and `set_config_and_setting` provide explicit Rust-owned
+mutation boundaries that publish snapshots only after atomic persistence
+succeeds. Non-persistent runtimes fail closed instead of inventing a
+configuration root; these methods do not reload providers or interpret Python
+settings.
+The persistent constructor opens and validates the configuration root and
+execution checkpoint before performing unclean `StateStore` recovery. A
+foreign or malformed attached root is rejected without advancing recovery
+generation or mutating the existing lifecycle record, keeping root validation
+side-effect-free.
+The public checkpoint and recovery-decision reads share the runtime admission
+barrier with lifecycle transitions. Shutdown and recovery acknowledgement call
+internal helpers while that barrier is already held, preventing recursive-lock
+deadlocks and cross-book observations during state changes.
+
 The independent `recovery::RecoveryTrigger` now turns a validated execution
 checkpoint plus lifecycle state into a side-effect-free `RecoveryDecision`:
 fresh roots are `fresh`, clean halted roots are `resume_clean`, crashed roots
@@ -614,7 +682,10 @@ provider, or production authority.
 reaper mechanism: it selects at most the caller budget, releases only terminal
 task slots, and returns explicit pending/unavailable/error counts. A zero
 budget is rejected. This is a caller-owned preparation for later shutdown and
-recovery integration, not a background reaper or production authority.
+recovery integration, not a background reaper or production authority. The
+bounded prefix now carries each task's state from the same shard-lock snapshot
+used for selection, removing the previous second lock/map lookup while keeping
+stable shard/B-tree order and conservative concurrent-reap accounting.
 
 The next bounded batch slice adds `submit_batch` and
 `submit_batch_observed`. It reserves every generation-safe process handle and
@@ -669,11 +740,17 @@ contract-version check is part of `contract_vectors.rs`; no inline test module
 remains in `lib.rs`. The worker scaling test uses only public submission and
 shutdown behavior, so the clean-break public boundary remains explicit for
 later TS and Rust runtime rebuilds.
+The build perimeter runs these targets as bounded parallel processes through
+`scripts/py/run_rust_test_domains.py`; a single target remains available for
+focused diagnosis, and no full-domain run is collapsed into one monolithic
+process. Each target has a finite 300-second timeout by default. Expired
+targets terminate their process group and become explicit failures, while
+passing output stays compact unless `--verbose` is selected.
 
 The `rule_descriptor` checker seam is fail-closed: an absent checker result
 continues to mean PASS, but a panic from an injected checker is caught and
 converted to BLOCK. This protects the policy value boundary without moving
-Constitution providers, Markdown/SettingsCenter I/O, or runtime authority into
+Constitution providers, SettingsCenter discovery, or runtime authority into
 the Rust candidate.
 
 The registry-base notification hooks are advisory: a panic after a successful
@@ -699,6 +776,23 @@ replacement: IDs and sources are constrained, custom rules are data-only
 rules fail closed without mutating the previous snapshot. Markdown loading,
 posture providers, and runtime policy routing remain adapter-owned.
 
+The follow-on `constitution_io` slice establishes the first Rust-owned
+filesystem boundary without turning the Rust document into a Python
+compatibility layer. `TerritoryConstitution` strictly parses the retained
+territory/GateChain scalar shape, restores the rendered version header,
+renders sorted deterministic Markdown, validates territory mutations, and
+returns stable set-based diffs. `ConstitutionStore` serializes each complete
+mutation under one store lock, flushes and atomically renames a sibling file,
+and publishes the new in-memory snapshot only after the write succeeds;
+temporary siblings use exclusive creation and the parent directory is synced
+after rename where supported, so concurrent updates cannot reverse disk and
+memory versions or silently clobber a sibling. Source, GateChain keys, and
+selected paths reject embedded NULs before mutation. The independent policy
+target covers malformed values, proposal merge, rollback, reopen, and
+eight-thread version alignment. SettingsCenter discovery,
+provider/prompt/EventBus wiring, and production Constitution authority remain
+outside this candidate and still require R4/R5 evidence.
+
 The EventBus candidate now uses signal type as a dispatch channel: at most one
 callback task for a channel runs at a time, while workers scan past busy
 channels to preserve cross-channel progress. This gives same-channel FIFO
@@ -716,6 +810,9 @@ once for a stable O(V+E) Kahn pass instead of rescanning every registered
 component after each pop. Duplicate hard and optional declarations retain
 their wire graph entries but are treated as one ordering edge, preventing a
 false cycle while preserving registration-order tie breaking.
+The registration table now keeps a hash index beside its ordered vector, making
+replacement and direct metadata lookup O(1) without changing deterministic
+registration order or dependency-plan output.
 
 The string-event schema candidate now applies the same fail-closed identity
 boundary to event names and owners: blank or NUL-containing values are

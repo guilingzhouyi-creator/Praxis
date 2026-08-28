@@ -1,5 +1,6 @@
 """Enforce the isolated, explicitly registered Rust integration-test domain."""
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -21,6 +22,17 @@ TEST_DOMAINS = {
     "storage",
     "terminal",
 }
+_INLINE_TEST_MARKERS = (
+    ("cfg(test)", re.compile(r"#\s*\[\s*cfg\s*\([^]]*\btest\b[^]]*\)\s*\]", re.IGNORECASE)),
+    ("test attribute", re.compile(r"#\s*\[\s*test\s*\]", re.IGNORECASE)),
+    ("bench attribute", re.compile(r"#\s*\[\s*bench\s*\]", re.IGNORECASE)),
+    ("test module", re.compile(r"\bmod\s+tests?\s*\{", re.IGNORECASE)),
+)
+
+
+def _inline_test_labels(text: str) -> list[str]:
+    """Return inline-test marker labels found in Rust source text."""
+    return [label for label, marker in _INLINE_TEST_MARKERS if marker.search(text)]
 
 
 def test_rust_kernel_tests_live_outside_implementation_modules() -> None:
@@ -77,12 +89,23 @@ def test_rust_kernel_tests_live_outside_implementation_modules() -> None:
         "Every Rust test file must be explicitly registered once in Cargo.toml"
     )
 
-    forbidden = ("#[cfg(test)]", "#[test]", "#[bench]", "mod tests {")
     violations: list[str] = []
     for source in sorted(RUST_SRC.rglob("*.rs")):
         text = source.read_text(encoding="utf-8")
-        for marker in forbidden:
-            if marker in text:
-                violations.append(f"{source.relative_to(ROOT)} contains {marker}")
+        for label in _inline_test_labels(text):
+            violations.append(f"{source.relative_to(ROOT)} contains inline {label}")
 
     assert not violations, "Rust implementation modules must not embed tests:\n" + "\n".join(violations)
+
+
+def test_inline_test_detection_catches_attribute_spacing_variants() -> None:
+    """Keep formatting variants from bypassing the source-level test gate."""
+    source = """
+    #[ cfg ( any(test) ) ]
+    mod tests {
+        #[ test ]
+        fn smoke() {}
+    }
+    """
+
+    assert _inline_test_labels(source) == ["cfg(test)", "test attribute", "test module"]

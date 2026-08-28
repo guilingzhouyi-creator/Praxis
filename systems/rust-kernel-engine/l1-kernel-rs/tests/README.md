@@ -22,6 +22,8 @@ exercises:
 `tests/<domain>/*.rs` path. This keeps commands such as
 `cargo test --test process_group_runtime` stable while making accidental root
 level test files fail the Python infrastructure gate.
+The same gate rejects inline `cfg(test)`, `#[test]`, `#[bench]`, and test-module
+variants in `src/`, including whitespace-formatted attributes.
 
 When a test source basename would collide with a Python reference module, the
 source file uses the `kernel_test_` prefix (for example,
@@ -35,3 +37,16 @@ Run a bounded domain slice with:
 cargo test --manifest-path systems/rust-kernel-engine/Cargo.toml --test process_group_runtime
 cargo test --manifest-path systems/rust-kernel-engine/Cargo.toml --test session --test agent_loop
 ```
+
+Run all registered targets as bounded parallel slices with:
+
+```bash
+python scripts/py/run_rust_test_domains.py --jobs 4
+python scripts/py/run_rust_test_domains.py --domain runtime --jobs 2
+```
+
+Each target is bounded to 300 seconds by default. Use `--timeout <seconds>` to
+tighten or extend that limit; an expired target is terminated together with its
+process group and is reported as a failed slice. Passing Cargo output is
+suppressed in normal mode to keep sliced logs small; add `--verbose` when
+diagnosing a successful target.

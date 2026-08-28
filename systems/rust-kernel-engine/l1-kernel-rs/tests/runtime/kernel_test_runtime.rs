@@ -14,6 +14,8 @@ use l1_kernel_rs::ports::{PortDescriptor, PortKind};
 use l1_kernel_rs::recovery::RecoveryAction;
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig, RuntimeError, RuntimeTaskState};
 use l1_kernel_rs::session::{SessionSpec, SessionState};
+use l1_kernel_rs::state_layout::StateAction;
+use l1_kernel_rs::state_store::StateStore;
 use l1_kernel_rs::terminal::{TerminalSpec, TerminalState};
 use l1_kernel_rs::worker::{TaskHandleError, WorkerConfig};
 use serde_json::json;
@@ -559,6 +561,208 @@ fn persistent_runtime_durably_resumes_and_recovers_unclean_root() {
 }
 
 #[test]
+fn persistent_runtime_owns_rust_configuration_root() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("persistent runtime");
+    let (config_document, settings_document) =
+        runtime.config_documents().expect("configuration documents");
+    assert_eq!(config_document.revision, 0);
+    assert_eq!(settings_document.revision, 0);
+    assert!(root.join("config/manifest.json").is_file());
+    assert!(root.join("config/config.json").is_file());
+    assert!(root.join("config/settings.json").is_file());
+    std::fs::remove_dir_all(root).expect("remove isolated config root");
+}
+
+#[test]
+fn persistent_runtime_rejects_foreign_configuration_root() {
+    let root = temp_root();
+    let config_root = temp_root();
+    std::fs::create_dir_all(&config_root).expect("foreign config root");
+    std::fs::write(config_root.join("python-settings.json"), b"{}").expect("foreign config");
+    let result = KernelRuntime::open_persistent(
+        spec(root.to_string_lossy().to_string())
+            .with_config_root(config_root.to_string_lossy().to_string()),
+        config(2, 2),
+        &root,
+    );
+    assert!(matches!(result, Err(RuntimeError::ConfigStore(_))));
+    std::fs::remove_dir_all(root).expect("remove state root");
+    std::fs::remove_dir_all(config_root).expect("remove foreign config root");
+}
+
+#[test]
+fn foreign_configuration_rejection_does_not_advance_unclean_state_recovery() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .checkpoint_execution(false)
+            .expect("unclean checkpoint");
+    }
+    let before = StateStore::open(&root, 1).expect("unclean state root");
+    let before_generation = before.generation();
+    let before_lifecycle = before.lifecycle().snapshot();
+    let config_root = temp_root();
+    std::fs::create_dir_all(&config_root).expect("foreign config root");
+    std::fs::write(config_root.join("python-settings.json"), b"{}").expect("foreign config");
+
+    let result = KernelRuntime::open_persistent(
+        spec(root_text).with_config_root(config_root.to_string_lossy().to_string()),
+        config(2, 2),
+        &root,
+    );
+    assert!(matches!(result, Err(RuntimeError::ConfigStore(_))));
+
+    let after = StateStore::open(&root, 1).expect("state root remains unclean");
+    assert_eq!(after.action(), StateAction::Recover);
+    assert_eq!(after.generation(), before_generation);
+    assert_eq!(after.lifecycle().snapshot(), before_lifecycle);
+    std::fs::remove_dir_all(root).expect("remove state root");
+    std::fs::remove_dir_all(config_root).expect("remove foreign config root");
+}
+
+#[test]
+fn execution_checkpoint_rejection_does_not_advance_unclean_state_recovery() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("persistent runtime");
+        runtime.boot().expect("boot");
+        runtime
+            .checkpoint_execution(false)
+            .expect("unclean checkpoint");
+    }
+    let before = StateStore::open(&root, 1).expect("unclean state root");
+    let before_generation = before.generation();
+    let before_lifecycle = before.lifecycle().snapshot();
+    let execution_checkpoint = root.join("snapshots/execution/checkpoint.json");
+    std::fs::write(&execution_checkpoint, b"{\"store_version\":")
+        .expect("corrupt execution checkpoint");
+
+    let result = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root);
+    assert!(matches!(result, Err(RuntimeError::ExecutionStore(_))));
+
+    let after = StateStore::open(&root, 1).expect("state root remains unclean");
+    assert_eq!(after.action(), StateAction::Recover);
+    assert_eq!(after.generation(), before_generation);
+    assert_eq!(after.lifecycle().snapshot(), before_lifecycle);
+    std::fs::remove_dir_all(root).expect("remove state root");
+}
+
+#[test]
+fn runtime_configuration_owner_persists_mutations_for_reopen() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+        .expect("persistent runtime");
+    let config_document = runtime
+        .set_config("scheduler.max_workers", json!(4))
+        .expect("config mutation");
+    assert_eq!(config_document.revision, 1);
+    assert_eq!(config_document.values["scheduler.max_workers"], json!(4));
+    let settings_document = runtime
+        .set_setting("terminal.preferred", json!("bash"))
+        .expect("setting mutation");
+    assert_eq!(settings_document.revision, 1);
+    let (paired_config, paired_settings) = runtime
+        .set_config_and_setting(
+            "scheduler.max_processes",
+            json!(16),
+            "terminal.color",
+            json!(true),
+        )
+        .expect("paired mutation");
+    assert_eq!(paired_config.revision, 2);
+    assert_eq!(paired_settings.revision, 2);
+    drop(runtime);
+
+    let reopened = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("reopen runtime");
+    let (config_document, settings_document) = reopened
+        .config_documents()
+        .expect("configuration documents");
+    assert_eq!(config_document.values["scheduler.max_workers"], json!(4));
+    assert_eq!(config_document.values["scheduler.max_processes"], json!(16));
+    assert_eq!(
+        settings_document.values["terminal.preferred"],
+        json!("bash")
+    );
+    assert_eq!(settings_document.values["terminal.color"], json!(true));
+    assert_eq!(config_document.revision, 2);
+    assert_eq!(settings_document.revision, 2);
+    std::fs::remove_dir_all(root).expect("remove runtime root");
+}
+
+#[test]
+fn nonpersistent_runtime_has_no_configuration_owner() {
+    let runtime = KernelRuntime::new(spec("nonpersistent-runtime"), config(2, 2))
+        .expect("nonpersistent runtime");
+    assert!(matches!(
+        runtime.config_documents(),
+        Err(RuntimeError::ConfigStore(message)) if message == "runtime is not persistent"
+    ));
+    assert!(matches!(
+        runtime.set_config("scheduler.max_workers", json!(4)),
+        Err(RuntimeError::ConfigStore(message)) if message == "runtime is not persistent"
+    ));
+}
+
+#[test]
+fn runtime_configuration_pair_failure_preserves_both_documents() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    let runtime = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("persistent runtime");
+    let before = runtime.config_documents().expect("configuration documents");
+    let config_path = root.join("config/config.json");
+    let settings_path = root.join("config/settings.json");
+    let before_config_bytes = std::fs::read(&config_path).expect("config bytes");
+    std::fs::remove_file(&settings_path).expect("remove settings file");
+    std::fs::create_dir(&settings_path).expect("block settings replacement");
+
+    assert!(matches!(
+        runtime.set_config_and_setting(
+            "scheduler.max_workers",
+            json!(8),
+            "terminal.preferred",
+            json!("bash"),
+        ),
+        Err(RuntimeError::ConfigStore(_))
+    ));
+    assert_eq!(
+        runtime.config_documents().expect("configuration documents"),
+        before
+    );
+    assert_eq!(
+        std::fs::read(&config_path).expect("rolled-back config bytes"),
+        before_config_bytes
+    );
+    assert_eq!(
+        std::fs::read_dir(root.join("config"))
+            .expect("config entries")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".config.json.tmp-")
+            })
+            .count(),
+        0,
+        "runtime pair failure must clean staged config files"
+    );
+    std::fs::remove_dir(&settings_path).expect("remove settings blocker");
+    std::fs::remove_dir_all(root).expect("remove runtime root");
+}
+
+#[test]
 fn persistent_runtime_owns_and_restores_execution_books() {
     let root = temp_root();
     let root_text = root.to_string_lossy().to_string();
@@ -719,6 +923,36 @@ fn rejected_clean_shutdown_preserves_unclean_execution_checkpoint() {
             SessionState::Crashed
         );
     }
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
+fn rejected_state_shutdown_demotes_clean_execution_checkpoint() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        let checkpoint = root.join("runtime/checkpoint.json");
+        std::fs::remove_file(&checkpoint).expect("remove state checkpoint");
+        std::fs::create_dir(&checkpoint).expect("block state checkpoint replacement");
+
+        assert!(matches!(
+            runtime.shutdown(Some(Duration::from_secs(1))),
+            Err(RuntimeError::StateStore(_))
+        ));
+        std::fs::remove_dir(&checkpoint).expect("remove state checkpoint blocker");
+    }
+    let recovered = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("recover after rejected state shutdown");
+    assert_eq!(
+        recovered
+            .recovery_decision()
+            .expect("unclean decision")
+            .action,
+        RecoveryAction::RecoverUnclean
+    );
     std::fs::remove_dir_all(root).expect("remove isolated test root");
 }
 

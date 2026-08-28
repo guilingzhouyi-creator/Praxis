@@ -66,8 +66,12 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   under `systems/rust-kernel-engine/l1-kernel-rs/tests/<domain>/` and consume `tests/fixtures/` when
   vectors are required. `Cargo.toml` explicitly registers each historical
   target name with `autotests = false`; implementation modules contain no
-  inline test blocks. `make rust-contract-test` runs the independent domain,
-  while `cargo test --test <name>` runs one bounded target.
+  inline test blocks. `make rust-contract-test` runs every registered target as
+  bounded parallel slices through `scripts/py/run_rust_test_domains.py`, while
+  `cargo test --test <name>` runs one bounded target. The slice runner applies
+  a 300-second per-target timeout by default, terminates the target's process
+  group on expiry, reports timeout/launch failures as failed slices, and keeps
+  passing output compact unless `--verbose` is requested.
 - The Rust `substrate` module begins the Rust-first R1 base with
   generation-tagged process handles, deterministic shard planning, and
   allocation-free atomic queue metrics. It does not own process storage,
@@ -96,8 +100,14 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   propagation for the existing single-task path, and shutdown drain rules;
   admission wakes only the smaller of the submitted batch and resident worker
   count through repeated `notify_one` calls, avoiding an unconditional
-  condition-variable broadcast. Evidence must compare throughput, queue wait,
-  and tail latency before any runtime policy promotion.
+  condition-variable broadcast. Producers now further limit those calls to
+  workers observed waiting under the queue lock; shutdown still broadcasts and
+  the counter is not a correctness dependency. Single-task result admission
+  uses a typed outcome rather than an intermediate wire map, while
+  fire-and-forget responses remain unchanged. `TaskHandle::done()` reads an
+  atomic completion flag without the result mutex, while result waits and value
+  cloning retain the synchronized slot. Evidence must compare throughput,
+  queue wait, and tail latency before any runtime policy promotion.
 - The Rust `session` candidate provides a sharded `SessionBook` with bounded
   history, authoritative `input_seq` admission, cursor paging, explicit
   created/active/closing/closed/crashed lifecycle, and versioned checkpoint
@@ -229,6 +239,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   `tests/fixtures/kernel_identity_binding_vectors.json` is consumed by the
   Rust integration test and the Python adapter test for authorization and
   mutation lifecycle only.
+  `IdentityBindingStore` adds a separate versioned Rust checkpoint with strict
+  metadata validation, atomic replacement, and in-memory rollback on write
+  failure. The checkpoint intentionally excludes prompt content and Python
+  persistence; cross-process locking and production identity authority remain
+  host-owned.
 - The Rust `network` module is a clock-injected `PeerBook` candidate for
   endpoint validation, self-ignore, liveness timeout, loss-once, eviction
   grace, and deterministic health/list views. `kernel_peer_vectors.json` is
@@ -266,8 +281,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `state_store` module is the filesystem-bearing R4 adapter behind
   that manifest. It creates only a fresh Rust root, persists manifest and
   lifecycle/checkpoint records with per-file atomic rename plus `sync_all`,
-  and exposes clean resume versus explicit unclean recovery. It rejects
-  divergent or migration-required roots and never imports Python state.
+  and exposes clean resume versus explicit unclean recovery. Paired write
+  rollback is explicit: missing prior lifecycle bytes are removed, failed
+  restoration returns a dedicated error, and failed rename temporaries are
+  cleaned. It rejects divergent or migration-required roots and never imports
+  Python state.
 - The Rust `ports` module translates the mechanism-port value surface and
   declarative registration metadata: `PortResult`, `Endpoint`, `Message`, and
   privacy-preserving `InputActivitySnapshot`, plus a deterministic
@@ -321,6 +339,16 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   was about 18.1k/27.3k/32.1k ops/s, aggregate queue wait was
   155.2/262.8/469.7 ms, and p99 was 140/562/1,342 microseconds. This is a bounded-concurrency
   baseline, not a scaling, L2/TS wire, AgentLoop, provider, or cutover claim.
+  During persistent clean shutdown, a StateStore commit failure demotes the
+  already-written execution checkpoint to unclean before returning, so reopen
+  cannot pair a failed lifecycle write with a falsely clean execution document.
+  Persistent open validates the selected configuration root and execution
+  checkpoint before applying unclean StateStore recovery; a foreign or
+  malformed attached root leaves the recovery generation and lifecycle record
+  unchanged.
+  Explicit checkpoint and recovery-decision reads use the runtime admission
+  barrier; shutdown and recovery acknowledgement call non-recursive locked
+  helpers so lifecycle changes cannot cross their book snapshots.
 - `KernelRuntime::submit_batch` reserves and records every handle before one
   grouped WorkerPool handoff, rolling back all prior reservations when one
   cannot be admitted. The separate `runtime.batch_submit_reap` runner and
@@ -336,8 +364,11 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - `KernelRuntime::reap_finished(max_tasks)` is a bounded caller-driven
   lifecycle seam. It selects no more than the supplied budget, reaps only
   already-terminal tasks, and reports pending/unavailable/error outcomes;
-  zero budgets fail closed. It does not start a background reaper or change
-  runtime lifecycle authority.
+  zero budgets fail closed. Selection snapshots state under the shard lock so
+  each selected entry avoids a second task-book lookup; a task becoming
+  terminal after selection remains conservatively pending, while a concurrent
+  reap is unavailable. It does not start a background reaper or change runtime
+  lifecycle authority.
 - The Rust `protocol` module is the retained R4 wire-boundary candidate. It
   validates v1 envelopes and TS-neutral records, canonicalizes JSON with stable
   object ordering, applies the Python/TS optional-field defaults, strips
@@ -363,9 +394,19 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `config_store` module is the clean-break R4 configuration owner. It
   creates a versioned JSON manifest plus separate `config.json` and
   `settings.json` documents, persists revisions through atomic rename and
-  `sync_all`, and resumes only a matching Rust root. It never parses Python
-  YAML, imports Python settings, executes migrations, or decides engineering
-  debug policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
+  `sync_all`, and resumes only a matching Rust root. Single-document writes
+  stage values before publishing revisions; the explicit paired mutation
+  stages both documents and restores the first replacement if the second
+  fails. Failed rename temporaries are removed, and a failed rollback is
+  surfaced as a distinct fail-closed error. It never parses Python YAML,
+  imports Python settings, executes migrations, or decides engineering debug
+  policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
+- `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
+  Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
+  and the explicit `set_config`, `set_setting`, and paired mutation methods
+  persist through the owner before returning. Non-persistent runtimes fail
+  closed for these calls; no Python settings import or live service reload is
+  implied.
 - The Rust `terminal` module is the lower-layer AgentLoop terminal substrate.
   `TerminalBook` owns unique terminal/session/process bindings, terminal
   lifecycle terminality, and bounded opaque input/output mailboxes with
@@ -397,6 +438,8 @@ the historical `@praxis/protocol-ts` name is not used for new development.
 - The Rust `bus` candidate mirrors SystemBus metadata, in-place replacement
   while preserving registration order, parent-available dependency filtering,
   stable topological planning, cycle errors, and explicit state labels.
+  Registration/lookup use a hash index while the ordered component vector stays
+  the source of deterministic names and planning order.
   `tests/fixtures/kernel_bus_vectors.json` is shared; event callbacks,
   child-bus routing, health/stats providers, and runtime lifecycle ownership
   remain Python-owned.
@@ -404,6 +447,13 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   status precedence, counts, retained details, and elapsed-time rounding.
   `tests/fixtures/kernel_health_vectors.json` is shared; module imports,
   clocks, probes, logging, and provider calls remain Python-owned.
+- The Rust `watchdog` candidate mirrors the observation/evaluation half of
+  `l1.kernel.os._watchdog_tick`: one process pass counts zombies and reports
+  idle ready/running processes, then deterministic interrupt-count alerts are
+  returned. Thresholds are explicit and zero values fail closed. The report
+  is side-effect-free and caller-driven; it does not own clocks, threads,
+  ProcessTable/IRQ singletons, logging, restart, or shutdown policy. Its
+  independent target is `tests/core/kernel_test_watchdog.rs`.
 - The Rust `swapper` candidate mirrors memory-ring planning from explicit entry
   and pressure snapshots: ring destinations, compaction filters, and action
   flags. `tests/fixtures/kernel_swapper_vectors.json` is shared; MemoryService
@@ -446,7 +496,20 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   severity conversion, PASS/WARN/BLOCK values, descriptor metadata, sorted
   tags, explicit creation time, and an injected checker context. The shared
   `tests/fixtures/kernel_rule_descriptor_vectors.json` freezes serialization;
-  rule content and Constitution I/O remain Python-owned.
+  rule content and provider policy remain adapter-owned.
+- The Rust `constitution_io` module is the first filesystem-bearing
+  Constitution document candidate. It strictly parses known scalar values,
+  renders deterministic territory/GateChain Markdown, validates updates,
+  computes stable territory diffs, and persists through flushed atomic
+  replacement while keeping its in-memory snapshot unchanged on failed writes.
+  Temporary siblings use exclusive creation and the parent directory is synced
+  after rename where supported; source, GateChain keys, and selected paths
+  reject embedded NULs before mutation.
+  `tests/policy/kernel_test_constitution_io.rs` covers parser fail-closed
+  behavior, versioned updates, proposal merge, deterministic diffs, rollback,
+  reopen, and concurrent disk/memory version alignment. SettingsCenter
+  discovery, provider selection, prompt injection, EventBus effects, and
+  production policy authority remain outside this candidate.
 - The Rust `territory` module provides component-aware lexical subtree checks
   from explicit paths. `tests/fixtures/kernel_territory_vectors.json` covers
   exact, child, root, prefix-collision, dot-dot, empty-base, and explicit

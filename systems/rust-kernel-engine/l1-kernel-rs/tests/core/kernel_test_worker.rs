@@ -1,6 +1,6 @@
 //! Public integration coverage for worker cancellation and deadlines.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -136,6 +136,41 @@ fn batch_submission_wakes_multiple_workers_without_losing_fifo_work() {
         );
     }
     assert_eq!(pool.stats()["rejected"], 0);
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
+fn idle_workers_wake_for_new_work_without_waiting_for_idle_timeout() {
+    let pool = WorkerPool::new(WorkerConfig::new(4, 4, 8, Duration::from_secs(5)))
+        .expect("valid worker pool");
+    thread::sleep(Duration::from_millis(20));
+
+    let completed = Arc::new(AtomicUsize::new(0));
+    let started = Instant::now();
+    let handles = (0..4)
+        .map(|_| {
+            let completed = Arc::clone(&completed);
+            Box::new(move || {
+                completed.fetch_add(1, Ordering::Release);
+                Ok(json!(true))
+            }) as l1_kernel_rs::worker::TaskFn
+        })
+        .collect::<Vec<_>>();
+    let handles = pool.submit_result_batch(handles);
+    for handle in handles {
+        assert_eq!(
+            handle.result(Some(Duration::from_millis(500))).unwrap(),
+            json!(true)
+        );
+    }
+    assert_eq!(completed.load(Ordering::Acquire), 4);
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "idle workers did not wake promptly"
+    );
     assert_eq!(
         pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
         true
@@ -357,6 +392,54 @@ fn submit_result_returns_json_and_updates_stats() {
     assert_eq!(pool.stats()["outcome_timed_out"], 0);
     assert_eq!(pool.stats()["outcome_failed"], 0);
     assert!(pool.stats()["queue_wait_ns"].as_u64().is_some());
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
+fn task_done_tracks_completion_without_observing_result_value() {
+    let pool = WorkerPool::new(WorkerConfig::new(1, 1, 1, Duration::from_secs(1)))
+        .expect("valid worker pool");
+    let started = Arc::new(AtomicBool::new(false));
+    let release = Arc::new(AtomicBool::new(false));
+    let task_started = Arc::clone(&started);
+    let task_release = Arc::clone(&release);
+    let handle = pool.submit_result(Box::new(move || {
+        task_started.store(true, Ordering::Release);
+        while !task_release.load(Ordering::Acquire) {
+            thread::yield_now();
+        }
+        Ok(json!("done"))
+    }));
+    while !started.load(Ordering::Acquire) {
+        thread::yield_now();
+    }
+    assert!(!handle.done());
+    release.store(true, Ordering::Release);
+    assert_eq!(
+        handle.result(Some(Duration::from_secs(1))).unwrap(),
+        json!("done")
+    );
+    assert!(handle.done());
+    assert_eq!(
+        pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
+        true
+    );
+}
+
+#[test]
+fn submit_result_after_shutdown_completes_handle_with_structured_failure() {
+    let pool = configured_pool();
+    assert_eq!(pool.shutdown(false, None)["success"], true);
+
+    let handle = pool.submit_result(Box::new(|| Ok(json!("must not run"))));
+    assert_eq!(
+        handle.result(Some(Duration::from_secs(1))),
+        Err(TaskHandleError::Failed("pool is shut down".to_owned()))
+    );
+    assert_eq!(pool.stats()["rejected"], 1);
     assert_eq!(
         pool.shutdown(true, Some(Duration::from_secs(1)))["success"],
         true

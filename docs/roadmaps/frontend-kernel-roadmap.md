@@ -427,6 +427,16 @@ ops/s，逐任务 baseline 约为 1.20M/0.28M/0.07M ops/s；batch-submit queue w
 0.09/0.18/1.21 ms，baseline 约为 0.96/24.40/210.48 ms，双方均为 0 error/0 rejection。
 该数据支持 admission 优化候选，但 batch p95/p99 是批次级分布，不能直接替代逐任务尾延迟，仍需
 在统一量化标准下持续对照后才能进入 runtime policy。
+随后将 WorkerPool 的唤醒边界收窄为实际处于队列等待的 idle waiter：等待计数在 queue lock 内登记，
+producer 只对当前 waiter 发 `notify_one`，活跃 worker 不再承担无效唤醒调用。该计数仅是唤醒优化，
+不是正确性依赖；shutdown 仍使用 `notify_all`，FIFO、claim batch、取消和 drain 语义保持不变。需在同一
+fixed-work 吞吐、p95/p99、queue-wait 矩阵中复测后，才能决定是否提升为 runtime policy。
+随后将单任务 `submit_result` 的准入返回改为 typed outcome，直接完成 `TaskHandle`，跳过中间
+`WireMap`/JSON 构造与解析；fire-and-forget 的 wire 响应保持不变。拒绝、淘汰、取消、deadline 和 shutdown
+完成语义不变，仍需在统一 fixed-work 证据门下复测，不能仅凭局部微基准提升为 runtime policy。
+随后将 `TaskHandle::done()` 改为读取 release-published 原子完成标志，轮询不再争用结果互斥锁；
+结果值复制与阻塞等待仍由原有同步槽和 Condvar 负责，完成顺序与错误值不变。该片仍需统一 fixed-work
+证据复测，不单独作为 runtime policy 依据。
 随后在 `state_queue` 增加 `ProcessHandleAllocator`：Rust 侧以有界 slot、释放代际递增、旧 handle 拒绝和
 容量/重复释放 fail-closed 固定可复用身份候选；该候选暂不替换 generation-one `ProcessTable` bridge，也不
 接管调度或 boot authority。
@@ -442,7 +452,9 @@ checkpoint、clean resume 与 unclean recovery，但不导入 Python 状态，�
 executor 均在进入 worker queue 前 fail-closed 并记审计；真实 tool pipeline/provider 仍留在适配器。
 随后补齐 `KernelRuntime::reap_finished(max_tasks)`：按调用方预算选择 task handle，只回收已确认 terminal 的任务，
 并返回 `pending/unavailable/errors` 计数；零预算 fail-closed。该接口不启动后台 reaper、不改变 lifecycle，
-仅为后续 shutdown/recovery ownership 提供有界机制候选。
+仅为后续 shutdown/recovery ownership 提供有界机制候选。当前选择阶段在单次 shard 锁内同时快照 handle 与
+runtime state，移除逐 handle 的二次加锁/查表；若状态在选择后才终止则保守记为 pending，并发 reap 则记为
+unavailable，稳定 shard/BTree 顺序与预算上限不变。
 随后完善 `KernelRuntime` 的并发 admission：以 lifecycle `RwLock` 的共享侧覆盖 active-state 校验、handle
 reservation、按 scheduler shard 划分的 task-book 登记和 WorkerPool handoff；boot 使用独占侧，shutdown 先发布
 `Draining` 再取得独占侧排空已准入任务。任务在
@@ -503,8 +515,12 @@ hysteresis/cooldown、六类 schema stamp、ordered migration 与 fail-closed �
 ID 且失败替换保留旧快照；共享 `kernel_constitution_vectors.json` 只冻结规则元数据，不接管 Markdown、姿态
 provider 或生产 policy routing。
 `identity_binding` Rust candidate 已收敛 `(cell, role)` 元数据、
-fail-closed 写门、Cell 容量、UID rebind 稳定性、revision 与确定性 snapshot；prompt/definition、持久化、
-事件和 API/L2Shell 仍由适配器持有，不能作为 Python registry 的兼容迁移。
+fail-closed 写门、Cell 容量、UID rebind 稳定性、revision 与确定性 snapshot。
+随后新增 `IdentityBindingStore` R4 元数据持久化切片：采用版本化
+`BindingCheckpoint`，只写入 bounded identity-routing metadata，在完整校验后以
+唯一临时文件原子替换，并在写失败时恢复内存 checkpoint；prompt/definition、
+Python persistence bytes、跨进程锁、事件和 API/L2Shell 仍由适配器持有，
+不能作为 Python registry 的兼容迁移。
 随后新增 `network` Rust candidate，已收敛 caller-clocked PeerBook 的 endpoint 校验、self-ignore、timeout、
 loss-once、eviction grace 与 deterministic health/list；TCP/UDP/TLS、socket、EventBus、card sync 和 message
 envelope 仍留在 transport adapter，不授予 Rust runtime authority。
@@ -560,6 +576,32 @@ provider；随后新增 `state_store::StateStore` filesystem adapter，按 manif
 以临时文件 + `sync_all` + 原子 rename 持久化 manifest/lifecycle/checkpoint，并将 clean resume、unclean
 recovery、分歧/迁移 root fail-closed 固定下来。该片仍不读取 Python 状态、不接管 Python boot/runtime，
 也不解除 G3/G6；协议 v1 与配置存储已在独立 Rust 边界收敛。
+随后封口 `StateStore` 的失败原子性：checkpoint generation 仅在 lifecycle 与 checkpoint
+双写成功后提交；第二文件失败时恢复旧 lifecycle 字节，调用方可观察到的内存 lifecycle/generation
+同时回滚，避免失败持久化后继续沿用脏代际。
+随后补齐其异常根处理：缺失的旧 lifecycle 文件在失败 pair 中会删除新暂存文件，
+回滚本身失败则返回显式 `RollbackFailed`，不再静默接受 split root；失败 rename
+临时文件仍必须清理。
+随后封口 runtime 的跨 store 关闭顺序：若 clean `ExecutionStore` 已写入而
+后续 `StateStore` clean commit 失败，runtime 会先降级 execution checkpoint
+为 unclean，再尽力写入 crashed lifecycle，避免重开时出现 clean execution
+与失败 lifecycle 的 split-brain 配对。
+随后补齐 `ConfigStore` 的跨文档失败边界：新增显式成对 config/setting
+mutation，先完成两个文档的 staged 校验，再按 config→settings 原子替换；
+第二个替换失败时恢复首个文档并清理临时文件，回滚失败显式 fail-closed。
+独立 `kernel_test_config_store.rs` 覆盖内存、磁盘与临时文件清理；该片仍只拥有
+Rust-owned JSON 根，不导入 Python 配置、不决定 engineering-debug 策略，也不提升为
+R5 cutover authority。
+随后将 `ConfigStore` 挂入 `KernelRuntime::open_persistent` 的 Rust-owned
+运行时边界：`config_documents` 提供防御性快照，单文档与成对 mutation
+通过 runtime owner 持久化后才返回；非持久 runtime 对配置访问 fail-closed。
+持久化打开会先校验 assembly 选定的配置根与 execution checkpoint，再应用
+unclean `StateStore` 恢复；foreign 或 malformed root 被拒绝时不会推进
+recovery generation 或修改原有 lifecycle 记录。该片仍不热加载服务、不解释
+Python settings，也不授予 R5 authority。
+显式 checkpoint 与 recovery decision 读操作现在共享 runtime admission barrier；
+shutdown 与 recovery acknowledgement 通过已持锁 helper 避免递归加锁，保证
+生命周期变化不会穿过三本 book 的一致性观测。
 
 随后推进 **R4 assembly closure + AgentLoop terminal substrate**：`KernelAssembly`
 快照补齐 Rust-owned `ConfigLayoutManifest`、保留的 `ProtocolDescriptor` 与
@@ -1004,6 +1046,29 @@ T4b 机制片进一步增加 `CompositeInputActivityAdapter`：宿主可以分�
 生产 wiring。所有来源失效或出现矛盾的授权结果仍 fail-closed，后续必须补
 跨平台失败/隐私证据后才能推进 T4b production 评审；任何来源 callback panic
 均按整体组合失败处理，不允许以部分结果冒充健康状态。
+
+随后补齐 Python `os.py` watchdog 的纯评估边界：新增 Rust
+`watchdog::WatchdogPolicy`、`WatchdogProcess` 与 `evaluate_watchdog`。单次
+process pass 同时统计僵尸与 READY/RUNNING 空闲超阈值，再按 `BTreeMap`
+稳定顺序生成中断突发告警；阈值边界严格使用 `>`，零阈值直接
+fail-closed。该片只返回版本化 `WatchdogReport`，不读系统时钟、不启动
+后台线程、不访问 ProcessTable/IRQ 单例，也不决定日志、信号、重启或
+shutdown；宿主仍持有 watchdog wiring 和生产生命周期权威。独立测试位于
+`tests/core/kernel_test_watchdog.rs`，下一步需把真实宿主观测、旁路审计和
+生产 shutdown/restart 证据接入 R4/R5 评审，不能把这片当作 runtime
+cutover 完成。
+
+随后推进 `constitution_io` 文件边界候选：Rust
+`TerritoryConstitution` 已覆盖已保留的 territory/GateChain Markdown
+标量、确定性渲染、版本恢复、提案合并和集合差异；`ConstitutionStore`
+以单 store 锁串行化完整更新，执行 flush + 原子替换，并仅在写入成功后
+发布内存快照。临时文件使用排他创建，rename 后在宿主支持时同步父目录，
+避免并发写入覆盖临时文件或目录项未持久化。`kernel_test_constitution_io.rs` 以独立 policy target
+覆盖 malformed known values、失败回滚、重开恢复和 8 线程磁盘/内存版本
+对齐；source、GateChain key 和所选路径中的 NUL 在变更前直接 fail-closed。
+该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
+EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此
+宣称完成。
 
 ---
 

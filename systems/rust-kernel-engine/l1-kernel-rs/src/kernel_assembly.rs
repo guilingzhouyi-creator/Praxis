@@ -281,6 +281,7 @@ fn map_config_error(error: ConfigError) -> AssemblyError {
         | ConfigError::InvalidDocument { .. }
         | ConfigError::RootNotDirectory(_)
         | ConfigError::ForeignRoot(_)
+        | ConfigError::RollbackFailed { .. }
         | ConfigError::Io(_) => ConfigAssemblyError::InvalidRoot,
     };
     AssemblyError::Config(mapped)
