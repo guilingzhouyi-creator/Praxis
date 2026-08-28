@@ -862,6 +862,36 @@ fn rejected_clean_shutdown_preserves_unclean_execution_checkpoint() {
 }
 
 #[test]
+fn rejected_state_shutdown_demotes_clean_execution_checkpoint() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("fresh persistent runtime");
+        runtime.boot().expect("boot");
+        let checkpoint = root.join("runtime/checkpoint.json");
+        std::fs::remove_file(&checkpoint).expect("remove state checkpoint");
+        std::fs::create_dir(&checkpoint).expect("block state checkpoint replacement");
+
+        assert!(matches!(
+            runtime.shutdown(Some(Duration::from_secs(1))),
+            Err(RuntimeError::StateStore(_))
+        ));
+        std::fs::remove_dir(&checkpoint).expect("remove state checkpoint blocker");
+    }
+    let recovered = KernelRuntime::open_persistent(spec(root_text), config(2, 2), &root)
+        .expect("recover after rejected state shutdown");
+    assert_eq!(
+        recovered
+            .recovery_decision()
+            .expect("unclean decision")
+            .action,
+        RecoveryAction::RecoverUnclean
+    );
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
 fn recovery_acknowledgement_rejects_stale_decisions() {
     let root = temp_root();
     let root_text = root.to_string_lossy().to_string();

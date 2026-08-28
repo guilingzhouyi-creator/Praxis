@@ -422,6 +422,11 @@ explicit `checkpoint_execution(false)` API supports caller-owned unclean
 checkpoints, while a persistent `shutdown` writes the clean execution
 checkpoint before marking the lifecycle halted. A clean checkpoint failure
 keeps the lifecycle fail-closed and does not claim a successful shutdown.
+If the later clean `StateStore` commit fails after the execution document was
+written, shutdown immediately demotes that execution document to unclean and
+best-effort marks the state root crashed before returning the state-store
+error. This prevents a clean execution checkpoint from being paired with a
+failed lifecycle commit during the next reopen.
 These accessors expose lower-layer state to a future TS bridge without moving
 AgentLoop execution, provider/tool policy, PTY ownership, or production entry
 authority into the candidate.

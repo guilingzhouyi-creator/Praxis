@@ -591,6 +591,12 @@ state. The books remain metadata/state seams only: AgentLoop execution,
 provider/tool policy, PTY ownership, and TS/L2 routing are not granted by these
 accessors.
 
+If the subsequent clean `StateStore` commit fails, the runtime demotes the
+execution document to an unclean checkpoint and best-effort records a crashed
+state before returning the original state-store error. This closes the
+cross-store ordering gap so recovery cannot observe a clean execution document
+paired with a failed lifecycle commit.
+
 The same persistent runtime now owns the assembly-selected `ConfigStore`.
 `config_documents` is a defensive read model, while `set_config`,
 `set_setting`, and `set_config_and_setting` provide explicit Rust-owned

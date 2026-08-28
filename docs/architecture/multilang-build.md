@@ -324,6 +324,9 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   was about 18.1k/27.3k/32.1k ops/s, aggregate queue wait was
   155.2/262.8/469.7 ms, and p99 was 140/562/1,342 microseconds. This is a bounded-concurrency
   baseline, not a scaling, L2/TS wire, AgentLoop, provider, or cutover claim.
+  During persistent clean shutdown, a StateStore commit failure demotes the
+  already-written execution checkpoint to unclean before returning, so reopen
+  cannot pair a failed lifecycle write with a falsely clean execution document.
 - `KernelRuntime::submit_batch` reserves and records every handle before one
   grouped WorkerPool handoff, rolling back all prior reservations when one
   cannot be admitted. The separate `runtime.batch_submit_reap` runner and

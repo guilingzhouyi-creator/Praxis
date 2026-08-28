@@ -1105,7 +1105,17 @@ impl KernelRuntime {
         }
         if let Some(state_store) = &self.state_store {
             let mut state_store = state_store.lock().unwrap_or_else(PoisonError::into_inner);
-            state_store.shutdown(true).map_err(map_state_store_error)?;
+            if let Err(error) = state_store.shutdown(true) {
+                // The execution checkpoint was already published as clean.
+                // Demote it before returning so a later reopen cannot pair a
+                // crashed/unclean lifecycle with a falsely clean execution
+                // document. The state-store failure remains the surfaced
+                // error; best-effort demotion is itself fail-closed because
+                // recovery will reject any unresolved mismatch.
+                let _ = self.checkpoint_execution(false);
+                let _ = state_store.shutdown(false);
+                return Err(map_state_store_error(error));
+            }
         } else {
             if !self.lifecycle.transition(LifecycleState::Halted) {
                 return Err(RuntimeError::InvalidLifecycle(self.lifecycle.state()));

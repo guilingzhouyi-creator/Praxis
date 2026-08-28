@@ -191,6 +191,9 @@ fresh Rust `StateStore`, records clean lifecycle checkpoints, and requires an
 explicit recovery path after an unclean close. `submit_gated` evaluates the
 Rust G1-G5 chain before invoking the single CapabilityAuthority, so an empty
 whitelist or unwired executor cannot enter the worker queue.
+If a persistent clean StateStore commit fails after the execution checkpoint
+was written, the runtime demotes that checkpoint to unclean and best-effort
+marks the root crashed before returning the state-store error.
 Persistent runtimes also hold the assembly-selected `ConfigStore`: defensive
 document snapshots and explicit single-document or paired mutation methods
 persist through the Rust owner before returning. Non-persistent runtimes fail
