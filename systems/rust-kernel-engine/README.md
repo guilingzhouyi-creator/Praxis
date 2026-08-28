@@ -56,6 +56,19 @@ restart, or shutdown policy; hosts decide what to do with the report. Zero
 thresholds fail closed, and the independent target is
 `tests/core/kernel_test_watchdog.rs`.
 
+The `constitution_io` module is the first filesystem-bearing Constitution
+candidate. It owns a strict, Rust-native `TerritoryConstitution` parser and
+deterministic renderer for territory/GateChain values, plus a
+`ConstitutionStore` that flushes and atomically replaces the selected document
+while publishing the in-memory snapshot only after success. Failed writes
+retain the prior snapshot and remove their temporary sibling; concurrent
+updates are serialized per store. The independent target
+`tests/policy/kernel_test_constitution_io.rs` covers malformed scalar rejection,
+versioned updates, proposal merge, deterministic diffs, rollback, reopen, and
+concurrent disk/memory alignment. SettingsCenter discovery, providers,
+prompt/EventBus wiring, and production policy authority remain outside this
+candidate.
+
 The `session` module adds the P0 session-truth mechanism needed before a clean
 AgentLoop bridge: a sharded `SessionBook`, bounded per-session history,
 authoritative `input_seq`, cursor pages, explicit crash recovery, and a

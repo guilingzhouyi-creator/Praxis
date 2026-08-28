@@ -1102,7 +1102,19 @@ severity conversion, PASS/WARN/BLOCK results, descriptor metadata, sorted tags,
 and explicit checker context. Callback closures are injected at the adapter
 boundary; a checker that returns no result defaults to PASS, while a checker
 panic is caught and fails closed as BLOCK. Rule content, Markdown/SettingsCenter
-I/O, and Constitution policy remain outside the candidate.
+I/O provider discovery, and Constitution policy remain outside the candidate.
+
+The Rust `constitution_io` candidate now owns a narrow, Rust-native document
+boundary for territory and GateChain values. `TerritoryConstitution` parses
+known scalar fields strictly, renders sorted deterministic Markdown, validates
+territory identities, and computes stable territory diffs. `ConstitutionStore`
+keeps an in-memory snapshot aligned with an atomically replaced, flushed file;
+failed writes leave both the prior snapshot and temporary-file directory
+unchanged, and concurrent updates are serialized per store. This is a
+filesystem-bearing R4 candidate only: SettingsCenter discovery, provider
+selection, prompt injection, EventBus effects, and production Constitution
+authority remain outside the module. Independent coverage lives in
+`systems/rust-kernel-engine/l1-kernel-rs/tests/policy/kernel_test_constitution_io.rs`.
 
 The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative

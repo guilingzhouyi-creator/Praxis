@@ -1058,6 +1058,16 @@ shutdown；宿主仍持有 watchdog wiring 和生产生命周期权威。独立�
 生产 shutdown/restart 证据接入 R4/R5 评审，不能把这片当作 runtime
 cutover 完成。
 
+随后推进 `constitution_io` 文件边界候选：Rust
+`TerritoryConstitution` 已覆盖已保留的 territory/GateChain Markdown
+标量、确定性渲染、版本恢复、提案合并和集合差异；`ConstitutionStore`
+以单 store 锁串行化完整更新，执行 flush + 原子替换，并仅在写入成功后
+发布内存快照。`kernel_test_constitution_io.rs` 以独立 policy target
+覆盖 malformed known values、失败回滚、重开恢复和 8 线程磁盘/内存版本
+对齐。该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
+EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此
+宣称完成。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；

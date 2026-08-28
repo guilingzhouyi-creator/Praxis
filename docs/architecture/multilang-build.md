@@ -496,7 +496,17 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   severity conversion, PASS/WARN/BLOCK values, descriptor metadata, sorted
   tags, explicit creation time, and an injected checker context. The shared
   `tests/fixtures/kernel_rule_descriptor_vectors.json` freezes serialization;
-  rule content and Constitution I/O remain Python-owned.
+  rule content and provider policy remain adapter-owned.
+- The Rust `constitution_io` module is the first filesystem-bearing
+  Constitution document candidate. It strictly parses known scalar values,
+  renders deterministic territory/GateChain Markdown, validates updates,
+  computes stable territory diffs, and persists through flushed atomic
+  replacement while keeping its in-memory snapshot unchanged on failed writes.
+  `tests/policy/kernel_test_constitution_io.rs` covers parser fail-closed
+  behavior, versioned updates, proposal merge, deterministic diffs, rollback,
+  reopen, and concurrent disk/memory version alignment. SettingsCenter
+  discovery, provider selection, prompt injection, EventBus effects, and
+  production policy authority remain outside this candidate.
 - The Rust `territory` module provides component-aware lexical subtree checks
   from explicit paths. `tests/fixtures/kernel_territory_vectors.json` covers
   exact, child, root, prefix-collision, dot-dot, empty-base, and explicit

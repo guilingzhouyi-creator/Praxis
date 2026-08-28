@@ -195,6 +195,10 @@ pub mod gatechain;
 #[path = "kernel_constitution.rs"]
 pub mod constitution;
 
+/// Rust-owned Constitution territory document and persistence boundary.
+#[path = "kernel_constitution_io.rs"]
+pub mod constitution_io;
+
 /// Rust-native reputation ledger candidate for explicit GateChain inputs.
 #[path = "kernel_reputation.rs"]
 pub mod reputation;

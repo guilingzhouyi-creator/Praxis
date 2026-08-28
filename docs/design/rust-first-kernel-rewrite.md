@@ -750,7 +750,7 @@ passing output stays compact unless `--verbose` is selected.
 The `rule_descriptor` checker seam is fail-closed: an absent checker result
 continues to mean PASS, but a panic from an injected checker is caught and
 converted to BLOCK. This protects the policy value boundary without moving
-Constitution providers, Markdown/SettingsCenter I/O, or runtime authority into
+Constitution providers, SettingsCenter discovery, or runtime authority into
 the Rust candidate.
 
 The registry-base notification hooks are advisory: a panic after a successful
@@ -775,6 +775,20 @@ replacement: IDs and sources are constrained, custom rules are data-only
 `noop` descriptors, tags are sorted/deduplicated, and duplicate or malformed
 rules fail closed without mutating the previous snapshot. Markdown loading,
 posture providers, and runtime policy routing remain adapter-owned.
+
+The follow-on `constitution_io` slice establishes the first Rust-owned
+filesystem boundary without turning the Rust document into a Python
+compatibility layer. `TerritoryConstitution` strictly parses the retained
+territory/GateChain scalar shape, restores the rendered version header,
+renders sorted deterministic Markdown, validates territory mutations, and
+returns stable set-based diffs. `ConstitutionStore` serializes each complete
+mutation under one store lock, flushes and atomically renames a sibling file,
+and publishes the new in-memory snapshot only after the write succeeds;
+concurrent updates therefore cannot reverse disk and memory versions. The
+independent policy target covers malformed values, proposal merge, rollback,
+reopen, and eight-thread version alignment. SettingsCenter discovery,
+provider/prompt/EventBus wiring, and production Constitution authority remain
+outside this candidate and still require R4/R5 evidence.
 
 The EventBus candidate now uses signal type as a dispatch channel: at most one
 callback task for a channel runs at a time, while workers scan past busy
