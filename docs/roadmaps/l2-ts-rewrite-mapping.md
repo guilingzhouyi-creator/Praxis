@@ -27,12 +27,12 @@
 | `shells/base.py` | `Shell(ABC)` / `run` | `engine/interactive-session.ts`（SessionView） | 🟡 部分：会话视图已有；Shell 方言抽象未映射 |
 | `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/interactive-session.ts`（前端绑定） | ⏳ 需重写（前端→方言解析） |
 | `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/interactive-session.ts`（SessionView 快照） | 🟡 部分 |
-| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/builtins.ts` + 桥转发 | ⏳ 需重写（方言语法 `!`/`$`/`/` 分派） |
-| `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） | 🟡 部分：注册/查询已有；load_defaults/系统用户分离未映射 |
-| `selector.py` | `select`/`preconnect`/`_scan_injection` | 本地投影（dict 数据 API，零句柄） | ⏳ 需重写（选择结果渲染，权威留 Python3） |
+| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/builtins.ts` + 桥转发 + `engine/terminal-view.ts`（结果形状投影，Phase A） | 🟡 部分：方言语法 `$`/`/`/tool 分派已映射；REPL 循环与渲染留前端 |
+| `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） + `engine/command-catalog.ts`（YAML 元数据 + alias 索引，Phase A） | 🟡 部分：注册/查询 + 元数据面已有；handler 注册与 system/user 分离留 host |
+| `selector.py` | `select`/`preconnect`/`_scan_injection` | `engine/agent-selector.ts`（选择投影 + preconnectImpact/riskLevelOf，Phase A） | ✅ 投影面已映射（扫描与 LLM reviewer 权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
 | `shells/session.py` + host 状态容器 | `ShellSession` / `_advance_shared_cursor` | `engine/session-manager.ts`（一会话 N 视图游标 + 共享水位=落后视图） | ✅ 已实现 |
-| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin | ✅ 已实现（`systems/typescript-shell-engine/src/locale-catalog.ts`） |
+| `i18n.py` | `t()`/`set_locale`/`register_file` | locale 数据 + `lang` builtin + 终端/选择器展示键（Phase A） | ✅ 已实现（`systems/typescript-shell-engine/src/locale-catalog.ts`） |
 | `shell_completer.py` + `l2_shell/completer.py` | `TerminalCompleter.complete`/`get_command_names`/`get_aliases` | 本地补全（桥数据渲染候选） | ✅ 已实现（`engine/command-completion.ts`） |
 | `l2_shell/commands_settings.py` | 配置写面 | 经桥 `settings_set`（单一写权威） | ✅ 已实现（`engine/command-groups.ts`） |
 | `l2_shell/output_guard.py` | 输出守卫 | 展示安全镜像（权威留 Python3） | ✅ 已实现（`engine/output-policy.ts`） |
@@ -53,6 +53,28 @@
 > 三批已全部完成并合入分支（Vitest 49 passed，e2e stdio 真实 Python3
 > host 不回归）。剩余可选：ShellFamily 前端绑定映射（interactive-session.ts
 > 已覆盖 SessionView）、移动端真实 SSH 端点（远端 stdio host 已通，按需接入）。
+
+## 2a. 第四批（2026-08-28，feature/l2-ts-phase-a ✅）
+
+本地元数据/展示投影补全，全部为纯投影（不拥有 authority）：
+
+1. **命令目录（`engine/command-catalog.ts`）**：解析共享 `config/commands.yaml`
+   YAML 子集（标量/flow 列表/flow 对象/块列表项/注释剥离），alias 反查索引 +
+   revision 计数（镜像 `commands.py` 元数据面）。`commands.py` 映射状态由
+   🟡 部分 → ✅ 元数据面已映射（system/user 分离与 handler 注册仍留 host）。
+2. **终端视图（`engine/terminal-view.ts`）**：help/tools/intent/scout/system/tool
+   六类结果形状投影（镜像 `shells/terminal.py` 返回形状）；`locale-catalog.ts`
+   补 en 展示键（terminal.*/selector.*，Python locales 尚未同步，渲染回退键名）。
+   `shells/terminal.py` 映射状态由 ⏳ → 🟡（REPL 循环与渲染仍留 Python/前端）。
+3. **注入扫描投影（`agent-selector.ts` preconnectImpact/riskLevelOf）**：
+   风险分级对齐参考阈值 0.3/0.7（`params/agent.py`），host 判定仍权威。
+   `selector.py` 映射状态由 ⏳ → ✅ 投影面已映射（`_scan_injection`/LLM reviewer
+   权威仍留 Python，符合铁律 §3）。
+4. **集成面**：`builtins.ts` 全量 `/help`（catalog）；`route.ts` catalog alias
+   本地解析前置（桥回退不变）；`command-completion.ts` catalog 候选并入。
+
+> 验收：`tsc --noEmit` + Vitest 284 passed / 8 skipped（+30 新用例），
+> system-naming PASS。下一梯队：G5 切默认（Rust 前置）与 terminal REPL 终态。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 
