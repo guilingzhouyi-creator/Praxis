@@ -409,7 +409,9 @@ root into an explicit recovery boot; it never imports Python state.
 `submit_gated` is the only capability-shaped runtime submission helper: it
 requires matching caller/tool identities, evaluates Rust G1-G5, and then calls
 the single `CapabilityAuthority`; an empty whitelist or unwired executor stays
-fail-closed and audited.
+fail-closed and audited. Gate/request identity mismatches and GateChain
+denials are recorded in the same capability audit before the runtime returns
+the blocking result, so pre-execution rejects remain traceable.
 
 `KernelRuntime` now owns the Rust execution metadata books used by the future
 clean-break entry: `SessionBook`, `TerminalBook`, and `AgentLoopBook`. A
@@ -575,7 +577,24 @@ delegates reduction to `InputActivityProbe`, exposes permission failures as an
 unknown snapshot, stops the host adapter when permission is revoked, and stops
 it when a sample violates the value contract. It never opens device nodes,
 reads a system clock, or stores raw input; platform collection, permission UX,
-and monitoring policy remain host-owned.
+and monitoring policy remain host-owned. `start`, `stop`, and `snapshot` are
+serialized at the port boundary so concurrent lifecycle calls cannot
+overwrite permission state; a sample error reporting `Granted` is invalid and
+fails closed as unavailable. Panics from host adapter lifecycle or sampling
+callbacks are caught at the same boundary, converted to an unavailable
+snapshot or structured invalid-observation error, and never unwind into the
+kernel runtime.
+
+`CompositeInputActivityAdapter` provides the multi-source T4b mechanism seam
+without choosing a platform implementation. It coordinates independently
+owned keyboard and pointer adapters, aggregates their explicit permissions,
+merges only successful aggregate samples, and removes a source from subsequent
+sampling when that source reports `Denied` or `Unavailable`. A separately
+granted source remains usable, while an invalid granted-source failure is
+propagated so `HostInputActivityPort` can fail closed. The composite serializes
+its own lifecycle, catches source callback panics as a fail-closed composite
+failure, and never invents executable paths, device nodes, raw input, permission
+prompts, or monitoring policy.
 
 The Rust `assembly` candidate composes the boot plan, fresh state manifest,
 Rust-owned config manifest metadata, retained protocol metadata, terminal
@@ -960,6 +979,11 @@ and runtime routing remain Python-owned in the preflight branch. The future
 Rust-first build may own a redesigned implementation after its semantic
 invariants, performance evidence, and clean cutover/recovery path are frozen.
 
+The lock-IPC candidate contains handler panics and exposes a Rust-only
+`handler_panics()` diagnostic; the retained `LockBus` statistics and
+request/response wire values are unchanged. Socket transport and cross-process
+ownership remain outside the candidate boundary.
+
 The VFS candidate owns only the language-neutral mechanism: a bounded mount
 table with longest-prefix lookup, ring/read-only authorization, virtual files,
 and TTL-bounded provider-read cache invalidation. `read_from_provider` and
@@ -986,8 +1010,14 @@ The discovery candidate uses
 parity. It accepts an already parsed document and preserves Python's defaults,
 source snapshots, object shallow merge, scalar replacement, null-section rule,
 unknown-section ignore behavior, runtime overrides, and tool/service fallback
-queries. It does not scan directories, parse YAML, emit logs, register boot
-sources, or mutate the Python runtime registry.
+queries. Rust admission now rejects blank, NUL-containing, overlong section
+identities, and invalid nested object keys before mutation; document application
+stages a complete copy and commits it once, so malformed later sections cannot
+partially apply. A deterministic source/registry snapshot is available for the
+future TS/L2 bridge; checked reads and section-presence queries validate the
+same identity boundary before exposing a view. It does not scan directories,
+parse YAML, emit logs, register boot sources, or mutate the Python runtime
+registry.
 
 The load-adaptive candidate uses
 `tests/fixtures/kernel_load_adaptive_vectors.json` to freeze EWMA smoothing,
@@ -998,23 +1028,27 @@ candidate performs no clock or thread-pool I/O; Python retains sampling,
 
 The schema candidate uses `tests/fixtures/kernel_schema_vectors.json` to freeze
 owner-conflict rejection, same-owner idempotent updates, sorted snapshots,
-membership checks, and reset. It does not load the L3 event catalog, emit
-signals, or decide event ownership at boot; those remain Python-owned policy
-and registration inputs.
+membership checks, and reset. Event names and owners reject blank or
+NUL-containing identities before mutation. It does not load the L3 event
+catalog, emit signals, or decide event ownership at boot; those remain
+Python-owned policy and registration inputs.
 
 The rule-descriptor candidate uses
 `tests/fixtures/kernel_rule_descriptor_vectors.json` to freeze MUST/SHOULD/MAY
 severity conversion, PASS/WARN/BLOCK results, descriptor metadata, sorted tags,
 and explicit checker context. Callback closures are injected at the adapter
-boundary; rule content, Markdown/SettingsCenter I/O, and Constitution policy
-remain outside the candidate.
+boundary; a checker that returns no result defaults to PASS, while a checker
+panic is caught and fails closed as BLOCK. Rule content, Markdown/SettingsCenter
+I/O, and Constitution policy remain outside the candidate.
 
 The registry-base candidate uses
 `tests/fixtures/kernel_registry_base_vectors.json` to freeze declarative
 descriptor defaults, duplicate rejection/overwrite policy, registration order,
 category filtering, public serialization, and counters. Rust callbacks are
-local adapter hooks only; Python handler closures, domain registries, source
-discovery, and runtime routing remain outside the candidate.
+local adapter hooks only; callback panics are contained and counted as
+`callback_errors` without rolling back the completed metadata mutation. Python
+handler closures, domain registries, source discovery, and runtime routing
+remain outside the candidate.
 
 The registry-base hot path now stores descriptors in a hash index plus an
 explicit order vector. Name admission and lookup are therefore expected O(1)
@@ -1061,7 +1095,10 @@ provider calls remain Python adapter responsibilities.
 The SystemBus candidate uses `tests/fixtures/kernel_bus_vectors.json` to freeze
 component metadata defaults, in-place duplicate replacement, parent-available
 dependency filtering, stable topological ordering, cycle rejection, and state
-labels. It consumes only already-resolved metadata and dependency names;
+labels. Registration rejects blank or NUL-containing component names. Planning
+uses one reverse-edge build and a stable O(V+E) Kahn pass; duplicate hard and
+optional declarations remain visible in the public graph but count as one
+dependency edge. It consumes only already-resolved metadata and dependency names;
 callbacks, event routing, child-bus mounting, health/stats providers, logging,
 and runtime lifecycle ownership remain Python adapter responsibilities.
 
@@ -1129,7 +1166,9 @@ zero-timeout writer failure, status snapshots, and missing-owner unlock errors;
 the Rust candidate additionally assigns FIFO writer tickets and removes timed
 out tickets before waking successors. This closes queued-writer fairness for
 the candidate without claiming task cancellation, cross-process ownership, or
-runtime lock routing. The separate `cancellation` candidate provides a
+runtime lock routing. The optional priority-inheritance callback is advisory;
+its panic is contained while the lock state remains authoritative. The separate
+`cancellation` candidate provides a
 cloneable one-way token with first-reason retention, cooperative checks, and
 bounded waits. RWLock observes that token and removes cancelled writer tickets
 before waking successors; queue/task cancellation remains an open mechanism
@@ -1158,7 +1197,9 @@ channel and scans past a busy channel, preserving same-channel FIFO while
 allowing unrelated channels to progress. Blocking-callback tests cover this
 Rust-native scheduling invariant; Python executor timing, overload policy,
 shutdown behavior, and runtime SSE/WS fan-out remain performance and adapter
-evidence.
+evidence. Rust rejects empty custom signal names before registry mutation and
+exposes a separate `callback_panics()` diagnostic for contained callback
+failures, without changing the shared `EventBusStats` parity shape.
 
 The deterministic process parity fixture
 `tests/fixtures/kernel_process_vectors.json` freezes PID/PCB registration,
@@ -1319,7 +1360,8 @@ duplicate mappings, and bounds the sender's delivered count. The sender may
 implement a platform process-group signal, a PTY control operation, or a test
 double; no signal number, PID lookup, terminal scan, or retry policy is stored
 in L1. Resolver failure prevents sender dispatch, so a missing host mapping
-cannot produce a partial batch.
+cannot produce a partial batch. Resolver and sender panics are converted to
+fail-closed adapter errors before they can unwind into the kernel.
 
 ### Engineering-debug boundary
 
