@@ -60,6 +60,8 @@
 
 | 2026-08-28 | systems/rust-kernel-engine/l1-kernel-rs/src/kernel_watchdog.rs + systems/rust-kernel-engine/l1-kernel-rs/tests/core/kernel_test_watchdog.rs + systems/rust-kernel-engine/l1-kernel-rs/{src/lib.rs,Cargo.toml} + docs/{architecture/l1-kernel.md,architecture/multilang-build.md,architecture/llms-full.txt,design/rust-first-kernel-rewrite.md,roadmaps/frontend-kernel-roadmap.md} + systems/rust-kernel-engine/README.md | Codex (GPT5.6Terra) | add caller-driven watchdog evaluation with single-pass zombie/idle checks and deterministic interrupt alerts | in feature/l1-rust-next |
 
+| 2026-08-29 | config/discovery/commits.yaml + config/discovery/commits.json | OpenCode (muse-spark-1.2-contributor-free) | register muse-spark model for OpenCode attribution | in main |
+
 ## Clobber warnings (do not repeat)
 
 1. `verify-completion.sh` (2026-08-22): an infra merge overwrote an

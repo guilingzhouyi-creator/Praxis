@@ -109,7 +109,8 @@
       "models": [
         "ox-alpha",
         "deepseek-v4-flash",
-        "deepseek-v4-pro"
+        "deepseek-v4-pro",
+        "muse-spark-1.2-contributor-free"
       ],
       "email": "noreply@opencode.ai"
     },

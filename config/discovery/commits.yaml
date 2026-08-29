@@ -100,7 +100,7 @@ agents:
     models: [deepseek-v4-flash, deepseek-v4-pro]
     email: noreply@atomgit.com
   - name: OpenCode
-    models: [ox-alpha, deepseek-v4-flash, deepseek-v4-pro]
+    models: [ox-alpha, deepseek-v4-flash, deepseek-v4-pro, muse-spark-1.2-contributor-free]
     email: noreply@opencode.ai
   - name: Claude
     models: [claude, claude-sonnet, claude-opus, claude-opus-5, claude-sonnet-5, claude-fable-5]
