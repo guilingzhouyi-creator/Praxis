@@ -11,8 +11,10 @@ npm test
 npm run typecheck
 ```
 
-Test leaves use Vitest's `.test.ts` suffix. When a test stem would collide with
-the Python reference namespace, it carries an explicit shell/domain prefix
+Test leaves use Vitest's `.test.ts` suffix and mirror their source module stem
+(for example, `tests/terminal-input-telemetry.test.ts` mirrors
+`src/terminal-input-telemetry.ts`). When a test stem would collide with the
+Python reference namespace, it carries an explicit shell/domain prefix
 (for example, `tests/shell-protocol.test.ts`); this is checked by
 `make system-naming`.
 
