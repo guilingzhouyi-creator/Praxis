@@ -27,7 +27,7 @@ construction: in_progress
 > Status: implementation merged, P1 gaps open (P1-C closed — see §3). This
 > roadmap records the completion boundary for 3.5 and the work required before
 > it can be marked complete. Review evidence:
-> [engineering-debug-review](../design/reviews/2026-08-16-engineering-debug-review.md).
+> [engineering-debug-review](../design/archive/002-review/2026/长期/REVIEW-2026-长期-022_engineering-debug-review.md).
 
 ## 1. Scope and decision
 

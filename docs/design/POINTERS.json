@@ -1190,7 +1190,7 @@
     "source": "roadmap",
     "keywords": "[]",
     "abstract": "Python3 is the current abstraction base, not the final language. The",
-    "construction": "planned",
+    "construction": "in_progress",
     "file": "docs/roadmaps/multilang-migration.md",
     "type": "roadmap",
     "status": "active"

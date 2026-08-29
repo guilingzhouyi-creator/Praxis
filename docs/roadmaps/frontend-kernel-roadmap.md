@@ -26,7 +26,7 @@ construction: in_progress
 
 > 状态：G4 自动化外围已闭合；G5 Rust/TS 迁移脚手架已启动；Rust-first 独立内核重写仍按 R0–R5 与 M1–M4 门槛推进
 > 关联决策：`docs/decisions/praxis-tech-stack-decision.md`（内核纯 Python）、`docs/decisions/praxis-mvp-decision.md`
-> 关联设计：`docs/design/praxis-load-adaptive-pool-design.md`、`docs/architecture/l5-user.md`、`docs/architecture/l2-shell.md`
+> 关联设计：`docs/design/archive/001-design/2026/永久/DESIGN-2026-永久-022_load-adaptive-pool-design.md`、`docs/architecture/l5-user.md`、`docs/architecture/l2-shell.md`
 
 ---
 
@@ -116,7 +116,7 @@ Phase 6 已完成（2026-08-25 复核）：`l2-shell.md` 契约面已写 `invoke
 
 早期 ADR `docs/decisions/praxis-tech-stack-decision.md`（2026-07-21，`status: discussing`）
 曾判断"当前不值得引入 Rust"——瓶颈是 LLM API（500ms–5s），非计算路径（微秒级）。**但该判断
-已被后续设计演进覆盖**：`docs/design/praxis-load-adaptive-pool-design.md`（2026-08）已为
+已被后续设计演进覆盖**：`docs/design/archive/001-design/2026/永久/DESIGN-2026-永久-022_load-adaptive-pool-design.md`（2026-08）已为
 Rust 重写铺路。当前 preflight 分支仍用 Python 作为语义参考，但未来 Rust 内核是独立新构建，
 可重新选择常量、状态布局、调度和协议版本。因此 **Rust 重写底层 L1 是路线图的既定方向**，
 不是被排除的选项。具体边界见 `docs/design/rust-first-kernel-rewrite.md`。
@@ -989,7 +989,7 @@ MD  L1↔L2 线缆对接             — TS-L2 × Rust-L1 协议 v1 直连：D0 
 > `20260818-preflight-03` 已复跑 Amdahl/锁竞争：`P=1.000`，RWLock 8-worker 仅约 `16k ops/s`
 > 且 p95 wait `0.872ms`。RWLock 写重入深度与空 owner 已通过 Python/Rust 共享向量固定，
 > 但升级/公平性/取消语义仍须审查。详见
-> `docs/design/reviews/2026-08-18-kernel-readiness-preflight.md`。这些数据只决定 Rust-first
+> `docs/design/archive/002-review/2026/长期/REVIEW-2026-长期-023_kernel-readiness-preflight.md`。这些数据只决定 Rust-first
 > 的基准重点和实现顺序，不代表 Python 数据格式或类布局必须保留。下一步进入 R0/R1：完成
 > 语义地图、Rust-native substrate 和 benchmark schema；在 R2 证据前不授予新内核运行时权威。
 
