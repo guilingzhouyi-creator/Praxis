@@ -1,7 +1,7 @@
 /** TS engine smoke tests: parser, dispatcher, and the protocol bridge client. */
 
 import { describe, expect, it } from "vitest";
-import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/wire-envelope.ts";
+import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/protocol/wire-envelope.ts";
 import { parseLine, tokenize } from "../src/engine/parser.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";

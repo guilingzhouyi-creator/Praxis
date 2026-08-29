@@ -5,7 +5,7 @@ import {
   registerSettingsGroup, registerSystemGroup, registerMemoryGroup,
   registerModelGroup, registerSelectorGroup,
 } from "../src/engine/command-groups.ts";
-import { makeMessage } from "../src/wire-envelope.ts";
+import { makeMessage } from "../src/protocol/wire-envelope.ts";
 
 /** Recording transport: echoes one result envelope per request. */
 function makeRecordingTransport(sessionId?: string) {

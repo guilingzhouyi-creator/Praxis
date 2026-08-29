@@ -13,9 +13,9 @@
 import {
   decodeMessage, encodeMessage, makeMessage,
   type Message, type MessageKind,
-} from "../wire-envelope.ts";
-import { MAX_SAFE_SEQUENCE } from "../wire-types.ts";
-import type { JsonValue } from "../wire-records.ts";
+} from "../protocol/wire-envelope.ts";
+import { MAX_SAFE_SEQUENCE } from "../protocol/wire-types.ts";
+import type { JsonValue } from "../protocol/wire-records.ts";
 
 export type Transport = (line: string) => Promise<string[]>;
 

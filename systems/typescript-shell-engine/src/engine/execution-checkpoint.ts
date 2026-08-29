@@ -9,7 +9,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { canonicalJson } from "../wire-records.ts";
+import { canonicalJson } from "../protocol/wire-records.ts";
 import {
   SESSION_STORE_VERSION,
   type RustSessionCheckpoint,

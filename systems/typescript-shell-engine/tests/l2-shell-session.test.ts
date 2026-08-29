@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/wire-envelope.ts";
+import { decodeMessage, encodeMessage, makeMessage, type Message } from "../src/protocol/wire-envelope.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
 import { parseCommandCatalog } from "../src/engine/command-catalog.ts";

@@ -2,14 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   decodeMessage, validateMessage, makeMessage,
   Outbox,
-} from "../src/wire-envelope.ts";
-import { HOST_DERIVED_FIELDS } from "../src/wire-types.ts";
+} from "../src/protocol/wire-envelope.ts";
+import { HOST_DERIVED_FIELDS } from "../src/protocol/wire-types.ts";
 import { parseRoute, route, splitArgs, type RouteContext } from "../src/engine/route.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { parseCommandCatalog } from "../src/engine/command-catalog.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
 import { ProtocolBridge } from "../src/engine/bridge.ts";
-import type { Message } from "../src/wire-envelope.ts";
+import type { Message } from "../src/protocol/wire-envelope.ts";
 
 function baseEnvelope(kind: string, payload: Record<string, unknown>) {
   return { v: 1, session_id: "s-1", seq: 1, ts: 0.0, kind, payload };

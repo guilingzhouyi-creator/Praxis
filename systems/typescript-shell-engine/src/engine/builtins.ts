@@ -5,7 +5,7 @@
  * else routes through the dispatcher's bridge fallback to the Python3 host.
  */
 
-import type { I18n } from "../locale-catalog.ts";
+import type { I18n } from "../i18n/locale-catalog.ts";
 import type { CommandCatalog } from "./command-catalog.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { helpView } from "./terminal-view.ts";

@@ -13,7 +13,7 @@
  * the Python3 side uses DurableJsonStore with the same envelope shape.
  */
 
-import type { JsonObject } from "../wire-records.ts";
+import type { JsonObject } from "../protocol/wire-records.ts";
 
 /** Envelope format: {v, kind, checksum, payload} — mirrors DurableJsonStore. */
 export interface StoreEnvelope<T = JsonObject> {

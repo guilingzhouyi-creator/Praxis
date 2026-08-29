@@ -5,11 +5,11 @@
 
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { decodeMessage, encodeMessage, makeMessage } from "../src/wire-envelope.ts";
+import { decodeMessage, encodeMessage, makeMessage } from "../src/protocol/wire-envelope.ts";
 import { createLineRequestTransport, isAckLine } from "../src/engine/transports/line-transport.ts";
 import { createWsTransport, type WsTransportOptions } from "../src/engine/transports/ws.ts";
 import { createSshTransport, type SshChannelLike, type SshTransportOptions } from "../src/engine/transports/ssh.ts";
-import { MAX_FRAME_BYTES } from "../src/wire-types.ts";
+import { MAX_FRAME_BYTES } from "../src/protocol/wire-types.ts";
 
 /** Fake WebSocket implementation injected into the ws adapter. */
 class FakeWebSocket {

@@ -5,13 +5,13 @@
  */
 
 import { describe, it } from "vitest";
-import { bench } from "../src/engine/bench.ts";
+import { bench } from "../bench/bench.ts";
 import { tokenize, parseLine } from "../src/engine/parser.ts";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { parseRoute } from "../src/engine/route.ts";
 import { parseCommandCatalog } from "../src/engine/command-catalog.ts";
 import { SessionMultiplexer } from "../src/engine/session-manager.ts";
-import { Outbox, makeMessage } from "../src/wire-envelope.ts";
+import { Outbox, makeMessage } from "../src/protocol/wire-envelope.ts";
 
 /** Tiny commands.yaml subset shared by the catalog benchmarks. */
 const CATALOG_YAML = `
