@@ -23,6 +23,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
+| 2026-08-29 | scripts/sh/verify-completion.sh + scripts/sh/judge-stats.sh + tests/infra/test_verify_completion.py + docs/judge-stats.md + docs/architecture/completion-judge.md | AtomCode (deepseek-v4-flash) | judge evidence hygiene: coverage judged on reported pct (not exit code), skip-distribution dashboard dimension, JUDGE_LOG test isolation | in main |
 | 2026-08-28 | .githooks/pre-commit + scripts/sh/{build-artifact-sweep,gate-merge,push-both}.sh | AtomCode (deepseek-v4-flash) | build-artifact sweep: shared script auto-removes gitignored regenerable build output (vitest coverage/, htmlcov/) at commit/merge/push gate entry and reminds agents | in feature/l2-gate-artifact-sweep |
 | 2026-08-29 | config/discovery/naming-rules.yaml + .githooks/pre-commit + scripts/py/check_system_naming.py + tests/infra/{test_staged_naming,test_system_naming}.py + Makefile + AGENTS.md + systems/typescript-shell-engine/README.md | AtomCode (deepseek-v4-flash) | commit-time formal naming guard: staged kebab-case dirs + hierarchy/ownership gate (hard block, no bypass) via check_system_naming.py --staged | in feature/ts-engine-naming-org |
 

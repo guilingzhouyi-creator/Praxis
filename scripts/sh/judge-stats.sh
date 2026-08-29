@@ -202,6 +202,16 @@ for r in rows:
             if flag == 1:
                 check_pass[chk][0] += 1
 
+# ── A: skip distribution (fast-mode blind spots) ──────────────────────
+# Which checks are skipped most often in fast runs — a frequently-skipped
+# dimension is a blind spot in the standard (gate-integrity signal: the
+# expensive-but-load-bearing checks should trend toward rarely skipped).
+skip_counter = Counter()
+for r in fast_runs:
+    for chk, flag in (r.get("checks") or {}).items():
+        if flag == 0:
+            skip_counter[chk] += 1
+
 # ── A: failure-pair analysis (checks failing together) ─────────────────
 pair_counter = Counter()
 for r in incomplete:
@@ -279,6 +289,7 @@ if as_json:
         "failures_by_check": dict(fail_counter),
         "branch_stats": {b: {"runs": s["runs"], "complete": s["complete"], "rate": round(s["complete"] / s["runs"], 3)} for b, s in branch_stats.items()},
         "check_pass_rates": {chk: {"pass": p, "executed": n, "rate": round(p / n, 3)} for chk, (p, n) in check_pass.items()},
+        "skips_by_check": {chk: {"skipped": n, "fast_runs": len(fast_runs), "rate": round(n / len(fast_runs), 3)} for chk, n in skip_counter.most_common()},
         "failure_pairs": ["+".join(pair) for pair, _ in pair_counter.most_common()],
         "metrics": metrics_summary,
         "telemetry_excluded": telemetry_count,
@@ -322,6 +333,11 @@ if as_md:
         lines.append("**Check pass rate** (over executed runs — ratchet evidence):")
         for chk, (p, n) in sorted(check_pass.items()):
             lines.append(f"- `{chk}`: {p}/{n} ({pct(p, n)})")
+    if skip_counter:
+        lines.append("")
+        lines.append("**Skip distribution** (fast-mode blind spots — checks skipped most often):")
+        for chk, n in skip_counter.most_common():
+            lines.append(f"- `{chk}`: skipped {n}/{len(fast_runs)} ({pct(n, len(fast_runs))})")
     if metrics_summary:
         lines.append("")
         lines.append("**Numeric metrics** (latest / avg / min / max):")
@@ -367,6 +383,11 @@ print("-" * 52)
 print("  check pass rate (executed runs):")
 for chk, (p, n) in sorted(check_pass.items()):
     print(f"    {chk:<12} {p:>4}/{n:<4}  ({pct(p, n)})")
+if skip_counter:
+    print("-" * 52)
+    print("  skip distribution (fast-mode blind spots):")
+    for chk, n in skip_counter.most_common():
+        print(f"    {chk:<12} skipped {n:>3}/{len(fast_runs):<4}  ({pct(n, len(fast_runs))})")
 if pair_counter:
     print("-" * 52)
     print("  failure pairs (top 5):")

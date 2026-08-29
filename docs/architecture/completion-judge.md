@@ -34,7 +34,7 @@ conventions).
 | # | Check | Verifier | Pass condition |
 |---|---|---|---|
 | 1 | Tests | `pytest tests/ -q --tb=short` | full suite green, no early exit |
-| 2 | Coverage | `pytest --cov --cov-fail-under` (60, from pyproject) | report ≥ threshold |
+| 2 | Coverage | `pytest --cov --cov-fail-under` (60, from pyproject) | report ≥ threshold — judged on the **reported %**, not the exit code (test failures are the tests check's gap and must not fake a coverage failure) |
 | 3 | Net delta | `gate-merge.sh mainline main` (three locks) | net ≥ 1000 (or symmetric-deletion / docs-only exemption) |
 | 4 | Docs sync | `scripts/py/check_doc_stats.py` | no snapshot drift |
 | 5 | Lint/type | `ruff check` + `ruff format --check` + `mypy` | clean |
@@ -55,14 +55,16 @@ Skip switches: `--skip <check,...>` or per-check env (`COMPLETION_TESTS=0`,
   is resolved via `git rev-parse --git-common-dir`, so runs from ANY linked
   worktree land in the same file the dashboard aggregates — worktree-local
   logs would go unmeasured. Appends are protected via `flock` to ensure atomic
-  writes across parallel worktrees.
+  writes across parallel worktrees. Regression tests redirect the log via
+  `JUDGE_LOG` so synthetic verdicts never pollute the production history.
 - Record schema: `ts` (UTC ISO) / `verdict` / `mode` (`full`|`fast`) /
   `branch` / `duration_s` / `checks` (per-check flags: 0=skipped, 1=pass,
   2=fail) / `metrics` (numeric: `0` when clean, `null` when unmeasured).
 - `scripts/sh/judge-stats.sh` aggregates: full vs overall completion rate,
   PARTIAL bucket, failure distribution, per-day trend, per-branch rates,
   per-mode duration avg/P95, longest INCOMPLETE streak, per-check pass rate
-  over executed runs, failure pairs, numeric metric series, gate-exemption count.
+  over executed runs, skip distribution (fast-mode blind spots), failure pairs,
+  numeric metric series, gate-exemption count.
   All dimensions are available in the `--json`/text local output; **only the
   standards subset enters the committed Markdown dashboard** (see
   "Dashboard inclusion criterion" below).
@@ -108,6 +110,7 @@ diagnostics and stays in the `--json`/text output.
 | Verdict rates + mode split | the gate's core outcome (is it intercepting?) |
 | Failures by check | which standard dimension actually rejects |
 | Check pass rate | ratchet evidence — pass once, never reopen |
+| Skip distribution | gate-integrity signal — a frequently-skipped dimension is a blind spot in the standard |
 | Numeric metric series | the quantified standards themselves (coverage ≥ 60, net delta ≥ 1000, mega-functions ≤ 200, ruff 0, audit 0, tests) |
 | Daily trend | ratchet direction over time |
 
@@ -133,11 +136,14 @@ threshold / ratchet semantics. Candidate next steps (not yet implemented):
   mega_funcs, net_delta, ...) into a ratchet check: a run whose metric moves
   against the soft-gate direction (coverage down, mega-functions up) is a
   drift event worth surfacing, mirroring bench_layer_structure.py soft gates.
-- **Skip distribution** — which checks are skipped most often in fast mode;
-  a frequently-skipped dimension is a blind spot in the standard, i.e. a
-  gate-integrity signal with a clear "should be near zero" reading.
 - **Exemption trend** — gate exemptions (MERGE_GATE_SKIP) already counted;
   a rising trend is a governance signal (waivers becoming routine).
+
+Implemented since the original list: **skip distribution** (fast-mode blind
+spots) — the dashboard now reports which checks are skipped most often in fast
+runs; a frequently-skipped dimension is a blind spot in the standard, a
+gate-integrity signal that should trend toward zero for the expensive-but-
+load-bearing checks (tests/coverage currently skipped in ~99% of fast runs).
 
 Explicitly NOT candidates: per-branch / per-agent attribution (no standard
 meaning), duration and streak (no threshold), failure pairs (no threshold).

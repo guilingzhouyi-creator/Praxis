@@ -53,6 +53,19 @@
 - `singleton`: 254/271 (94%)
 - `tests`: 77/117 (66%)
 
+**Skip distribution** (fast-mode blind spots — checks skipped most often):
+- `tests`: skipped 220/222 (99%)
+- `coverage`: skipped 220/222 (99%)
+- `delta`: skipped 69/222 (31%)
+- `audit`: skipped 68/222 (31%)
+- `complex`: skipped 65/222 (29%)
+- `cycle`: skipped 65/222 (29%)
+- `singleton`: skipped 65/222 (29%)
+- `changelog`: skipped 62/222 (28%)
+- `docs`: skipped 61/222 (27%)
+- `lint`: skipped 61/222 (27%)
+- `index`: skipped 2/222 (1%)
+
 **Numeric metrics** (latest / avg / min / max):
 - `audit_vulns`: 0.0 / 0.0 / 0.0 / 0.0
 - `coverage_pct`: 68.0 / 67.17 / 0.0 / 69.0

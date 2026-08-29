@@ -18,6 +18,8 @@ from __future__ import annotations
 import pathlib
 import subprocess
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 SCRIPT = ROOT / "scripts" / "sh" / "verify-completion.sh"
 ALL_CHECKS = [
@@ -33,6 +35,17 @@ ALL_CHECKS = [
     "changelog",
     "index",
 ]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_judge_log(tmp_path, monkeypatch):
+    """Redirect the judge log to a temp file.
+
+    Regression runs produce real verdict records; without redirection they
+    would pollute the production judge history that docs/judge-stats.md
+    aggregates (every test run would silently inflate the daily run count).
+    """
+    monkeypatch.setenv("JUDGE_LOG", str(tmp_path / "judge-test.jsonl"))
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:

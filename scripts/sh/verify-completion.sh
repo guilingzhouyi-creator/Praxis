@@ -67,6 +67,10 @@ else
   # keep the log local — a crashed judge measures nothing at all.
   LOG_FILE="$ROOT/.praxis/judge-runs.jsonl"
 fi
+# Test isolation: JUDGE_LOG redirects the shared judge log so regression tests
+# (synthetic verdicts) never pollute the production history the dashboard
+# aggregates. Never set in normal operation.
+LOG_FILE="${JUDGE_LOG:-$LOG_FILE}"
 mkdir -p "$(dirname "$LOG_FILE")"
 T0="$(date +%s)"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -193,24 +197,28 @@ if [ "$RUN_TESTS" = "1" ] && [ "$RUN_COVERAGE" = "1" ] && [ "$IS_WSL" = "0" ]; t
   # which on many-core/limited-memory hosts (e.g. 32-core WSL with 15GiB)
   # thrashes memory and hangs the suite. Default 4 workers; operators may
   # override with JUDGE_PYTEST_N (0 = single process, safest).
-  if python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
-    S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
-    S_COVERAGE=1; pass "coverage >= $THRESH%"
-    M_TESTS_FAILED=0
-  else
-    # The combined run failed — tests, coverage, or both. Surface the gap.
-    S_TESTS=2; S_COVERAGE=2
+  if ! python -m pytest tests/ -q --tb=short -n "$JUDGE_N" --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
     tail -5 /tmp/judge_cov.log >&2
-    if grep -qE '^TOTAL' /tmp/judge_cov.log; then
-      grep -E 'TOTAL|fail_under' /tmp/judge_cov.log | tail -2 >&2
-      fail "coverage below $THRESH% (and/or test failures above)"
-    else
-      fail "test suite has failures (see /tmp/judge_cov.log)"
-    fi
-    M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo 1)
   fi
+  # Decompose the combined run's exit code: tests are judged by the "N failed"
+  # count, coverage by the REPORTED percentage vs the fail-under threshold.
+  # A failing test must never fake a coverage failure when the report still
+  # clears the bar (and vice versa) — each dimension is its own evidence gap.
   M_TESTS_PASSED=$(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo null)
+  M_TESTS_FAILED=$(grep -oE '[0-9]+ failed' /tmp/judge_cov.log | head -1 | grep -oE '[0-9]+' || echo 0)
   M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
+  if [ "$M_TESTS_FAILED" != "0" ]; then
+    S_TESTS=2; fail "test suite has failures (see /tmp/judge_cov.log)"
+  else
+    S_TESTS=1; pass "tests green ($(grep -oE '[0-9]+ passed' /tmp/judge_cov.log | head -1))"
+  fi
+  if [ "${M_COVERAGE_PCT:-null}" != "null" ] && [ "$M_COVERAGE_PCT" -ge "$THRESH" ] 2>/dev/null; then
+    S_COVERAGE=1; pass "coverage >= $THRESH% (report: ${M_COVERAGE_PCT}%)"
+  elif [ "${M_COVERAGE_PCT:-null}" != "null" ]; then
+    S_COVERAGE=2; fail "coverage below $THRESH% (report: ${M_COVERAGE_PCT}%)"
+  else
+    S_COVERAGE=2; fail "coverage unmeasured — no report produced (see /tmp/judge_cov.log)"
+  fi
 fi
 
 # ── 1. Tests (standalone — coverage skipped) ────────────────────────────
@@ -258,13 +266,21 @@ fi
 # ── 2. Coverage (standalone — tests skipped) ────────────────────────────
 if [ "$RUN_COVERAGE" = "1" ] && [ "$RUN_TOGETHER" = "0" ]; then
   echo "[judge] ── 2. Coverage (standalone, fail-under) ──"
-  if python -m pytest tests/ -q --tb=short $XDIST_ARGS --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
-    S_COVERAGE=1; pass "coverage >= $THRESH%"
-  else
-    S_COVERAGE=2; grep -E "TOTAL|fail_under" /tmp/judge_cov.log | tail -2 >&2
-    fail "coverage below $THRESH%"
+  # Judged on the REPORTED percentage vs the fail-under threshold, not on the
+  # pytest exit code: the exit code also turns red on test failures, which
+  # would fake a coverage failure when the report still clears the bar
+  # (test failures are judged by the tests check, never by coverage).
+  if ! python -m pytest tests/ -q --tb=short $XDIST_ARGS --cov=systems/python-reference-runtime --cov-report=term --cov-fail-under="$THRESH" --ignore=tests/benchmarks/bench_card.py > /tmp/judge_cov.log 2>&1; then
+    tail -3 /tmp/judge_cov.log >&2
   fi
   M_COVERAGE_PCT=$(grep -E '^TOTAL' /tmp/judge_cov.log | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo null)
+  if [ "${M_COVERAGE_PCT:-null}" != "null" ] && [ "$M_COVERAGE_PCT" -ge "$THRESH" ] 2>/dev/null; then
+    S_COVERAGE=1; pass "coverage >= $THRESH% (report: ${M_COVERAGE_PCT}%)"
+  elif [ "${M_COVERAGE_PCT:-null}" != "null" ]; then
+    S_COVERAGE=2; fail "coverage below $THRESH% (report: ${M_COVERAGE_PCT}%)"
+  else
+    S_COVERAGE=2; fail "coverage unmeasured — no report produced (see /tmp/judge_cov.log)"
+  fi
 fi
 
 # ── 3. Net delta gate ────────────────────────────────────────────────────
