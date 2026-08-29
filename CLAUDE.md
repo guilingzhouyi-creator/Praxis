@@ -1,38 +1,41 @@
 # CLAUDE.md
 
-Thin Claude-Code-facing pointer to the full governance index (`AGENTS.md`).
-**Before touching any subsystem, read the relevant AGENTS.md section and the doc it links.**
+Thin Claude-Code-facing pointer to the governance libraries.
+**Before touching any subsystem, read the relevant handbook page; query the
+libraries on demand for unclear norms — never improvise.**
 
-## AGENTS.md is the source of truth
+## Source of truth
 
-`AGENTS.md` carries the full load-bearing rule set + a doc index pointing at
-`docs/architecture/*.md`, `docs/workflow/*.md`, `docs/project-structure.md`.
-**This file does not restate those rules.**
+`AGENTS.md` carries the non-negotiable imperative rules + the four-library map.
+`docs/workflow/README.md` is the employee-handbook index (commits / branching /
+collaboration / code-of-conduct). `docs/design/README.md` + `POINTERS.json` and
+`docs/roadmaps/README.md` are the archive/roadmap libraries — query via their
+indexes; unclear norm → search the libraries first, then ask the user.
 
 ## Orientation
 
-Praxis is a five-layer Agent OS (Python 3.11+): L5 CLI → L4 Bridge → L3 Cell → L2 Shell → L1 Kernel.
-Card = unit of work. Cell = scheduling unit. Import direction enforced downward.
+Praxis is a five-layer Agent OS (Python 3.11+): L5 CLI → L4 Bridge → L3 Cell →
+L2 Shell → L1 Kernel. Card = unit of work. Cell = scheduling unit. Import
+direction enforced downward.
+
+## Non-negotiables (see AGENTS.md — do not restate here)
+
+- Worktree gate before ANY code change; waivers user-granted only
+- Layer imports downward only; constants → `l1/kernel/params/`
+- English commits + Conventional Commits + exactly ONE `Co-Authored-By:`
+  trailer (attribution verified — probe `check_attribution.py --json` first)
+- "Done" = `bash scripts/sh/gate-merge.sh completion` COMPLETE verdict
+- Shared-file changes (`scripts/sh/`, `.githooks/`, `config/discovery/`) register
+  in `docs/agent-handoff/ALIGNMENT.md` in the SAME commit
+- Merge: feature branch + double-green + `--no-ff` + net-delta ≥ 1000
+- Push: `bash scripts/sh/push-both.sh main` — BOTH remotes
 
 ## Commands
 
-Run inside WSL with the repo venv (`.venv/bin/python`). Quickstart:
-`pip install -e ".[test]"` → `python systems/python-reference-runtime/main.py boot|health|status|ps|card` → `python -m pytest tests/ -x -q`.
-Full lists: AGENTS.md "Test commands" / "Lint / format / typecheck".
+Run inside WSL with the repo venv (`.venv/bin/python`):
+`pip install -e ".[test]"` →
+`python systems/python-reference-runtime/main.py boot|health|status|ps|card` →
+`python -m pytest tests/ -x -q`. Static gates: `make lint|format|typecheck|precommit`.
 
-## Before changing code — mandatory gates
-
-See `docs/workflow/code-of-conduct.md` for full text. Key rules:
-- **Worktree gate**: never edit `systems/python-reference-runtime/ tests/ config/ scripts/ docs/` on main tree
-- **Two independent waivers** (user-granted, never self-awarded): main-tree modification (WHERE)
-  and branch pre-merge (WHEN)
-- **Key conventions**: magic numbers → `params/`; prompts are data; English-only comments
-- **Commit / branch / merge**: Conventional Commits + Co-Authored-By; dual-remote push;
-  `gate-merge.sh completion` decides "done"
-- **Shared handoff area** (`docs/agent-handoff/`): read `ALIGNMENT.md` before committing; shared-file
-  changes (`scripts/sh/`, `.githooks/`, `config/discovery/`) must register there in the SAME commit —
-  `commit-msg` rejects otherwise (AGENTS.md "Shared-file gate (STRICT)")
-
-## LLM config
-
-Default: `ollama` / `codellama:7b` at `localhost:11434`. Override via `config/praxis.yaml` or env vars.
+LLM provider/model live in `config/praxis.yaml` (`llm.provider` / `llm.model`) —
+not hardcoded here.

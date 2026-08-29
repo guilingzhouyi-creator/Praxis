@@ -1,7 +1,7 @@
 # Commit Conventions & Mainline Gates
 
 Full specification for the Praxis commit contract and the mainline merge
-gates. `AGENTS.md` (`## Commit conventions`) carries the load-bearing
+gates. `AGENTS.md` (rule 5 COMMITS / rule 6 DONE) carries the load-bearing
 summary and indexes here; `config/discovery/commits.yaml` is the single
 source of truth for the Conventional-Commits contract.
 
@@ -48,7 +48,8 @@ source of truth for the Conventional-Commits contract.
 | Trailer | `Co-Authored-By:` strictly last line, preceded by a blank line (no trailing notes) |
 
 - Merge/revert commits are exempt (git-generated messages), but a dependabot
-  merge is gated on diff scope — see `AGENTS.md` `## Dependency management`.
+  merge is gated on diff scope — see `docs/workflow/README.md` (dependabot merges
+  follow the PR gate; `gate-merge.sh pr` before merging).
 - **Commit-scan policy — single source of truth**: the Conventional-Commits
   contract (type whitelist, registered scopes, placeholder guard, branch-type
   policy) lives ONCE in `config/discovery/commits.yaml`, enforced by
