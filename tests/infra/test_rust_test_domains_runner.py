@@ -30,7 +30,7 @@ def test_runner_lists_all_declared_domains_and_targets() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "assembly: 7 target(s)" in result.stdout
-    assert "network: 6 target(s)" in result.stdout
+    assert "network: 7 target(s)" in result.stdout
     assert "terminal: 5 target(s)" in result.stdout
     assert "  - process_table_group_runtime" in result.stdout
 
@@ -41,10 +41,18 @@ def test_runner_dry_run_keeps_selected_targets_as_independent_commands() -> None
 
     assert result.returncode == 0, result.stderr
     commands = [line for line in result.stdout.splitlines() if line.startswith("cargo test ")]
-    assert len(commands) == 6
+    assert len(commands) == 7
     assert all("--manifest-path" in command and "--test" in command for command in commands)
     targets = [command.rsplit("--test", 1)[-1].strip() for command in commands]
-    assert targets == ["bus", "health", "network", "notify", "notify_vectors", "peer_vectors"]
+    assert targets == [
+        "bus",
+        "transport",
+        "health",
+        "network",
+        "notify",
+        "notify_vectors",
+        "peer_vectors",
+    ]
 
 
 def test_runner_rejects_non_positive_or_non_finite_timeout() -> None:
@@ -67,9 +75,9 @@ def test_runner_terminates_timed_out_cargo_process_groups(tmp_path: Path) -> Non
     result = _run("--domain", "network", "--jobs", "1", "--timeout", "0.05", env=env)
 
     assert result.returncode == 1
-    assert result.stdout.count("[TIMEOUT] network/") == 6
+    assert result.stdout.count("[TIMEOUT] network/") == 7
     assert "target timed out after 0.05s; process group terminated" in result.stdout
-    assert "Rust test slices: 0 passed, 6 failed" in result.stdout
+    assert "Rust test slices: 0 passed, 7 failed" in result.stdout
 
 
 def test_runner_hides_passing_target_output_unless_verbose(tmp_path: Path) -> None:
@@ -87,4 +95,4 @@ def test_runner_hides_passing_target_output_unless_verbose(tmp_path: Path) -> No
     assert "passing-target-output" not in compact.stdout
     assert "[PASS] network/bus" in compact.stdout
     assert verbose.returncode == 0
-    assert verbose.stdout.count("passing-target-output") == 6
+    assert verbose.stdout.count("passing-target-output") == 7

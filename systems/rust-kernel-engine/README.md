@@ -56,6 +56,17 @@ restart, or shutdown policy; hosts decide what to do with the report. Zero
 thresholds fail closed, and the independent target is
 `tests/core/kernel_test_watchdog.rs`.
 
+The `os` module is the lifecycle-coordination candidate for the rest of
+Python `l1.kernel.os.OS`. `OsCoordinator` keeps boot/shutdown/restart state
+transitions and status in Rust while all boot, persistence, reset, hook, and
+watchdog side effects arrive through host callbacks. Shutdown callback waits
+are bounded and preserve timeout/panic outcomes; its optional watchdog loop
+stops through a condition variable rather than sleeping out the full
+interval. The singleton helpers are adapter/test conveniences only. It does
+not provide production boot authority, ProcessTable/IRQ discovery, logging,
+PTY/process-group control, or L2/L3 wiring. Coverage is isolated in
+`tests/core/kernel_test_os.rs`.
+
 The `constitution_io` module is the first filesystem-bearing Constitution
 candidate. It owns a strict, Rust-native `TerritoryConstitution` parser and
 deterministic renderer for territory/GateChain values, plus a
@@ -232,7 +243,7 @@ barrier; shutdown and recovery acknowledgement use already-locked helpers to
 keep lifecycle transitions and cross-book snapshots ordered without recursive
 locking.
 
-State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
+State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, os, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, and worker behavior
@@ -281,6 +292,32 @@ timeout/loss/eviction transitions, alive-peer lookup, and deterministic health
 and list views. Sockets, UDP/TCP discovery, TLS, EventBus notifications, card
 sync, and message envelopes remain adapter-owned. Its shared lifecycle fixture
 is `tests/fixtures/kernel_peer_vectors.json`.
+
+The `syscall` module is the clean-break unified dispatch boundary for the
+Python `l1.kernel.__init__.syscall()` surface. `SyscallDispatcher` validates
+bounded operation names, caller identities, and nested JSON arguments before
+lookup; it keeps a deterministic, capacity-limited registration table with
+explicit replacement/removal, converts handler errors and panics into
+structured failures, records every attempt through an injected `AuditLog`, and
+exposes cumulative failure/panic/latency counters. `SyscallResponse::to_wire()`
+retains the top-level `success`/`error`/`error_code` shape while authoritative
+fields overwrite colliding handler data. Handlers are host-injected and must
+be wired through capability policy; this boundary never discovers Python
+services, selects a shell, or grants production runtime authority. Coverage is
+isolated in `tests/core/kernel_test_syscall.rs`.
+
+The `syscall_adapters` module is the first explicit host wiring slice above
+the unified syscall table. It atomically registers read-only runtime metadata
+operations for the runtime snapshot, recovery decision, and capability
+executor status. Empty arguments are required; non-persistent recovery reads
+fail closed, and no operation submits work or invokes a capability. Handler
+lookup uses shared reads while registration remains exclusive; a hash index
+keyed by shared operation names keeps dispatch lookup average O(1), while a
+separate ordered index preserves deterministic snapshots. Request argument
+bounds are counted through a bounded JSON writer, preventing a full
+request-sized temporary buffer for rejected payloads. The independent target is
+`tests/runtime/kernel_test_syscall_adapters.rs`; process, event, and allocator
+side-effect operations remain future capability-gated adapters.
 
 The `boot` module is a declarative assembly candidate. `BootPlan` validates step
 names, rejects duplicate registrations unless replacement is explicit, supports
@@ -557,6 +594,18 @@ grace-period eviction, and deterministic health/list views. Socket discovery,
 TCP/UDP/TLS, EventBus delivery, card sync, and message envelopes remain
 transport adapters. Its mechanism tests are split between `tests/network/kernel_test_network.rs`
 and the shared `tests/network/peer_vectors.rs` target.
+
+The `transport` module now provides the explicit socket adapter above that
+peer book. `TransportAdapter` binds caller-selected TCP and optional UDP
+discovery sockets, uses bounded JSONL framing and a fixed-capacity receive
+queue, normalizes typed `Message` values, and contains direct-handler panics.
+Startup rollback and stop/restart serialization prevent partial state or
+cross-generation cleanup; status counters expose drops, decode failures,
+handler failures, and socket failures. TLS remains fail-closed without an
+injected provider, and the adapter never probes host shells or deployment
+configuration. Its real-loopback coverage is isolated in
+`tests/network/kernel_test_transport.rs`; EventBus/card sync, protocol-host
+routing, process ownership, and production boot remain outside the candidate.
 
 The isolated `boot` module provides declarative `BootPlan` metadata with
 explicit replacement, pre-wiring lock, and deterministic dependency-first

@@ -16,6 +16,7 @@ see *Kernel surface boundary* below).
 | Module | Role |
 |--------|------|
 | `process.py` | ProcessTable + PCB (agents are processes: ring, state, identity, audit) |
+| `__init__.py` | Unified syscall dispatch, audit trail, error normalization, and kernel health surface |
 | `sync.py` | Mutex / Semaphore / Barrier / RWLock (RLock-reentrant; RWLock write depth is explicit) |
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
@@ -366,6 +367,22 @@ message envelopes remain transport adapters. The shared
 `kernel_peer_vectors.json` fixture covers the timeout, refresh, loss, and
 eviction lifecycle without making wall-clock or wire bytes a Rust contract.
 
+The Rust `transport` candidate now supplies the explicit socket-bearing edge
+above that peer book. `TransportAdapter` binds caller-selected TCP and optional
+UDP discovery sockets, derives ephemeral ports from the bound listener, frames
+one bounded JSONL message per TCP connection, and buffers decoded messages in a
+fixed-capacity Rust channel. Direct handlers are optional and panic-contained;
+status counters distinguish received, dropped, decoded-error, handler-error, and
+socket-error outcomes. TLS is fail-closed until a provider is injected, and the
+adapter never probes the host, chooses a shell, or discovers deployment values.
+Start failures roll back all published state and spawned threads; stop holds the
+lifecycle gate through join and cleanup so a concurrent restart cannot erase a
+new generation. The independent `tests/network/kernel_test_transport.rs`
+target covers real loopback TCP send/receive, UDP discovery, frame bounds,
+queue backpressure, malformed input, handler panic containment, and restart.
+This remains an adapter candidate: EventBus/card synchronization, process
+authority, protocol-host routing, and production boot wiring stay outside L1.
+
 The Rust `watchdog` candidate now owns the pure evaluation half of Python
 `os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
 interrupt thresholds; `evaluate_watchdog` performs one bounded process pass
@@ -377,6 +394,22 @@ send signals, or choose restart/shutdown policy. The reference thresholds are
 exposed as named Rust constants only for semantic mapping; deployments must
 select their own policy. Independent coverage lives in
 `tests/core/kernel_test_watchdog.rs`.
+
+The Rust `os` candidate now supplies the lifecycle-coordination half of
+Python `l1.kernel.os.OS` without importing upper layers. `OsCoordinator`
+accepts host-injected boot, persistence, shutdown-hook, terminal-reset,
+Cell-reset, and watchdog callbacks; serializes `DOWN`/`STARTING`/`RUNNING`/
+`STOPPING`/`CRASHED` transitions; and returns versioned boot, shutdown, and
+status reports. Boot callback failures and panics enter `CRASHED`; shutdown
+callbacks run in registration order with bounded waits, preserving timeout
+and panic outcomes instead of claiming they succeeded. The background
+watchdog loop is opt-in, uses a condition-variable stop path, and remains
+side-effect-free apart from storing the latest value report and an error
+counter. `get_os`/`reset_os` provide a Rust process-local singleton for
+adapters and tests. This is a lifecycle mechanism seam only: production
+boot authority, ProcessTable/IRQ observation, logging, PTY/process-group
+shutdown, and L2/L3 wiring remain outside the candidate. Coverage lives in
+`tests/core/kernel_test_os.rs`.
 
 The Rust `boot` candidate is limited to declarative assembly metadata. Its
 `BootPlan` validates names, rejects duplicate registrations unless an explicit
@@ -779,6 +812,41 @@ ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
 connects it to `invoke_gated`), the kernel never imports L3, and an unwired
 executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
 boot adapter, no caller changes.
+
+### Rust unified syscall boundary
+
+`syscall::SyscallDispatcher` is the clean-break replacement for the Python
+`l1.kernel.__init__.syscall()` registry. It validates operation/identity/JSON
+argument bounds before lookup, keeps registrations in a bounded deterministic
+table, catches handler panics as `EFAULT`, records every attempt through the
+injected `AuditLog`, and exposes cumulative failure/panic/latency counters.
+Handlers are host-injected; the dispatcher never discovers services, selects
+shells, or bypasses `CapabilityAuthority`. `SyscallResponse::to_wire()` emits
+the retained top-level `success`/`error`/`error_code` shape while making those
+fields authoritative over handler data. The independent
+`tests/core/kernel_test_syscall.rs` target covers registration limits,
+validation, response flattening, panic/error isolation, concurrent accounting,
+and nested argument rejection. This closes the unified mechanism boundary;
+concrete process/event/resource operations still require explicit adapter
+registration and capability policy.
+
+The dispatcher keeps handler lookup behind a reader-writer lock, so concurrent
+dispatches share the read path while registration remains exclusive. The hot
+lookup path uses a hash index keyed by shared `Arc<str>` names, while a separate
+ordered index preserves deterministic operation snapshots; replacement therefore
+does not pay a tree lookup on every dispatch. Hosts can use
+`SyscallDispatcher::register_batch` to validate names and projected capacity
+before publishing any handler, preventing a partially registered surface.
+Argument-size validation counts JSON bytes through a bounded writer and fails
+as soon as the configured limit is crossed, avoiding a full request-sized
+temporary buffer.
+`syscall_adapters::KernelSyscallAdapters` supplies one explicit,
+read-only registration slice for `kernel.runtime.snapshot`,
+`kernel.runtime.recovery`, and `kernel.capability.status`; these handlers accept
+no arguments, return defensive JSON values, and never submit work or invoke a
+capability. Its independent
+`tests/runtime/kernel_test_syscall_adapters.rs` target covers the metadata
+reads and fail-closed non-persistent recovery path.
 
 ### Port abstraction
 

@@ -80,6 +80,10 @@ name = "bus"
 path = "tests/network/kernel_test_bus.rs"
 
 [[test]]
+name = "transport"
+path = "tests/network/kernel_test_transport.rs"
+
+[[test]]
 name = "cancellation"
 path = "tests/core/kernel_test_cancellation.rs"
 
@@ -210,6 +214,10 @@ path = "tests/network/kernel_test_notify.rs"
 [[test]]
 name = "notify_vectors"
 path = "tests/network/notify_vectors.rs"
+
+[[test]]
+name = "os"
+path = "tests/core/kernel_test_os.rs"
 
 [[test]]
 name = "outbox_registry"
@@ -378,6 +386,14 @@ path = "tests/core/kernel_test_sync.rs"
 [[test]]
 name = "sync_vectors"
 path = "tests/core/sync_vectors.rs"
+
+[[test]]
+name = "syscall"
+path = "tests/core/kernel_test_syscall.rs"
+
+[[test]]
+name = "syscall_adapters"
+path = "tests/runtime/kernel_test_syscall_adapters.rs"
 
 [[test]]
 name = "terminal"

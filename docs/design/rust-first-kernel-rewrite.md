@@ -435,6 +435,51 @@ clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus
 delivery remain adapters.
 
+The follow-on transport adapter now closes the Rust socket edge without
+granting runtime authority. `transport::TransportAdapter` accepts explicit
+deployment values, binds a bounded TCP JSONL listener and optional UDP
+discovery pair, normalizes `from`/`to` messages into the retained `Message`
+value, and exposes a fixed-capacity receive queue plus optional direct
+handlers. Startup is transactional and stop/restart is serialized; malformed
+frames, queue overflow, handler panics, and unsupported TLS are observable
+fail-closed outcomes. The real-loopback integration target
+`tests/network/kernel_test_transport.rs` covers the adapter boundary. This
+slice deliberately does not import EventBus/card sync, probe the host for a
+shell, own protocol-host routing, or become the Rust production entrypoint.
+
+The next Rust L1 closure adds `syscall::SyscallDispatcher`, the clean-break
+mechanism mapping for Python `l1.kernel.__init__.syscall()`. Requests are
+validated for bounded operation names, caller identities, and nested JSON
+arguments before handler lookup; the registration table is bounded and
+deterministically ordered. Handler errors and panics become structured
+failures and `EFAULT`, every attempt is recorded through the injected
+`AuditLog`, and cumulative failure/panic/latency counters remain observable.
+`SyscallResponse::to_wire()` preserves the retained top-level
+`success`/`error`/`error_code` shape while preventing handler data from forging
+control fields. Concrete process/event/resource operations remain host-injected
+and must honor capability policy; this seam does not discover Python services,
+select a shell, bypass `CapabilityAuthority`, or grant production authority.
+
+The follow-on adapter slice changes handler lookup to a reader-writer lock:
+dispatch readers share the table while registration remains exclusive. The
+dispatcher now keeps a hash index keyed by shared `Arc<str>` names for the hot
+lookup path and a separate ordered index for deterministic snapshots, avoiding
+the old tree lookup on every dispatch without changing the wire contract. A
+const-generic `register_batch` validates every name and the projected capacity
+before publishing replacements or insertions, so a full table cannot leave a
+partially wired host surface. Request validation counts serialized JSON through
+a bounded writer rather than retaining a full argument buffer, so oversized
+requests fail closed without a request-sized temporary allocation.
+`syscall_adapters::KernelSyscallAdapters` then
+provides an explicit, read-only runtime metadata registration for
+`kernel.runtime.snapshot`, `kernel.runtime.recovery`, and
+`kernel.capability.status`. These operations accept only `{}`, serialize
+defensive snapshots, and never submit work or invoke a capability. The
+non-persistent recovery read is an `EIO` failure, preserving fail-closed
+semantics. Coverage lives in the independent
+`tests/runtime/kernel_test_syscall_adapters.rs` target; process/event/resource
+operation wiring remains a later capability-gated adapter decision.
+
 The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
 accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
 interrupt counts. Its process scan combines zombie counting and idle
@@ -444,6 +489,21 @@ semantics. It returns only a versioned `WatchdogReport`, so hosts retain clock,
 thread, ProcessTable/IRQ access, logging, signal, restart, and shutdown
 authority. This closes the pure evaluation boundary of `os.py`, not the
 production watchdog wiring or R4/R5 runtime cutover.
+
+The lifecycle follow-on adds `os::OsCoordinator`, a Rust-native coordination
+seam for the remaining `os.py` behavior. Host callbacks provide boot,
+persistence, ordered shutdown hooks, terminal/Cell reset, and watchdog
+observation; the coordinator owns only state transitions, bounded callback
+waiting, restart sequencing, status snapshots, and a condition-variable
+stop path for the optional watchdog loop. Callback errors and panics remain
+observable, and a timeout never pretends to interrupt a callback that is
+already running. The `get_os`/`reset_os` singleton is adapter-facing and does
+not grant default-entrypoint authority. The independent
+`tests/core/kernel_test_os.rs` target covers boot failure states, callback
+ordering, timeout/panic reporting, restart, watchdog lifecycle, and singleton
+reset. ProcessTable/IRQ discovery, logging, PTY/process-group shutdown,
+Provider/AgentLoop wiring, and R4/R5 cutover remain outside this mechanism
+candidate.
 
 The process parity candidate now exposes an explicit typed-handle bridge:
 live PIDs in the substrate slot range map to generation-one `ProcessHandle`

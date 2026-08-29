@@ -1082,6 +1082,16 @@ shutdown；宿主仍持有 watchdog wiring 和生产生命周期权威。独立�
 生产 shutdown/restart 证据接入 R4/R5 评审，不能把这片当作 runtime
 cutover 完成。
 
+随后补齐 `os::OsCoordinator` 生命周期协调候选：通过宿主注入 boot、
+persistence、shutdown hook、terminal/Cell reset 与 watchdog observer，
+Rust 负责状态机、重启顺序、有界 callback 结果、状态快照以及可快速停止
+的后台 watchdog loop。`get_os`/`reset_os` 仅提供适配器和测试入口，不授予
+默认生产启动权；ProcessTable/IRQ 观测、日志、PTY/进程组 shutdown 与
+L2/L3 wiring 仍由宿主保留。独立目标为
+`tests/core/kernel_test_os.rs`，覆盖失败态、hook 顺序、timeout/panic、
+restart、watchdog 与 singleton。该切片把 Python `os.py` 的机制边界映射
+到 Rust，但不等于 R4/R5 cutover 或生产生命周期闭合。
+
 随后推进 `constitution_io` 文件边界候选：Rust
 `TerritoryConstitution` 已覆盖已保留的 territory/GateChain Markdown
 标量、确定性渲染、版本恢复、提案合并和集合差异；`ConstitutionStore`
@@ -1093,6 +1103,39 @@ cutover 完成。
 该片仍是 R4 candidate：SettingsCenter/Provider 发现、提示词注入、
 EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此
 宣称完成。
+
+随后补齐 Rust `transport::TransportAdapter` socket 边界候选：配置必须显式
+给出 TCP/UDP 地址与边界，TCP 每连接只接收一个有界 JSONL frame，解码后的
+`Message` 进入固定容量队列，并可由可选 handler 旁路消费。启动采用事务式
+发布，TCP/UDP bind 或线程创建失败会回收已启动线程并清空状态；stop 在同一
+生命周期锁内完成 join/队列关闭/端口清理，避免并发 restart 跨代清理。坏帧、
+队列丢弃、handler panic、socket 错误和 TLS 未注入 provider 均 fail-closed
+并计数，禁止 PATH/shell/主机探测。独立 `network/transport` 测试片覆盖真实
+loopback 收发、UDP discovery、帧界、背压、异常隔离和重启；该片仍不接管
+EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority。
+
+随后补齐 Rust `syscall::SyscallDispatcher` 统一内核调用边界：在 handler
+查找前对 operation、caller identity 和嵌套 JSON 参数执行有界校验，注册表
+支持显式替换但保持确定性名称顺序；handler 错误与 panic 转换为结构化失败，
+每次请求都写入注入的 `AuditLog`，并输出累计失败、panic、注册数和平均延迟
+统计。`SyscallResponse::to_wire()` 保留顶层 `success/error/error_code` 语义且
+防止 handler 数据伪造控制字段。独立 `tests/core/kernel_test_syscall.rs`
+覆盖注册上限、未知/非法请求、并发计账与异常隔离。具体 process/event/resource
+操作仍须宿主显式注册并经过 capability policy；该片闭合统一机制入口，但不
+授予 Rust production runtime authority，后续要与 `KernelRuntime`、GateChain
+和 L2/TS bridge 做明确 adapter 接线。
+
+本轮继续完成了 syscall 读路径和第一组显式接线：handler 查找改为
+`RwLock` 读共享，注册仍走写锁；热路径使用共享 `Arc<str>` 名称的 hash
+索引，确定性快照另保留有序索引，避免每次 dispatch 的树查找。`register_batch`
+在发布前一次性校验名称、重复项和容量，容量不足时不留下部分注册。`KernelSyscallAdapters` 以一次原子
+批注册提供 `kernel.runtime.snapshot`、`kernel.runtime.recovery` 与
+`kernel.capability.status` 三个只读操作，参数非空即 `EINVAL`，非持久化恢复
+读取以 `EIO` fail-closed。参数 JSON 大小校验改为有界 writer 计数，超过上限
+立即失败而不保留完整临时缓冲。该片通过独立
+`tests/runtime/kernel_test_syscall_adapters.rs`，仍不接入 process/event/
+allocator 的副作用操作、不绕过 GateChain，也不授予生产入口权威；后续再按同一
+模式接入经过 capability policy 的具体宿主适配器。
 
 ---
 
