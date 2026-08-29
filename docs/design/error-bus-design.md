@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-27-003
-档号: DESIGN-2026-永久-003
+档号: DESIGN-2026-永久-103
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-27-003
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [error, bus, log]
 摘要: error-bus-design
 Fonds: DESIGN
 series: active
@@ -626,7 +626,7 @@ systems/python-reference-runtime/tools/special/tools_archive.py
 
 | File | Status | Description |
 |------|--------|-------------|
-| `docs/design/praxis-error-bus-design.md` | ✅ New | This design document |
+| `docs/design/error-bus-design.md` | ✅ New | This design document |
 | `systems/python-reference-runtime/services/error_bus.py` | ✅ New | ErrorBus core + capture + API handlers |
 | `systems/python-reference-runtime/kernel/params.py` | ✅ Modified | Add 3 ERROR_BUS_* constants |
 | `systems/python-reference-runtime/services/api_gateway.py` | ✅ Modified | Register LOG_ROUTES with API Gateway |

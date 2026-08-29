@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-27-001
-档号: DESIGN-2026-永久-001
+档号: DESIGN-2026-永久-101
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-27-001
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [CI, automation, card]
 摘要: ci-automation-design
 Fonds: DESIGN
 series: active

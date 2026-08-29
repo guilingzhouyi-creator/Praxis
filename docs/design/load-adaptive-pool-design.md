@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-27-006
-档号: DESIGN-2026-永久-006
+档号: DESIGN-2026-永久-106
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-27-006
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [load, adaptive, pool]
 摘要: load-adaptive-pool-design
 Fonds: DESIGN
 series: active

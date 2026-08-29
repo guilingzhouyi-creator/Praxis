@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-29-007
-档号: DESIGN-2026-永久-007
+档号: DESIGN-2026-永久-107
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-29-007
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [kernel, rewrite, readiness]
 摘要: rust-first-kernel-rewrite
 Fonds: DESIGN
 series: active

@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-27-004
-档号: DESIGN-2026-永久-004
+档号: DESIGN-2026-永久-104
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-27-004
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [kernel, rewrite, readiness]
 摘要: kernel-rewrite-readiness-package
 Fonds: DESIGN
 series: active

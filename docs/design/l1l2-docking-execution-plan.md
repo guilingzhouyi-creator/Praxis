@@ -1,6 +1,6 @@
 ---
 pointer: DESIGN-2026-08-27-005
-档号: DESIGN-2026-永久-005
+档号: DESIGN-2026-永久-105
 全宗号: DESIGN
 年度: 2026
 保管期限: 永久
@@ -14,7 +14,7 @@ pointer: DESIGN-2026-08-27-005
 审核人: L3
 归档时间: 2026-08-29
 来源: design
-关键词: []
+关键词: [docking, L1L2, protocol]
 摘要: l1l2-docking-execution-plan
 Fonds: DESIGN
 series: active

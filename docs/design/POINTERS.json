@@ -15,6 +15,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[UI, UX, design]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-001_ui-design.md",
     "type": "design",
     "status": "archived"
@@ -35,6 +36,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[architecture, design, praxis]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-002_architecture-complete.md",
     "type": "design",
     "status": "archived"
@@ -55,6 +57,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[architecture, design, praxis]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-003_architecture-design.md",
     "type": "design",
     "status": "archived"
@@ -75,6 +78,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[G5, gate, tool]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-004_g5-gate-design.md",
     "type": "design",
     "status": "archived"
@@ -95,6 +99,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[shell, OS, design]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-005_os-shell-design-nomosagent-review.md",
     "type": "design",
     "status": "archived"
@@ -115,6 +120,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[shell, OS, design]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-006_os-shell-design.md",
     "type": "design",
     "status": "archived"
@@ -135,6 +141,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[quickstart, guide]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-007_quickstart.md",
     "type": "design",
     "status": "archived"
@@ -155,6 +162,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[related, work, research]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-008_related-work.md",
     "type": "design",
     "status": "archived"
@@ -175,6 +183,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[task, card, UX]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-009_task-card-design.md",
     "type": "design",
     "status": "archived"
@@ -195,6 +204,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[UI, UX, design]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-010_ui-design-opencode-review.md",
     "type": "design",
     "status": "archived"
@@ -215,6 +225,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[architecture, design, praxis]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-011_architecture-actual.md",
     "type": "design",
     "status": "archived"
@@ -235,6 +246,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[foundation, gap, port]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-012_foundation-gaps-plan.md",
     "type": "design",
     "status": "archived"
@@ -255,6 +267,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[dedup, subagent, assembly]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-013_dedup-subagent-discussion.md",
     "type": "design",
     "status": "archived"
@@ -275,6 +288,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[test, runner, slicing]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-014_test-runner-slicing-plan.md",
     "type": "design",
     "status": "archived"
@@ -295,6 +309,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[rust, readiness, hardening]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-015_rust-readiness-hardening-plan.md",
     "type": "design",
     "status": "archived"
@@ -315,6 +330,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[design]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-016_l3a-compression-v2-migration.md",
     "type": "design",
     "status": "archived"
@@ -335,6 +351,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[architecture, design, praxis]",
     "file": "archive/001-design/2026/永久/DESIGN-2026-永久-017_system-bus-architecture.md",
     "type": "design",
     "status": "archived"
@@ -355,6 +372,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-001_foundation-audit.md",
     "type": "review",
     "status": "archived"
@@ -375,6 +393,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-002_fix-verification.md",
     "type": "review",
     "status": "archived"
@@ -395,6 +414,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-003_bus-dataflow-review.md",
     "type": "review",
     "status": "archived"
@@ -415,6 +435,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L1]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-004_l1-code-review.md",
     "type": "review",
     "status": "archived"
@@ -435,6 +456,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L1]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-005_l1-kernel-code-review.md",
     "type": "review",
     "status": "archived"
@@ -455,6 +477,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L2]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-006_l2-code-review-comparative.md",
     "type": "review",
     "status": "archived"
@@ -475,6 +498,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L2]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-007_l2-code-review.md",
     "type": "review",
     "status": "archived"
@@ -495,6 +519,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L3]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-008_l3-cell-code-review.md",
     "type": "review",
     "status": "archived"
@@ -515,6 +540,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L3]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-009_l3-quality-review.md",
     "type": "review",
     "status": "archived"
@@ -535,6 +561,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L3]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-010_l3a-deep-review.md",
     "type": "review",
     "status": "archived"
@@ -555,6 +582,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L3]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-011_l3a-refactor-review.md",
     "type": "review",
     "status": "archived"
@@ -575,6 +603,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L4]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-012_l4-api-gateway-review.md",
     "type": "review",
     "status": "archived"
@@ -595,6 +624,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L4]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-013_l4-code-review-comparative.md",
     "type": "review",
     "status": "archived"
@@ -615,6 +645,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit, L4]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-014_l4-code-review.md",
     "type": "review",
     "status": "archived"
@@ -635,6 +666,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-015_l5-user-code-review.md",
     "type": "review",
     "status": "archived"
@@ -655,6 +687,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-016_perf-review.md",
     "type": "review",
     "status": "archived"
@@ -675,6 +708,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-017_r4-archive-review.md",
     "type": "review",
     "status": "archived"
@@ -695,6 +729,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-018_worktree-quality-review-2026-08-07.md",
     "type": "review",
     "status": "archived"
@@ -715,6 +750,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-019_decouple-review.md",
     "type": "review",
     "status": "archived"
@@ -735,6 +771,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-020_perf-review.md",
     "type": "review",
     "status": "archived"
@@ -755,6 +792,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-021_perf-review.md",
     "type": "review",
     "status": "archived"
@@ -775,6 +813,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-022_engineering-debug-review.md",
     "type": "review",
     "status": "archived"
@@ -795,6 +834,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-023_kernel-readiness-preflight.md",
     "type": "review",
     "status": "archived"
@@ -815,13 +855,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "review",
+    "关键词": "[review, audit]",
     "file": "archive/002-review/2026/长期/REVIEW-2026-长期-024_rust-pilot-gate.md",
     "type": "review",
     "status": "archived"
   },
   {
     "pointer": "DESIGN-2026-08-27-001",
-    "档号": "DESIGN-2026-永久-001",
+    "档号": "DESIGN-2026-永久-101",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -835,13 +876,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[CI, automation, card]",
     "file": "ci-automation-design.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-27-002",
-    "档号": "DESIGN-2026-永久-002",
+    "档号": "DESIGN-2026-永久-102",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -855,13 +897,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[format, code, style]",
     "file": "code-format-design.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-27-003",
-    "档号": "DESIGN-2026-永久-003",
+    "档号": "DESIGN-2026-永久-103",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -875,13 +918,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[error, bus, log]",
     "file": "error-bus-design.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-27-004",
-    "档号": "DESIGN-2026-永久-004",
+    "档号": "DESIGN-2026-永久-104",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -895,13 +939,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[kernel, rewrite, readiness]",
     "file": "kernel-rewrite-readiness-package.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-27-005",
-    "档号": "DESIGN-2026-永久-005",
+    "档号": "DESIGN-2026-永久-105",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -915,13 +960,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[docking, L1L2, protocol]",
     "file": "l1l2-docking-execution-plan.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-27-006",
-    "档号": "DESIGN-2026-永久-006",
+    "档号": "DESIGN-2026-永久-106",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -935,13 +981,14 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[load, adaptive, pool]",
     "file": "load-adaptive-pool-design.md",
     "type": "design-active",
     "status": "active"
   },
   {
     "pointer": "DESIGN-2026-08-29-007",
-    "档号": "DESIGN-2026-永久-007",
+    "档号": "DESIGN-2026-永久-107",
     "全宗号": "DESIGN",
     "年度": "2026",
     "保管期限": "永久",
@@ -955,6 +1002,7 @@
     "审核人": "L3",
     "归档时间": "2026-08-29",
     "来源": "design",
+    "关键词": "[kernel, rewrite, readiness]",
     "file": "rust-first-kernel-rewrite.md",
     "type": "design-active",
     "status": "active"
