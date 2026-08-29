@@ -200,7 +200,7 @@ Kernel 强制不变量：单一执行器；G1 白名单非空（未知能力=BLO
 4. **Phase 3（下沉验收）**：每个下沉模块必须满足——无 bypass、fail-closed、审计强制、白名单非空、port 接口不变（`l1_kernel_rs` 复用同一套 params/ 常量）。
 5. **重审门槛**：每迁移一个模块前重跑本审计 §4 不变量清单；任何在 Python3 侧靠约定维持的不变量不得进入 Rust 侧。
 
-> **实施计划**：`docs/design/rust-readiness-hardening-plan.md`（WS1–WS6，Phase 0–2，全部为 Python3 侧封口，不写 Rust）。
+> **实施计划**：`docs/design/archive/001-design/2026/永久/DESIGN-2026-永久-015_rust-readiness-hardening-plan.md`（WS1–WS6，Phase 0–2，全部为 Python3 侧封口，不写 Rust；已闭环归档，经 `docs/design/POINTERS.json` 索引追溯）。
 
 ---
 

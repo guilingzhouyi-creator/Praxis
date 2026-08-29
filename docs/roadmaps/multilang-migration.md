@@ -19,7 +19,7 @@ abstract: "Python3 is the current abstraction base, not the final language. The"
 series: active
 date: 2026-08-15
 status: active
-construction: planned
+construction: in_progress
 ---
 
 # Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends

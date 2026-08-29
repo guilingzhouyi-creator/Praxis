@@ -24,7 +24,7 @@ construction: in_progress
 
 # Praxis L2 Shell Engine 边界审计与多前端会话层路线图
 
-> 状态：进行中（2026-08-25 对齐 main @ 123b22d2 的第三态——P0 工具单门 ✅ 在 main；P1 边界迁移与
+> 状态：进行中（2026-08-29 对齐 main @ d7ae95fb 的第三态——P0 工具单门 ✅ 在 main；P1 边界迁移与
 > P2 的 projection/web/ws 接线被 `edc5caa6` 移除后**未回补，不在 main**；P3 TS 引擎及其三批/P4 分支扩展
 > **已合入 main**；真实 SSH 端点未接。逐项现状见 §6.0 与 §6.2/§6.3 内的复核注记）
 > 关联：`docs/roadmaps/kernel-boundary-audit.md`（L1 审计基线，Rust 前置）、`docs/roadmaps/frontend-kernel-roadmap.md`（前端矩阵 + Rust 下沉内核）、`docs/roadmaps/multilang-migration.md`（TS 槽位）、`docs/architecture/l2-shell-engine.md`（目标架构）、`docs/architecture/l2-shell.md`（现行实现描述）

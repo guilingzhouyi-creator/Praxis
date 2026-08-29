@@ -25,7 +25,7 @@ construction: planned
 # Praxis 路线图盲区补全 — 生产闭环、安全与可运维性
 
 > 状态：规划（盲区补全，未实施）
-> 审计基础：主树 `main`（HEAD `33fa8c8`）的 `docs/roadmaps/` 五份路线图 + `docs/architecture/` + `systems/python-reference-runtime/` 实码比对
+> 审计基础：主树 `main`（HEAD `d7ae95fb`）的 `docs/roadmaps/` 五份路线图 + `docs/architecture/` + `systems/python-reference-runtime/` 实码比对
 > 定位：**增量补全**，不替代现有路线图。它回答一个现有路线图没有正面回答的问题——"前端矩阵、Rust 下沉、TS 重写之外，Praxis 距离可生产运行还差哪些地基？"
 
 ---
@@ -49,13 +49,16 @@ construction: planned
 | D1 | `frontend-kernel-roadmap.md` §3 仍称三个 shell 端点（dispatch/autocomplete/commands）为 stub | 主树 `systems/python-reference-runtime/l4/api_handlers/api_handlers_agent.py:71-130` 已接通 `l2.l2_shell.dispatch` / `completer.autocomplete` / `commands.get_registry().list()` | M1 Phase 1–3 标记为**已完成**，M1 剩余 Phase 4–6 |
 | D2 | `docs/architecture/l2-shell.md` 仍写"工具执行走 `execute_tool_spec`" | 全库 grep 无 `execute_tool_spec` 生产引用；L2 工具行已走 `l1.kernel.capability.invoke_capability`（`terminal.py:244-250`） | 同步文档；Phase 5/6 显式纳入验收 |
 | D3 | `kernel-boundary-audit.md` §11.2 把 Phase 0/1 整体标为 ✅，但 B4/B6/B8/B9 仍未封口 | B4 `terminal.py:200-205` 仍 `get_process_port().run(cmd)` 直跑；B6 长生命周期 Popen 未移交；B9 死 `syscall` 仍在 `__init__.py` | Phase 0 改为**部分完成**，剩余 B4/B6/B8/B9 单列 |
-| D4 | `docs/design/test-runner-slicing-plan.md` 仍标"待批准" | `tests/runner.py` 已实现 `--slice/--parallel/--list-slices` 与全量 SLICES | 该设计标记为**已落地**，剩余 `tests/l4/llm` 失败项与切片 CI 收口为 P1 |
+| D4 | `docs/design/archive/001-design/2026/永久/DESIGN-2026-永久-014_test-runner-slicing-plan.md` 仍标"待批准" | `tests/runner.py` 已实现 `--slice/--parallel/--list-slices` 与全量 SLICES | 该设计标记为**已落地**，剩余 `tests/l4/llm` 失败项与切片 CI 收口为 P1 |
 | D5 | `docs/roadmaps/README.md` 未登记已落地的 `foundation-gaps-plan.md` 与 `test-runner-slicing-plan.md` | 两文件均存在且多数阶段已合入 | README 增"设计/施工计划"索引段，避免规划再次漂移 |
 
-> **修正进度（2026-08-22 复核；2026-08-25 更新）**：D1/D4/D5 已落地（frontend-kernel §3 已改写、README 设计索引段已建立）；
+> **修正进度（2026-08-22 复核；2026-08-25 更新；2026-08-29 收口）**：D1/D4/D5 已落地（frontend-kernel §3 已改写、README 设计索引段已建立）；
 > D2 视为已清——`docs/architecture/l2-shell.md` 契约面已写 `invoke_capability` 与 51 命令；
 > `l2-shell-engine.md`、`l3-tools.md` 残留的 `_execute_tool_spec` 为私有名正确引用，非过期表述；
 > D3 属 L1 内核审计范围，随该路线图处置。
+> 2026-08-29 收口：D4/D5 引用的 `test-runner-slicing-plan.md`、`foundation-gaps-plan.md` 均已闭环
+> 归档（如 `DESIGN-2026-永久-014`），README 索引按归档策略只列活跃计划，已归档条目经
+> `docs/design/POINTERS.json` 机器索引追溯。
 
 ---
 
