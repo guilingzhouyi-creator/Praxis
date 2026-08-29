@@ -3,8 +3,8 @@
 Non-negotiable build discipline. Full procedures live in
 `docs/workflow/branching.md` and `docs/workflow/collaboration.md`; the rules
 below are the load-bearing summary, stated here exactly once (index into
-`AGENTS.md` `## Key conventions` / `## Contract versioning` /
-`## Project structure` for the referenced details).
+`AGENTS.md` `## Non-negotiable rules` / `## Contract versioning` / the doc-libraries
+table for the referenced details).
 
 ## Worktree gate — mandatory before ANY code change
 
@@ -15,8 +15,7 @@ tree. Plan first, then build in a dedicated worktree:
 ALWAYS run `bash scripts/sh/check-worktree.sh` (exit 0 required) before any
 `git checkout`/`git switch` on a shared tree. The main tree only receives
 merges; never leave uncommitted changes on it. A plan comes before the branch;
-the branch comes before the edit. (Per-agent multi-tree: `AGENTS.md`
-`## Parallel collaboration`.)
+the branch comes before the edit. (Per-agent multi-tree: `docs/workflow/collaboration.md`.)
 
 ## Gate waivers — TWO independent exemptions (do not conflate)
 
@@ -67,7 +66,7 @@ layout.
 Refresh counts with `make doc-stats` (`scripts/py/gen_doc_stats.py`);
 `scripts/py/check_doc_stats.py` drift-gates them in CI. Register every new
 subsystem doc in AGENTS.md AND in the `docs/architecture/README.md` layer
-list. Doc prose in English (per `AGENTS.md` `## Comment conventions`);
+list. Doc prose in English (per `AGENTS.md` rule 4);
 first-line summary + tables for structured data.
 
 ## Build artifacts — auto-swept at every gate entry
@@ -85,7 +84,7 @@ swept — they carry performance value and belong to `make clean`.
 
 New identifiers (modules, params, config keys, API segments, directory
 names) MUST follow the conventions registered in `AGENTS.md`
-`## Key conventions`, `## Contract versioning`, and `docs/project-structure.md`
+`## Non-negotiable rules`, `## Contract versioning`, and `docs/project-structure.md`
 (目录命名规则). Register a genuinely new name class in the docs (and
 `params/` where applicable) FIRST — never introduce one silently.
 

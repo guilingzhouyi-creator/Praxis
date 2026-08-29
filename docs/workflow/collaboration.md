@@ -86,7 +86,7 @@ Every agent must run, on its branch, before push:
 python -m pytest tests/infra/test_layer_imports.py -x -q    # layer constraint
 python -m pytest tests/infra/test_params_compliance.py -x -q  # params constants (strict)
 python -m pytest tests/<domain>/ -x -q                       # domain tests
-python -m pytest tests/ -q                                   # full baseline (~3,473 tests)
+python -m pytest tests/ -q                                   # full baseline (~4,300 tests)
 ruff check systems/python-reference-runtime/ tests/                                       # lint
 ruff format --check systems/python-reference-runtime/                                     # format (double quotes, 120)
 python scripts/py/run_mypy.py --no-namespace-packages                                    # typecheck (kebab-case path alias)
