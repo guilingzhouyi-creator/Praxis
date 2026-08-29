@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-002
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "Code Auto-Format Module — Design"
+---
+
 # Code Auto-Format Module — Design
 
 > Status: proposed | Applies to the L3 execution layer (AgentLoop write path)

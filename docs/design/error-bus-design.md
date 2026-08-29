@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-003
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "ErrorLog Bus Architecture Design"
+---
+
 # ErrorLog Bus Architecture Design
 
 ## 1. Design Goals

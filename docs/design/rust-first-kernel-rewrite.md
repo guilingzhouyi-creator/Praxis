@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-29-007
+Fonds: DESIGN
+series: active
+date: 2026-08-29
+status: active
+title: "Rust-First Kernel Rewrite Decision"
+---
+
 # Rust-First Kernel Rewrite Decision
 
 > Status: approved architecture direction; implementation remains isolated in

@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-006
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "Praxis 负载自适应线程池设计"
+---
+
 # Praxis 负载自适应线程池设计
 
 > **项目版本:** v0.4.2 "Aether"

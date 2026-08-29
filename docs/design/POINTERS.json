@@ -1,0 +1,386 @@
+[
+  {
+    "pointer": "ARCH-DESIGN-2026-07-21-001",
+    "file": "archive/2026-07-21_design_ui-design.md",
+    "title": "NOMOS Praxis — Non-Chat UI/UX Design",
+    "date": "2026-07-21",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-002",
+    "file": "archive/2026-07-22_design_architecture-complete.md",
+    "title": "NOMOS Praxis Complete Architecture",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-003",
+    "file": "archive/2026-07-22_design_architecture-design.md",
+    "title": "Praxis Complete Architecture — Agent OS Federalism",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-004",
+    "file": "archive/2026-07-22_design_g5-gate-design.md",
+    "title": "G5 Gate Definition and Tool Mapping Audit",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-005",
+    "file": "archive/2026-07-22_design_os-shell-design-nomosagent-review.md",
+    "title": "🟢 NOMOSAgent Cross-Review of the Praxis Agent OS Shell Design",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-006",
+    "file": "archive/2026-07-22_design_os-shell-design.md",
+    "title": "Praxis Agent OS Shell — Complete Design Draft",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-007",
+    "file": "archive/2026-07-22_design_quickstart.md",
+    "title": "NOMOS Praxis Quickstart Guide",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-008",
+    "file": "archive/2026-07-22_design_related-work.md",
+    "title": "Related Work — Praxis as an Agent Mini-Nation",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-009",
+    "file": "archive/2026-07-22_design_task-card-design.md",
+    "title": "Task Card UX Spec — Intent Card Creation Entry Design",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-22-010",
+    "file": "archive/2026-07-22_design_ui-design-opencode-review.md",
+    "title": "🔵 OpenCode Cross-Review of the Praxis UI Design",
+    "date": "2026-07-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-07-25-011",
+    "file": "archive/2026-07-25_design_architecture-actual.md",
+    "title": "Praxis Agent OS — Technical Architecture",
+    "date": "2026-07-25",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-05-012",
+    "file": "archive/2026-08-05_design_foundation-gaps-plan.md",
+    "title": "Praxis 地基缺口施工规划",
+    "date": "2026-08-05",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-12-013",
+    "file": "archive/2026-08-12_design_dedup-subagent-discussion.md",
+    "title": "Dedup proposal: subagent implementations + assembly/discussion modules",
+    "date": "2026-08-12",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-16-014",
+    "file": "archive/2026-08-16_design_test-runner-slicing-plan.md",
+    "title": "Test Runner Slicing Plan — Full Analysis",
+    "date": "2026-08-16",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-22-015",
+    "file": "archive/2026-08-22_design_rust-readiness-hardening-plan.md",
+    "title": "Rust-Readiness Hardening Plan — Python 侧封口（先于 Rust 重写）",
+    "date": "2026-08-22",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-27-016",
+    "file": "archive/2026-08-27_design_l3a-compression-v2-migration.md",
+    "title": "L3A 上下文压缩子系统 v2 迁移计划（3.1 补充缺口）",
+    "date": "2026-08-27",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-DESIGN-2026-08-27-017",
+    "file": "archive/2026-08-27_design_system-bus-architecture.md",
+    "title": "SystemBus — 通用组件总线架构",
+    "date": "2026-08-27",
+    "type": "design",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-22-001",
+    "file": "archive/reviews/2026-07-22_review_foundation-audit.md",
+    "title": "Praxis 地基审查报告",
+    "date": "2026-07-22",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-29-002",
+    "file": "archive/reviews/2026-07-29_review_fix-verification.md",
+    "title": "修复对照验证报告（第 4 轮 — 全量修复完成）",
+    "date": "2026-07-29",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-003",
+    "file": "archive/reviews/2026-07-30_review_bus-dataflow-review.md",
+    "title": "总线数据流审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-004",
+    "file": "archive/reviews/2026-07-30_review_l1-code-review.md",
+    "title": "L1 层代码质量审查报告（含 L2/L4 横向对比）",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-005",
+    "file": "archive/reviews/2026-07-30_review_l1-kernel-code-review.md",
+    "title": "L1 Kernel Layer — 代码审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-006",
+    "file": "archive/reviews/2026-07-30_review_l2-code-review-comparative.md",
+    "title": "L2 Shell 层 — 代码审查对照分析",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-007",
+    "file": "archive/reviews/2026-07-30_review_l2-code-review.md",
+    "title": "L2 层代码质量审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-008",
+    "file": "archive/reviews/2026-07-30_review_l3-cell-code-review.md",
+    "title": "L3 Cell Layer — 代码审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-009",
+    "file": "archive/reviews/2026-07-30_review_l3-quality-review.md",
+    "title": "L3 层代码质量审查报告（L3A 改造后）",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-010",
+    "file": "archive/reviews/2026-07-30_review_l3a-deep-review.md",
+    "title": "L3A 深度代码审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-011",
+    "file": "archive/reviews/2026-07-30_review_l3a-refactor-review.md",
+    "title": "L3A 改造审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-012",
+    "file": "archive/reviews/2026-07-30_review_l4-api-gateway-review.md",
+    "title": "L4 API 网关审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-013",
+    "file": "archive/reviews/2026-07-30_review_l4-code-review-comparative.md",
+    "title": "L4 Bridge 层 — 代码审查对照分析",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-014",
+    "file": "archive/reviews/2026-07-30_review_l4-code-review.md",
+    "title": "L4 层代码质量审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-015",
+    "file": "archive/reviews/2026-07-30_review_l5-user-code-review.md",
+    "title": "L5 User Layer — 代码质量审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-016",
+    "file": "archive/reviews/2026-07-30_review_perf-review.md",
+    "title": "性能审查报告（全层）",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-07-30-017",
+    "file": "archive/reviews/2026-07-30_review_r4-archive-review.md",
+    "title": "R4 档案馆体系审查报告",
+    "date": "2026-07-30",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-07-018",
+    "file": "archive/reviews/2026-08-07_review_worktree-quality-review-2026-08-07.md",
+    "title": "Worktree Quality Review — 19 Test Failures Full Accounting",
+    "date": "2026-08-07",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-09-019",
+    "file": "archive/reviews/2026-08-09_review_decouple-review.md",
+    "title": "Praxis 分层解耦审查报告（2026-08-09）",
+    "date": "2026-08-09",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-09-020",
+    "file": "archive/reviews/2026-08-09_review_perf-review.md",
+    "title": "Praxis 性能优化审查报告（2026-08-09）— 双模式文件",
+    "date": "2026-08-09",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-11-021",
+    "file": "archive/reviews/2026-08-11_review_perf-review.md",
+    "title": "Praxis 性能优化审查报告（2026-08-11）— 并发公平性修复 + 观察项记录",
+    "date": "2026-08-11",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-16-022",
+    "file": "archive/reviews/2026-08-16_review_engineering-debug-review.md",
+    "title": "Engineering Debug Mode — Code Review (2026-08-16)",
+    "date": "2026-08-16",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-18-023",
+    "file": "archive/reviews/2026-08-18_review_kernel-readiness-preflight.md",
+    "title": "Kernel Rewrite Readiness Preflight (2026-08-18)",
+    "date": "2026-08-18",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "ARCH-REVIEW-2026-08-18-024",
+    "file": "archive/reviews/2026-08-18_review_rust-pilot-gate.md",
+    "title": "Rust Pilot Gate Decision Record (2026-08-18)",
+    "date": "2026-08-18",
+    "type": "review",
+    "status": "archived"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-001",
+    "file": "ci-automation-design.md",
+    "title": "Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-002",
+    "file": "code-format-design.md",
+    "title": "Code Auto-Format Module — Design",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-003",
+    "file": "error-bus-design.md",
+    "title": "ErrorLog Bus Architecture Design",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-004",
+    "file": "kernel-rewrite-readiness-package.md",
+    "title": "Kernel Rewrite Readiness Package",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-005",
+    "file": "l1l2-docking-execution-plan.md",
+    "title": "L1↔L2 对接执行计划（施工级）",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-27-006",
+    "file": "load-adaptive-pool-design.md",
+    "title": "Praxis 负载自适应线程池设计",
+    "date": "2026-08-27",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
+    "pointer": "DESIGN-2026-08-29-007",
+    "file": "rust-first-kernel-rewrite.md",
+    "title": "Rust-First Kernel Rewrite Decision",
+    "date": "2026-08-29",
+    "type": "design-active",
+    "status": "active"
+  }
+]

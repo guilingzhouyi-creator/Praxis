@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-005
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "L1↔L2 对接执行计划（施工级）"
+---
+
 # L1↔L2 对接执行计划（施工级）
 
 > Status: active execution plan · D2 首片及故障恢复片已在 `feature/ts-rust-e2e-docking` 完成 · 关联路线图: `docs/roadmaps/l1-l2-docking.md`

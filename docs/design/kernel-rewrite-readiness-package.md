@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-004
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "Kernel Rewrite Readiness Package"
+---
+
 # Kernel Rewrite Readiness Package
 
 > Status: review-ready; no Rust runtime authority or production mechanism

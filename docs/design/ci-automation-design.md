@@ -1,3 +1,12 @@
+---
+pointer: DESIGN-2026-08-27-001
+Fonds: DESIGN
+series: active
+date: 2026-08-27
+status: active
+title: "Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）"
+---
+
 # Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）
 
 > **状态**: 设计定稿（未开工）
