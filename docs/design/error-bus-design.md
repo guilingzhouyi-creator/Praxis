@@ -1,26 +1,24 @@
 ---
 pointer: DESIGN-2026-08-27-003
-档号: DESIGN-2026-永久-103
-全宗号: DESIGN
-年度: 2026
-保管期限: 永久
-题名: ErrorLog Bus Architecture Design
-责任者: L3
-形成时间: 2026-08-29
-载体: md
-密级: 内部
-页数: 682
-归档人: L3
-审核人: L3
-归档时间: 2026-08-29
-来源: design
-关键词: [error, bus, log]
-摘要: error-bus-design
-Fonds: DESIGN
+archive_number: DESIGN-2026-永久-103
+fonds: DESIGN
+year: 2026
+retention: 永久
+title: "ErrorLog Bus Architecture Design"
+author: L3
+formation_date: 2026-08-29
+carrier: md
+classification: 内部
+pages: 682
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: design
+keywords: [error, bus, log]
+abstract: Merge ~190 scattered exception capture points across the project into a unified error log bus, exposing a REST API for t
 series: active
 date: 2026-08-29
 status: active
-title: "ErrorLog Bus Architecture Design"
 ---
 
 # ErrorLog Bus Architecture Design

@@ -22,10 +22,10 @@
 ```yaml
 ---
 pointer: ARCH-DESIGN-2026-08-05-012  # 指针，DSL 主键（见 §3）
-档号: DESIGN-2026-永久-012           # 档号 = 全宗号-年度-保管期限-件号
-全宗号: DESIGN
+archive_number: DESIGN-2026-PERM-012           # 档号 = 全宗号-年度-保管期限-件号
+fonds: DESIGN
 年度: 2026
-保管期限: 永久  # 永久 / 长期 / 短期
+retention: permanent  # 永久 / 长期 / 短期
 题名: Praxis 地基缺口施工规划
 责任者: L3
 形成时间: 2026-08-05

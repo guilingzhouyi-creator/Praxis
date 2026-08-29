@@ -1,26 +1,24 @@
 ---
 pointer: DESIGN-2026-08-27-004
-档号: DESIGN-2026-永久-104
-全宗号: DESIGN
-年度: 2026
-保管期限: 永久
-题名: Kernel Rewrite Readiness Package
-责任者: L3
-形成时间: 2026-08-29
-载体: md
-密级: 内部
-页数: 391
-归档人: L3
-审核人: L3
-归档时间: 2026-08-29
-来源: design
-关键词: [kernel, rewrite, readiness]
-摘要: kernel-rewrite-readiness-package
-Fonds: DESIGN
+archive_number: DESIGN-2026-永久-104
+fonds: DESIGN
+year: 2026
+retention: 永久
+title: "Kernel Rewrite Readiness Package"
+author: L3
+formation_date: 2026-08-29
+carrier: md
+classification: 内部
+pages: 391
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: design
+keywords: [kernel, rewrite, readiness]
+abstract: Rust is the approved direction for a clean-break, Rust-first kernel build.
 series: active
 date: 2026-08-29
 status: active
-title: "Kernel Rewrite Readiness Package"
 ---
 
 # Kernel Rewrite Readiness Package

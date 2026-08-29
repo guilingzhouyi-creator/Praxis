@@ -1,26 +1,24 @@
 ---
 pointer: DESIGN-2026-08-27-006
-档号: DESIGN-2026-永久-106
-全宗号: DESIGN
-年度: 2026
-保管期限: 永久
-题名: Praxis 负载自适应线程池设计
-责任者: L3
-形成时间: 2026-08-29
-载体: md
-密级: 内部
-页数: 316
-归档人: L3
-审核人: L3
-归档时间: 2026-08-29
-来源: design
-关键词: [load, adaptive, pool]
-摘要: load-adaptive-pool-design
-Fonds: DESIGN
+archive_number: DESIGN-2026-永久-106
+fonds: DESIGN
+year: 2026
+retention: 永久
+title: "Praxis 负载自适应线程池设计"
+author: L3
+formation_date: 2026-08-29
+carrier: md
+classification: 内部
+pages: 316
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: design
+keywords: [load, adaptive, pool]
+abstract: `ThreadPoolWorker`（`systems/python-reference-runtime/l1/kernel/worker_thread.py`）是内核唯一的 `WorkerPort`
 series: active
 date: 2026-08-29
 status: active
-title: "Praxis 负载自适应线程池设计"
 ---
 
 # Praxis 负载自适应线程池设计

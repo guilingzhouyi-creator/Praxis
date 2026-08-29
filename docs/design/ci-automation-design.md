@@ -1,26 +1,24 @@
 ---
 pointer: DESIGN-2026-08-27-001
-档号: DESIGN-2026-永久-101
-全宗号: DESIGN
-年度: 2026
-保管期限: 永久
-题名: Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）
-责任者: L3
-形成时间: 2026-08-29
-载体: md
-密级: 内部
-页数: 786
-归档人: L3
-审核人: L3
-归档时间: 2026-08-29
-来源: design
-关键词: [CI, automation, card]
-摘要: ci-automation-design
-Fonds: DESIGN
+archive_number: DESIGN-2026-永久-101
+fonds: DESIGN
+year: 2026
+retention: 永久
+title: "Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）"
+author: L3
+formation_date: 2026-08-29
+carrier: md
+classification: 内部
+pages: 786
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: design
+keywords: [CI, automation, card]
+abstract: 为什么放 L4 而不是 L3：层导入约束（L3 → L2/L1，L3 不得 import L4）。既有
 series: active
 date: 2026-08-29
 status: active
-title: "Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）"
 ---
 
 # Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）

@@ -1,26 +1,24 @@
 ---
 pointer: DESIGN-2026-08-27-005
-档号: DESIGN-2026-永久-105
-全宗号: DESIGN
-年度: 2026
-保管期限: 永久
-题名: L1↔L2 对接执行计划（施工级）
-责任者: L3
-形成时间: 2026-08-29
-载体: md
-密级: 内部
-页数: 133
-归档人: L3
-审核人: L3
-归档时间: 2026-08-29
-来源: design
-关键词: [docking, L1L2, protocol]
-摘要: l1l2-docking-execution-plan
-Fonds: DESIGN
+archive_number: DESIGN-2026-永久-105
+fonds: DESIGN
+year: 2026
+retention: 永久
+title: "L1↔L2 对接执行计划（施工级）"
+author: L3
+formation_date: 2026-08-29
+carrier: md
+classification: 内部
+pages: 133
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: design
+keywords: [docking, L1L2, protocol]
+abstract: main ──┬─→ feature/l1l2-integration（集成分支，主树挂载）
 series: active
 date: 2026-08-29
 status: active
-title: "L1↔L2 对接执行计划（施工级）"
 ---
 
 # L1↔L2 对接执行计划（施工级）
