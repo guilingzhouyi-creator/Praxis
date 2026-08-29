@@ -11,10 +11,17 @@ npm test
 npm run typecheck
 ```
 
-Test leaves use Vitest's `.test.ts` suffix. When a test stem would collide with
-the Python reference namespace, it carries an explicit shell/domain prefix
+Test leaves use Vitest's `.test.ts` suffix and mirror their source module stem
+(for example, `tests/terminal-input-telemetry.test.ts` mirrors
+`src/terminal-input-telemetry.ts`). When a test stem would collide with the
+Python reference namespace, it carries an explicit shell/domain prefix
 (for example, `tests/shell-protocol.test.ts`); this is checked by
 `make system-naming`.
+
+Commits that stage formal-system sources are additionally gated at pre-commit
+time by `check_system_naming.py --staged`: kebab-case directories plus
+hierarchy/ownership rules from `config/discovery/naming-rules.yaml` (hard
+block, no bypass).
 
 CI pins Node 24; local Makefile targets use the installed compatible Node/npm
 toolchain with the committed `package-lock.json` for reproducible installs.

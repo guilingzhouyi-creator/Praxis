@@ -11,7 +11,7 @@
  * TS pattern: `Omit<T, K>` mapped types make unsafe shapes unrepresentable.
  */
 
-import type { JsonObject } from "../wire-records.ts";
+import type { JsonObject } from "../protocol/wire-records.ts";
 
 /** Keys that are FORBIDDEN in any outbound protocol payload (CoT vectors). */
 const FORBIDDEN_KEYS = new Set([
@@ -58,7 +58,7 @@ export function containsCoT(payload: JsonObject): boolean {
 }
 
 /** Allowed top-level payload keys per message kind (TS-mirrorable contract). */
-export const ALLOWED_PAYLOAD_KEYS: Readonly<Record<import("../wire-types.ts").MessageKind, ReadonlySet<string>>> =
+export const ALLOWED_PAYLOAD_KEYS: Readonly<Record<import("../protocol/wire-types.ts").MessageKind, ReadonlySet<string>>> =
   Object.freeze({
     ack: new Set(["ack_seq", "view_id"]),
     command: new Set(["name", "args"]),
@@ -67,4 +67,4 @@ export const ALLOWED_PAYLOAD_KEYS: Readonly<Record<import("../wire-types.ts").Me
     intent: new Set(["text"]),
     result: new Set(["success", "output", "error"]),
     stream_chunk: new Set(["data", "done"]),
-  } as Record<import("../wire-types.ts").MessageKind, ReadonlySet<string>>);
+  } as Record<import("../protocol/wire-types.ts").MessageKind, ReadonlySet<string>>);

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { ConnectionManager } from "../src/engine/connection-manager.ts";
 import { ShellFamily } from "../src/engine/session-family.ts";
-import { makeMessage, decodeMessage } from "../src/wire-envelope.ts";
-import { decodeRecord, encodeRecord } from "../src/wire-records.ts";
+import { makeMessage, decodeMessage } from "../src/protocol/wire-envelope.ts";
+import { decodeRecord, encodeRecord } from "../src/protocol/wire-records.ts";
 
 /** Transport factory whose behavior is scripted per test. */
 function scriptedFactory(script: Array<() => Promise<string[]>>) {

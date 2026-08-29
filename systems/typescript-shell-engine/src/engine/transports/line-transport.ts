@@ -12,7 +12,7 @@
  */
 
 import type { Transport } from "../bridge.ts";
-import { MAX_FRAME_BYTES } from "../../wire-types.ts";
+import { MAX_FRAME_BYTES } from "../../protocol/wire-types.ts";
 
 const UTF8_ENCODER = new TextEncoder();
 

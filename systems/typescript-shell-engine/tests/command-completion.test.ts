@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { ProtocolBridge, type Transport } from "../src/engine/bridge.ts";
-import { encodeMessage, makeMessage } from "../src/wire-envelope.ts";
+import { encodeMessage, makeMessage } from "../src/protocol/wire-envelope.ts";
 import {
   INJECTION_HIGH_RISK_THRESHOLD,
   INJECTION_MEDIUM_RISK_THRESHOLD,

@@ -15,9 +15,11 @@ def test_formal_leaf_names_use_explicit_domains() -> None:
     root = Path(__file__).resolve().parents[2]
     assert (root / "systems/rust-kernel-engine/l1-kernel-rs/src/kernel_event.rs").is_file()
     assert (root / "systems/rust-kernel-engine/l1-kernel-rs/tests/core/kernel_test_event.rs").is_file()
-    assert (root / "systems/typescript-shell-engine/src/wire-envelope.ts").is_file()
+    assert (root / "systems/typescript-shell-engine/src/protocol/wire-envelope.ts").is_file()
     assert (root / "systems/typescript-shell-engine/tests/shell-protocol.test.ts").is_file()
     assert not (root / "systems/rust-kernel-engine/l1-kernel-rs/src/event.rs").exists()
+    # The engine- prefix is collision-protected (Python basename guard).
+    assert (root / "systems/typescript-shell-engine/src/engine/engine-events.ts").is_file()
     assert not (root / "systems/rust-kernel-engine/l1-kernel-rs/tests/core/event.rs").exists()
     assert not (root / "systems/typescript-shell-engine/src/envelope.ts").exists()
     assert not (root / "systems/typescript-shell-engine/tests/protocol.test.ts").exists()

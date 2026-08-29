@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Dispatcher } from "../src/engine/dispatcher.ts";
 import { registerBuiltins } from "../src/engine/builtins.ts";
-import { I18n } from "../src/locale-catalog.ts";
+import { I18n } from "../src/i18n/locale-catalog.ts";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const EN_YAML_PATH = path.join(REPO_ROOT, "locales", "en.yaml");

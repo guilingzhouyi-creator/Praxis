@@ -70,6 +70,9 @@ systems/python-reference-runtime/l1/kernel/ports/ — 18 *Port(ABC) abstractions
 - **Unified `trace_id`**: `get_trace_id`/`set_trace_id`/`trace_scope` in `systems/python-reference-runtime/l3/error_bus/core.py`
 - **Never import `services/` inside `kernel/`**
 - **Register tools** via `ToolSpec` in `config/tools.yaml`
+- **Commit-time naming gate**: `.githooks/pre-commit` runs `python scripts/py/check_system_naming.py --staged`
+  whenever formal-system sources are staged — kebab-case dirs + hierarchy/ownership
+  (rules: `config/discovery/naming-rules.yaml`); hard block, no bypass
 - **No bare `except:`** — use `except Exception:`
 - **Double quotes** for strings (ruff `quote-style = "double"`), line-length 120
 - **Prompt templates are data** in `systems/python-reference-runtime/l3/agent/prompts.py` (`_DEFAULTS`), overridable via `config/praxis.yaml`
@@ -153,7 +156,7 @@ Spec: `docs/workflow/code-of-conduct.md`. Load-bearing rules:
 ```bash
 make test|test-extended|test-all     # test batches (runner.py)
 make lint|format|typecheck|coverage  # static gates
-make precommit                       # pre-commit hooks (ruff + size + mainline whitelist)
+make precommit                       # pre-commit hooks (ruff + size + naming guard + mainline whitelist)
 make hooks                           # git config core.hooksPath .githooks
 make push-both                       # git push origin main; git push github main
 make bump-version                    # atomic version bump

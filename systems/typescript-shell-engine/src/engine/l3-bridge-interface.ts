@@ -12,7 +12,7 @@
  */
 
 import type { ProtocolBridge } from "./bridge.ts";
-import type { Message } from "../wire-envelope.ts";
+import type { Message } from "../protocol/wire-envelope.ts";
 
 /**
  * Domain-grouped command surface exposed to TS frontends.
