@@ -8,6 +8,14 @@ pointer: DESIGN-2026-08-27-002
 责任者: L3
 形成时间: 2026-08-29
 载体: md
+密级: 内部
+页数: 165
+归档人: L3
+审核人: L3
+归档时间: 2026-08-29
+来源: design
+关键词: []
+摘要: code-format-design
 Fonds: DESIGN
 series: active
 date: 2026-08-29

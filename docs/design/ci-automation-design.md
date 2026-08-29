@@ -8,6 +8,14 @@ pointer: DESIGN-2026-08-27-001
 责任者: L3
 形成时间: 2026-08-29
 载体: md
+密级: 内部
+页数: 786
+归档人: L3
+审核人: L3
+归档时间: 2026-08-29
+来源: design
+关键词: []
+摘要: ci-automation-design
 Fonds: DESIGN
 series: active
 date: 2026-08-29
