@@ -244,6 +244,18 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   failure. The checkpoint intentionally excludes prompt content and Python
   persistence; cross-process locking and production identity authority remain
   host-owned.
+- The Rust `skill` module is a clean-break, mechanism-only registry for the
+  bounded L1 skill surface: typed metadata and lifecycle, write authorization,
+  builtin read-only protection, productive/offensive posture, disclosure,
+  scope/audience filtering, Cell bindings, usage accounting, deterministic
+  query/list views, staged guidance, card completion, dependency/next graph
+  checks, virtual listing, and versioned in-memory checkpoint/restore.
+  Content bounds and NUL/identity validation fail closed. Markdown/YAML
+  discovery, prompt/EventBus/R4 providers, Card/TODO/AgentLoop policy,
+  API/L2Shell routing, and Python-state import remain outside Rust.
+  `tests/fixtures/kernel_skill_vectors.json` and the independent
+  `tests/policy/kernel_test_skill.rs` target freeze mechanism values only;
+  the slice does not grant production skill authority.
 - The Rust `network` module is a clock-injected `PeerBook` candidate for
   endpoint validation, self-ignore, liveness timeout, loss-once, eviction
   grace, and deterministic health/list views. `kernel_peer_vectors.json` is

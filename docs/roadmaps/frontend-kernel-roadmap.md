@@ -1137,6 +1137,18 @@ EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority
 allocator 的副作用操作、不绕过 GateChain，也不授予生产入口权威；后续再按同一
 模式接入经过 capability policy 的具体宿主适配器。
 
+随后完成 Rust `skill::SkillRegistry` 机制切片：以 Rust-native typed metadata
+承载 SkillManager 的 L1 机制面，覆盖写授权、builtin 只读、生命周期、
+productive/offensive posture、progressive disclosure、agent/Cell/global
+scope、Cell 绑定、usage/useful/dimension 计数、确定性查询与目录视图、
+staged guidance、card-completion advancement、dependency/next DAG 检查、
+虚拟 `/skills` listing，以及版本化内存 checkpoint/restore。内容边界、
+NUL/身份校验和未知引用均在变更前 fail-closed；独立
+`tests/policy/kernel_test_skill.rs` 与 `tests/fixtures/kernel_skill_vectors.json`
+锁定该机制切片。Markdown/YAML 发现、Prompt/EventBus/R4 provider、
+Card/TODO/AgentLoop 策略、L2/API 路由、Python 状态导入和 production
+authority 明确留在宿主，后续 TS/L2 只消费版本化值合同，不引入兼容替换。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；
