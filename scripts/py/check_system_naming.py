@@ -12,7 +12,9 @@ target names remain stable.
 
 from __future__ import annotations
 
+import argparse
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -39,6 +41,15 @@ _EXPECTED_NAMING = {
     "typescript": ("kebab_case", "distinct-from-python"),
 }
 _IGNORED_PYTHON_STEMS = {"__init__", "__main__"}
+
+# Commit-time naming rules (hierarchy/ownership) — single source of truth.
+RULES_DEFAULT = ROOT / "config" / "discovery" / "naming-rules.yaml"
+_DIR_STYLE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# Stable system identities (project-structure.md "System names are explicit").
+FORMAL_SYSTEM_DIRS = (
+    Path("systems/typescript-shell-engine"),
+    Path("systems/rust-kernel-engine"),
+)
 
 
 def _load_manifest(manifest_path: Path = MANIFEST) -> dict[str, Any]:
@@ -225,15 +236,114 @@ def check_system_naming(
     return violations
 
 
+def _load_rules(rules_path: Path = RULES_DEFAULT) -> dict[str, Any]:
+    """Load the commit-time naming rules (hierarchy/ownership)."""
+    try:
+        value = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"unable to read {rules_path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError("naming rules must contain a mapping")
+    return value
+
+
+def _staged_paths(root: Path = ROOT) -> list[Path]:
+    """Return staged (added/copied/modified/renamed) paths relative to root."""
+    proc = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        capture_output=True,
+        text=True,
+        cwd=root,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    return [Path(line) for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _check_staged_dir_hierarchy(staged: list[Path], rules: dict[str, Any]) -> list[str]:
+    """Enforce kebab-case directories and hierarchy/ownership on staged paths."""
+    violations: list[str] = []
+    systems = rules.get("systems")
+    if not isinstance(systems, dict):
+        return violations
+    for path in staged:
+        # Directory segments under every formal system must be kebab-case.
+        for sys_dir in FORMAL_SYSTEM_DIRS:
+            if path.is_relative_to(sys_dir):
+                for segment in path.relative_to(sys_dir).parts[:-1]:
+                    if not _DIR_STYLE.fullmatch(segment):
+                        violations.append(f"{path}: directory segment {segment!r} is not lowercase kebab-case")
+                break
+        # Hierarchy / ownership rules per owning system's source root.
+        for sys_rules in systems.values():
+            src_root_raw = sys_rules.get("src_root")
+            if not isinstance(src_root_raw, str):
+                continue
+            src_root = Path(src_root_raw)
+            if not path.is_relative_to(src_root):
+                continue
+            rel = path.relative_to(src_root)
+            rel_parts = rel.parts
+            if sys_rules.get("no_root_files") and len(rel_parts) == 1:
+                violations.append(f"{path}: loose file under {src_root} — must live in a domain subdirectory")
+            allowed = sys_rules.get("allowed_subdirs")
+            if isinstance(allowed, list) and len(rel_parts) >= 2 and rel_parts[0] not in allowed:
+                violations.append(
+                    f"{path}: undeclared subdirectory {rel_parts[0]!r} under {src_root}; allowed: {', '.join(allowed)}"
+                )
+            ownership = sys_rules.get("ownership")
+            if isinstance(ownership, dict) and len(rel_parts) >= 2:
+                rule = ownership.get(rel_parts[0])
+                if isinstance(rule, dict):
+                    stem = rel_parts[-1].rsplit(".", 1)[0]
+                    exact = rule.get("exact")
+                    prefix = rule.get("prefix")
+                    if isinstance(exact, str) and stem != exact:
+                        violations.append(f"{path}: leaf must be exactly {exact!r} under {src_root / rel_parts[0]}")
+                    elif isinstance(prefix, str) and not stem.startswith(prefix):
+                        violations.append(f"{path}: leaf must use prefix {prefix!r} under {src_root / rel_parts[0]}")
+            if sys_rules.get("no_bench_in_src") and any("bench" in part for part in rel_parts):
+                bench_root = sys_rules.get("bench_root")
+                hint = f"move under {bench_root}/" if isinstance(bench_root, str) else "move under bench/"
+                violations.append(f"{path}: benchmark source under {src_root} — {hint}")
+            break  # only the owning system's src_root matches a given path
+    return violations
+
+
+def check_staged_naming(root: Path = ROOT, rules_path: Path = RULES_DEFAULT) -> list[str]:
+    """Return staged naming violations: staged dir/hierarchy rules + full scan."""
+    try:
+        rules = _load_rules(rules_path)
+    except ValueError as exc:
+        return [str(exc)]
+    staged = _staged_paths(root)
+    violations = _check_staged_dir_hierarchy(staged, rules)
+    violations.extend(check_system_naming(root))
+    return violations
+
+
 def main() -> int:
     """Run the naming check and print a concise machine-readable result."""
-    violations = check_system_naming()
+    parser = argparse.ArgumentParser(description="Validate language-native leaf names across the three Praxis systems.")
+    parser.add_argument(
+        "--staged",
+        action="store_true",
+        help="commit-time mode: staged dir/hierarchy rules plus the full scan",
+    )
+    args = parser.parse_args()
+    if args.staged:
+        violations = check_staged_naming()
+        label = "STAGED_NAMING"
+    else:
+        violations = check_system_naming()
+        label = "SYSTEM_NAMING"
     if violations:
-        print("SYSTEM_NAMING: FAIL")
+        print(f"{label}: FAIL")
         for violation in violations:
             print(f"- {violation}")
         return 1
-    print("SYSTEM_NAMING: PASS")
+    print(f"{label}: PASS")
     return 0
 
 

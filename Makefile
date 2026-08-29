@@ -36,6 +36,9 @@ coverage:
 system-naming:
 	python scripts/py/check_system_naming.py
 
+naming-staged:
+	python scripts/py/check_system_naming.py --staged
+
 system-boundaries: system-naming
 	python scripts/py/check_system_boundaries.py
 

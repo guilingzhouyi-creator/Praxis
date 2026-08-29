@@ -1,0 +1,42 @@
+# Commit-time naming rules — folder + file-leaf normalization gate.
+#
+# Consumed by scripts/py/check_system_naming.py in --staged mode, wired into
+# .githooks/pre-commit as the "formal naming guard": every commit that stages
+# formal-system sources must satisfy these rules (hard block, no bypass).
+#
+# Scope: hierarchy/ownership rules the full machine scan does not express:
+# kebab-case directory segments, allowed top-level src subdirs, per-domain
+# leaf ownership, and bench placement. Filename-style regexes and the
+# Python-basename collision contract stay in system-boundaries.yaml and the
+# scanner itself (single source of truth for those).
+rules_version: 1
+
+# Every directory segment under the formal systems must be lowercase
+# kebab-case (docs/project-structure.md "目录命名规则").
+dir_segments: kebab_case
+
+# Per-system hierarchy and ownership.
+systems:
+  typescript-shell-engine:
+    src_root: systems/typescript-shell-engine/src
+    # src/ root may contain ONLY these subdirectories. A new domain must be
+    # added here deliberately — this is the categorization gate.
+    allowed_subdirs: [engine, protocol, i18n, telemetry]
+    # No loose files directly under src/ — everything belongs to a domain dir.
+    no_root_files: true
+    # Domain dir → required leaf prefix or exact stem. Leaves outside these
+    # constraints are rejected so domains stay uniformly namespaced.
+    ownership:
+      protocol: {prefix: "wire-"}
+      i18n: {exact: "locale-catalog"}
+      telemetry: {exact: "terminal-input-telemetry"}
+    # Benchmarks must live under bench/, never inside src/.
+    bench_root: systems/typescript-shell-engine/bench
+    no_bench_in_src: true
+
+  rust-kernel-engine:
+    src_root: systems/rust-kernel-engine/l1-kernel-rs/src
+    # src/ may hold loose files (lib.rs + kernel_*/plain snake leaves); bin/
+    # is the only extra subdirectory (kebab binary names, machine-exempt).
+    allowed_subdirs: [bin]
+    no_root_files: false

@@ -53,6 +53,22 @@ if git diff --cached --name-only --diff-filter=AM | grep -qE '^docs/design/'; th
   python scripts/py/check_doc_gate.py --staged --fix
 fi
 
+# ── Formal naming guard (file/dir normalization at commit time) ─────────
+# Enforces kebab-case directories plus hierarchy/ownership rules for staged
+# formal-system sources (config/discovery/naming-rules.yaml + the --staged
+# mode of check_system_naming.py, which also re-runs the full leaf/collision
+# scan). Hard block, no bypass: strict normalization per project rules.
+STAGED_FORMAL="$(git diff --cached --name-only --diff-filter=ACMR -- 'systems/typescript-shell-engine' 'systems/rust-kernel-engine' || true)"
+if [ -n "$STAGED_FORMAL" ]; then
+  echo "--- pre-commit: formal naming guard ---"
+  if ! python scripts/py/check_system_naming.py --staged; then
+    echo "❌ pre-commit: staged naming rules violated (see above)." >&2
+    echo "   Fix file/dir names or move files to their owning domain dir." >&2
+    exit 1
+  fi
+  echo "formal naming guard: OK"
+fi
+
 # ── Mainline whitelist gate ─────────────────────────────────────────────
 # Only low-risk files may be committed directly on main; everything else
 # (systems/python-reference-runtime/ code, tests/, shared files) MUST go through a feature branch and the
