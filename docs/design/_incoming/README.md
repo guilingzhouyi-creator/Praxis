@@ -13,7 +13,7 @@ git add docs/design/_incoming/my-new-design.md
 git commit -m "docs(docs): add new design"
 
 # 提交时自动：
-# - 补 15 字段题头（pointer/archive_number/fonds/.../abstract）
+# - 补英文题头 DSL（pointer/archive_number/fonds/.../abstract）
 # - 判全宗与去向（DESIGN→docs/design/*.md，REVIEW→archive/002-review/...）
 # - 迁移至正确文件夹并清空预存区
 # - 刷新 POINTERS.json + POINTERS.db + README 索引

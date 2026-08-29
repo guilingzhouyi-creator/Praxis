@@ -2,7 +2,7 @@
 """
 Document ingestion for pre-storage area.
 
-- For files in docs/design/_incoming/*.md, automatically add 15-field English header,
+- For files in docs/design/_incoming/*.md, automatically add the English header DSL,
   assign pointer/archive_number, generate abstract, determine fonds, and migrate
   to correct location (active or archive).
 - For files already in docs/design/*.md, ensure header completeness.

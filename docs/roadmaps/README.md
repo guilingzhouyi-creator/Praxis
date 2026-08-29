@@ -29,7 +29,7 @@ Praxis 的路线图文档集中于此目录统一管理。每条路线图登记�
 
 ## 管理规则
 
-- **新增路线图**:文档放入 `docs/roadmaps/` 并带 15 字段英文题头（`fonds: ROADMAP`、
+- **新增路线图**:文档放入 `docs/roadmaps/` 并带英文题头 DSL（`fonds: ROADMAP`、
   `pointer: ROADMAP-*`、`construction: planned|in_progress|closed`,同 DESIGN 门禁校验）,
   在上表登记一行(状态/内容/关联),再同步 `docs/architecture/README.md` 层列表(若为子系统级变更)。
 - **状态流转**:`construction` 按 规划(planned) → 进行中(in_progress) → 已闭环(closed) 迁移。
