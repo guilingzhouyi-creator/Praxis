@@ -366,6 +366,22 @@ message envelopes remain transport adapters. The shared
 `kernel_peer_vectors.json` fixture covers the timeout, refresh, loss, and
 eviction lifecycle without making wall-clock or wire bytes a Rust contract.
 
+The Rust `transport` candidate now supplies the explicit socket-bearing edge
+above that peer book. `TransportAdapter` binds caller-selected TCP and optional
+UDP discovery sockets, derives ephemeral ports from the bound listener, frames
+one bounded JSONL message per TCP connection, and buffers decoded messages in a
+fixed-capacity Rust channel. Direct handlers are optional and panic-contained;
+status counters distinguish received, dropped, decoded-error, handler-error, and
+socket-error outcomes. TLS is fail-closed until a provider is injected, and the
+adapter never probes the host, chooses a shell, or discovers deployment values.
+Start failures roll back all published state and spawned threads; stop holds the
+lifecycle gate through join and cleanup so a concurrent restart cannot erase a
+new generation. The independent `tests/network/kernel_test_transport.rs`
+target covers real loopback TCP send/receive, UDP discovery, frame bounds,
+queue backpressure, malformed input, handler panic containment, and restart.
+This remains an adapter candidate: EventBus/card synchronization, process
+authority, protocol-host routing, and production boot wiring stay outside L1.
+
 The Rust `watchdog` candidate now owns the pure evaluation half of Python
 `os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
 interrupt thresholds; `evaluate_watchdog` performs one bounded process pass

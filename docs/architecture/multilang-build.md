@@ -249,6 +249,16 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   grace, and deterministic health/list views. `kernel_peer_vectors.json` is
   consumed by Rust and Python tests; TCP/UDP/TLS, sockets, EventBus, card sync,
   and message envelopes remain adapter-owned.
+- The Rust `transport` module is the explicit socket adapter above `network`:
+  caller-selected TCP and optional UDP discovery sockets, bounded JSONL
+  framing, typed `Message` normalization, fixed-capacity receive buffering,
+  optional panic-contained handlers, and lifecycle/error counters. Binding and
+  thread startup are transactional; stop serializes join and cleanup against
+  restart. TLS remains fail-closed without an injected provider, and no host,
+  shell, or deployment probing is performed. `tests/network/kernel_test_transport.rs`
+  is an independent real-loopback target. EventBus/card sync, protocol-host
+  dispatch, process ownership, and production boot authority remain outside
+  this candidate.
 - The Rust `boot` module is a declarative `BootPlan` candidate for validated
   step metadata, explicit replacement, pre-execution locking, and deterministic
   dependency-first ordering. Missing dependencies, cycles, invalid names, and

@@ -569,6 +569,18 @@ TCP/UDP/TLS, EventBus delivery, card sync, and message envelopes remain
 transport adapters. Its mechanism tests are split between `tests/network/kernel_test_network.rs`
 and the shared `tests/network/peer_vectors.rs` target.
 
+The `transport` module now provides the explicit socket adapter above that
+peer book. `TransportAdapter` binds caller-selected TCP and optional UDP
+discovery sockets, uses bounded JSONL framing and a fixed-capacity receive
+queue, normalizes typed `Message` values, and contains direct-handler panics.
+Startup rollback and stop/restart serialization prevent partial state or
+cross-generation cleanup; status counters expose drops, decode failures,
+handler failures, and socket failures. TLS remains fail-closed without an
+injected provider, and the adapter never probes host shells or deployment
+configuration. Its real-loopback coverage is isolated in
+`tests/network/kernel_test_transport.rs`; EventBus/card sync, protocol-host
+routing, process ownership, and production boot remain outside the candidate.
+
 The isolated `boot` module provides declarative `BootPlan` metadata with
 explicit replacement, pre-wiring lock, and deterministic dependency-first
 ordering. It never executes callbacks or starts runtime services. Its

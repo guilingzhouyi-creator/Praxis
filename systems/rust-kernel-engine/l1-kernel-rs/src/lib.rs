@@ -13,7 +13,7 @@
 //!   - Resource accounting: allocator
 //!   - Policy adjudication (fail-closed gates): capability, gatechain, constitution, reputation, audit
 //!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
-//!   - Networking peers: network
+//!   - Networking peers and transport edge: network, transport
 //!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, os, versioning, migration, assembly, state_layout, state_store, config_store, persist, vfs
 //!   - Benchmark evidence: benchmark, benchmark_runner
 
@@ -116,6 +116,10 @@ pub mod event;
 /// Provider-neutral SystemBus metadata, dependency planning, and state values.
 #[path = "kernel_bus.rs"]
 pub mod bus;
+
+/// Bounded Rust TCP/UDP transport adapter with explicit lifecycle and framing.
+#[path = "kernel_transport.rs"]
+pub mod transport;
 
 /// Rust candidate for the bounded lock IPC channel and registry.
 #[path = "kernel_ipc.rs"]

@@ -435,6 +435,18 @@ clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus
 delivery remain adapters.
 
+The follow-on transport adapter now closes the Rust socket edge without
+granting runtime authority. `transport::TransportAdapter` accepts explicit
+deployment values, binds a bounded TCP JSONL listener and optional UDP
+discovery pair, normalizes `from`/`to` messages into the retained `Message`
+value, and exposes a fixed-capacity receive queue plus optional direct
+handlers. Startup is transactional and stop/restart is serialized; malformed
+frames, queue overflow, handler panics, and unsupported TLS are observable
+fail-closed outcomes. The real-loopback integration target
+`tests/network/kernel_test_transport.rs` covers the adapter boundary. This
+slice deliberately does not import EventBus/card sync, probe the host for a
+shell, own protocol-host routing, or become the Rust production entrypoint.
+
 The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
 accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
 interrupt counts. Its process scan combines zombie counting and idle

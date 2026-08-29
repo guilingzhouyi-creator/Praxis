@@ -1104,6 +1104,16 @@ restart、watchdog 与 singleton。该切片把 Python `os.py` 的机制边界�
 EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能据此
 宣称完成。
 
+随后补齐 Rust `transport::TransportAdapter` socket 边界候选：配置必须显式
+给出 TCP/UDP 地址与边界，TCP 每连接只接收一个有界 JSONL frame，解码后的
+`Message` 进入固定容量队列，并可由可选 handler 旁路消费。启动采用事务式
+发布，TCP/UDP bind 或线程创建失败会回收已启动线程并清空状态；stop 在同一
+生命周期锁内完成 join/队列关闭/端口清理，避免并发 restart 跨代清理。坏帧、
+队列丢弃、handler panic、socket 错误和 TLS 未注入 provider 均 fail-closed
+并计数，禁止 PATH/shell/主机探测。独立 `network/transport` 测试片覆盖真实
+loopback 收发、UDP discovery、帧界、背压、异常隔离和重启；该片仍不接管
+EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；

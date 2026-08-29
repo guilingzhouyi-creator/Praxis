@@ -80,6 +80,10 @@ name = "bus"
 path = "tests/network/kernel_test_bus.rs"
 
 [[test]]
+name = "transport"
+path = "tests/network/kernel_test_transport.rs"
+
+[[test]]
 name = "cancellation"
 path = "tests/core/kernel_test_cancellation.rs"
 
