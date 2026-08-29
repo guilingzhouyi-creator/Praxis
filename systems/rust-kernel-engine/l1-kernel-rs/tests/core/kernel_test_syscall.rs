@@ -1,6 +1,7 @@
 //! Independent tests for the Rust unified syscall dispatch boundary.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use l1_kernel_rs::audit::AuditLog;
@@ -203,6 +204,38 @@ fn invalid_nested_arguments_are_rejected_before_handler() {
     assert_eq!(response.error_code, "EINVAL");
     assert_eq!(dispatcher.stats().total, 1);
     assert_eq!(dispatcher.stats().failures, 1);
+}
+
+#[test]
+fn oversized_arguments_fail_before_handler_without_retaining_payload() {
+    let dispatcher = SyscallDispatcher::with_config(
+        SyscallConfig {
+            max_argument_bytes: 16,
+            ..SyscallConfig::default()
+        },
+        Arc::new(AuditLog::new()),
+    )
+    .expect("valid config");
+    let invoked = Arc::new(AtomicBool::new(false));
+    let invoked_by_handler = Arc::clone(&invoked);
+    dispatcher
+        .register("bounded", move |_| {
+            invoked_by_handler.store(true, Ordering::Relaxed);
+            Ok(JsonObject::new())
+        })
+        .expect("register bounded");
+
+    let response = dispatcher.dispatch(SyscallRequest::new(
+        "bounded",
+        "agent",
+        args(&[(
+            "payload",
+            JsonValue::String("this payload exceeds the bound".to_owned()),
+        )]),
+    ));
+    assert_eq!(response.error_code, "EINVAL");
+    assert!(response.error.contains("arguments exceed 16 bytes"));
+    assert!(!invoked.load(Ordering::Relaxed));
 }
 
 #[test]

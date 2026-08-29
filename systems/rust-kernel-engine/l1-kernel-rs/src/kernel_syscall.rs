@@ -9,6 +9,7 @@
 //! without importing Rust implementation types.
 
 use std::collections::{BTreeSet, HashMap};
+use std::io::{self, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -79,16 +80,7 @@ impl SyscallRequest {
         validate_text(&self.op, "operation", config.max_operation_bytes, false)?;
         validate_text(&self.agent_id, "agent_id", config.max_agent_id_bytes, false)?;
         validate_json_object(&self.args)?;
-        let encoded = serde_json::to_vec(&self.args).map_err(|error| {
-            SyscallFailure::invalid(format!("arguments are not serializable: {error}"))
-        })?;
-        if encoded.len() > config.max_argument_bytes {
-            return Err(SyscallFailure::invalid(format!(
-                "arguments exceed {} bytes",
-                config.max_argument_bytes
-            )));
-        }
-        Ok(())
+        validate_serialized_arguments(&self.args, config.max_argument_bytes)
     }
 }
 
@@ -533,4 +525,56 @@ fn validate_json_value(value: &JsonValue) -> Result<(), SyscallFailure> {
         JsonValue::Array(values) => values.iter().try_for_each(validate_json_value),
         JsonValue::Object(values) => validate_json_object(values),
     }
+}
+
+/// Count serialized JSON bytes without retaining a full request-sized buffer.
+struct BoundedJsonWriter {
+    written: usize,
+    limit: usize,
+    exceeded: bool,
+}
+
+impl BoundedJsonWriter {
+    fn new(limit: usize) -> Self {
+        Self {
+            written: 0,
+            limit,
+            exceeded: false,
+        }
+    }
+}
+
+impl Write for BoundedJsonWriter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if buffer.len() > self.limit.saturating_sub(self.written) {
+            self.exceeded = true;
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "serialized JSON exceeds configured bound",
+            ));
+        }
+        self.written += buffer.len();
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn validate_serialized_arguments(
+    arguments: &JsonObject,
+    max_bytes: usize,
+) -> Result<(), SyscallFailure> {
+    let mut writer = BoundedJsonWriter::new(max_bytes);
+    let result = serde_json::to_writer(&mut writer, arguments);
+    if writer.exceeded {
+        return Err(SyscallFailure::invalid(format!(
+            "arguments exceed {max_bytes} bytes"
+        )));
+    }
+    result.map_err(|error| {
+        SyscallFailure::invalid(format!("arguments are not serializable: {error}"))
+    })?;
+    Ok(())
 }

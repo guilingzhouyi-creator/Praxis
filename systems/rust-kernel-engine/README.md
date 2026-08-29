@@ -313,9 +313,11 @@ executor status. Empty arguments are required; non-persistent recovery reads
 fail closed, and no operation submits work or invokes a capability. Handler
 lookup uses shared reads while registration remains exclusive; a hash index
 keyed by shared operation names keeps dispatch lookup average O(1), while a
-separate ordered index preserves deterministic snapshots. The independent
-target is `tests/runtime/kernel_test_syscall_adapters.rs`; process, event, and
-allocator side-effect operations remain future capability-gated adapters.
+separate ordered index preserves deterministic snapshots. Request argument
+bounds are counted through a bounded JSON writer, preventing a full
+request-sized temporary buffer for rejected payloads. The independent target is
+`tests/runtime/kernel_test_syscall_adapters.rs`; process, event, and allocator
+side-effect operations remain future capability-gated adapters.
 
 The `boot` module is a declarative assembly candidate. `BootPlan` validates step
 names, rejects duplicate registrations unless replacement is explicit, supports

@@ -467,7 +467,10 @@ lookup path and a separate ordered index for deterministic snapshots, avoiding
 the old tree lookup on every dispatch without changing the wire contract. A
 const-generic `register_batch` validates every name and the projected capacity
 before publishing replacements or insertions, so a full table cannot leave a
-partially wired host surface. `syscall_adapters::KernelSyscallAdapters` then
+partially wired host surface. Request validation counts serialized JSON through
+a bounded writer rather than retaining a full argument buffer, so oversized
+requests fail closed without a request-sized temporary allocation.
+`syscall_adapters::KernelSyscallAdapters` then
 provides an explicit, read-only runtime metadata registration for
 `kernel.runtime.snapshot`, `kernel.runtime.recovery`, and
 `kernel.capability.status`. These operations accept only `{}`, serialize

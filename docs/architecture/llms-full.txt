@@ -1025,6 +1025,9 @@ ordered index preserves deterministic operation snapshots; replacement therefore
 does not pay a tree lookup on every dispatch. Hosts can use
 `SyscallDispatcher::register_batch` to validate names and projected capacity
 before publishing any handler, preventing a partially registered surface.
+Argument-size validation counts JSON bytes through a bounded writer and fails
+as soon as the configured limit is crossed, avoiding a full request-sized
+temporary buffer.
 `syscall_adapters::KernelSyscallAdapters` supplies one explicit,
 read-only registration slice for `kernel.runtime.snapshot`,
 `kernel.runtime.recovery`, and `kernel.capability.status`; these handlers accept

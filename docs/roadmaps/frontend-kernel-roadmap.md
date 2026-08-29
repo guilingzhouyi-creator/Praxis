@@ -1131,7 +1131,8 @@ EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority
 在发布前一次性校验名称、重复项和容量，容量不足时不留下部分注册。`KernelSyscallAdapters` 以一次原子
 批注册提供 `kernel.runtime.snapshot`、`kernel.runtime.recovery` 与
 `kernel.capability.status` 三个只读操作，参数非空即 `EINVAL`，非持久化恢复
-读取以 `EIO` fail-closed。该片通过独立
+读取以 `EIO` fail-closed。参数 JSON 大小校验改为有界 writer 计数，超过上限
+立即失败而不保留完整临时缓冲。该片通过独立
 `tests/runtime/kernel_test_syscall_adapters.rs`，仍不接入 process/event/
 allocator 的副作用操作、不绕过 GateChain，也不授予生产入口权威；后续再按同一
 模式接入经过 capability policy 的具体宿主适配器。
