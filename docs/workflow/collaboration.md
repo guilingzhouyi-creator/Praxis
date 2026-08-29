@@ -131,7 +131,7 @@ double-green merge flow (branching.md).
 
 ```
 Allowed on main (whitelist):
-  docs/**  README.md  config/**  locales/**  .githooks/**
+  docs/**  README.md  AGENTS.md  CLAUDE.md  config/**  locales/**  .githooks/**
   scripts/**  .pre-commit-config.yaml  .praxis-rules.md  coverage.xml
 
 Blocked on main (must go through a feature branch):

@@ -82,12 +82,12 @@ BRANCH="$(git branch --show-current 2>/dev/null || echo "")"
 if [ "$BRANCH" = "main" ] && [ ! -f "$(git rev-parse --git-path MERGE_HEAD 2>/dev/null || echo /nonexistent)" ]; then
   STAGED="$(git diff --cached --name-only 2>/dev/null || true)"
   if [ -n "$STAGED" ]; then
-    VIOLATIONS="$(printf '%s\n' "$STAGED" | grep -vE '^(docs/|README\.md$|config/|locales/|\.githooks/|scripts/|\.pre-commit-config\.yaml$|\.praxis-rules\.md$|coverage\.xml$)' || true)"
+    VIOLATIONS="$(printf '%s\n' "$STAGED" | grep -vE '^(docs/|README\.md$|AGENTS\.md$|CLAUDE\.md$|config/|locales/|\.githooks/|scripts/|\.pre-commit-config\.yaml$|\.praxis-rules\.md$|coverage\.xml$)' || true)"
     if [ -n "$VIOLATIONS" ]; then
       echo ""
       echo "--- pre-commit: MAINLINE WHITELIST VIOLATION ---"
       echo "Direct commits to main are limited to low-risk files:"
-      echo "  docs/  README.md  config/  locales/  .githooks/  scripts/  .pre-commit-config.yaml  .praxis-rules.md"
+      echo "  docs/  README.md  AGENTS.md  CLAUDE.md  config/  locales/  .githooks/  scripts/  .pre-commit-config.yaml  .praxis-rules.md"
       echo "Blocked files (must go through a feature branch + double-green merge):"
       printf '%s\n' "$VIOLATIONS" | sed 's/^/  ✗ /'
       echo "Fix: git switch -c feature/<agent>-<area>  then commit there,"
