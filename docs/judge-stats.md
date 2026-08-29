@@ -1,10 +1,10 @@
 ## CompletionJudge effectiveness (auto-updated)
 
-**Runs**: 328 | **COMPLETE**: 43 (13%) | **PARTIAL**: 91 (28%, fast mode — checks skipped) | **INCOMPLETE**: 194 (59%, machine 'not done')
-**Mode split**: full 114 (38% complete) / fast 214 (fast = at least one check skipped)
+**Runs**: 330 | **COMPLETE**: 43 (13%) | **PARTIAL**: 93 (28%, fast mode — checks skipped) | **INCOMPLETE**: 194 (59%, machine 'not done')
+**Mode split**: full 114 (38% complete) / fast 216 (fast = at least one check skipped)
 **Full-mode verdict rate**: 43/114 (38%) — the 'done' gold standard; mixed rates below include fast snapshots
-**Telemetry snapshots excluded from rates**: 12 (push-both activity probes)
-**Skipped tests notice**: tests skipped in 96 judge run(s) (full mode / WSL slice-serial required before merge)
+**Telemetry snapshots excluded from rates**: 13 (push-both activity probes)
+**Skipped tests notice**: tests skipped in 98 judge run(s) (full mode / WSL slice-serial required before merge)
 **Gate exemptions** (MERGE_GATE_SKIP commits in history): 11
 **Waived delta passes**: 4 judge run(s) passed net-delta via MERGE_GATE_SKIP (not a qualifying delta)
 
@@ -24,7 +24,8 @@
 | 2026-08-25 | 19 | 6 | 1 | 17% | 5% |
 | 2026-08-26 | 40 | 10 | 5 | 50% | 12% |
 | 2026-08-27 | 32 | 6 | 2 | 33% | 6% |
-| 2026-08-28 | 16 | 1 | 1 | 100% | 6% |
+| 2026-08-28 | 17 | 1 | 1 | 100% | 6% |
+| 2026-08-29 | 1 | 0 | 0 | - | 0% |
 
 **Failures by check** (most frequent evidence gaps):
 - `changelog`: 163 (84% of incomplete)
@@ -47,7 +48,7 @@
 - `cycle`: 256/270 (95%)
 - `delta`: 191/267 (72%)
 - `docs`: 218/275 (79%)
-- `index`: 312/325 (96%)
+- `index`: 314/327 (96%)
 - `lint`: 210/275 (76%)
 - `singleton`: 253/270 (94%)
 - `tests`: 77/116 (66%)
