@@ -1,0 +1,51 @@
+{
+  "document_version": 1,
+  "cases": [
+    {
+      "name": "write_gate_identity_required",
+      "input": {
+        "agent_id": "",
+        "role": "",
+        "clearance": 0,
+        "internal": false
+      },
+      "expected": {
+        "allowed": false,
+        "error": "permission_denied"
+      }
+    },
+    {
+      "name": "offensive_posture_requires_authorized_nature",
+      "input": {
+        "posture": "offensive",
+        "context_posture": "productive",
+        "card_natures": []
+      },
+      "expected": {
+        "injectable": false
+      }
+    },
+    {
+      "name": "offensive_posture_security_test",
+      "input": {
+        "posture": "offensive",
+        "context_posture": "security-test",
+        "card_natures": [
+          "security-test"
+        ]
+      },
+      "expected": {
+        "injectable": true
+      }
+    },
+    {
+      "name": "checkpoint_version",
+      "input": {
+        "document_version": 1
+      },
+      "expected": {
+        "accepted": true
+      }
+    }
+  ]
+}

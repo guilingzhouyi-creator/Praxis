@@ -218,6 +218,10 @@ pub mod syscall;
 #[path = "kernel_syscall_adapters.rs"]
 pub mod syscall_adapters;
 
+/// Rust-native bounded skill registry and staged-guidance mechanism.
+#[path = "kernel_skill.rs"]
+pub mod skill;
+
 // ── Session truth & protocol host ──
 
 /// Sharded Rust session truth for the clean-break kernel.

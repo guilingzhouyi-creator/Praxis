@@ -23,6 +23,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
+| 2026-08-29 | systems/rust-kernel-engine/l1-kernel-rs/src/kernel_skill.rs + systems/rust-kernel-engine/l1-kernel-rs/src/lib.rs + systems/rust-kernel-engine/l1-kernel-rs/Cargo.toml + systems/rust-kernel-engine/l1-kernel-rs/tests/policy/kernel_test_skill.rs + tests/fixtures/kernel_skill_vectors.json + docs/architecture/{l1-kernel,multilang-build}.md + docs/design/rust-first-kernel-rewrite.md + docs/roadmaps/frontend-kernel-roadmap.md + systems/rust-kernel-engine/README.md | Codex (GPT5.6Terra) | add bounded Rust-native SkillRegistry with write/posture/disclosure/scope gates, Cell bindings, usage/query, staged guidance, DAG validation, checkpoint/restore, isolated policy tests and roadmap sync | in feature/l1-rust-skill |
 | 2026-08-29 | .githooks/pre-commit + scripts/py/{doc_archive,check_doc_gate,doc_ingest}.py + tests/infra/test_doc_archive.py + docs/roadmaps/README.md + docs/workflow/collaboration.md + docs/design/_incoming/README.md | AtomCode (deepseek-v4-flash) | doc-archive hardening (batch seq pre-allocation, fonds-wide scan, subprocess checks) + mainline whitelist extends to AGENTS.md/CLAUDE.md + header-DSL wording | in feature/doc-archive-hardening |
 
 

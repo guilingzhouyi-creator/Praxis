@@ -430,6 +430,20 @@ Prompt fragments, Python persistence formats, cross-process locks, and
 production identity authority remain outside the candidate; this closes only
 the R4 metadata persistence mechanism.
 
+The Rust `skill::SkillRegistry` is the next clean-break L1 mechanism slice for
+the bounded portion of Python `SkillManager`. It owns typed skill metadata,
+write-gated registration/replacement/deletion, builtin immutability, lifecycle
+and posture/disclosure filters, agent/Cell/global scope, usage counters,
+deterministic retrieval/listing, staged guidance and card completion, guidance
+graph validation, virtual listing, and versioned in-memory checkpoints.
+Admission truncates bounded fields and rejects unsafe content, NUL identities,
+identity-less external writes, and invalid checkpoint references before
+mutation. The shared skill vectors and independent policy target cover those
+invariants, including concurrent access. Markdown/YAML discovery, prompts,
+EventBus, R4 distillation/DPO, Card/TODO/AgentLoop strategy, API/L2Shell
+surfaces, Python persistence, and production runtime authority remain host
+responsibilities; no Python user-data compatibility is introduced.
+
 The following R3 mechanism slice is the transport-neutral `network::PeerBook`:
 clock injection, endpoint validation, timeout/loss/eviction state, and
 deterministic snapshots are frozen, while socket/TLS/discovery and EventBus

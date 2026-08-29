@@ -1590,6 +1590,27 @@ imports, cross-process locking, and L3/API routing remain outside this
 candidate, so this is an R4 persistence mechanism and not a production
 identity authority.
 
+### Rust skill registry and staged guidance
+
+The Rust `skill::SkillRegistry` is a mechanism-only clean-break mapping of the
+bounded L1 portion of Python `SkillManager`. It owns typed metadata, lifecycle
+status, productive/offensive posture, progressive disclosure, agent/Cell/global
+scope, bounded hard/soft dependencies, write authorization, builtin read-only
+protection, Cell bindings, usage counters, deterministic keyword retrieval,
+staged guidance, card-completion advancement, guidance-DAG cycle reporting,
+`/skills` virtual listing, and versioned in-memory checkpoint/restore. Content
+is truncated and validated before admission; identity-less external writes and
+unsafe content fail closed.
+
+The candidate deliberately excludes Markdown/YAML discovery, prompt providers,
+EventBus effects, R4 distillation/DPO, Card/TODO/AgentLoop policy execution,
+L3 API/L2Shell routing, and Python-state import. `tests/fixtures/kernel_skill_vectors.json`
+freezes only the retained authorization/posture/checkpoint values, while the
+independent `tests/policy/kernel_test_skill.rs` target covers bounded mutation,
+scope/audience filtering, staged progression, graph validation, checkpoint
+determinism, and concurrent access. This is a Rust-native mechanism slice, not
+a production skill authority or a Python compatibility layer.
+
 ## Key constants (params)
 
 - `PROCESS_DEFAULT_RING`, `PROCESS_AUDIT_MAX`, `PROCESS_TABLE_MAX`

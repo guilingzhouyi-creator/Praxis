@@ -324,6 +324,10 @@ name = "rule_descriptor"
 path = "tests/policy/kernel_test_rule_descriptor.rs"
 
 [[test]]
+name = "skill"
+path = "tests/policy/kernel_test_skill.rs"
+
+[[test]]
 name = "runtime"
 path = "tests/runtime/kernel_test_runtime.rs"
 

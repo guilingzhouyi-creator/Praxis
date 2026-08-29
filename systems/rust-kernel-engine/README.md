@@ -286,6 +286,19 @@ lifecycle; prompt text, random UID bodies, and persistence bytes are
 intentionally excluded. Mechanism tests are isolated in
 `tests/policy/kernel_test_identity_binding.rs`.
 
+The `skill` module owns the bounded Rust-native skill mechanism: typed metadata,
+lifecycle/posture/disclosure/scope values, write authorization, builtin
+immutability, Cell bindings, usage counters, deterministic query/list
+projections, staged guidance, card completion, dependency/next graph checks,
+virtual listing, and versioned in-memory checkpoint/restore. Registration
+truncates content and rejects unsafe patterns, NUL identities, and invalid
+references before mutation. `tests/fixtures/kernel_skill_vectors.json` freezes
+only the retained authorization/posture/checkpoint values; the independent
+`tests/policy/kernel_test_skill.rs` target exercises mutation, filtering,
+guidance, restore, and concurrency. Markdown/YAML discovery, prompt/EventBus/R4
+providers, Card/TODO/AgentLoop policy, API/L2Shell routing, Python state import,
+and production authority remain outside this candidate.
+
 The `network` module supplies a clock-injected `PeerBook` for transport-neutral
 peer bookkeeping: endpoint validation, self-announce rejection, bounded
 timeout/loss/eviction transitions, alive-peer lookup, and deterministic health
