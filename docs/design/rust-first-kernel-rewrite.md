@@ -461,7 +461,10 @@ and must honor capability policy; this seam does not discover Python services,
 select a shell, bypass `CapabilityAuthority`, or grant production authority.
 
 The follow-on adapter slice changes handler lookup to a reader-writer lock:
-dispatch readers share the table while registration remains exclusive. A
+dispatch readers share the table while registration remains exclusive. The
+dispatcher now keeps a hash index keyed by shared `Arc<str>` names for the hot
+lookup path and a separate ordered index for deterministic snapshots, avoiding
+the old tree lookup on every dispatch without changing the wire contract. A
 const-generic `register_batch` validates every name and the projected capacity
 before publishing replacements or insertions, so a full table cannot leave a
 partially wired host surface. `syscall_adapters::KernelSyscallAdapters` then

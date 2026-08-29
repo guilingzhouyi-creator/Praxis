@@ -1126,8 +1126,9 @@ EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority
 和 L2/TS bridge 做明确 adapter 接线。
 
 本轮继续完成了 syscall 读路径和第一组显式接线：handler 查找改为
-`RwLock` 读共享，注册仍走写锁；`register_batch` 在发布前一次性校验名称、
-重复项和容量，容量不足时不留下部分注册。`KernelSyscallAdapters` 以一次原子
+`RwLock` 读共享，注册仍走写锁；热路径使用共享 `Arc<str>` 名称的 hash
+索引，确定性快照另保留有序索引，避免每次 dispatch 的树查找。`register_batch`
+在发布前一次性校验名称、重复项和容量，容量不足时不留下部分注册。`KernelSyscallAdapters` 以一次原子
 批注册提供 `kernel.runtime.snapshot`、`kernel.runtime.recovery` 与
 `kernel.capability.status` 三个只读操作，参数非空即 `EINVAL`，非持久化恢复
 读取以 `EIO` fail-closed。该片通过独立

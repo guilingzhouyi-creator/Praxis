@@ -49,6 +49,45 @@ fn registration_is_bounded_sorted_and_replacement_is_explicit() {
 }
 
 #[test]
+fn lookup_index_preserves_deterministic_names_across_replacement_and_removal() {
+    let dispatcher = SyscallDispatcher::default();
+    dispatcher
+        .register("zeta", |_| Ok(JsonObject::new()))
+        .expect("register zeta");
+    dispatcher
+        .register("alpha", |_| Ok(JsonObject::new()))
+        .expect("register alpha");
+    assert_eq!(
+        dispatcher.registered_operations(),
+        vec!["alpha".to_owned(), "zeta".to_owned()]
+    );
+
+    assert_eq!(
+        dispatcher
+            .register("alpha", |_| {
+                Ok(JsonObject::from([(
+                    "replacement".to_owned(),
+                    JsonValue::Bool(true),
+                )]))
+            })
+            .expect("replace alpha"),
+        RegistrationOutcome::Replaced
+    );
+    let response = dispatcher.dispatch(SyscallRequest::new("alpha", "agent", JsonObject::new()));
+    assert_eq!(
+        response.data.get("replacement"),
+        Some(&JsonValue::Bool(true))
+    );
+    assert_eq!(
+        dispatcher.registered_operations(),
+        vec!["alpha".to_owned(), "zeta".to_owned()]
+    );
+
+    assert!(dispatcher.unregister("alpha"));
+    assert_eq!(dispatcher.registered_operations(), vec!["zeta".to_owned()]);
+}
+
+#[test]
 fn request_validation_and_unknown_operations_fail_closed_and_audit() {
     let audit = Arc::new(AuditLog::new());
     let dispatcher = SyscallDispatcher::new(Arc::clone(&audit));

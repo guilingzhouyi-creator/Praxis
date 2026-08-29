@@ -831,10 +831,13 @@ concrete process/event/resource operations still require explicit adapter
 registration and capability policy.
 
 The dispatcher keeps handler lookup behind a reader-writer lock, so concurrent
-dispatches share the read path while registration remains exclusive. Hosts can
-use `SyscallDispatcher::register_batch` to validate names and projected
-capacity before publishing any handler, preventing a partially registered
-surface. `syscall_adapters::KernelSyscallAdapters` supplies one explicit,
+dispatches share the read path while registration remains exclusive. The hot
+lookup path uses a hash index keyed by shared `Arc<str>` names, while a separate
+ordered index preserves deterministic operation snapshots; replacement therefore
+does not pay a tree lookup on every dispatch. Hosts can use
+`SyscallDispatcher::register_batch` to validate names and projected capacity
+before publishing any handler, preventing a partially registered surface.
+`syscall_adapters::KernelSyscallAdapters` supplies one explicit,
 read-only registration slice for `kernel.runtime.snapshot`,
 `kernel.runtime.recovery`, and `kernel.capability.status`; these handlers accept
 no arguments, return defensive JSON values, and never submit work or invoke a

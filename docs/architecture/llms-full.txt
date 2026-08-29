@@ -204,6 +204,7 @@ see *Kernel surface boundary* below).
 | Module | Role |
 |--------|------|
 | `process.py` | ProcessTable + PCB (agents are processes: ring, state, identity, audit) |
+| `__init__.py` | Unified syscall dispatch, audit trail, error normalization, and kernel health surface |
 | `sync.py` | Mutex / Semaphore / Barrier / RWLock (RLock-reentrant; RWLock write depth is explicit) |
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
@@ -569,31 +570,6 @@ target covers real loopback TCP send/receive, UDP discovery, frame bounds,
 queue backpressure, malformed input, handler panic containment, and restart.
 This remains an adapter candidate: EventBus/card synchronization, process
 authority, protocol-host routing, and production boot wiring stay outside L1.
-
-The Rust `syscall` candidate closes the unified mechanism boundary represented
-by Python `l1.kernel.__init__.syscall()`. It validates bounded operation names,
-caller identities, and recursively nested JSON arguments before handler
-lookup; registration is capacity-limited, deterministic, and explicit about
-replacement/removal. Handler errors become structured failures and panics are
-contained as `EFAULT`; every attempt is written to an injected `AuditLog`, and
-the dispatcher exposes failure, panic, registration, and average-latency
-counters. `SyscallResponse::to_wire()` preserves the retained top-level
-`success`/`error`/`error_code` contract while preventing handler data from
-forging control fields. Concrete process/event/resource operations remain
-host-injected and capability-gated; the dispatcher does not discover Python
-services, select shells, or grant production authority. Independent coverage
-lives in `tests/core/kernel_test_syscall.rs`.
-
-The dispatcher uses shared read locking for handler lookup while registration
-remains exclusive. `SyscallDispatcher::register_batch` validates every name and
-the projected capacity before publishing any handler, so a full table cannot
-leave a partially wired surface. The explicit
-`syscall_adapters::KernelSyscallAdapters` slice atomically registers
-read-only `kernel.runtime.snapshot`, `kernel.runtime.recovery`, and
-`kernel.capability.status` operations. They accept only empty arguments,
-serialize defensive metadata, and never submit work or invoke a capability;
-non-persistent recovery reads fail closed. Independent coverage lives in
-`tests/runtime/kernel_test_syscall_adapters.rs`.
 
 The Rust `watchdog` candidate now owns the pure evaluation half of Python
 `os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
@@ -1024,6 +1000,38 @@ ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
 connects it to `invoke_gated`), the kernel never imports L3, and an unwired
 executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
 boot adapter, no caller changes.
+
+### Rust unified syscall boundary
+
+`syscall::SyscallDispatcher` is the clean-break replacement for the Python
+`l1.kernel.__init__.syscall()` registry. It validates operation/identity/JSON
+argument bounds before lookup, keeps registrations in a bounded deterministic
+table, catches handler panics as `EFAULT`, records every attempt through the
+injected `AuditLog`, and exposes cumulative failure/panic/latency counters.
+Handlers are host-injected; the dispatcher never discovers services, selects
+shells, or bypasses `CapabilityAuthority`. `SyscallResponse::to_wire()` emits
+the retained top-level `success`/`error`/`error_code` shape while making those
+fields authoritative over handler data. The independent
+`tests/core/kernel_test_syscall.rs` target covers registration limits,
+validation, response flattening, panic/error isolation, concurrent accounting,
+and nested argument rejection. This closes the unified mechanism boundary;
+concrete process/event/resource operations still require explicit adapter
+registration and capability policy.
+
+The dispatcher keeps handler lookup behind a reader-writer lock, so concurrent
+dispatches share the read path while registration remains exclusive. The hot
+lookup path uses a hash index keyed by shared `Arc<str>` names, while a separate
+ordered index preserves deterministic operation snapshots; replacement therefore
+does not pay a tree lookup on every dispatch. Hosts can use
+`SyscallDispatcher::register_batch` to validate names and projected capacity
+before publishing any handler, preventing a partially registered surface.
+`syscall_adapters::KernelSyscallAdapters` supplies one explicit,
+read-only registration slice for `kernel.runtime.snapshot`,
+`kernel.runtime.recovery`, and `kernel.capability.status`; these handlers accept
+no arguments, return defensive JSON values, and never submit work or invoke a
+capability. Its independent
+`tests/runtime/kernel_test_syscall_adapters.rs` target covers the metadata
+reads and fail-closed non-persistent recovery path.
 
 ### Port abstraction
 

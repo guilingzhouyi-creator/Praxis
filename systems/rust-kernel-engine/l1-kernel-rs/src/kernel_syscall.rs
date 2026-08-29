@@ -8,7 +8,7 @@
 //! JSON object so a later TypeScript/L2 bridge can consume the same record
 //! without importing Rust implementation types.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -247,7 +247,10 @@ pub type SyscallHandler =
 
 #[derive(Default)]
 struct DispatcherState {
-    handlers: BTreeMap<String, SyscallHandler>,
+    /// Hash-indexed hot path for dispatch lookup.
+    handlers: HashMap<Arc<str>, SyscallHandler>,
+    /// Ordered name index retained for deterministic snapshots.
+    ordered_names: BTreeSet<Arc<str>>,
 }
 
 /// Runtime counters exposed without exposing handler internals.
@@ -334,12 +337,14 @@ impl SyscallDispatcher {
         &self,
         entries: [(String, SyscallHandler); N],
     ) -> Result<[RegistrationOutcome; N], SyscallRegistrationError> {
+        for (name, _) in &entries {
+            self.validate_name(name)?;
+        }
         let mut state = self.write_state();
         let mut additions = BTreeSet::new();
         for (name, _) in &entries {
-            self.validate_name(name)?;
-            if !state.handlers.contains_key(name) {
-                additions.insert(name.clone());
+            if !state.handlers.contains_key(name.as_str()) {
+                additions.insert(name.as_str());
             }
         }
         if state.handlers.len().saturating_add(additions.len()) > self.config.max_operations {
@@ -348,23 +353,34 @@ impl SyscallDispatcher {
 
         let mut outcomes = [RegistrationOutcome::Inserted; N];
         for (index, (name, handler)) in entries.into_iter().enumerate() {
-            outcomes[index] = if state.handlers.insert(name, handler).is_some() {
+            let name: Arc<str> = Arc::from(name);
+            outcomes[index] = if state.handlers.insert(Arc::clone(&name), handler).is_some() {
                 RegistrationOutcome::Replaced
             } else {
                 RegistrationOutcome::Inserted
             };
+            state.ordered_names.insert(name);
         }
         Ok(outcomes)
     }
 
     /// Remove one handler, returning whether it existed.
     pub fn unregister(&self, name: &str) -> bool {
-        self.write_state().handlers.remove(name).is_some()
+        let mut state = self.write_state();
+        let removed = state.handlers.remove(name).is_some();
+        if removed {
+            state.ordered_names.remove(name);
+        }
+        removed
     }
 
     /// Return registered operation names in deterministic order.
     pub fn registered_operations(&self) -> Vec<String> {
-        self.read_state().handlers.keys().cloned().collect()
+        self.read_state()
+            .ordered_names
+            .iter()
+            .map(|name| name.to_string())
+            .collect()
     }
 
     /// Return the bounded audit trail used by this dispatcher.
@@ -387,7 +403,7 @@ impl SyscallDispatcher {
         let response = match request.validate(self.config) {
             Err(failure) => SyscallResponse::failure(failure),
             Ok(()) => {
-                let handler = self.read_state().handlers.get(&request.op).cloned();
+                let handler = self.read_state().handlers.get(request.op.as_str()).cloned();
                 match handler {
                     None => SyscallResponse::failure(SyscallFailure::new(
                         "EINVAL",
