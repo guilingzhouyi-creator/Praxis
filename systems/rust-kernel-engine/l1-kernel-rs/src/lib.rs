@@ -214,6 +214,10 @@ pub mod audit;
 #[path = "kernel_syscall.rs"]
 pub mod syscall;
 
+/// Explicit host wiring for read-only Rust runtime syscall metadata.
+#[path = "kernel_syscall_adapters.rs"]
+pub mod syscall_adapters;
+
 // ── Session truth & protocol host ──
 
 /// Sharded Rust session truth for the clean-break kernel.

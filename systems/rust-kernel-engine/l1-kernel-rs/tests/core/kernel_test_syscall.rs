@@ -165,3 +165,34 @@ fn invalid_nested_arguments_are_rejected_before_handler() {
     assert_eq!(dispatcher.stats().total, 1);
     assert_eq!(dispatcher.stats().failures, 1);
 }
+
+#[test]
+fn batch_registration_is_atomic_when_capacity_is_insufficient() {
+    let dispatcher = SyscallDispatcher::with_config(
+        SyscallConfig {
+            max_operations: 2,
+            ..SyscallConfig::default()
+        },
+        Arc::new(AuditLog::new()),
+    )
+    .expect("valid config");
+    let result = dispatcher.register_batch([
+        (
+            "first".to_owned(),
+            Arc::new(|_: &SyscallRequest| Ok(JsonObject::new()))
+                as l1_kernel_rs::syscall::SyscallHandler,
+        ),
+        (
+            "second".to_owned(),
+            Arc::new(|_: &SyscallRequest| Ok(JsonObject::new()))
+                as l1_kernel_rs::syscall::SyscallHandler,
+        ),
+        (
+            "third".to_owned(),
+            Arc::new(|_: &SyscallRequest| Ok(JsonObject::new()))
+                as l1_kernel_rs::syscall::SyscallHandler,
+        ),
+    ]);
+    assert_eq!(result, Err(SyscallRegistrationError::Full));
+    assert!(dispatcher.registered_operations().is_empty());
+}

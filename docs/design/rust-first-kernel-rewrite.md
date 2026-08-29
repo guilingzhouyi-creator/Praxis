@@ -460,6 +460,20 @@ control fields. Concrete process/event/resource operations remain host-injected
 and must honor capability policy; this seam does not discover Python services,
 select a shell, bypass `CapabilityAuthority`, or grant production authority.
 
+The follow-on adapter slice changes handler lookup to a reader-writer lock:
+dispatch readers share the table while registration remains exclusive. A
+const-generic `register_batch` validates every name and the projected capacity
+before publishing replacements or insertions, so a full table cannot leave a
+partially wired host surface. `syscall_adapters::KernelSyscallAdapters` then
+provides an explicit, read-only runtime metadata registration for
+`kernel.runtime.snapshot`, `kernel.runtime.recovery`, and
+`kernel.capability.status`. These operations accept only `{}`, serialize
+defensive snapshots, and never submit work or invoke a capability. The
+non-persistent recovery read is an `EIO` failure, preserving fail-closed
+semantics. Coverage lives in the independent
+`tests/runtime/kernel_test_syscall_adapters.rs` target; process/event/resource
+operation wiring remains a later capability-gated adapter decision.
+
 The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
 accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
 interrupt counts. Its process scan combines zombie counting and idle

@@ -306,6 +306,15 @@ be wired through capability policy; this boundary never discovers Python
 services, selects a shell, or grants production runtime authority. Coverage is
 isolated in `tests/core/kernel_test_syscall.rs`.
 
+The `syscall_adapters` module is the first explicit host wiring slice above
+the unified syscall table. It atomically registers read-only runtime metadata
+operations for the runtime snapshot, recovery decision, and capability
+executor status. Empty arguments are required; non-persistent recovery reads
+fail closed, and no operation submits work or invokes a capability. Handler
+lookup uses shared reads while registration remains exclusive. The independent
+target is `tests/runtime/kernel_test_syscall_adapters.rs`; process, event, and
+allocator side-effect operations remain future capability-gated adapters.
+
 The `boot` module is a declarative assembly candidate. `BootPlan` validates step
 names, rejects duplicate registrations unless replacement is explicit, supports
 a pre-execution lock, and resolves dependency-first order with fail-closed

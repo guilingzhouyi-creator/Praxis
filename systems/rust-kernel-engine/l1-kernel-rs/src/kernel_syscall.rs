@@ -8,10 +8,10 @@
 //! JSON object so a later TypeScript/L2 bridge can consume the same record
 //! without importing Rust implementation types.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -270,7 +270,7 @@ pub struct SyscallStats {
 /// Unique Rust syscall boundary with bounded registration and audit.
 pub struct SyscallDispatcher {
     config: SyscallConfig,
-    state: Mutex<DispatcherState>,
+    state: RwLock<DispatcherState>,
     audit: Arc<AuditLog>,
     total: AtomicU64,
     failures: AtomicU64,
@@ -293,7 +293,7 @@ impl SyscallDispatcher {
         config.validate()?;
         Ok(Self {
             config,
-            state: Mutex::new(DispatcherState::default()),
+            state: RwLock::new(DispatcherState::default()),
             audit,
             total: AtomicU64::new(0),
             failures: AtomicU64::new(0),
@@ -321,29 +321,50 @@ impl SyscallDispatcher {
     where
         F: Fn(&SyscallRequest) -> Result<JsonObject, SyscallFailure> + Send + Sync + 'static,
     {
-        let name = name.into();
-        self.validate_name(&name)?;
-        let mut state = self.lock_state();
-        let replacing = state.handlers.contains_key(&name);
-        if !replacing && state.handlers.len() >= self.config.max_operations {
+        let [outcome] = self.register_batch([(name.into(), Arc::new(handler))])?;
+        Ok(outcome)
+    }
+
+    /// Register a bounded handler batch atomically.
+    ///
+    /// All names and capacity are validated before any replacement or
+    /// insertion is published. This keeps host boot wiring from exposing a
+    /// partially registered syscall surface when the table is full.
+    pub fn register_batch<const N: usize>(
+        &self,
+        entries: [(String, SyscallHandler); N],
+    ) -> Result<[RegistrationOutcome; N], SyscallRegistrationError> {
+        let mut state = self.write_state();
+        let mut additions = BTreeSet::new();
+        for (name, _) in &entries {
+            self.validate_name(name)?;
+            if !state.handlers.contains_key(name) {
+                additions.insert(name.clone());
+            }
+        }
+        if state.handlers.len().saturating_add(additions.len()) > self.config.max_operations {
             return Err(SyscallRegistrationError::Full);
         }
-        state.handlers.insert(name, Arc::new(handler));
-        Ok(if replacing {
-            RegistrationOutcome::Replaced
-        } else {
-            RegistrationOutcome::Inserted
-        })
+
+        let mut outcomes = [RegistrationOutcome::Inserted; N];
+        for (index, (name, handler)) in entries.into_iter().enumerate() {
+            outcomes[index] = if state.handlers.insert(name, handler).is_some() {
+                RegistrationOutcome::Replaced
+            } else {
+                RegistrationOutcome::Inserted
+            };
+        }
+        Ok(outcomes)
     }
 
     /// Remove one handler, returning whether it existed.
     pub fn unregister(&self, name: &str) -> bool {
-        self.lock_state().handlers.remove(name).is_some()
+        self.write_state().handlers.remove(name).is_some()
     }
 
     /// Return registered operation names in deterministic order.
     pub fn registered_operations(&self) -> Vec<String> {
-        self.lock_state().handlers.keys().cloned().collect()
+        self.read_state().handlers.keys().cloned().collect()
     }
 
     /// Return the bounded audit trail used by this dispatcher.
@@ -366,7 +387,7 @@ impl SyscallDispatcher {
         let response = match request.validate(self.config) {
             Err(failure) => SyscallResponse::failure(failure),
             Ok(()) => {
-                let handler = self.lock_state().handlers.get(&request.op).cloned();
+                let handler = self.read_state().handlers.get(&request.op).cloned();
                 match handler {
                     None => SyscallResponse::failure(SyscallFailure::new(
                         "EINVAL",
@@ -419,7 +440,7 @@ impl SyscallDispatcher {
             total,
             failures: self.failures.load(Ordering::Relaxed),
             handler_panics: self.handler_panics.load(Ordering::Relaxed),
-            registered_operations: self.lock_state().handlers.len(),
+            registered_operations: self.read_state().handlers.len(),
             audit_entries,
             average_latency_us: if total == 0 {
                 0.0
@@ -444,8 +465,12 @@ impl SyscallDispatcher {
         Ok(())
     }
 
-    fn lock_state(&self) -> MutexGuard<'_, DispatcherState> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    fn read_state(&self) -> RwLockReadGuard<'_, DispatcherState> {
+        self.state.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn write_state(&self) -> RwLockWriteGuard<'_, DispatcherState> {
+        self.state.write().unwrap_or_else(PoisonError::into_inner)
     }
 }
 

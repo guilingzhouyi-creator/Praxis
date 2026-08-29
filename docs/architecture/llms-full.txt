@@ -584,6 +584,17 @@ host-injected and capability-gated; the dispatcher does not discover Python
 services, select shells, or grant production authority. Independent coverage
 lives in `tests/core/kernel_test_syscall.rs`.
 
+The dispatcher uses shared read locking for handler lookup while registration
+remains exclusive. `SyscallDispatcher::register_batch` validates every name and
+the projected capacity before publishing any handler, so a full table cannot
+leave a partially wired surface. The explicit
+`syscall_adapters::KernelSyscallAdapters` slice atomically registers
+read-only `kernel.runtime.snapshot`, `kernel.runtime.recovery`, and
+`kernel.capability.status` operations. They accept only empty arguments,
+serialize defensive metadata, and never submit work or invoke a capability;
+non-persistent recovery reads fail closed. Independent coverage lives in
+`tests/runtime/kernel_test_syscall_adapters.rs`.
+
 The Rust `watchdog` candidate now owns the pure evaluation half of Python
 `os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
 interrupt thresholds; `evaluate_watchdog` performs one bounded process pass
