@@ -1,5 +1,13 @@
 ---
 pointer: DESIGN-2026-08-29-007
+档号: DESIGN-2026-永久-007
+全宗号: DESIGN
+年度: 2026
+保管期限: 永久
+题名: Rust-First Kernel Rewrite Decision
+责任者: L3
+形成时间: 2026-08-29
+载体: md
 Fonds: DESIGN
 series: active
 date: 2026-08-29

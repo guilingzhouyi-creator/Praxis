@@ -1,8 +1,16 @@
 ---
 pointer: DESIGN-2026-08-27-001
+档号: DESIGN-2026-永久-001
+全宗号: DESIGN
+年度: 2026
+保管期限: 永久
+题名: Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）
+责任者: L3
+形成时间: 2026-08-29
+载体: md
 Fonds: DESIGN
 series: active
-date: 2026-08-27
+date: 2026-08-29
 status: active
 title: "Praxis 自动化 CI 审查模块设计 v2（card-triggered CI review + 模块联动）"
 ---

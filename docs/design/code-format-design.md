@@ -1,8 +1,16 @@
 ---
 pointer: DESIGN-2026-08-27-002
+档号: DESIGN-2026-永久-002
+全宗号: DESIGN
+年度: 2026
+保管期限: 永久
+题名: Code Auto-Format Module — Design
+责任者: L3
+形成时间: 2026-08-29
+载体: md
 Fonds: DESIGN
 series: active
-date: 2026-08-27
+date: 2026-08-29
 status: active
 title: "Code Auto-Format Module — Design"
 ---
