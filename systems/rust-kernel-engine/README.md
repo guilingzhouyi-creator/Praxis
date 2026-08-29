@@ -293,6 +293,19 @@ and list views. Sockets, UDP/TCP discovery, TLS, EventBus notifications, card
 sync, and message envelopes remain adapter-owned. Its shared lifecycle fixture
 is `tests/fixtures/kernel_peer_vectors.json`.
 
+The `syscall` module is the clean-break unified dispatch boundary for the
+Python `l1.kernel.__init__.syscall()` surface. `SyscallDispatcher` validates
+bounded operation names, caller identities, and nested JSON arguments before
+lookup; it keeps a deterministic, capacity-limited registration table with
+explicit replacement/removal, converts handler errors and panics into
+structured failures, records every attempt through an injected `AuditLog`, and
+exposes cumulative failure/panic/latency counters. `SyscallResponse::to_wire()`
+retains the top-level `success`/`error`/`error_code` shape while authoritative
+fields overwrite colliding handler data. Handlers are host-injected and must
+be wired through capability policy; this boundary never discovers Python
+services, selects a shell, or grants production runtime authority. Coverage is
+isolated in `tests/core/kernel_test_syscall.rs`.
+
 The `boot` module is a declarative assembly candidate. `BootPlan` validates step
 names, rejects duplicate registrations unless replacement is explicit, supports
 a pre-execution lock, and resolves dependency-first order with fail-closed

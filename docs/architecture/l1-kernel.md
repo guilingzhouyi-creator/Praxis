@@ -16,6 +16,7 @@ see *Kernel surface boundary* below).
 | Module | Role |
 |--------|------|
 | `process.py` | ProcessTable + PCB (agents are processes: ring, state, identity, audit) |
+| `__init__.py` | Unified syscall dispatch, audit trail, error normalization, and kernel health surface |
 | `sync.py` | Mutex / Semaphore / Barrier / RWLock (RLock-reentrant; RWLock write depth is explicit) |
 | `event.py` | EventBus: typed `SignalType` (20 members incl. card/approval flow), async dispatch via thread pool, string-event registry |
 | `constitution.py` | Constitutional rules engine (highest authority; `.praxis-rules.md`) |
@@ -811,6 +812,23 @@ ONLY place that wires it (`boot_steps/tools.py::_register_capability_executor`
 connects it to `invoke_gated`), the kernel never imports L3, and an unwired
 executor denies every call. This is the seam `l1_kernel_rs` replaces: swap the
 boot adapter, no caller changes.
+
+### Rust unified syscall boundary
+
+`syscall::SyscallDispatcher` is the clean-break replacement for the Python
+`l1.kernel.__init__.syscall()` registry. It validates operation/identity/JSON
+argument bounds before lookup, keeps registrations in a bounded deterministic
+table, catches handler panics as `EFAULT`, records every attempt through the
+injected `AuditLog`, and exposes cumulative failure/panic/latency counters.
+Handlers are host-injected; the dispatcher never discovers services, selects
+shells, or bypasses `CapabilityAuthority`. `SyscallResponse::to_wire()` emits
+the retained top-level `success`/`error`/`error_code` shape while making those
+fields authoritative over handler data. The independent
+`tests/core/kernel_test_syscall.rs` target covers registration limits,
+validation, response flattening, panic/error isolation, concurrent accounting,
+and nested argument rejection. This closes the unified mechanism boundary;
+concrete process/event/resource operations still require explicit adapter
+registration and capability policy.
 
 ### Port abstraction
 

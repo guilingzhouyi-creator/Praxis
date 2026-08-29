@@ -388,6 +388,10 @@ name = "sync_vectors"
 path = "tests/core/sync_vectors.rs"
 
 [[test]]
+name = "syscall"
+path = "tests/core/kernel_test_syscall.rs"
+
+[[test]]
 name = "terminal"
 path = "tests/terminal/kernel_test_terminal.rs"
 

@@ -210,6 +210,10 @@ pub mod reputation;
 /// Rust candidate for the bounded kernel audit trail.
 pub mod audit;
 
+/// Rust-native unified syscall dispatch, audit, and handler-boundary candidate.
+#[path = "kernel_syscall.rs"]
+pub mod syscall;
+
 // ── Session truth & protocol host ──
 
 /// Sharded Rust session truth for the clean-break kernel.

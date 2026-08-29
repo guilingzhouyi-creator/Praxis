@@ -447,6 +447,19 @@ fail-closed outcomes. The real-loopback integration target
 slice deliberately does not import EventBus/card sync, probe the host for a
 shell, own protocol-host routing, or become the Rust production entrypoint.
 
+The next Rust L1 closure adds `syscall::SyscallDispatcher`, the clean-break
+mechanism mapping for Python `l1.kernel.__init__.syscall()`. Requests are
+validated for bounded operation names, caller identities, and nested JSON
+arguments before handler lookup; the registration table is bounded and
+deterministically ordered. Handler errors and panics become structured
+failures and `EFAULT`, every attempt is recorded through the injected
+`AuditLog`, and cumulative failure/panic/latency counters remain observable.
+`SyscallResponse::to_wire()` preserves the retained top-level
+`success`/`error`/`error_code` shape while preventing handler data from forging
+control fields. Concrete process/event/resource operations remain host-injected
+and must honor capability policy; this seam does not discover Python services,
+select a shell, bypass `CapabilityAuthority`, or grant production authority.
+
 The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
 accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
 interrupt counts. Its process scan combines zombie counting and idle

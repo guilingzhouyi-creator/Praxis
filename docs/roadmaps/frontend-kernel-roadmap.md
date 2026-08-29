@@ -1114,6 +1114,17 @@ EventBus 联动和生产 Constitution authority 尚未接入，R5 cutover 不能
 loopback 收发、UDP discovery、帧界、背压、异常隔离和重启；该片仍不接管
 EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority。
 
+随后补齐 Rust `syscall::SyscallDispatcher` 统一内核调用边界：在 handler
+查找前对 operation、caller identity 和嵌套 JSON 参数执行有界校验，注册表
+支持显式替换但保持确定性名称顺序；handler 错误与 panic 转换为结构化失败，
+每次请求都写入注入的 `AuditLog`，并输出累计失败、panic、注册数和平均延迟
+统计。`SyscallResponse::to_wire()` 保留顶层 `success/error/error_code` 语义且
+防止 handler 数据伪造控制字段。独立 `tests/core/kernel_test_syscall.rs`
+覆盖注册上限、未知/非法请求、并发计账与异常隔离。具体 process/event/resource
+操作仍须宿主显式注册并经过 capability policy；该片闭合统一机制入口，但不
+授予 Rust production runtime authority，后续要与 `KernelRuntime`、GateChain
+和 L2/TS bridge 做明确 adapter 接线。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；

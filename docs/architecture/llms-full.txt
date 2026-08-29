@@ -570,6 +570,20 @@ queue backpressure, malformed input, handler panic containment, and restart.
 This remains an adapter candidate: EventBus/card synchronization, process
 authority, protocol-host routing, and production boot wiring stay outside L1.
 
+The Rust `syscall` candidate closes the unified mechanism boundary represented
+by Python `l1.kernel.__init__.syscall()`. It validates bounded operation names,
+caller identities, and recursively nested JSON arguments before handler
+lookup; registration is capacity-limited, deterministic, and explicit about
+replacement/removal. Handler errors become structured failures and panics are
+contained as `EFAULT`; every attempt is written to an injected `AuditLog`, and
+the dispatcher exposes failure, panic, registration, and average-latency
+counters. `SyscallResponse::to_wire()` preserves the retained top-level
+`success`/`error`/`error_code` contract while preventing handler data from
+forging control fields. Concrete process/event/resource operations remain
+host-injected and capability-gated; the dispatcher does not discover Python
+services, select shells, or grant production authority. Independent coverage
+lives in `tests/core/kernel_test_syscall.rs`.
+
 The Rust `watchdog` candidate now owns the pure evaluation half of Python
 `os.py`'s watchdog tick. `WatchdogPolicy` receives explicit zombie, idle, and
 interrupt thresholds; `evaluate_watchdog` performs one bounded process pass
