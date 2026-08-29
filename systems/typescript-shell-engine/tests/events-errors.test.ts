@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { TypedEventEmitter } from "../src/engine/events.ts";
+import { TypedEventEmitter } from "../src/engine/engine-events.ts";
 import { ProtocolError, withRetry } from "../src/engine/protocol-errors.ts";
 
 describe("TypedEventEmitter", () => {
