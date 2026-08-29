@@ -19,6 +19,7 @@ abstract: Rust is the approved direction for a clean-break, Rust-first kernel bu
 series: active
 date: 2026-08-29
 status: active
+construction: in_progress
 ---
 
 # Kernel Rewrite Readiness Package

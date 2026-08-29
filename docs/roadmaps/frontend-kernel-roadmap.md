@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-15-001
+archive_number: ROADMAP-2026-长期-001
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Praxis 前端与内核多语言路线图"
+author: L3
+formation_date: 2026-08-15
+carrier: md
+classification: 内部
+pages: 1077
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "Praxis 的后续前端将覆盖四种形态：TUI、轻量化桌端 App（开箱即食的 ChatBox）、"
+series: active
+date: 2026-08-15
+status: active
+construction: in_progress
+---
+
 # Praxis 前端与内核多语言路线图
 
 > 状态：G4 自动化外围已闭合；G5 Rust/TS 迁移脚手架已启动；Rust-first 独立内核重写仍按 R0–R5 与 M1–M4 门槛推进

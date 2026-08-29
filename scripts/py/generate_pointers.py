@@ -37,6 +37,7 @@ def extract(p: pathlib.Path):
         "source": get("source"),
         "keywords": get("keywords"),
         "abstract": get("abstract"),
+        "construction": get("construction"),
         "file": "",
         "type": "",
         "status": "",
@@ -80,6 +81,29 @@ for p in sorted((ARCHIVE / "002-review").rglob("*.md")) if (ARCHIVE / "002-revie
     fields["status"] = "archived"
     index.append(fields)
 
+# ROADMAP fonds: independent library (docs/roadmaps/), same gate/pointers DSL
+roadmap_dir = ROOT / "docs/roadmaps"
+for p in sorted(roadmap_dir.glob("*.md")):
+    if p.name == "README.md":
+        continue
+    fields = extract(p)
+    if not fields["pointer"]:
+        continue
+    fields["file"] = f"docs/roadmaps/{p.name}"
+    fields["type"] = "roadmap"
+    fields["status"] = "active"
+    index.append(fields)
+
+for p in sorted((ARCHIVE / "003-roadmap").rglob("*.md")) if (ARCHIVE / "003-roadmap").exists() else []:
+    fields = extract(p)
+    if not fields["pointer"]:
+        continue
+    rel = p.relative_to(ARCHIVE).as_posix()
+    fields["file"] = f"archive/{rel}"
+    fields["type"] = "roadmap"
+    fields["status"] = "archived"
+    index.append(fields)
+
 index_sorted = sorted(index, key=lambda x: x["pointer"])
 POINTERS_JSON.write_text(json.dumps(index_sorted, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"Wrote {POINTERS_JSON} with {len(index_sorted)}")
@@ -103,6 +127,7 @@ conn.execute("""CREATE TABLE pointers (
     file TEXT,
     type TEXT,
     status TEXT,
+    construction TEXT,
     keywords TEXT,
     abstract TEXT
 )""")
@@ -114,7 +139,7 @@ for e in index_sorted:
     except Exception:
         pages = 0
     conn.execute(
-        "INSERT INTO pointers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO pointers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             e["pointer"],
             e["archive_number"],
@@ -130,6 +155,7 @@ for e in index_sorted:
             e["file"],
             e["type"],
             e["status"],
+            e["construction"],
             e["keywords"],
             e["abstract"],
         ),

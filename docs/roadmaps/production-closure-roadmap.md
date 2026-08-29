@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-18-007
+archive_number: ROADMAP-2026-长期-007
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Praxis 路线图盲区补全 — 生产闭环、安全与可运维性"
+author: L3
+formation_date: 2026-08-18
+carrier: md
+classification: 内部
+pages: 157
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "现有五份路线图覆盖了前端形态收敛、L1 Rust 下沉、L2 协议 v1 与 TS 重写、run_code 多语言后端、科研泛化，但存在三类盲区："
+series: active
+date: 2026-08-18
+status: active
+construction: planned
+---
+
 # Praxis 路线图盲区补全 — 生产闭环、安全与可运维性
 
 > 状态：规划（盲区补全，未实施）

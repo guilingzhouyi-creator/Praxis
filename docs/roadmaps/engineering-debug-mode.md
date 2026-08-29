@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-18-006
+archive_number: ROADMAP-2026-长期-006
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Engineering Debug Mode Roadmap (3.5)"
+author: L3
+formation_date: 2026-08-18
+carrier: md
+classification: 内部
+pages: 87
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "Engineering debug mode is a developer-only operating mode layered on top of"
+series: active
+date: 2026-08-18
+status: active
+construction: in_progress
+---
+
 # Engineering Debug Mode Roadmap (3.5)
 
 > Status: implementation merged, P1 gaps open (P1-C closed — see §3). This

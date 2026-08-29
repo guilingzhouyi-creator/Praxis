@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-23-010
+archive_number: ROADMAP-2026-长期-010
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）"
+author: L3
+formation_date: 2026-08-23
+carrier: md
+classification: 内部
+pages: 138
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "将 TS 引擎（终态 L2 权威）与 Rust 内核（终态 L1）经协议 v1 线缆直接对接，"
+series: active
+date: 2026-08-23
+status: active
+construction: in_progress
+---
+
 # L1 ↔ L2 对接计划（TS-L2 × Rust-L1 Wire Docking）
 
 > Status: in progress（操作员 2026-08-23 确认方向：TS L2 为终态权威，承载上层会话接入面并对接 Rust L1 内核。

@@ -40,6 +40,7 @@ REQUIRED_FIELDS = [
     "source",
     "keywords",
     "abstract",
+    "construction",
 ]
 
 
@@ -66,8 +67,18 @@ def validate_file(path: pathlib.Path):
     m = re.search(r"^pointer:\s*(\S+)", text, re.M)
     if m:
         pointer = m.group(1)
-        if not re.match(r"^(DESIGN|ARCH-DESIGN|ARCH-REVIEW)-", pointer):
-            errors.append(f"{path}: invalid pointer '{pointer}' (must start with DESIGN/ARCH-DESIGN/ARCH-REVIEW)")
+        if not re.match(r"^(DESIGN|ARCH-DESIGN|ARCH-REVIEW|ROADMAP|ARCH-ROADMAP)-", pointer):
+            errors.append(
+                f"{path}: invalid pointer '{pointer}' (must start with DESIGN/ARCH-DESIGN/ARCH-REVIEW/ROADMAP/ARCH-ROADMAP)"
+            )
+    # Check construction status vocabulary (real-world implementation state;
+    # orthogonal to library lifecycle `status`). Blocked on unknown values so
+    # body/header drift (planned-but-implemented) cannot pass silently.
+    m = re.search(r"^construction:\s*(\S+)", text, re.M)
+    if m:
+        construction = m.group(1)
+        if construction not in ("planned", "in_progress", "closed"):
+            errors.append(f"{path}: invalid construction '{construction}' (must be planned|in_progress|closed)")
     # Check kebab filename
     if path.parent.name != "_incoming" and "archive" not in str(path) and not re.match(r"^[a-z0-9-]+\.md$", path.name):
         errors.append(f"{path.name}: must be kebab-case (lowercase, hyphens, no praxis- prefix)")
@@ -82,14 +93,15 @@ def main():
     args = parser.parse_args()
 
     files = staged_files()
-    # Filter to docs/design
+    # Filter to docs/design + docs/roadmaps (two independent fonds, same gate)
     design_files = [
         f
         for f in files
-        if f.startswith("docs/design/")
+        if (f.startswith("docs/design/") or f.startswith("docs/roadmaps/"))
         and f.endswith(".md")
         and "archive" not in f
         and "_incoming" not in f
+        and "_outgoing" not in f
         and not f.endswith("README.md")
         and not f.endswith("archive-spec.md")
     ]
@@ -124,15 +136,35 @@ def main():
         if db.exists():
             subprocess.run(["git", "add", "-f", str(db)], cwd=str(ROOT))
 
+    # Outgoing pre-storage: completed docs (construction: closed) staged in
+    # _outgoing/ are auto-archived on commit — the seamless "roadmap completes
+    # -> archived" bridge (mirror of _incoming ingestion, out direction).
+    outgoing_files = [f for f in files if "_outgoing/" in f and f.endswith(".md") and not f.endswith("README.md")]
+    if outgoing_files and args.fix:
+        print(f"--- doc gate: archiving {len(outgoing_files)} outgoing file(s) ---")
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/py/doc_archive.py"), "--staged", "--fix"],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            print(result.stdout, file=sys.stderr)
+            print(result.stderr, file=sys.stderr)
+            sys.exit(1)
+        if result.stdout:
+            print(result.stdout.strip())
+
     # Validate all staged design files (including those just fixed, re-read staged list)
     files = staged_files()
     design_files = [
         f
         for f in files
-        if f.startswith("docs/design/")
+        if (f.startswith("docs/design/") or f.startswith("docs/roadmaps/"))
         and f.endswith(".md")
         and "archive" not in f
         and "_incoming" not in f
+        and "_outgoing" not in f
         and not f.endswith("README.md")
         and not f.endswith("archive-spec.md")
     ]

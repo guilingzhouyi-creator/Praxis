@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-22-009
+archive_number: ROADMAP-2026-长期-009
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "L2 Shell — 后续 Agent 交接索引与 TS 重写标准"
+author: L3
+formation_date: 2026-08-22
+carrier: md
+classification: 内部
+pages: 244
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "1. 先看本文档 §1 能力地图 → 找到要动的模块 → 读对应源码（禁止未读先改）。"
+series: active
+date: 2026-08-22
+status: active
+construction: in_progress
+---
+
 # L2 Shell — 后续 Agent 交接索引与 TS 重写标准
 
 > 供后续 Agent 审阅/接手 L2 层工作时的**精确索引参考与重写标准**。

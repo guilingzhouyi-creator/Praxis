@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-15-003
+archive_number: ROADMAP-2026-长期-003
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "科研泛化路线图（前瞻规划）"
+author: L3
+formation_date: 2026-08-15
+carrier: md
+classification: 内部
+pages: 88
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "Praxis 当前专注代码领域（五层 Agent OS：kernel → shell → cell → bridge → user）。"
+series: active
+date: 2026-08-15
+status: active
+construction: planned
+---
+
 # 科研泛化路线图（前瞻规划）
 
 > **状态**: 前瞻规划（Not Started）— 仅作设计约束预留，不作为当前工作重点

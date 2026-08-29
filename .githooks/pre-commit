@@ -49,7 +49,7 @@ fi
 # ── Doc gate (pre-storage auto-migrate + header validation) ──────────────
 # Works on both main and worktree branches. Staged files in _incoming/ are auto-tagged and migrated;
 # staged docs/design/*.md outside _incoming are validated for 15-field English header and duplicate pointer.
-if git diff --cached --name-only --diff-filter=AM | grep -qE '^docs/design/'; then
+if git diff --cached --name-only --diff-filter=AM | grep -qE '^docs/(design|roadmaps)/'; then
   python scripts/py/check_doc_gate.py --staged --fix
 fi
 

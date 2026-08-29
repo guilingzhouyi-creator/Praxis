@@ -16,6 +16,7 @@ archive_date: 2026-08-29
 source: design
 keywords: []
 abstract: "This is an automated end-to-end test for the pre-storage gate. It must be tagged, migrated, and indexed automatically on"
+construction: closed
 ---
 
 # Edge Case Test

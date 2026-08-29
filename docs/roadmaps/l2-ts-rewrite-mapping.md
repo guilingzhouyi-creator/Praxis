@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-23-011
+archive_number: ROADMAP-2026-长期-011
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "L2 TS 重写映射清单（2026-08-23）"
+author: L3
+formation_date: 2026-08-23
+carrier: md
+classification: 内部
+pages: 179
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "- Python L2：`systems/python-reference-runtime/l2/` 22 文件 / 3550 行（commands / selector / i18n /"
+series: active
+date: 2026-08-23
+status: active
+construction: in_progress
+---
+
 # L2 TS 重写映射清单（2026-08-23）
 
 > 状态：feature/l2-ts-rewrite 分支工作参考。本文档按 **main 当前实际代码**

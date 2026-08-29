@@ -8,12 +8,13 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (2)
+## Active (3)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
 | `DESIGN-2026-08-27-004` | `DESIGN-2026-永久-104` | "Kernel Rewrite Readiness Pack | Rust is the approved direction for a cle | `kernel-rewrite-readiness-package.md` |
 | `DESIGN-2026-08-29-007` | `DESIGN-2026-永久-107` | "Rust-First Kernel Rewrite Dec | The future Praxis kernel is a clean-brea | `rust-first-kernel-rewrite.md` |
+| `DESIGN-2026-08-29-108` | `DESIGN-2026-permanent-108` | "Edge Case Test | This is an automated end-to-end test for the pre-storage gate | `edge-case-test.md` |
 
 ## Archived DESIGN (001) — 22
 

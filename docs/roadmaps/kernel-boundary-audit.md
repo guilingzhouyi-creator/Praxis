@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-16-004
+archive_number: ROADMAP-2026-长期-004
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Praxis Kernel Boundary Audit — Rust 重写前置基线"
+author: L3
+formation_date: 2026-08-16
+carrier: md
+classification: 内部
+pages: 183
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "- gatechain.py：机制在 kernel，danger 等级/风险阈值/频率乘数为 params 常量 = 策略硬编码。"
+series: active
+date: 2026-08-16
+status: active
+construction: in_progress
+---
+
 # Praxis Kernel Boundary Audit — Rust 重写前置基线
 
 > 状态：进行中（审计基线已定稿；§11.2 Phase 0/1 封口与 Phase 2 候选切片已实施——剩余 B4/B6/B8/B9 与 G3/G6 待闭环，进度见 §11.2 与 `production-closure-roadmap.md` P0.5/P0.6）

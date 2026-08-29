@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-17-005
+archive_number: ROADMAP-2026-长期-005
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Praxis L2 Shell Engine 边界审计与多前端会话层路线图"
+author: L3
+formation_date: 2026-08-17
+carrier: md
+classification: 内部
+pages: 221
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "- Shell Boundary Integrity Score：36 / 100。分维度：Execution boundary 6/15、State ownership 5/15、Dependency direction 4/20、She"
+series: active
+date: 2026-08-17
+status: active
+construction: in_progress
+---
+
 # Praxis L2 Shell Engine 边界审计与多前端会话层路线图
 
 > 状态：进行中（2026-08-25 对齐 main @ 123b22d2 的第三态——P0 工具单门 ✅ 在 main；P1 边界迁移与

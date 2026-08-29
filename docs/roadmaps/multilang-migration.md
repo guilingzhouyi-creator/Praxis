@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-15-002
+archive_number: ROADMAP-2026-长期-002
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends"
+author: L3
+formation_date: 2026-08-15
+carrier: md
+classification: 内部
+pages: 170
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "Python3 is the current abstraction base, not the final language. The"
+series: active
+date: 2026-08-15
+status: active
+construction: planned
+---
+
 # Praxis Multi-Language Migration — run_code / Code Mode (PTC) language backends
 
 > Status: build scaffold active (Python3 backend shipped; TypeScript protocol

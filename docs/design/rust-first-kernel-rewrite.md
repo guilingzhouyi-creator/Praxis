@@ -19,6 +19,7 @@ abstract: The future Praxis kernel is a clean-break Rust build, not a Python
 series: active
 date: 2026-08-29
 status: active
+construction: in_progress
 ---
 
 # Rust-First Kernel Rewrite Decision

@@ -11,7 +11,7 @@
 | `DECISION` | 决策 | 永久 | `docs/decisions/*.md` | `docs/decisions/archive/`（如需）或 `docs/design/archive/DECISION/` 已归并 | 决策类不归入 `DESIGN` |
 | `ISSUE` | 事项 | 短期(3年) | `docs/issues/*.md` | 同上 |  |
 | `ARCHITECTURE` | 架构 | 永久 | `docs/architecture/*.md` | `docs/architecture/archive/`（如需） |  |
-| `ROADMAP` | 路线图 | 长期 | `docs/roadmaps/*.md` | 同上 |  |
+| `ROADMAP` | 路线图 | 长期 | `docs/roadmaps/*.md`（`ROADMAP-*` 指针 + `construction` 字段，同 DESIGN 门禁与索引） | `docs/design/archive/003-roadmap/2026/长期/` |  |
 
 **归属校正**：此前 `docs/design/archive/decisions/` 与 `docs/design/archive/issues/` 为**错误归属**（设计全宗混入决策/事项），已移除；`migrate_api_v2.py` 非档案，已移除。设计档案仅保留 `DESIGN/` 与 `REVIEW/`。
 
@@ -35,6 +35,7 @@ retention: permanent  # 永久 / 长期 / 短期
 fonds: DESIGN
 series: archive  # active/archive
 status: archived
+construction: closed  # planned|in_progress|closed：实施状态（与 status 库生命周期正交）
 ---
 ```
 
@@ -48,6 +49,8 @@ status: archived
 - 归档设计：`ARCH-DESIGN-YYYY-MM-DD-NNN`
 - 归档评审：`ARCH-REVIEW-YYYY-MM-DD-NNN`
 - 归档决策：`ARCH-DECISION-YYYY-MM-DD-NNN`
+- 活跃路线图：`ROADMAP-YYYY-MM-DD-NNN`
+- 归档路线图：`ARCH-ROADMAP-YYYY-MM-DD-NNN`
 
 ### 3.2 DSL 查询（基于 `POINTERS.json`）
 
@@ -75,7 +78,21 @@ git show <commit>:docs/design/foundation-gaps-plan.md > /tmp/restore.md
 cat docs/design/archive/DESIGN/2026-08/2026-08-05_design_foundation-gaps-plan.md
 ```
 
-## 4. 文件夹与文档命名规范
+## 4. 预存区与归档管线（无缝闭环）
+
+两个独立全宗库（DESIGN / ROADMAP）共用同一套门禁与管线，经预存区双向流转：
+
+- **入向（新文档）**：`docs/design/_incoming/`（两库通用）→ 提交时 doc gate 调
+  `doc_ingest.py --fix` 自动打题头、分配指针/档号、迁移到活跃库并重建索引。
+- **出向（完成归档）**：完成态文档（`construction: closed`，DESIGN 或 ROADMAP）
+  移入 `docs/design/_outgoing/` → 提交时 doc gate 调 `doc_archive.py --fix`
+  自动重指向（`ARCH-*` 指针、档号顺延、`series: archive`、`status: archived`、
+  `original_name`）、移入对应全宗归档目录（`001-design/2026/永久/` 或
+  `003-roadmap/2026/长期/`）、删除活跃文件并重建索引——**路线图完成后无缝归档**。
+- 归档判定由 `construction: closed` 驱动（完成态字段，非人工猜测）；不满足条件
+  的文件阻断提交，不会静默移动。
+
+## 5. 文件夹与文档命名规范
 
 ### 4.1 文件夹
 

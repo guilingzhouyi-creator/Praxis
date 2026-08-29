@@ -1,3 +1,27 @@
+---
+pointer: ROADMAP-2026-08-21-008
+archive_number: ROADMAP-2026-长期-008
+fonds: ROADMAP
+year: 2026
+retention: 长期
+title: "Agent OS 3.x Closure and TypeScript Readiness Roadmap"
+author: L3
+formation_date: 2026-08-21
+carrier: md
+classification: 内部
+pages: 192
+archivist: L3
+reviewer: L3
+archive_date: 2026-08-29
+source: roadmap
+keywords: []
+abstract: "The 3.0-3.5 chain is partially implemented, not production-complete."
+series: active
+date: 2026-08-21
+status: active
+construction: in_progress
+---
+
 # Agent OS 3.x Closure and TypeScript Readiness Roadmap
 
 > Status: in progress (P0.1 reference contract complete; TS mirror pilot)
