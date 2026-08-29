@@ -3,7 +3,7 @@
 Doc gate for pre-commit: validates staged docs and blocks on violations.
 
 - Checks all staged docs/design/*.md (excluding _incoming, archive, README, archive-spec)
-  for required 15-field English header, duplicate pointer/archive_number, and folder correctness.
+  for required English header DSL, duplicate pointer/archive_number, and folder correctness.
 - If staged files are in _incoming/, it auto-fixes them via doc_ingest.py --fix (when called with --fix).
 - Exit 1 blocks commit and prints Agent-friendly message.
 
@@ -62,7 +62,7 @@ def validate_file(path: pathlib.Path):
     # Check required fields
     for field in REQUIRED_FIELDS:
         if not re.search(rf"^{field}:\s*.+", text, re.M):
-            errors.append(f"{path}: missing required field '{field}:' (15-field English header required)")
+            errors.append(f"{path}: missing required field '{field}:' (English header DSL required)")
     # Check pointer format
     m = re.search(r"^pointer:\s*(\S+)", text, re.M)
     if m:
@@ -222,7 +222,7 @@ def main():
             file=sys.stderr,
         )
         print("  - Or run: python scripts/py/doc_ingest.py --file <path> --fix", file=sys.stderr)
-        print("  - Ensure 15-field English header (pointer/archive_number/fonds/...) is present", file=sys.stderr)
+        print("  - Ensure the English header DSL (pointer/archive_number/fonds/...) is present", file=sys.stderr)
         print("  - Check POINTERS.json for duplicate pointer/archive_number", file=sys.stderr)
         sys.exit(1)
     else:

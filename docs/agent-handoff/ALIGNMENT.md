@@ -23,6 +23,7 @@
 
 | Date | File | Agent | Change | Status |
 |---|---|---|---|---|
+| 2026-08-29 | .githooks/pre-commit + scripts/py/{doc_archive,check_doc_gate,doc_ingest}.py + tests/infra/test_doc_archive.py + docs/roadmaps/README.md + docs/workflow/collaboration.md + docs/design/_incoming/README.md | AtomCode (deepseek-v4-flash) | doc-archive hardening (batch seq pre-allocation, fonds-wide scan, subprocess checks) + mainline whitelist extends to AGENTS.md/CLAUDE.md + header-DSL wording | in feature/doc-archive-hardening |
 
 
 
