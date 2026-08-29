@@ -212,6 +212,10 @@ name = "notify_vectors"
 path = "tests/network/notify_vectors.rs"
 
 [[test]]
+name = "os"
+path = "tests/core/kernel_test_os.rs"
+
+[[test]]
 name = "outbox_registry"
 path = "tests/storage/kernel_test_outbox_registry.rs"
 

@@ -454,6 +454,14 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   is side-effect-free and caller-driven; it does not own clocks, threads,
   ProcessTable/IRQ singletons, logging, restart, or shutdown policy. Its
   independent target is `tests/core/kernel_test_watchdog.rs`.
+- The Rust `os` candidate provides the remaining lifecycle coordination seam
+  from `l1.kernel.os.OS`: host-injected boot/persistence/reset callbacks,
+  ordered shutdown hooks, versioned state/status reports, bounded callback
+  outcomes, restart sequencing, and a condition-variable-stoppable watchdog
+  loop. `get_os`/`reset_os` are process-local adapter helpers. The candidate
+  does not discover ProcessTable/IRQ state, emit logs, own PTYs or platform
+  process groups, or become the production entry authority. Its independent
+  target is `tests/core/kernel_test_os.rs`.
 - The Rust `swapper` candidate mirrors memory-ring planning from explicit entry
   and pressure snapshots: ring destinations, compaction filters, and action
   flags. `tests/fixtures/kernel_swapper_vectors.json` is shared; MemoryService

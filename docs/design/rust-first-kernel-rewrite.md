@@ -445,6 +445,21 @@ thread, ProcessTable/IRQ access, logging, signal, restart, and shutdown
 authority. This closes the pure evaluation boundary of `os.py`, not the
 production watchdog wiring or R4/R5 runtime cutover.
 
+The lifecycle follow-on adds `os::OsCoordinator`, a Rust-native coordination
+seam for the remaining `os.py` behavior. Host callbacks provide boot,
+persistence, ordered shutdown hooks, terminal/Cell reset, and watchdog
+observation; the coordinator owns only state transitions, bounded callback
+waiting, restart sequencing, status snapshots, and a condition-variable
+stop path for the optional watchdog loop. Callback errors and panics remain
+observable, and a timeout never pretends to interrupt a callback that is
+already running. The `get_os`/`reset_os` singleton is adapter-facing and does
+not grant default-entrypoint authority. The independent
+`tests/core/kernel_test_os.rs` target covers boot failure states, callback
+ordering, timeout/panic reporting, restart, watchdog lifecycle, and singleton
+reset. ProcessTable/IRQ discovery, logging, PTY/process-group shutdown,
+Provider/AgentLoop wiring, and R4/R5 cutover remain outside this mechanism
+candidate.
+
 The process parity candidate now exposes an explicit typed-handle bridge:
 live PIDs in the substrate slot range map to generation-one `ProcessHandle`
 values, stale generations fail closed, and handle-based exit/reap stop working

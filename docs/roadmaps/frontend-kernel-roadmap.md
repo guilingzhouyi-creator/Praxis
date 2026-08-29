@@ -1082,6 +1082,16 @@ shutdown；宿主仍持有 watchdog wiring 和生产生命周期权威。独立�
 生产 shutdown/restart 证据接入 R4/R5 评审，不能把这片当作 runtime
 cutover 完成。
 
+随后补齐 `os::OsCoordinator` 生命周期协调候选：通过宿主注入 boot、
+persistence、shutdown hook、terminal/Cell reset 与 watchdog observer，
+Rust 负责状态机、重启顺序、有界 callback 结果、状态快照以及可快速停止
+的后台 watchdog loop。`get_os`/`reset_os` 仅提供适配器和测试入口，不授予
+默认生产启动权；ProcessTable/IRQ 观测、日志、PTY/进程组 shutdown 与
+L2/L3 wiring 仍由宿主保留。独立目标为
+`tests/core/kernel_test_os.rs`，覆盖失败态、hook 顺序、timeout/panic、
+restart、watchdog 与 singleton。该切片把 Python `os.py` 的机制边界映射
+到 Rust，但不等于 R4/R5 cutover 或生产生命周期闭合。
+
 随后推进 `constitution_io` 文件边界候选：Rust
 `TerritoryConstitution` 已覆盖已保留的 territory/GateChain Markdown
 标量、确定性渲染、版本恢复、提案合并和集合差异；`ConstitutionStore`

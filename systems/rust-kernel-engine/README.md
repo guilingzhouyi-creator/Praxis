@@ -56,6 +56,17 @@ restart, or shutdown policy; hosts decide what to do with the report. Zero
 thresholds fail closed, and the independent target is
 `tests/core/kernel_test_watchdog.rs`.
 
+The `os` module is the lifecycle-coordination candidate for the rest of
+Python `l1.kernel.os.OS`. `OsCoordinator` keeps boot/shutdown/restart state
+transitions and status in Rust while all boot, persistence, reset, hook, and
+watchdog side effects arrive through host callbacks. Shutdown callback waits
+are bounded and preserve timeout/panic outcomes; its optional watchdog loop
+stops through a condition variable rather than sleeping out the full
+interval. The singleton helpers are adapter/test conveniences only. It does
+not provide production boot authority, ProcessTable/IRQ discovery, logging,
+PTY/process-group control, or L2/L3 wiring. Coverage is isolated in
+`tests/core/kernel_test_os.rs`.
+
 The `constitution_io` module is the first filesystem-bearing Constitution
 candidate. It owns a strict, Rust-native `TerritoryConstitution` parser and
 deterministic renderer for territory/GateChain values, plus a
@@ -232,7 +243,7 @@ barrier; shutdown and recovery acknowledgement use already-locked helpers to
 keep lifecycle transitions and cross-book snapshots ordered without recursive
 locking.
 
-State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, territory, sync,
+State-queue, process, managed-process, terminal, session, agent-loop, substrate, benchmark, health, watchdog, os, territory, sync,
 registry, identity-uid, swapper, tool-chain, schema, migration, capability,
 cancellation, notify, reputation, audit, device, interrupt, errors, channel,
 bus, registry-base, event, benchmark-runner, scheduler, runtime, and worker behavior

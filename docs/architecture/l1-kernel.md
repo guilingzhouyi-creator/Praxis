@@ -378,6 +378,22 @@ exposed as named Rust constants only for semantic mapping; deployments must
 select their own policy. Independent coverage lives in
 `tests/core/kernel_test_watchdog.rs`.
 
+The Rust `os` candidate now supplies the lifecycle-coordination half of
+Python `l1.kernel.os.OS` without importing upper layers. `OsCoordinator`
+accepts host-injected boot, persistence, shutdown-hook, terminal-reset,
+Cell-reset, and watchdog callbacks; serializes `DOWN`/`STARTING`/`RUNNING`/
+`STOPPING`/`CRASHED` transitions; and returns versioned boot, shutdown, and
+status reports. Boot callback failures and panics enter `CRASHED`; shutdown
+callbacks run in registration order with bounded waits, preserving timeout
+and panic outcomes instead of claiming they succeeded. The background
+watchdog loop is opt-in, uses a condition-variable stop path, and remains
+side-effect-free apart from storing the latest value report and an error
+counter. `get_os`/`reset_os` provide a Rust process-local singleton for
+adapters and tests. This is a lifecycle mechanism seam only: production
+boot authority, ProcessTable/IRQ observation, logging, PTY/process-group
+shutdown, and L2/L3 wiring remain outside the candidate. Coverage lives in
+`tests/core/kernel_test_os.rs`.
+
 The Rust `boot` candidate is limited to declarative assembly metadata. Its
 `BootPlan` validates names, rejects duplicate registrations unless an explicit
 replacement is requested, locks before execution wiring, and resolves a

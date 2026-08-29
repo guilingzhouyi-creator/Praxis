@@ -14,7 +14,7 @@
 //!   - Policy adjudication (fail-closed gates): capability, gatechain, constitution, reputation, audit
 //!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
 //!   - Networking peers: network
-//!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, versioning, migration, assembly, state_layout, state_store, config_store, persist, vfs
+//!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, os, versioning, migration, assembly, state_layout, state_store, config_store, persist, vfs
 //!   - Benchmark evidence: benchmark, benchmark_runner
 
 #![forbid(unsafe_code)]
@@ -282,6 +282,10 @@ pub mod recovery;
 /// Provider-neutral lifecycle state machine and checkpoint record candidate.
 #[path = "kernel_lifecycle.rs"]
 pub mod lifecycle;
+
+/// Rust-native OS lifecycle coordinator with host-injected side effects.
+#[path = "kernel_os.rs"]
+pub mod os;
 
 /// JSON schema version and migration registry candidate for kernel persistence.
 #[path = "kernel_versioning.rs"]
