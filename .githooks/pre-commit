@@ -46,6 +46,13 @@ if [ -n "$STAGED_SCRIPTS" ]; then
   echo "script naming guard: OK"
 fi
 
+# ── Doc gate (pre-storage auto-migrate + header validation) ──────────────
+# Works on both main and worktree branches. Staged files in _incoming/ are auto-tagged and migrated;
+# staged docs/design/*.md outside _incoming are validated for 15-field English header and duplicate pointer.
+if git diff --cached --name-only --diff-filter=AM | grep -qE '^docs/design/'; then
+  python scripts/py/check_doc_gate.py --staged --fix
+fi
+
 # ── Mainline whitelist gate ─────────────────────────────────────────────
 # Only low-risk files may be committed directly on main; everything else
 # (systems/python-reference-runtime/ code, tests/, shared files) MUST go through a feature branch and the
