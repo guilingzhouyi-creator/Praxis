@@ -12,7 +12,7 @@
 
 import { ProtocolBridge, type Transport } from "./bridge.ts";
 import { ProtocolError, withRetry } from "./protocol-errors.ts";
-import { TypedEventEmitter, type EngineEvents } from "./engine-events.ts";
+import { TypedEventEmitter, type EngineEvents } from "./events.ts";
 
 export type ConnectionState =
   | { status: "disconnected" }
