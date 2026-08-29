@@ -8,22 +8,22 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (7)
+## Active (2)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
-| `DESIGN-2026-08-27-001` | `DESIGN-2026-永久-101` | "Praxis 自动化 CI 审查模块设计 v2（card- | 为什么放 L4 而不是 L3：层导入约束（L3 → L2/L1，L3 不得 im | `ci-automation-design.md` |
-| `DESIGN-2026-08-27-002` | `DESIGN-2026-永久-102` | "Code Auto-Format Module — Des | Peer Agents inside a Cell (mainly AgentL | `code-format-design.md` |
-| `DESIGN-2026-08-27-003` | `DESIGN-2026-永久-103` | "ErrorLog Bus Architecture Des | Merge ~190 scattered exception capture p | `error-bus-design.md` |
 | `DESIGN-2026-08-27-004` | `DESIGN-2026-永久-104` | "Kernel Rewrite Readiness Pack | Rust is the approved direction for a cle | `kernel-rewrite-readiness-package.md` |
-| `DESIGN-2026-08-27-005` | `DESIGN-2026-永久-105` | "L1↔L2 对接执行计划（施工级）" | main ──┬─→ feature/l1l2-integration（集成分支 | `l1l2-docking-execution-plan.md` |
-| `DESIGN-2026-08-27-006` | `DESIGN-2026-永久-106` | "Praxis 负载自适应线程池设计" | `ThreadPoolWorker`（`systems/python-refer | `load-adaptive-pool-design.md` |
 | `DESIGN-2026-08-29-007` | `DESIGN-2026-永久-107` | "Rust-First Kernel Rewrite Dec | The future Praxis kernel is a clean-brea | `rust-first-kernel-rewrite.md` |
 
-## Archived DESIGN (001) — 17
+## Archived DESIGN (001) — 22
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
+| `ARCH-DESIGN-2026-08-29-018` | `DESIGN-2026-永久-018` | "Praxis 自动化 CI 审查模块设计 v2（card- | 为什么放 L4 而不是 L3：层导入约束（L3 → L2/L1，L3 不得 im | `archive/001-design/2026/永久/DESIGN-2026-永久-018_ci-automation-design.md` |
+| `ARCH-DESIGN-2026-08-29-019` | `DESIGN-2026-永久-019` | "Code Auto-Format Module — Des | Peer Agents inside a Cell (mainly AgentL | `archive/001-design/2026/永久/DESIGN-2026-永久-019_code-format-design.md` |
+| `ARCH-DESIGN-2026-08-29-020` | `DESIGN-2026-永久-020` | "ErrorLog Bus Architecture Des | Merge ~190 scattered exception capture p | `archive/001-design/2026/永久/DESIGN-2026-永久-020_error-bus-design.md` |
+| `ARCH-DESIGN-2026-08-29-021` | `DESIGN-2026-永久-021` | "L1↔L2 对接执行计划（施工级）" | main ──┬─→ feature/l1l2-integration（集成分 | `archive/001-design/2026/永久/DESIGN-2026-永久-021_l1l2-docking-execution-plan.md` |
+| `ARCH-DESIGN-2026-08-29-022` | `DESIGN-2026-永久-022` | "Praxis 负载自适应线程池设计" | `ThreadPoolWorker`（`systems/python-refer | `archive/001-design/2026/永久/DESIGN-2026-永久-022_load-adaptive-pool-design.md` |
 | `ARCH-DESIGN-2026-07-21-001` | `DESIGN-2026-永久-001` | NOMOS Praxis — Non-Chat UI/UX  | Negate the premises of Chat UI, establis | `archive/001-design/2026/永久/DESIGN-2026-永久-001_ui-design.md` |
 | `ARCH-DESIGN-2026-07-22-002` | `DESIGN-2026-永久-002` | NOMOS Praxis Complete Architec | Define Praxis as the Agent OS Desktop Sh | `archive/001-design/2026/永久/DESIGN-2026-永久-002_architecture-complete.md` |
 | `ARCH-DESIGN-2026-07-22-003` | `DESIGN-2026-永久-003` | Praxis Complete Architecture — | Define the conceptual system of Agent OS | `archive/001-design/2026/永久/DESIGN-2026-永久-003_architecture-design.md` |
