@@ -144,7 +144,7 @@ export function parseRoute(line: string): DialectRoute {
 export interface RouteContext {
   dispatcher: Dispatcher;
   bridge: ProtocolBridge;
-  /** Direct-mode flag; when false, bare text routes to L3A intent. */
+  /** Direct-mode flag; when false or omitted, bare text routes to L3A intent. */
   direct?: boolean;
   /**
    * Optional session id for local dispatcher calls. Host sessions are
@@ -200,8 +200,11 @@ export async function route(line: string, ctx: RouteContext): Promise<RouteOutco
       return { kind: "bridge", name: result.command, args: result.args };
     }
     case "tool":
-      // Direct tool call: without direct mode the tool still needs the host
-      // capability gate — forward as a tool command over the bridge.
+      // A bare line has two Python-compatible meanings: Direct mode sends a
+      // tool request, while the default L3A mode forwards natural language.
+      // The host remains the authority in both cases; this branch only picks
+      // the wire intent.
+      if (!ctx.direct) return { kind: "l3a", text: line.trim() };
       return { kind: "bridge", name: parsed.name, args: parsed.args };
     case "l3a":
       return { kind: "l3a", text: parsed.text };

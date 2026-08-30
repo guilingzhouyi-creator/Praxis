@@ -33,6 +33,18 @@ mailbox work, execute AgentLoop/provider/tool actions, or write Rust state.
 Rust remains authoritative for live execution; the focused evidence is
 `tests/rust-agent-loop-terminal.test.ts`.
 
+The TS L2 dialect boundary now has a concrete terminal slice:
+`engine/routing-session.ts` stores only `L3A`/`DIRECT` routing identity, while
+`engine/terminal-shell.ts` classifies and executes one input line through the
+existing dispatcher and protocol bridge. Bare text becomes an `l3a_send`
+request in the default mode and a direct tool request only after an explicit
+Direct target is set. `$` system commands, `/` engine commands, pipelines,
+aliases, terminal conveniences, and bounded command history are represented as
+data or bridge calls; no TS code spawns a process, invokes a tool handler, or
+stores an AgentLoop/Cell handle. The slice is covered by
+`tests/routing-session.test.ts` and `tests/terminal-shell.test.ts`; interactive
+REPL input and renderer integration remain frontend work.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation
@@ -288,8 +300,8 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | Today (Python) | TS module | Notes |
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
-| `ShellSession` / `ShellFamily` | `interactive-session.ts` (state machine) | JSON-serializable |
-| `shells/*` | `adapters/*.ts` | per frontend |
+| `ShellSession` / `ShellFamily` | `engine/routing-session.ts` + `engine/session-family.ts` (SessionView remains the protocol projection) | JSON-serializable routing state; no upper-layer handles |
+| `shells/*` | `engine/terminal-shell.ts` + `engine/transports/*` + `interactive-session.ts` projections | dialect execution is landed; real frontend adapters and REPL renderer remain |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
 | execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |

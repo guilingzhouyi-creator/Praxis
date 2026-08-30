@@ -47,11 +47,11 @@ construction: in_progress
 | `protocol/envelope.py` | `Outbox`/`SessionCursor`/`make_message`/`validate_message` | `systems/typescript-shell-engine/src/wire-envelope.ts` | ✅ 已有（镜像，非破坏性 ack） |
 | `protocol/records.py` | `SessionIdentity` | `systems/typescript-shell-engine/src/wire-records.ts` | ✅ 已有 |
 | `protocol/host.py` | `ProtocolHost.handle`/`_emit`/`_advance_shared_cursor` | `engine/bridge.ts`（客户端）+ `interactive-session.ts`（SessionView） | 🟡 部分：客户端/投影已有；host 权威留 Python3 |
-| `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` | 🟡 部分：解析/分派已有；alias 反查、`_l3a_intent` 路由未映射 |
-| `shells/base.py` | `Shell(ABC)` / `run` | `engine/interactive-session.ts`（SessionView） | 🟡 部分：会话视图已有；Shell 方言抽象未映射 |
-| `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/interactive-session.ts`（前端绑定） | ⏳ 需重写（前端→方言解析） |
-| `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/interactive-session.ts`（SessionView 快照） | 🟡 部分 |
-| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/builtins.ts` + 桥转发 + `engine/terminal-view.ts`（结果形状投影，Phase A） | 🟡 部分：方言语法 `$`/`/`/tool 分派已映射；REPL 循环与渲染留前端 |
+| `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` + `engine/route.ts` | ✅ 路由、alias、本地/bridge/L3A 分流已映射；权威执行留 host |
+| `shells/base.py` | `Shell(ABC)` / `run` | `engine/terminal-shell.ts`（方言适配器合同） | ✅ `classify`/`run`/session 工厂已落地；渲染留前端 |
+| `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/session-family.ts` | ✅ 已实现（注册、绑定、配置、revision、snapshot） |
+| `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/routing-session.ts` | ✅ 已实现（路由态快照；无 L3/L1 句柄） |
+| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` | 🟡 方言运行、history、`$`/`/`/pipeline/tool/L3A` 已映射；REPL 输入循环与渲染仍留前端 |
 | `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） + `engine/command-catalog.ts`（YAML 元数据 + alias 索引，Phase A） | 🟡 部分：注册/查询 + 元数据面已有；handler 注册与 system/user 分离留 host |
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | `engine/agent-selector.ts`（选择投影 + preconnectImpact/riskLevelOf，Phase A） | ✅ 投影面已映射（扫描与 LLM reviewer 权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
@@ -114,6 +114,26 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
 为未来 L2/前端渲染或转发提供可验证的值投影；TS 专测 4 个用例，Rust
 对应专测 5 个用例。G5/G6 的 host 切换条件和终端 REPL 终态不因该投影提前
 满足。
+
+## 2c. 第五批（2026-08-30，TS terminal dialect/session ✅）
+
+本批把 Python3 `Shell`/`ShellSession`/`TerminalShell.run` 的**输入边界**
+迁移为独立 TS 方言适配器，同时保留 Python3/Rust host 的执行权：
+
+1. `engine/routing-session.ts`：对齐 `L3A`/`DIRECT` 路由态、`cell_id` /
+   `agent_id` / `session_id` 快照；只保存字符串值，不持有 Cell、AgentLoop、
+   terminal、outbox 或 capability。
+2. `engine/terminal-shell.ts`：复用 `parseRoute`、`Dispatcher`、`ProtocolBridge`
+   实现空输入、`help`/`tools`/`status`/`history`、`$` system、pipeline、
+   `/` engine、Direct tool 和 L3A intent；history 使用有界
+   `CommandHistory`，结果返回解码后的协议消息。
+3. `engine/route.ts`：补上 Python3 兼容的模式分流——默认 L3A 将裸文本
+   发为 `l3a_send`，只有显式 Direct session 才将裸文本发为 tool；不改变
+   `$`/`/`/pipeline 的顺序或 host authority。
+
+> 验收：新增 `routing-session.test.ts` 与 `terminal-shell.test.ts`，该切片
+> 25/25 通过；TS `typecheck` 通过。仍未满足 terminal REPL 终态、真实前端
+> 接入、G5 默认 Rust host 切换或 G6 移除 Python host。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 

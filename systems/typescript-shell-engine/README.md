@@ -36,3 +36,11 @@ and opaque frame budgets for L2/frontend rendering or forwarding; it does
 not own Rust mailbox state, terminal decoding, PTY/shell selection, AgentLoop
 execution, or persistence. Its focused test is
 `tests/rust-agent-loop-terminal.test.ts`.
+
+The terminal dialect/session boundary is implemented by
+`engine/terminal-shell.ts` and `engine/routing-session.ts`. It mirrors the
+Python3 L2 input surface (`$` system, `/` commands, pipelines, Direct tools,
+L3A intent, and bounded history) while delegating all side effects to the
+protocol bridge. Its focused tests are `tests/routing-session.test.ts` and
+`tests/terminal-shell.test.ts`; interactive REPL rendering remains a frontend
+responsibility.
