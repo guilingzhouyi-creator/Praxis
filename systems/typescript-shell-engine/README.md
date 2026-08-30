@@ -38,9 +38,13 @@ execution, or persistence. Its focused test is
 `tests/rust-agent-loop-terminal.test.ts`.
 
 The terminal dialect/session boundary is implemented by
-`engine/terminal-shell.ts` and `engine/routing-session.ts`. It mirrors the
+`engine/terminal-shell.ts` and `engine/routing-session.ts`. Its
+REPL-neutral output contract is implemented by `engine/terminal-renderer.ts`,
+which returns detached `{ role, text }` line records for frontend adapters.
+It mirrors the
 Python3 L2 input surface (`$` system, `/` commands, pipelines, Direct tools,
 L3A intent, and bounded history) while delegating all side effects to the
 protocol bridge. Its focused tests are `tests/routing-session.test.ts` and
-`tests/terminal-shell.test.ts`; interactive REPL rendering remains a frontend
-responsibility.
+`tests/terminal-shell.test.ts` plus `tests/terminal-renderer.test.ts`;
+interactive REPL input and concrete frontend styling remain frontend
+responsibilities.

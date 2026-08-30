@@ -48,10 +48,10 @@ construction: in_progress
 | `protocol/records.py` | `SessionIdentity` | `systems/typescript-shell-engine/src/wire-records.ts` | ✅ 已有 |
 | `protocol/host.py` | `ProtocolHost.handle`/`_emit`/`_advance_shared_cursor` | `engine/bridge.ts`（客户端）+ `interactive-session.ts`（SessionView） | 🟡 部分：客户端/投影已有；host 权威留 Python3 |
 | `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` + `engine/route.ts` | ✅ 路由、alias、本地/bridge/L3A 分流已映射；权威执行留 host |
-| `shells/base.py` | `Shell(ABC)` / `run` | `engine/terminal-shell.ts`（方言适配器合同） | ✅ `classify`/`run`/session 工厂已落地；渲染留前端 |
+| `shells/base.py` | `Shell(ABC)` / `run` | `engine/terminal-shell.ts`（方言适配器合同） | ✅ `classify`/`run`/session 工厂已落地；renderer 输出合同已落地 |
 | `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/session-family.ts` | ✅ 已实现（注册、绑定、配置、revision、snapshot） |
 | `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/routing-session.ts` | ✅ 已实现（路由态快照；无 L3/L1 句柄） |
-| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` | 🟡 方言运行、history、`$`/`/`/pipeline/tool/L3A` 已映射；REPL 输入循环与渲染仍留前端 |
+| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` + `engine/terminal-renderer.ts` | 🟡 方言运行、history、`$`/`/`/pipeline/tool/L3A` 与无 I/O 行记录渲染已映射；REPL 输入循环与真实前端接入仍留前端 |
 | `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） + `engine/command-catalog.ts`（YAML 元数据 + alias 索引，Phase A） | 🟡 部分：注册/查询 + 元数据面已有；handler 注册与 system/user 分离留 host |
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | `engine/agent-selector.ts`（选择投影 + preconnectImpact/riskLevelOf，Phase A） | ✅ 投影面已映射（扫描与 LLM reviewer 权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
@@ -135,6 +135,23 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
 > 例；连同 `conformance.test.ts` 路由回归切片 25/25 通过，TS `typecheck`
 > 通过。仍未满足 terminal REPL 终态、真实前端接入、G5 默认 Rust host
 > 切换或 G6 移除 Python host。
+
+## 2d. 第六批（2026-08-30，REPL-neutral terminal renderer ✅）
+
+本批把 Python3 `TerminalShell._render_banner` / `_render` 的展示语义提取为
+独立 TS 行记录合同，供 REPL、TUI、IDE、HTTP 或 SSH 前端消费：
+
+1. `engine/terminal-renderer.ts`：将 `TerminalRunResult`、`result`、
+   `stream_chunk`、`event` 响应投影为 `{ role, text }` 行记录；覆盖
+   banner、help、tools、intent、scout、system、tool、history、generic
+   success/error，结果键排序与字段/输出上限保持有界。
+2. renderer 只做纯格式化：不写 stdout、不读 stdin、不创建 PTY、不执行
+   OS/工具、不持有 L3/L1 对象句柄；`I18n` 可注入，默认使用 TS `en`
+   字典，前端可自行决定颜色、布局和传输。
+3. `tests/terminal-renderer.test.ts` 新增 7 个切片用例；与
+   `terminal-view` / `terminal-shell` 回归切片合计 25/25，通过 TS
+   `typecheck`。真实 REPL 输入循环、五前端接入、G5 Rust 默认切换和 G6
+   Python host 移除仍未完成。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 

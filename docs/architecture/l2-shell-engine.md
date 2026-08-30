@@ -43,7 +43,11 @@ aliases, terminal conveniences, and bounded command history are represented as
 data or bridge calls; no TS code spawns a process, invokes a tool handler, or
 stores an AgentLoop/Cell handle. The slice is covered by
 `tests/routing-session.test.ts` and `tests/terminal-shell.test.ts`; interactive
-REPL input and renderer integration remain frontend work.
+REPL input remains frontend work. `engine/terminal-renderer.ts` now provides a
+pure, REPL-neutral `{ role, text }` line-record projection for banner, help,
+tools, intent, scout, system, tool, history, stream, event, and generic
+success/error results; it performs no I/O or execution and leaves styling and
+transport to the consuming frontend.
 
 ## Responsibility boundary
 
@@ -301,7 +305,7 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
 | `ShellSession` / `ShellFamily` | `engine/routing-session.ts` + `engine/session-family.ts` (SessionView remains the protocol projection) | JSON-serializable routing state; no upper-layer handles |
-| `shells/*` | `engine/terminal-shell.ts` + `engine/transports/*` + `interactive-session.ts` projections | dialect execution is landed; real frontend adapters and REPL renderer remain |
+| `shells/*` | `engine/terminal-shell.ts` + `engine/terminal-renderer.ts` + `engine/transports/*` + `interactive-session.ts` projections | dialect execution and renderer contract are landed; real frontend adapters and REPL input loop remain |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
 | execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |
