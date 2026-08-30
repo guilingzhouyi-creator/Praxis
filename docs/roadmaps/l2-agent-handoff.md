@@ -101,7 +101,7 @@ construction: in_progress
 | `builtins.ts` | ✅ `registerBuiltins`（lang 支持 locale 切换 / help / clear） |
 | `route.ts` | ✅ 方言路由：pipeline / `$` system / `/` engine / tool / L3A 回退（纯 parseRoute + async route） |
 | `routing-session.ts` | ✅ `ShellSession` 路由态（L3A/DIRECT + cell/agent/session 快照），只保存值不持有上层句柄 |
-| `terminal-shell.ts` + `terminal-renderer.ts` | 🟡 `TerminalShell` 方言运行面与 REPL-neutral 行记录 renderer（builtins/history/bridge/L3A/Direct tool）；真实输入循环与前端接入仍由前端负责 |
+| `terminal-shell.ts` + `terminal-renderer.ts` + `frontend-session-adapter.ts` | 🟡 方言运行、REPL-neutral 行记录 renderer 与五前端 session 组合层；真实输入循环、UI 和宿主端点仍由前端/宿主负责 |
 | `agent-selector.ts` | ✅ preselect / selectByAgentId / selectByRole（零对象句柄，dict 数据 API） |
 | `command-completion.ts` | ✅ 候选集（工具 + builtins + 别名）+ 前缀匹配 + 空格后文件路径部分 |
 | `command-groups.ts` | ✅ settings / system / memory / model / selector 五域注册 |
@@ -265,9 +265,9 @@ i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册�
 
 ## 4. 下一步清单（按依赖顺序）
 
-1. **P3 收尾**：terminal dialect/session 与 REPL-neutral renderer 已落地；
-   剩余真实 SSH 端点接入（远端 stdio host 已通，按需）+ 五前端矩阵真实
-   接入 + REPL 输入循环终态。
+1. **P3 收尾**：terminal dialect/session、REPL-neutral renderer 与前端
+   session adapter 已落地；剩余真实 SSH 端点接入（远端 stdio host 已通，
+   按需）+ 五前端矩阵真实 UI 接入 + REPL 输入循环终态。
 2. ✅ **协议 host 优化**（python-perf + l2-perf-hotpath 已合入 main）：per-session 水位索引、ws 桥 dict 直入、command args 直入、会话类缓存、常量化配置驱动——全景见 §1.9。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
 4. ✅ **合入**：恢复分支（21a118cf + 三批 + P4 扩展）已合入本地 main（2026-08-25 复核）；双推 `make push-both` 由操作员择机执行。

@@ -51,7 +51,7 @@ construction: in_progress
 | `shells/base.py` | `Shell(ABC)` / `run` | `engine/terminal-shell.ts`（方言适配器合同） | ✅ `classify`/`run`/session 工厂已落地；renderer 输出合同已落地 |
 | `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/session-family.ts` | ✅ 已实现（注册、绑定、配置、revision、snapshot） |
 | `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/routing-session.ts` | ✅ 已实现（路由态快照；无 L3/L1 句柄） |
-| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` + `engine/terminal-renderer.ts` | 🟡 方言运行、history、`$`/`/`/pipeline/tool/L3A` 与无 I/O 行记录渲染已映射；REPL 输入循环与真实前端接入仍留前端 |
+| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` + `engine/terminal-renderer.ts` + `engine/frontend-session-adapter.ts` | 🟡 方言、history、无 I/O renderer 与五前端 session 组合层已映射；真实输入循环、UI 和 host 端点仍留前端/宿主 |
 | `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） + `engine/command-catalog.ts`（YAML 元数据 + alias 索引，Phase A） | 🟡 部分：注册/查询 + 元数据面已有；handler 注册与 system/user 分离留 host |
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | `engine/agent-selector.ts`（选择投影 + preconnectImpact/riskLevelOf，Phase A） | ✅ 投影面已映射（扫描与 LLM reviewer 权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
@@ -152,6 +152,22 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
    `terminal-view` / `terminal-shell` 回归切片合计 25/25，通过 TS
    `typecheck`。真实 REPL 输入循环、五前端接入、G5 Rust 默认切换和 G6
    Python host 移除仍未完成。
+
+## 2e. 第七批（2026-08-30，frontend session adapter ✅）
+
+本批把 `SessionView`、`TerminalShell`、renderer 和既有投影形状组合为一个
+前端薄适配层：
+
+1. `engine/frontend-session-adapter.ts`：统一 `web`、`tui`、`desktop`、
+   `vscode`、`ssh` 五种前端身份，提供 attach/replay、sync、ack、detach、
+   单行 submit、banner 和本地快照；适配器只编排既有模块，不拥有 host
+   outbox、AgentLoop、Cell、工具或进程状态。
+2. `ssh` 复用 `tui` 的 session projection，避免为移动终端复制新的协议或
+   执行路径；具体 SSH channel 仍由 `transports/ssh.ts` 和宿主端点负责。
+3. `tests/frontend-session-adapter.test.ts` 新增 3 个切片用例；与
+   renderer、terminal-shell、session projection 回归切片合计 31/31，
+   `typecheck` 通过。真实 Web/TUI/Desktop/VSCode/SSH UI 和 REPL 输入循环
+   仍未接入。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 

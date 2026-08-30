@@ -48,3 +48,9 @@ protocol bridge. Its focused tests are `tests/routing-session.test.ts` and
 `tests/terminal-shell.test.ts` plus `tests/terminal-renderer.test.ts`;
 interactive REPL input and concrete frontend styling remain frontend
 responsibilities.
+
+`engine/frontend-session-adapter.ts` is the shared lifecycle seam for `web`,
+`tui`, `desktop`, `vscode`, and `ssh`: it composes attach/replay/ack/detach,
+one-line submit, session projection, and renderer output without owning host
+state. SSH intentionally uses the TUI projection until a real SSH endpoint is
+wired.
