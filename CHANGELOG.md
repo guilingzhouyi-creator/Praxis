@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Feat (l2)**: add terminal dialect session adapter
 - **Feat (l2)**: add Rust terminal AgentLoop projection
 - **Feat (rust)**: bridge terminal input to AgentLoop
 - **Feat (rust)**: add strict host bootstrap context
