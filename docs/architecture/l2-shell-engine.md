@@ -63,6 +63,10 @@ serialize framed submissions so concrete Web/TUI/Desktop/VSCode/SSH/REPL
 frontends share the same ordering and limit semantics. The controller never
 reads stdin, creates a PTY, starts an SSH server, or executes a command;
 `TerminalShell` remains responsible for trimming and routing each complete line.
+The adapter also bounds its serialized chunk-submission queue (64 operations
+by default), rejects new work at capacity, and releases the slot on both
+success and failure. This is frontend backpressure only; it does not introduce
+parallel host requests or move outbox, L3, or L1 authority into TypeScript.
 
 ## Responsibility boundary
 

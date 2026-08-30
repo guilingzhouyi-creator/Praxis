@@ -56,5 +56,6 @@ state. SSH intentionally uses the TUI projection until a real SSH endpoint is
 wired. `engine/terminal-input-controller.ts` is the shared chunk-to-line
 boundary for those frontends: it handles LF/CRLF/CR fragmentation, EOF
 flushing, UTF-8 byte limits, and serialized `feedInput`/`finishInput` delivery
-without reading stdin or creating a PTY. Concrete UI and REPL loops remain
-outside this package.
+without reading stdin or creating a PTY. The adapter queue is bounded to 64
+pending operations by default and rejects new input at capacity; concrete UI
+and REPL loops remain outside this package.

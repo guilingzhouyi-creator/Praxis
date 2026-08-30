@@ -35,6 +35,8 @@ import {
 /** Frontend identities supported by the shared L2 session adapter. */
 export const FRONTEND_KINDS = ["web", "tui", "desktop", "vscode", "ssh"] as const;
 export type FrontendKind = (typeof FRONTEND_KINDS)[number];
+/** Default number of chunk submissions allowed in the serialized queue. */
+export const FRONTEND_INPUT_MAX_PENDING = 64 as const;
 
 /** Projection shape available from the shared session projection module. */
 type ProjectionKind = Exclude<FrontendKind, "ssh">;
@@ -52,6 +54,8 @@ export interface FrontendSessionAdapterOptions {
   /** Optional caller-owned chunk framer for a concrete frontend transport. */
   input?: TerminalInputController;
   inputOptions?: TerminalInputControllerOptions;
+  /** Maximum active + queued feed/finish operations (default: 64). */
+  maxPendingInputs?: number;
 }
 
 /** Combined one-line execution and detached output frame. */
@@ -84,6 +88,8 @@ export class FrontendSessionAdapter {
   private readonly view: SessionView;
   private attached = false;
   private inputQueue: Promise<void> = Promise.resolve();
+  private readonly maxPendingInputs: number;
+  private pendingInputs = 0;
 
   constructor(options: FrontendSessionAdapterOptions) {
     this.bridge = options.bridge;
@@ -94,6 +100,10 @@ export class FrontendSessionAdapter {
     this.renderer = options.renderer
       ?? new TerminalRenderer(options.rendererOptions);
     this.input = options.input ?? new TerminalInputController(options.inputOptions);
+    this.maxPendingInputs = options.maxPendingInputs ?? FRONTEND_INPUT_MAX_PENDING;
+    if (!Number.isInteger(this.maxPendingInputs) || this.maxPendingInputs < 1) {
+      throw new Error(`maxPendingInputs must be a positive integer, got ${String(this.maxPendingInputs)}`);
+    }
     this.view = new SessionView(this.viewId, this.bridge);
   }
 
@@ -130,28 +140,24 @@ export class FrontendSessionAdapter {
    * frontend source itself.
    */
   feedInput(chunk: string): Promise<FrontendRunResult[]> {
-    const run = this.inputQueue.then(async () => {
+    return this.enqueueInput(async () => {
       const results: FrontendRunResult[] = [];
       for (const line of this.input.feed(chunk)) {
         results.push(await this.submit(line));
       }
       return results;
     });
-    this.inputQueue = run.then(() => undefined, () => undefined);
-    return run;
   }
 
   /** Flush an unterminated final line on frontend EOF. */
   finishInput(): Promise<FrontendRunResult[]> {
-    const run = this.inputQueue.then(async () => {
+    return this.enqueueInput(async () => {
       const results: FrontendRunResult[] = [];
       for (const line of this.input.finish()) {
         results.push(await this.submit(line));
       }
       return results;
     });
-    this.inputQueue = run.then(() => undefined, () => undefined);
-    return run;
   }
 
   /** Reset the frontend input boundary after EOF or a recoverable fault. */
@@ -180,6 +186,8 @@ export class FrontendSessionAdapter {
     last_acked: number;
     shell: ReturnType<TerminalShell["snapshot"]>;
     input: TerminalInputSnapshot;
+    pending_inputs: number;
+    max_pending_inputs: number;
   } {
     return {
       frontend: this.frontend,
@@ -188,6 +196,8 @@ export class FrontendSessionAdapter {
       last_acked: this.view.lastAcked,
       shell: this.shell.snapshot(),
       input: this.input.snapshot(),
+      pending_inputs: this.pendingInputs,
+      max_pending_inputs: this.maxPendingInputs,
     };
   }
 
@@ -222,5 +232,26 @@ export class FrontendSessionAdapter {
     if (!this.attached) {
       throw new Error(`frontend view is not attached: ${this.viewId}`);
     }
+  }
+
+  private enqueueInput(operation: () => Promise<FrontendRunResult[]>): Promise<FrontendRunResult[]> {
+    if (this.pendingInputs >= this.maxPendingInputs) {
+      return Promise.reject(
+        new Error(`frontend input queue is full: ${this.maxPendingInputs} pending operations`),
+      );
+    }
+    this.pendingInputs += 1;
+    const run = this.inputQueue.then(operation);
+    this.inputQueue = run.then(() => undefined, () => undefined);
+    return run.then(
+      (result) => {
+        this.pendingInputs -= 1;
+        return result;
+      },
+      (error) => {
+        this.pendingInputs -= 1;
+        throw error;
+      },
+    );
   }
 }

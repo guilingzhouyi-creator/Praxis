@@ -120,4 +120,33 @@ describe("FrontendSessionAdapter", () => {
     expect((await adapter.finishInput())[0]?.input).toBe("$ echo hi");
     expect(adapter.localSnapshot().input).toMatchObject({ buffer: "", finished: true });
   });
+
+  it("bounds queued chunk submissions and exposes backpressure state", async () => {
+    const bridge = new ProtocolBridge({ sessionId: "session-1", transport: host([]) });
+    const adapter = new FrontendSessionAdapter({
+      bridge,
+      viewId: "view-web",
+      frontend: "web",
+      maxPendingInputs: 1,
+    });
+
+    const first = adapter.feedInput("status\n");
+    expect(adapter.localSnapshot()).toMatchObject({
+      pending_inputs: 1,
+      max_pending_inputs: 1,
+    });
+    await expect(adapter.feedInput("health\n")).rejects.toThrow(/queue is full/);
+    await first;
+    expect(adapter.localSnapshot().pending_inputs).toBe(0);
+  });
+
+  it("validates the pending input queue limit", async () => {
+    const bridge = new ProtocolBridge({ sessionId: "session-1", transport: host([]) });
+    expect(() => new FrontendSessionAdapter({
+      bridge,
+      viewId: "view-web",
+      frontend: "web",
+      maxPendingInputs: 0,
+    })).toThrow(/maxPendingInputs/);
+  });
 });

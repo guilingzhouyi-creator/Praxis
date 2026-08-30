@@ -190,6 +190,19 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
 > **23 passed**。这不是具体前端 UI、真实 stdin/PTY、SSH server 或 REPL
 > 主循环；它只冻结所有前端必须共享的输入 framing 合同。
 
+## 2g. 第九批（2026-08-30，bounded input backpressure ✅）
+
+在第八批的 framing 之上，`FrontendSessionAdapter` 为 `feedInput()` /
+`finishInput()` 增加有界串行队列（默认最多 64 个 active + queued 操作）：
+队列满时立即拒绝，不继续占用 Promise 链；`localSnapshot()` 暴露当前与
+最大 pending 数。队列尾部在成功或失败后都会释放计数，单次前端故障不会
+毒化后续输入。
+
+> 验收：`frontend-session-adapter.test.ts` 新增队列满与配置校验用例；
+> 与输入控制器、terminal-shell、renderer 切片合计 **25 passed**，
+> `tsc --noEmit` 通过。该上限只约束 TS 前端提交排队，不改变 host
+> outbox、L3 AgentLoop 或 L1 执行权威。
+
 ## 3. 铁律（与 handoff §2.3 一致）
 
 1. TS 不拥有最终 authority：outbox/ack/会话状态在 Python3 host。
