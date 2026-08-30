@@ -1137,6 +1137,18 @@ EventBus/card sync、protocol-host、ProcessTable、生产 boot 或 R5 authority
 allocator 的副作用操作、不绕过 GateChain，也不授予生产入口权威；后续再按同一
 模式接入经过 capability policy 的具体宿主适配器。
 
+随后补齐 Rust `RuntimeObservation` 统一只读观测合同：`KernelRuntime::observation()`
+在共享 admission read barrier 下，以同一线性化点聚合 `RuntimeSnapshot`、持久化
+runtime 的 `RecoveryDecision`（非持久化 runtime 明确为 `null`）、scheduler
+`QueueMetricSnapshot` 与 contention-only `RuntimeLockWaitSnapshot`。持久化
+checkpoint 读取失败返回结构化错误，不执行恢复、boot、任务提交、capability、
+provider 或 AgentLoop 副作用。新增 `kernel.runtime.observation` syscall，保留
+原有 `kernel.runtime.snapshot`/`kernel.runtime.recovery` wire 契约不变；独立
+runtime/syscall adapter 测试覆盖非持久化 fail-closed、持久化 recovery 与
+serde 序列化。该片闭合 R4 read-model/TS bridge 前置，不授予生产 boot、跨册恢复
+动作或 R5 cutover 权威；下一优先级仍是把真实 host adapter、ProcessTable/
+PTY/reaper、AgentLoop/provider/tool policy 接入同一证据链。
+
 随后完成 Rust `skill::SkillRegistry` 机制切片：以 Rust-native typed metadata
 承载 SkillManager 的 L1 机制面，覆盖写授权、builtin 只读、生命周期、
 productive/offensive posture、progressive disclosure、agent/Cell/global

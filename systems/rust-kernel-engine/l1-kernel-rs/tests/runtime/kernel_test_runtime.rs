@@ -90,6 +90,61 @@ fn runtime_requires_boot_and_exposes_active_snapshot() {
 }
 
 #[test]
+fn runtime_observation_is_consistent_and_nonpersistent_recovery_is_absent() {
+    let runtime = runtime(2, 2);
+    let observation = runtime.observation().expect("observation");
+    assert_eq!(observation.runtime, runtime.snapshot());
+    assert_eq!(observation.recovery, None);
+    assert_eq!(observation.queue_metrics, runtime.scheduler_queue_metrics());
+    assert_eq!(observation.lock_wait.total_ns(), 0);
+
+    runtime.boot().expect("boot");
+    let task = runtime
+        .submit(Box::new(|| Ok(json!("observed"))))
+        .expect("submit");
+    assert_eq!(task.result(None).expect("result"), json!("observed"));
+    let observation = runtime.observation().expect("active observation");
+    assert_eq!(
+        observation.runtime.lifecycle,
+        l1_kernel_rs::lifecycle::LifecycleState::Active
+    );
+    assert_eq!(observation.runtime.task_count, 1);
+    assert_eq!(observation.runtime.terminal_tasks, 1);
+    assert_eq!(observation.recovery, None);
+    assert_eq!(observation.queue_metrics.queue_depth, 0);
+    runtime.reap(task.handle()).expect("reap");
+}
+
+#[test]
+fn persistent_runtime_observation_includes_recovery_decision() {
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    {
+        let runtime = KernelRuntime::open_persistent(spec(root_text.clone()), config(2, 2), &root)
+            .expect("persistent runtime");
+        let observation = runtime.observation().expect("fresh observation");
+        assert_eq!(
+            observation
+                .recovery
+                .as_ref()
+                .expect("persistent recovery")
+                .action,
+            RecoveryAction::Fresh
+        );
+        assert_eq!(
+            observation.runtime.lifecycle,
+            l1_kernel_rs::lifecycle::LifecycleState::Halted
+        );
+        let encoded = serde_json::to_value(&observation).expect("serialize observation");
+        assert!(encoded.get("runtime").is_some());
+        assert!(encoded.get("recovery").is_some());
+        assert!(encoded.get("queue_metrics").is_some());
+        assert!(encoded.get("lock_wait").is_some());
+    }
+    std::fs::remove_dir_all(root).expect("remove isolated test root");
+}
+
+#[test]
 fn gated_submission_fails_closed_without_whitelist() {
     let runtime = runtime(1, 2);
     runtime.boot().expect("boot");

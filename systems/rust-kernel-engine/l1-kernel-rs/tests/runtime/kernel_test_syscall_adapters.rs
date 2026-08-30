@@ -11,8 +11,8 @@ use l1_kernel_rs::ports::{PortDescriptor, PortKind};
 use l1_kernel_rs::runtime::{KernelRuntime, RuntimeConfig};
 use l1_kernel_rs::syscall::{RegistrationOutcome, SyscallDispatcher, SyscallRequest};
 use l1_kernel_rs::syscall_adapters::{
-    CAPABILITY_STATUS_OPERATION, KernelSyscallAdapters, RUNTIME_RECOVERY_OPERATION,
-    RUNTIME_SNAPSHOT_OPERATION,
+    CAPABILITY_STATUS_OPERATION, KernelSyscallAdapters, RUNTIME_OBSERVATION_OPERATION,
+    RUNTIME_RECOVERY_OPERATION, RUNTIME_SNAPSHOT_OPERATION,
 };
 use l1_kernel_rs::worker::WorkerConfig;
 
@@ -47,6 +47,10 @@ fn runtime_metadata_registration_exposes_only_defensive_reads() {
         KernelSyscallAdapters::register_runtime_metadata(&dispatcher, Arc::clone(&runtime))
             .expect("register adapters");
     assert_eq!(registration.runtime_snapshot, RegistrationOutcome::Inserted);
+    assert_eq!(
+        registration.runtime_observation,
+        RegistrationOutcome::Inserted
+    );
     assert_eq!(registration.runtime_recovery, RegistrationOutcome::Inserted);
     assert_eq!(
         registration.capability_status,
@@ -61,6 +65,28 @@ fn runtime_metadata_registration_exposes_only_defensive_reads() {
         Some(&JsonValue::String("halted".to_owned()))
     );
     assert_eq!(runtime.snapshot(), before);
+
+    let observation = dispatch(
+        &dispatcher,
+        RUNTIME_OBSERVATION_OPERATION,
+        JsonObject::new(),
+    );
+    assert_eq!(observation["success"], JsonValue::Bool(true));
+    match observation.get("runtime") {
+        Some(JsonValue::Object(runtime)) => assert_eq!(
+            runtime.get("lifecycle"),
+            Some(&JsonValue::String("halted".to_owned()))
+        ),
+        other => panic!("runtime observation missing runtime object: {other:?}"),
+    }
+    assert_eq!(observation.get("recovery"), Some(&JsonValue::Null));
+    match observation.get("queue_metrics") {
+        Some(JsonValue::Object(queue)) => assert_eq!(
+            queue.get("queue_depth"),
+            Some(&JsonValue::Number(serde_json::Number::from(0)))
+        ),
+        other => panic!("runtime observation missing queue metrics: {other:?}"),
+    }
 
     let status = dispatch(&dispatcher, CAPABILITY_STATUS_OPERATION, JsonObject::new());
     assert_eq!(status.get("executor_wired"), Some(&JsonValue::Bool(false)));
