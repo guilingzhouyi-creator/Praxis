@@ -7,7 +7,7 @@
 
 ### 新增
 
-- **Feat (rust)**: add strict host bootstrap and trusted authorization context
+- **Feat (rust)**: add strict host bootstrap context
 - **Feat (rust)**: add runtime observation seam
 - **Feat (rust)**: compose protocol host runtime adapter
 - **Feat (rust)**: add host-authorized settings protocol endpoint
