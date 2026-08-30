@@ -612,6 +612,21 @@ so protocol-host wiring is testable without changing the production default.
 Evidence is isolated in
 `tests/runtime/kernel_test_protocol_host_runtime.rs`.
 
+The `host_authorization::HostAuthorizationContext` and
+`host_bootstrap::HostBootstrap` candidates provide the next R4 seam. A
+context carries bounded trusted principal/session identity, authorization ring,
+identity-verification status, and engineering-debug posture; it is injected by
+the host and cannot be declared on the wire. `HostBootstrap` validates all
+command names and optional authority bindings before assembling a strict
+`ProtocolHostRuntime`, so invalid input cannot expose a partially wired
+router. Strict dispatch rejects missing contexts and unverified high-ring
+contexts; settings endpoints can consume the full context through
+`SettingsAuthorizer::authorize_context`. This is still adapter evidence: it
+does not infer terminal configuration, grant debug mode, start providers or
+AgentLoop work, or promote the Rust host to the production default.
+Independent coverage is in
+`tests/runtime/kernel_test_host_bootstrap.rs`.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

@@ -564,6 +564,21 @@ authorities unwired. The `rust-protocol-host` binary uses this composition but
 does not infer a runtime, settings root, or authorization policy. Its evidence
 is isolated in `tests/runtime/kernel_test_protocol_host_runtime.rs`.
 
+The `host_authorization` and `host_bootstrap` modules close the next R4
+composition seam. `HostAuthorizationContext` is a bounded, adapter-injected
+principal/session/ring/identity/debug record; it never travels in a wire
+payload. `HostBootstrap` validates the complete command, executor, context,
+and settings binding specification before exposing a strict
+`ProtocolHostRuntime`, so a failed preflight cannot leak partial wiring.
+Strict routers fail closed when a context is absent or when a high-ring
+context is unverified. Settings authorizers may override
+`authorize_context` to consume the trusted record, while legacy
+principal-only adapters remain explicit fallback behavior. This remains an
+R4 candidate: it does not make the stdio binary a production entrypoint,
+grant engineering-debug authority, or start PTY/process-group, provider, or
+AgentLoop work. Evidence is isolated in
+`tests/runtime/kernel_test_host_bootstrap.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,

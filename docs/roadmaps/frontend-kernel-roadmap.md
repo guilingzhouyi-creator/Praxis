@@ -1203,6 +1203,19 @@ reader slices。该片是 R4 协议接缝证据，不等于 stdio host、GateCha
 protocol-host 接缝前移一层，但 GateChain 真实身份授权、PTY/reaper、
 AgentLoop/provider/tool 执行、生产 boot 与 R5 clean cutover 仍是高优先级开放门。
 
+本轮继续推进 **R4 host bootstrap 与真实宿主授权上下文**：新增
+`host_authorization::HostAuthorizationContext` 与一次性
+`host_bootstrap::HostBootstrap`。上下文由宿主注入，携带有界的
+principal/session/ring、身份验证和 engineering-debug posture，禁止由线
+上 payload 声明；严格 router 在缺少绑定或高 ring 未完成身份验证时
+fail-closed。Bootstrap 会先完整校验上下文、命令注册、executor 与
+settings endpoint，再在私有候选中完成整体装配，避免暴露半配置状态。
+`SettingsAuthorizer::authorize_context` 为需要真实宿主策略的 adapter 提供
+完整上下文入口；未接入可选 authority 时仍保持默认拒绝。独立证据位于
+`tests/runtime/kernel_test_host_bootstrap.rs`。该切片仍是 R4 adapter
+候选，不改变生产默认，不启动 PTY/process-group、AgentLoop/provider，
+也不等于 R5 clean cutover。
+
 ---
 
 **规划进行中。** 下一步优先进入 R4 host bootstrap 与真实宿主授权上下文

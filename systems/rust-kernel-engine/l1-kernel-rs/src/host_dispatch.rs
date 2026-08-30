@@ -24,6 +24,7 @@ use crate::audit::AuditLog;
 use crate::capability::CapabilityAuthority;
 use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue};
 use crate::gatechain::{GateChain, GatePolicy, GateRequest};
+use crate::host_authorization::HostAuthorizationContext;
 use crate::outbox_registry::OutboxRegistry;
 use crate::protocol::{MAX_SAFE_SEQUENCE, Message, MessageKind, ProtocolError, SessionCursor};
 use crate::runtime::KernelRuntime;
@@ -65,6 +66,7 @@ pub trait L3Upstream: Send + Sync {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RouterConfig {
     intent_buffer_cap: usize,
+    require_host_context: bool,
 }
 
 impl RouterConfig {
@@ -78,12 +80,26 @@ impl RouterConfig {
         if intent_buffer_cap == 0 {
             return Err("intent buffer capacity must be positive");
         }
-        Ok(Self { intent_buffer_cap })
+        Ok(Self {
+            intent_buffer_cap,
+            require_host_context: false,
+        })
     }
 
     /// Return the configured pending-intent buffer capacity.
     pub const fn intent_buffer_cap(self) -> usize {
         self.intent_buffer_cap
+    }
+
+    /// Return whether authority-bearing dispatch requires host context.
+    pub const fn requires_host_context(self) -> bool {
+        self.require_host_context
+    }
+
+    /// Require a trusted host authorization context for dispatch.
+    pub const fn with_required_host_context(mut self) -> Self {
+        self.require_host_context = true;
+        self
     }
 }
 
@@ -92,6 +108,7 @@ impl Default for RouterConfig {
     fn default() -> Self {
         Self {
             intent_buffer_cap: DEFAULT_INTENT_BUFFER_CAP,
+            require_host_context: false,
         }
     }
 }
@@ -108,6 +125,7 @@ pub struct HostRouter {
     pending_intents: Mutex<VecDeque<Message>>,
     upstream: Mutex<Option<Arc<dyn L3Upstream>>>,
     settings_endpoint: Mutex<Option<Arc<RuntimeSettingsEndpoint>>>,
+    authorization_contexts: Mutex<BTreeMap<String, HostAuthorizationContext>>,
     /// Per-session response sequence counters (R2): monotonic per session,
     /// never process-global.
     response_seqs: Mutex<BTreeMap<String, u64>>,
@@ -139,8 +157,19 @@ impl HostRouter {
             pending_intents: Mutex::new(VecDeque::new()),
             upstream: Mutex::new(None),
             settings_endpoint: Mutex::new(None),
+            authorization_contexts: Mutex::new(BTreeMap::new()),
             response_seqs: Mutex::new(BTreeMap::new()),
         }
+    }
+
+    /// Return the immutable router configuration.
+    pub const fn config(&self) -> RouterConfig {
+        self.config
+    }
+
+    /// Return whether a capability executor is currently wired.
+    pub fn has_executor(&self) -> bool {
+        self.authority.has_executor()
     }
 
     /// Route one decoded envelope by kind, returning any outbound responses.
@@ -199,9 +228,10 @@ impl HostRouter {
                     "command payload requires a non-empty name".to_owned(),
                 )
             })?;
-        let ring = system_ring(&message.payload);
+        let wire_ring = system_ring(&message.payload);
+        let (agent_id, context) = self.authority_principal(&message.session_id)?;
+        let ring = context.as_ref().map_or(wire_ring, |value| value.ring);
         let danger = system_danger(&message.payload, ring);
-        let agent_id = self.agent_id_for(&message.session_id);
         let mut gate_request = GateRequest::new(SYSTEM_TOOL, agent_id.clone());
         gate_request.interactive = true;
         gate_request.interactive_ring = ring;
@@ -256,7 +286,7 @@ impl HostRouter {
                 )
             })?;
         if SYSTEM_COMMANDS.contains(&name.as_str()) {
-            let agent_id = self.agent_id_for(&message.session_id);
+            let (agent_id, _context) = self.authority_principal(&message.session_id)?;
             let reason = "system command requires ring adjudication".to_owned();
             self.audit_dispatch("command", &agent_id, &name, 0, false, &reason);
             let response =
@@ -265,7 +295,7 @@ impl HostRouter {
                 .append(&message.session_id, response.clone());
             return Ok(vec![response]);
         }
-        let agent_id = self.agent_id_for(&message.session_id);
+        let (agent_id, _context) = self.authority_principal(&message.session_id)?;
         {
             let registered = self.lock_registered();
             if !registered.contains(&name) {
@@ -320,6 +350,11 @@ impl HostRouter {
         self.authority.register_executor(executor);
     }
 
+    /// Register an already type-erased capability executor from a bootstrapper.
+    pub fn register_executor_arc(&self, executor: crate::capability::CapabilityExecutor) {
+        self.authority.register_executor_arc(executor);
+    }
+
     /// Registered command names in stable sorted order.
     pub fn registered_commands(&self) -> Vec<String> {
         self.lock_registered().iter().cloned().collect()
@@ -355,6 +390,43 @@ impl HostRouter {
     /// Wire or detach the L3 upstream pipe for intent passthrough.
     pub fn set_upstream(&self, upstream: Option<Arc<dyn L3Upstream>>) {
         *self.lock_upstream() = upstream;
+    }
+
+    /// Bind trusted host authorization evidence to one session.
+    ///
+    /// The binding is explicit and one-shot per session. `Ok(false)` reports
+    /// that a context was already bound; callers must not silently replace it.
+    pub fn bind_authorization_context(
+        &self,
+        context: HostAuthorizationContext,
+    ) -> Result<bool, &'static str> {
+        context.validate()?;
+        let mut contexts = self
+            .authorization_contexts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if contexts.contains_key(&context.session_id) {
+            return Ok(false);
+        }
+        contexts.insert(context.session_id.clone(), context);
+        Ok(true)
+    }
+
+    /// Remove a trusted host context during controlled shutdown or test reset.
+    pub fn clear_authorization_context(&self, session_id: &str) {
+        self.authorization_contexts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(session_id);
+    }
+
+    /// Return a defensive copy of a trusted context, when bound.
+    pub fn authorization_context(&self, session_id: &str) -> Option<HostAuthorizationContext> {
+        self.authorization_contexts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(session_id)
+            .cloned()
     }
 
     /// Attach a Rust-owned runtime settings endpoint.
@@ -609,7 +681,7 @@ impl HostRouter {
             .unwrap_or_default()
             .to_owned();
         let args = command_arg_strings(&message.payload)?;
-        let agent_id = self.agent_id_for(&message.session_id);
+        let (agent_id, context) = self.authority_principal(&message.session_id)?;
         let endpoint = self
             .settings_endpoint
             .lock()
@@ -620,8 +692,14 @@ impl HostRouter {
                 "settings endpoint is not wired".to_owned(),
             )),
             Some(endpoint) => match name.as_str() {
-                SETTINGS_GET_COMMAND => endpoint.get(&agent_id, &args),
-                SETTINGS_SET_COMMAND => endpoint.set(&agent_id, &args),
+                SETTINGS_GET_COMMAND => match context.as_ref() {
+                    Some(context) => endpoint.get_with_context(context, &args),
+                    None => endpoint.get(&agent_id, &args),
+                },
+                SETTINGS_SET_COMMAND => match context.as_ref() {
+                    Some(context) => endpoint.set_with_context(context, &args),
+                    None => endpoint.set(&agent_id, &args),
+                },
                 _ => Err(SettingsEndpointError::InvalidArguments(format!(
                     "unsupported settings command: {name}"
                 ))),
@@ -681,6 +759,32 @@ impl HostRouter {
 
     fn lock_upstream(&self) -> MutexGuard<'_, Option<Arc<dyn L3Upstream>>> {
         self.upstream.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn authority_principal(
+        &self,
+        session_id: &str,
+    ) -> Result<(String, Option<HostAuthorizationContext>), ProtocolError> {
+        let context = self.authorization_context(session_id);
+        if self.config.require_host_context && context.is_none() {
+            return Err(ProtocolError::InvalidContract(format!(
+                "trusted host authorization context is not bound for session {session_id}"
+            )));
+        }
+        if self.config.require_host_context
+            && context
+                .as_ref()
+                .is_some_and(|value| !value.identity_verified && value.ring >= 2)
+        {
+            return Err(ProtocolError::InvalidContract(
+                "verified host identity is required for authorization ring >= 2".to_owned(),
+            ));
+        }
+        let principal = context.as_ref().map_or_else(
+            || self.agent_id_for(session_id),
+            |value| value.principal.clone(),
+        );
+        Ok((principal, context))
     }
 
     /// Resolve the owning agent id for a session.

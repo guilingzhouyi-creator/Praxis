@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use crate::host_authorization::HostAuthorizationContext;
 use crate::host_dispatch::{HostRouter, RouterConfig};
 use crate::protocol::Message;
 use crate::protocol_host::{ProtocolHost, ProtocolHostConfig, ProtocolHostError};
@@ -84,9 +85,22 @@ impl ProtocolHostRuntime {
         self.router.register_executor(executor);
     }
 
+    /// Register an already type-erased executor from a host bootstrapper.
+    pub fn register_executor_arc(&self, executor: crate::capability::CapabilityExecutor) {
+        self.router.register_executor_arc(executor);
+    }
+
     /// Register one command name selected by an explicit host adapter.
     pub fn register_command(&self, name: impl Into<String>) {
         self.router.register_command(name);
+    }
+
+    /// Bind trusted host authorization evidence to one session.
+    pub fn bind_authorization_context(
+        &self,
+        context: HostAuthorizationContext,
+    ) -> Result<bool, &'static str> {
+        self.router.bind_authorization_context(context)
     }
 
     /// Bind Rust-owned runtime settings and trusted host authorization.

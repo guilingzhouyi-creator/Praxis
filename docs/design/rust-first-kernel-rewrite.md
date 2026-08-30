@@ -1001,6 +1001,21 @@ split. This advances R4 adapter wiring only; GateChain production identity,
 real PTY/process ownership, AgentLoop/provider/tool execution, and R5 clean
 cutover remain open.
 
+The next host-bootstrap slice adds
+`host_authorization::HostAuthorizationContext` and
+`host_bootstrap::HostBootstrap`. The context is a bounded, host-injected
+principal/session/ring/identity/debug record and is never accepted from wire
+JSON. `HostBootstrap` validates every command name and optional authority
+binding before assembling a strict `ProtocolHostRuntime`; a failed preflight
+therefore cannot expose a partially wired router. Strict dispatch rejects
+missing contexts and unverified contexts at ring two or above. Settings
+adapters may override `SettingsAuthorizer::authorize_context` to consume the
+full trusted record, while legacy principal-only authorization remains an
+explicit fallback for non-strict adapters. The independent evidence target is
+`tests/runtime/kernel_test_host_bootstrap.rs`. This is still R4 candidate
+wiring: it does not promote the stdio host, grant engineering-debug authority,
+start PTY/process-group or AgentLoop/provider work, or close R5.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

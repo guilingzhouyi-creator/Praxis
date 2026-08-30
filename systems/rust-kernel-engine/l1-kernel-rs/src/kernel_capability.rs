@@ -41,6 +41,11 @@ impl CapabilityAuthority {
         *self.executor.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(executor));
     }
 
+    /// Register an already type-erased executor supplied by a bootstrapper.
+    pub fn register_executor_arc(&self, executor: CapabilityExecutor) {
+        *self.executor.lock().unwrap_or_else(PoisonError::into_inner) = Some(executor);
+    }
+
     /// Remove the executor for shutdown or test isolation.
     pub fn reset_executor(&self) {
         *self.executor.lock().unwrap_or_else(PoisonError::into_inner) = None;

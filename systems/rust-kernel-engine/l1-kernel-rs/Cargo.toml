@@ -120,6 +120,10 @@ name = "protocol_host_runtime"
 path = "tests/runtime/kernel_test_protocol_host_runtime.rs"
 
 [[test]]
+name = "host_bootstrap"
+path = "tests/runtime/kernel_test_host_bootstrap.rs"
+
+[[test]]
 name = "conformance_vectors"
 path = "tests/protocol/conformance_vectors.rs"
 

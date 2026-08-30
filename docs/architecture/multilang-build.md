@@ -463,6 +463,17 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   without changing the default Python/Rust selection or enabling settings
   implicitly. The independent evidence target is
   `tests/runtime/kernel_test_protocol_host_runtime.rs`.
+- `host_authorization::HostAuthorizationContext` and
+  `host_bootstrap::HostBootstrap` add the next R4 composition seam. The
+  context is a bounded, host-injected principal/session/ring/identity/debug
+  record and is never accepted from wire JSON. Bootstrap validates the full
+  command/executor/settings specification before assembling a strict router;
+  missing contexts and unverified high-ring contexts fail closed. A settings
+  authorizer may consume the full context through `authorize_context`, while
+  principal-only adapters remain an explicit fallback. The independent target
+  is `tests/runtime/kernel_test_host_bootstrap.rs`; this remains candidate
+  wiring and does not change the production default or grant PTY/AgentLoop
+  authority.
 - `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
   Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
   and the explicit `set_config`, `set_setting`, and paired mutation methods
