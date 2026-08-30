@@ -26,6 +26,11 @@ import {
   TerminalShell,
   type TerminalRunResult,
 } from "./terminal-shell.ts";
+import {
+  TerminalInputController,
+  type TerminalInputControllerOptions,
+  type TerminalInputSnapshot,
+} from "./terminal-input-controller.ts";
 
 /** Frontend identities supported by the shared L2 session adapter. */
 export const FRONTEND_KINDS = ["web", "tui", "desktop", "vscode", "ssh"] as const;
@@ -44,6 +49,9 @@ export interface FrontendSessionAdapterOptions {
   /** Optional i18n/field-limit configuration for line rendering. */
   renderer?: TerminalRenderer;
   rendererOptions?: TerminalRendererOptions;
+  /** Optional caller-owned chunk framer for a concrete frontend transport. */
+  input?: TerminalInputController;
+  inputOptions?: TerminalInputControllerOptions;
 }
 
 /** Combined one-line execution and detached output frame. */
@@ -72,8 +80,10 @@ export class FrontendSessionAdapter {
   public readonly frontend: FrontendKind;
   public readonly shell: TerminalShell;
   public readonly renderer: TerminalRenderer;
+  public readonly input: TerminalInputController;
   private readonly view: SessionView;
   private attached = false;
+  private inputQueue: Promise<void> = Promise.resolve();
 
   constructor(options: FrontendSessionAdapterOptions) {
     this.bridge = options.bridge;
@@ -83,6 +93,7 @@ export class FrontendSessionAdapter {
     this.shell = options.shell ?? this.defaultShell();
     this.renderer = options.renderer
       ?? new TerminalRenderer(options.rendererOptions);
+    this.input = options.input ?? new TerminalInputController(options.inputOptions);
     this.view = new SessionView(this.viewId, this.bridge);
   }
 
@@ -111,6 +122,43 @@ export class FrontendSessionAdapter {
     };
   }
 
+  /**
+   * Frame a frontend text chunk and submit complete lines in arrival order.
+   *
+   * Calls are serialized so concurrent WebSocket/SSH callbacks cannot reorder
+   * lines. The controller remains transport-neutral and never reads the
+   * frontend source itself.
+   */
+  feedInput(chunk: string): Promise<FrontendRunResult[]> {
+    const run = this.inputQueue.then(async () => {
+      const results: FrontendRunResult[] = [];
+      for (const line of this.input.feed(chunk)) {
+        results.push(await this.submit(line));
+      }
+      return results;
+    });
+    this.inputQueue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  /** Flush an unterminated final line on frontend EOF. */
+  finishInput(): Promise<FrontendRunResult[]> {
+    const run = this.inputQueue.then(async () => {
+      const results: FrontendRunResult[] = [];
+      for (const line of this.input.finish()) {
+        results.push(await this.submit(line));
+      }
+      return results;
+    });
+    this.inputQueue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  /** Reset the frontend input boundary after EOF or a recoverable fault. */
+  resetInput(): void {
+    this.input.reset();
+  }
+
   /** Advance this view's host cursor without mutating another frontend view. */
   async ack(ackSeq: number): Promise<void> {
     this.requireAttached();
@@ -131,6 +179,7 @@ export class FrontendSessionAdapter {
     view_id: string;
     last_acked: number;
     shell: ReturnType<TerminalShell["snapshot"]>;
+    input: TerminalInputSnapshot;
   } {
     return {
       frontend: this.frontend,
@@ -138,6 +187,7 @@ export class FrontendSessionAdapter {
       view_id: this.viewId,
       last_acked: this.view.lastAcked,
       shell: this.shell.snapshot(),
+      input: this.input.snapshot(),
     };
   }
 

@@ -209,6 +209,15 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
   无需再从旧分支带回。
 - 验收：五前端矩阵全部接入协议 v1。
 
+#### P4.1 输入边界切片（2026-08-30，✅）
+
+`engine/terminal-input-controller.ts` 已冻结前端无关的 chunk→line framing
+合同（LF/CRLF/跨 chunk CR/EOF、UTF-8 字节上限、finish/reset）；
+`FrontendSessionAdapter` 以 `feedInput`/`finishInput` 串行提交完整行。该
+切片不读取 stdin、不创建 PTY、不启动 SSH server，也不改变 host/L3/L1
+authority。下一步仍是具体前端接线和真实 REPL 主循环，各前端不得绕过该
+控制器自行拼行。
+
 > 详细文件/符号级索引、运行环境与已知坑：→ [l2-agent-handoff.md](l2-agent-handoff.md)
 
 ## 7. 落地顺序（与内核审计衔接）

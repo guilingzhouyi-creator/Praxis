@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Feat (l2-ts)**: add frontend-neutral terminal input framing
 - **Feat (l2-ts)**: add frontend session adapter
 - **Feat (l2-ts)**: add terminal renderer line contract
 - **Feat (l2)**: add terminal dialect session adapter

@@ -103,4 +103,21 @@ describe("FrontendSessionAdapter", () => {
     expect(submitted.frame.lines.map((line) => line.text)).toEqual(["  ok", "[Exit] 0"]);
     expect(adapter.banner().type).toBe("banner");
   });
+
+  it("frames chunked input and serializes complete-line submissions", async () => {
+    const received: string[] = [];
+    const bridge = new ProtocolBridge({ sessionId: "session-1", transport: host(received) });
+    const adapter = new FrontendSessionAdapter({
+      bridge,
+      viewId: "view-web",
+      frontend: "web",
+    });
+
+    expect(await adapter.feedInput("status\nst")).toHaveLength(1);
+    const submitted = await adapter.feedInput("atus\r\n$ echo hi");
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0]?.input).toBe("status");
+    expect((await adapter.finishInput())[0]?.input).toBe("$ echo hi");
+    expect(adapter.localSnapshot().input).toMatchObject({ buffer: "", finished: true });
+  });
 });

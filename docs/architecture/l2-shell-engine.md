@@ -55,6 +55,15 @@ thin lifecycle contract (`attach`/`sync`/`ack`/`detach`/`submit`). The mobile
 SSH identity intentionally reuses the TUI projection; the adapter does not
 create a channel, spawn a process, or become a host endpoint.
 
+`engine/terminal-input-controller.ts` is the frontend-neutral input boundary:
+it receives text chunks, frames LF/CRLF/CR-delimited lines across chunk
+boundaries, flushes one final unterminated line at EOF, and enforces a bounded
+UTF-8 line budget. `FrontendSessionAdapter.feedInput` and `finishInput`
+serialize framed submissions so concrete Web/TUI/Desktop/VSCode/SSH/REPL
+frontends share the same ordering and limit semantics. The controller never
+reads stdin, creates a PTY, starts an SSH server, or executes a command;
+`TerminalShell` remains responsible for trimming and routing each complete line.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation

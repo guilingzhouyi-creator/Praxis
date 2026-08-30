@@ -53,4 +53,8 @@ responsibilities.
 `tui`, `desktop`, `vscode`, and `ssh`: it composes attach/replay/ack/detach,
 one-line submit, session projection, and renderer output without owning host
 state. SSH intentionally uses the TUI projection until a real SSH endpoint is
-wired.
+wired. `engine/terminal-input-controller.ts` is the shared chunk-to-line
+boundary for those frontends: it handles LF/CRLF/CR fragmentation, EOF
+flushing, UTF-8 byte limits, and serialized `feedInput`/`finishInput` delivery
+without reading stdin or creating a PTY. Concrete UI and REPL loops remain
+outside this package.

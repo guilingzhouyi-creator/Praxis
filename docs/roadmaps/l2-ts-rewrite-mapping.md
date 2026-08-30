@@ -169,6 +169,27 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
    `typecheck` 通过。真实 Web/TUI/Desktop/VSCode/SSH UI 和 REPL 输入循环
    仍未接入。
 
+## 2f. 第八批（2026-08-30，REPL-neutral input framing ✅）
+
+本批把“前端输入源”与“终端方言执行”之间的边界固定为可复用的纯分片
+控制器，便于后续 Web/TUI/Desktop/VSCode/SSH/REPL 各自接入，而不把
+`stdin`、PTY 或 OS 进程带入 TS L2：
+
+1. `engine/terminal-input-controller.ts`：接收任意文本 chunk，稳定组装
+   `LF`、`CRLF`、跨 chunk 的 `CR` 和 EOF 未终止行；保留空行，输入文本不
+   擅自 trim，交由 `TerminalShell` 决定语义。
+2. 控制器按 UTF-8 字节而非 JS UTF-16 长度执行有界输入（默认复用协议
+   `MAX_FRAME_BYTES`，允许测试/前端收紧）；超限 fail-closed 并清空未完成
+   行。`finish()` 关闭当前输入边界，`reset()` 用于恢复。
+3. `FrontendSessionAdapter.feedInput()` / `finishInput()` 复用该控制器，
+   对同时到达的 chunk 串行提交完整行，返回既有 `FrontendRunResult[]`；
+   `localSnapshot()` 暴露 detached input 状态，仍不持有 host/L3/L1 权威。
+
+> 验收：新增 `tests/terminal-input-controller.test.ts` 5 例，并扩展
+> `frontend-session-adapter.test.ts`；`tsc --noEmit` + 4 文件定向切片
+> **23 passed**。这不是具体前端 UI、真实 stdin/PTY、SSH server 或 REPL
+> 主循环；它只冻结所有前端必须共享的输入 framing 合同。
+
 ## 3. 铁律（与 handoff §2.3 一致）
 
 1. TS 不拥有最终 authority：outbox/ack/会话状态在 Python3 host。
