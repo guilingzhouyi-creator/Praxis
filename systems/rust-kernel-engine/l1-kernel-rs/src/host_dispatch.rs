@@ -863,20 +863,22 @@ impl HostRouter {
         } else {
             result.error.clone()
         };
-        let payload = BTreeMap::from([
+        let mut payload = BTreeMap::from([
             ("success".to_owned(), Value::Bool(result.success)),
             ("output".to_owned(), Value::String(output)),
         ]);
+        insert_request_id(&mut payload, request);
         self.envelope(request, MessageKind::Result, payload)
     }
 
     /// Fail-closed denial envelope (R7): rejections travel as structured
     /// results so clients never wait on a transport-level error.
     fn denial_envelope(&self, request: &Message, error: &str) -> Message {
-        let payload = BTreeMap::from([
+        let mut payload = BTreeMap::from([
             ("success".to_owned(), Value::Bool(false)),
             ("error".to_owned(), Value::String(error.to_owned())),
         ]);
+        insert_request_id(&mut payload, request);
         self.envelope(request, MessageKind::Result, payload)
     }
 
@@ -958,6 +960,20 @@ fn command_args(payload: &BTreeMap<String, Value>) -> JsonObject {
         );
     }
     args
+}
+
+fn insert_request_id(payload: &mut BTreeMap<String, Value>, request: &Message) {
+    if let Some(request_id) = request
+        .payload
+        .get("request_id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    {
+        payload.insert(
+            "request_id".to_owned(),
+            Value::String(request_id.to_owned()),
+        );
+    }
 }
 
 fn command_arg_strings(payload: &BTreeMap<String, Value>) -> Result<Vec<String>, ProtocolError> {

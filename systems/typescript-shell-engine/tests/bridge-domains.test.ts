@@ -124,6 +124,47 @@ describe("ProtocolBridge domain helpers", () => {
     expect(requests.map((r) => r.name)).toEqual(["status", "health", "memory_digest"]);
   });
 
+  it("commandPayload preserves Rust gate inputs and trace/session routing", async () => {
+    const seen: Record<string, unknown>[] = [];
+    const bridge = new ProtocolBridge({
+      sessionId: "sess",
+      transport: async (line) => {
+        seen.push(JSON.parse(line) as Record<string, unknown>);
+        return [];
+      },
+    });
+
+    await bridge.commandPayload(
+      "terminal.submit",
+      { args: ['{"bytes":3}'], ring: 1, danger: 0, request_id: "action-1" },
+      "session-rust",
+      "trace-rust",
+    );
+
+    expect(seen[0]).toMatchObject({
+      session_id: "session-rust",
+      trace_id: "trace-rust",
+      kind: "command",
+      payload: {
+        name: "terminal.submit",
+        args: ['{"bytes":3}'],
+        ring: 1,
+        danger: 0,
+        request_id: "action-1",
+      },
+    });
+  });
+
+  it("commandPayload rejects host-derived approval fields", async () => {
+    const bridge = new ProtocolBridge({
+      sessionId: "sess",
+      transport: async () => [],
+    });
+    await expect(
+      bridge.commandPayload("status", { approved: true }),
+    ).rejects.toThrow("host-derived authorization");
+  });
+
   it("stream yields decoded messages from transport responses", async () => {
     const { bridge } = makeBridge();
     const got: string[] = [];

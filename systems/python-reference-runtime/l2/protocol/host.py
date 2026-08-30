@@ -94,9 +94,10 @@ class ProtocolHost:
             self._sessions[session_id] = ShellSession(shell="protocol", session_id=session_id)
         return self._sessions[session_id]
 
-    def handle(self, line: str) -> list[dict]:
+    def handle(self, line: str, *, frame_size: int | None = None) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
-        if _frame_size_bytes(line) > MAX_FRAME_BYTES:
+        measured_size = _frame_size_bytes(line) if frame_size is None else frame_size
+        if measured_size > MAX_FRAME_BYTES:
             return [self._emit(KIND_RESULT, {"success": False, "error": "frame too large"}, "-", record=False)]
         msg, err = decode_message(line)
         if err is not None:
@@ -177,16 +178,20 @@ class ProtocolHost:
         """Read JSONL envelopes from stdin, write responses to stdout."""
         count = 0
         for raw in stdin:
-            line = raw.strip()
+            # Remove only the line terminator. Measuring after ``strip()``
+            # would let a frame padded with whitespace evade the byte cap,
+            # while ``decode_message`` still accepts that surrounding
+            # whitespace as valid JSONL.
+            line = raw.rstrip("\r\n")
             if not line:
                 continue
             frame_size = _frame_size_bytes(line)
-            outputs = self.handle(line)
-            for out in outputs:
-                stdout.write(encode_message(out) + "\n")
+            outputs = self.handle(line, frame_size=frame_size)
             if outputs:
-                # One input may produce a result/event set plus an ack. Flush
-                # the complete response set once to reduce stdio syscalls.
+                # One input may produce a result/event set plus an ack. Encode
+                # and write the complete response set in one call, then flush
+                # once, to reduce stdio syscalls without changing ordering.
+                stdout.write("".join(f"{encode_message(out)}\n" for out in outputs))
                 stdout.flush()
             if frame_size <= MAX_FRAME_BYTES:
                 count += 1

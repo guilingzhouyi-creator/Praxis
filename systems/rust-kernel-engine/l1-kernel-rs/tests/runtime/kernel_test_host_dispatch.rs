@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use l1_kernel_rs::contract::{CapabilityResult, JsonValue};
+use l1_kernel_rs::contract::{CapabilityRequest, CapabilityResult, JsonValue};
 use l1_kernel_rs::host_dispatch::{HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS};
 use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
 use l1_kernel_rs::session_lifecycle::SessionLifecycle;
@@ -313,6 +313,56 @@ fn declared_ring_danger_still_route_as_gate_inputs() {
     let responses = router.route(message).expect("declaration routes");
     // Unwired executor → fail-closed denial envelope, NOT transport error.
     assert_eq!(responses[0].payload["success"], json!(false));
+}
+
+#[test]
+fn structured_command_payload_preserves_args_trace_and_request_correlation() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("terminal.submit");
+    let seen = Arc::new(Mutex::new(None::<CapabilityRequest>));
+    let captured = Arc::clone(&seen);
+    router.register_executor(move |request| {
+        *captured.lock().unwrap() = Some(request.clone());
+        CapabilityResult {
+            success: true,
+            error: String::new(),
+            capability: request.name.clone(),
+            data: BTreeMap::from([(
+                "echo".to_owned(),
+                JsonValue::String("terminal-submit".to_owned()),
+            )]),
+        }
+    });
+    let message = Message::new(
+        "s-rust",
+        7,
+        MessageKind::Command,
+        BTreeMap::from([
+            ("name".to_owned(), json!("terminal.submit")),
+            ("args".to_owned(), json!([r#"{"bytes":3}"#])),
+            ("ring".to_owned(), json!(1)),
+            ("danger".to_owned(), json!(0)),
+            ("request_id".to_owned(), json!("action-1")),
+        ]),
+        "trace-rust",
+        100.0,
+    );
+
+    let responses = router
+        .route(message)
+        .expect("structured request dispatches");
+    let request = seen
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("executor captured request");
+    assert_eq!(request.name, "terminal.submit");
+    assert_eq!(
+        request.args["args"],
+        JsonValue::Array(vec![JsonValue::String(r#"{"bytes":3}"#.to_owned()),])
+    );
+    assert_eq!(responses[0].payload["request_id"], json!("action-1"));
+    assert_eq!(responses[0].trace_id.as_deref(), Some("trace-rust"));
 }
 
 #[test]

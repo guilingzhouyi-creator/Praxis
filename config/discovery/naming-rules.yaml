@@ -21,7 +21,7 @@ systems:
     src_root: systems/typescript-shell-engine/src
     # src/ root may contain ONLY these subdirectories. A new domain must be
     # added here deliberately — this is the categorization gate.
-    allowed_subdirs: [engine, protocol, i18n, telemetry]
+    allowed_subdirs: [engine, protocol, i18n, telemetry, l3]
     # No loose files directly under src/ — everything belongs to a domain dir.
     no_root_files: true
     # Domain dir → required leaf prefix or exact stem. Leaves outside these

@@ -252,6 +252,10 @@ or child exits, and `close()` is idempotent; reconnection remains an explicit
 Synthetic protocol-fault results on the `"-"` session also close a pending
 line request without an ack; `ProtocolBridge` then surfaces the session error
 instead of converting a malformed frame into a timeout.
+The Python reference host measures the complete JSONL frame after removing only
+the CR/LF terminator, so surrounding whitespace counts toward the same 1 MiB
+UTF-8 cap. It batches each input's response set into one write and one flush;
+this is a reference-path syscall optimization, not a new authority boundary.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 

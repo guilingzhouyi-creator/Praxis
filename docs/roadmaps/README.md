@@ -16,6 +16,7 @@ Praxis 的路线图文档集中于此目录统一管理。每条路线图登记�
 | [l2-agent-handoff.md](l2-agent-handoff.md) | 操作手册(随 main 演进) | L2 能力地图、TS 重写标准(§2 铁律/镜像同步/验收清单)、已知坑与运行环境——l2-multifrontend 路线图的配套操作性手册 | `docs/roadmaps/l2-multifrontend-session-layer.md`、`docs/architecture/l2-shell-engine.md`、`systems/typescript-shell-engine/README.md` |
 | [l1-l2-docking.md](l1-l2-docking.md) | 进行中(D0–D2 已合入 main，默认仍 Python；G1–G6 割接阶梯待启动) | L1↔L2 线缆对接:TS-L2 × Rust-L1 协议 v1 直连;`PRAXIS_RUST_HOST` opt-in、双 host e2e、三向量互验与帧上限契约 | `docs/roadmaps/l2-ts-rewrite-mapping.md`、`docs/roadmaps/frontend-kernel-roadmap.md`、`docs/design/rust-first-kernel-rewrite.md`、`docs/roadmaps/kernel-boundary-audit.md` |
 | [l2-ts-rewrite-mapping.md](l2-ts-rewrite-mapping.md) | 进行中(main 现状基线 + TS 逐模块对齐映射) | L2 TS 重写映射清单:Python3 L2 逐模块 ↔ `systems/typescript-shell-engine/`（含 bridge.py 不存在于 main 的校正与协议 v1 客户端方向） | `docs/roadmaps/frontend-kernel-roadmap.md`、`docs/roadmaps/l2-multifrontend-session-layer.md`、`docs/roadmaps/l1-l2-docking.md` |
+| [l3-ts-rewrite.md](l3-ts-rewrite.md) | 进行中(P0 首片：TS L3 coordinator → Rust execution port) | L3 TS clean-break 重写：Agent identity/decision/history/event 编排，经协议 v1 交给 Rust L1 执行；Python 保持参考与回退 | `docs/architecture/l3-module-map.md`、`docs/roadmaps/l1-l2-docking.md`、`docs/design/rust-first-kernel-rewrite.md` |
 
 ## 设计 / 施工计划索引
 

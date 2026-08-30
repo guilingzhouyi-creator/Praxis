@@ -105,8 +105,21 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 
 2026-08-30 补齐 Python 参考 host 的对齐切片：`handle()` 与 `run()` 共用
 UTF-8 字节计量 helper，超限帧在进入 JSON 解码前即被拒绝；一条输入产生的
-完整响应集合（例如 result + ack）只触发一次 flush。该优化不改变 Python
-参考 host 的生产默认地位，也不提前满足 G5。
+完整响应集合（例如 result + ack）只触发一次批量写出和 flush。`run()` 只
+移除 CR/LF 行终止符后计量，因此合法 JSON 前后的空白也计入 1 MiB 上限，
+不能借填充绕过 R5。该优化不改变 Python 参考 host 的生产默认地位，也不
+提前满足 G5。
+
+同日新增独立 TS L3 首片：L2 intent → `AgentRuntime` → 注入的
+`RustKernelExecutionPort`。该片只建立协调与 receipt 线缆，不把 L3
+AgentLoop/provider/tool 权威提前搬入 TS，也不改变 D2 的 Python 默认
+host 或 Rust candidate-only 状态；后续范围与优先级由
+`docs/roadmaps/l3-ts-rewrite.md` 管理。
+
+随后补齐 request correlation：TS 在线路上声明的 `request_id` 由 Rust
+result/denial envelope 回显，TS receipt 适配器对回显值做等值校验；provider
+回调则只接收 admitted input 的 detached copy，避免 identity/trace 在 Rust
+请求形成前被外部 alias 改写。该片仍是候选机制，不改变生产 host 选择。
 
 ### G4 前置片（2026-08-26）
 

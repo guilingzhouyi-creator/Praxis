@@ -295,6 +295,11 @@ class TestHost:
             def __init__(self) -> None:
                 super().__init__()
                 self.flush_count = 0
+                self.write_count = 0
+
+            def write(self, text: str) -> int:
+                self.write_count += 1
+                return super().write(text)
 
             def flush(self) -> None:
                 self.flush_count += 1
@@ -306,4 +311,36 @@ class TestHost:
 
         assert host.run(stdin, stdout) == 1
         assert stdout.flush_count == 1
+        assert stdout.write_count == 1
         assert len([line for line in stdout.getvalue().splitlines() if line]) == 2
+
+    def test_run_reuses_utf8_frame_measurement(self, monkeypatch) -> None:
+        """The JSONL loop measures each input frame once before dispatch."""
+        calls = 0
+        original = host_module._frame_size_bytes
+
+        def measure_once(line: str) -> int:
+            nonlocal calls
+            calls += 1
+            return original(line)
+
+        monkeypatch.setattr(host_module, "_frame_size_bytes", measure_once)
+        host = ProtocolHost()
+        stdin = io.StringIO(encode_message(make_message("s-1", 1, KIND_COMMAND, {"name": "lang"})) + "\n")
+        stdout = io.StringIO()
+
+        assert host.run(stdin, stdout) == 1
+        assert calls == 1
+
+    def test_run_counts_surrounding_whitespace_in_frame_cap(self) -> None:
+        """R5: padding cannot evade the UTF-8 frame cap before JSON decode."""
+        encoded = encode_message(make_message("s-1", 1, KIND_COMMAND, {"name": "lang"}))
+        padding = " " * (host_module.MAX_FRAME_BYTES - len(encoded.encode("utf-8")) + 1)
+        stdin = io.StringIO(padding + encoded + "\n")
+        stdout = io.StringIO()
+
+        host = ProtocolHost()
+        assert host.run(stdin, stdout) == 0
+        output = json.loads(stdout.getvalue())
+        assert output["session_id"] == "-"
+        assert output["payload"] == {"success": False, "error": "frame too large"}

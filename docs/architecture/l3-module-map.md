@@ -109,7 +109,7 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | A2/A3 | runtime-subsystems counts + README registration | **Complete** |
 
 
-## 8. TS Mirror Status (`systems/typescript-shell-engine/`)
+## 8. TS L2 Mirror Status (`systems/typescript-shell-engine/`)
 
 The L2 TS engine is under active rewrite. The following modules are
 implemented and tested (62+ tests, tsc clean):
@@ -147,6 +147,26 @@ implemented and tested (62+ tests, tsc clean):
 | `locale-catalog.ts` | 64 | Locale data consumption | ✅ |
 | `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
 
-**Not mirrored (Python3-only authority):**
-AgentLoop, Tool Pipeline, Workflow, Scheduler, Memory promotion,
-Skill mutation, Card lifecycle, Config write authority.
+**Not mirrored in the L2 engine (Python3-only authority):**
+Tool Pipeline, Workflow, Scheduler, Memory promotion, Skill mutation,
+Card lifecycle, and Config write authority.
+
+## 9. TS L3 Coordinator Candidate
+
+`systems/typescript-shell-engine/src/l3/` is an independent clean-break L3
+coordination candidate, not a mechanical import of the Python AgentLoop. The
+current slice contains:
+
+| Path | Responsibility | Authority |
+|---|---|---|
+| `l3/contracts/agent-contracts.ts` | identity, input, action, receipt, event, snapshot values | TS data contract |
+| `l3/runtime/ts-agent-runtime.ts` | per-identity decision sequencing, bounded history, lifecycle events | TS coordination |
+| `l3/adapters/l2-intent-adapter.ts` | protocol-v1 intent normalization | TS ingress |
+| `l3/adapters/rust-protocol-execution-port.ts` | command payload and receipt mapping | Rust execution boundary |
+| `l3/ports/runtime-ports.ts` | provider/execution/event dependency seams | explicit injected ports |
+
+The coordinator may only request side effects through
+`RustKernelExecutionPort`; it never imports a process API, PTY, tool handler,
+Python module, or Rust implementation. Provider, Tool Pipeline, Memory,
+Prompt, Card, Scheduler, Cell/L3A, and recovery domains remain future slices
+tracked by `docs/roadmaps/l3-ts-rewrite.md`.

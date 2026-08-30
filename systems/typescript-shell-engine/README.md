@@ -1,9 +1,10 @@
 # Praxis TypeScript Shell Engine
 
-This package is a read-only TypeScript parity implementation of the Python3
-L2 protocol v1 reference. It consumes the shared fixture at
-`tests/fixtures/protocol_v1_records.json` and does not own L2, L3A, AgentLoop,
-tool, memory, or workflow state.
+This package is the independent TypeScript rewrite perimeter for the Python3
+L2 protocol v1 reference. It consumes shared fixtures and keeps L2 protocol
+and frontend state local, while the separate `src/l3/` candidate owns only
+Agent coordination values and sequencing. Neither area owns Rust process or
+terminal state, Python runtime objects, tools, memory, workflow, or policy.
 
 ```bash
 npm ci
@@ -29,6 +30,16 @@ toolchain with the committed `package-lock.json` for reproducible installs.
 The package may become the L2 session implementation only after the P0
 identity, persistence, sequencing, and recovery gates in
 `docs/roadmaps/agent-os-3x-closure.md` are green.
+
+The `l3/` directory is the first clean-break TypeScript L3 coordinator slice.
+`ts-agent-runtime.ts` validates bounded inputs/actions, isolates identities, emits
+defensive lifecycle data, and delegates every side effect through the injected
+`RustKernelExecutionPort`. `adapters/rust-protocol-execution-port.ts` carries
+that request over `ProtocolBridge.commandPayload()` and maps a Rust `result`
+envelope to a receipt. This is candidate-only: provider, prompt, Tool
+Pipeline, Memory, Card, Scheduler, Cell/L3A, and recovery domains remain
+planned in `docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the
+reference and rollback implementation.
 
 The `engine/rust-agent-loop-terminal.ts` module is a read-only projection of
 the Rust terminal-backed AgentLoop value contract. It validates the binding
