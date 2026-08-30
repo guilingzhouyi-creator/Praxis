@@ -67,7 +67,7 @@ export class TerminalShell {
     this.dispatcher = options.dispatcher ?? new Dispatcher();
     this.catalog = options.catalog;
     this.session = this.createSession(options.sessionId ?? this.bridge.sessionId);
-    this.history = new CommandHistory(options.historySize ?? 500);
+    this.history = new CommandHistory(options.historySize);
   }
 
   /** Create an isolated routing session bound to this dialect. */
