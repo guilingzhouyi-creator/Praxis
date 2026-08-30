@@ -35,6 +35,7 @@
 - **Feat (rust)**: expose runtime configuration ownership
 - **Feat (config)**: add perf-opt and rust best-practice skills
 - **Feat (rust)**: add strict grouped agent loop execution
+- **Feat (rust)**: add terminal-backed AgentLoop composition bridge
 - **Feat (rust)**: add host input activity adapter seam
 - **Feat (rust)**: wire bounded audit evidence for process groups
 - **Feat (rust)**: gate unified process-table group admission

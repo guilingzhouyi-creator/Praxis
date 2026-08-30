@@ -254,6 +254,9 @@ pub mod agent_loop;
 /// Bounded AgentLoop execution admission bridge for the Rust runtime.
 pub mod agent_loop_execution;
 
+/// Explicit terminal-to-AgentLoop composition bridge for the Rust L1 boundary.
+pub mod agent_loop_terminal;
+
 /// Bounded per-session outbox registry, per-view ack cursors, and eviction metrics mirroring `ProtocolHost.
 pub mod outbox_registry;
 

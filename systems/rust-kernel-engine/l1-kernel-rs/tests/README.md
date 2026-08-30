@@ -14,7 +14,7 @@ exercises:
 | `protocol` | wire contracts, schemas, versioning, and conformance vectors |
 | `registry` | declarative registries, discovery, and device bookkeeping |
 | `runtime` | runtime admission and measurement-only benchmark runners |
-| `session` | sessions, AgentLoop routing, snapshots, and execution checkpoints |
+| `session` | sessions, AgentLoop routing, terminal composition, snapshots, and execution checkpoints |
 | `storage` | state/config layout, persistence, migration, VFS, and atomic stores |
 | `terminal` | terminal records, capability probes, and provider-neutral platform metadata |
 

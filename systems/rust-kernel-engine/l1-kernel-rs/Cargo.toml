@@ -40,6 +40,10 @@ name = "agent_loop_execution"
 path = "tests/runtime/kernel_test_agent_loop_execution.rs"
 
 [[test]]
+name = "agent_loop_terminal"
+path = "tests/session/kernel_test_agent_loop_terminal.rs"
+
+[[test]]
 name = "allocator"
 path = "tests/core/kernel_test_allocator.rs"
 

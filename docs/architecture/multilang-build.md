@@ -815,3 +815,14 @@ compatibility entry points have been removed.
 The independent Rust test targets are
 `tests/terminal/kernel_test_terminal_probe.rs` and `tests/process/kernel_test_process_constraints.rs`; no TS/L2/provider/
 runtime authority is added.
+
+The `agent_loop_terminal` slice is the next narrow Rust/TS docking seam. Rust
+validates a versioned loop/session/terminal correlation, accepts only opaque
+input frames supplied by the caller, invokes an injected panic-contained
+decoder, and delegates session admission and worker reservation to the
+existing Rust AgentLoop execution bridge. Batches are decoded before bounded
+all-or-none runtime reservation. Output/error frames are published through the
+Rust terminal mailbox only after the same binding check. The caller owns
+dequeue/retry policy and TS owns rendering/protocol policy; neither side
+chooses a shell, reads PATH, creates PTYs, or imports Python state. Evidence is
+isolated in `tests/session/kernel_test_agent_loop_terminal.rs`.

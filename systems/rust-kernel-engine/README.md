@@ -992,3 +992,15 @@ cargo test --workspace --manifest-path systems/rust-kernel-engine/Cargo.toml
 cargo fmt --manifest-path systems/rust-kernel-engine/Cargo.toml --all -- --check
 cargo clippy --manifest-path systems/rust-kernel-engine/Cargo.toml --workspace --all-targets --all-features -- -D warnings
 ```
+
+The `agent_loop_terminal` candidate is the narrow terminal substrate seam for
+the future independent TS/L2 rewrite. `AgentLoopTerminalBridge` validates the
+loop/session/terminal triple and running states, decodes caller-owned opaque
+input frames through an injected callback, and delegates admission to
+`AgentLoopExecutionBridge`. Batch decode happens before bounded runtime
+reservation; decoder panics, invalid frames, and mismatches fail closed without
+session mutation. Opaque output/error frames use the same binding and the
+existing `TerminalBook` mailbox. The caller retains dequeue/retry policy, while
+Rust does not choose shell paths, encodings, PATH behavior, PTYs, provider/tool
+execution, or production boot authority. Evidence is isolated in
+`tests/session/kernel_test_agent_loop_terminal.rs`.

@@ -1224,9 +1224,24 @@ executor 不会被调用。未启用严格上下文的兼容 adapter 仍只把 w
 路径，独立证据位于 `tests/runtime/kernel_test_host_dispatch.rs`；settings、
 ProcessTable/PTY/reaper 与生产 authority 仍保持各自显式边界。
 
+本轮继续推进 **终端—AgentLoop 组合接缝**：新增
+`agent_loop_terminal::AgentLoopTerminalBridge`，以显式校验的
+loop/session/terminal 三元绑定把 `TerminalBook` 的不透明输入帧交给
+`AgentLoopExecutionBridge`。Rust 不解释编码；宿主注入 decoder，decoder
+panic 或拒绝会在运行时入队前转换为结构化失败。批量输入先完成全部帧校验与
+解码，再执行有界的 all-or-none runtime reservation；输出/错误帧同样只在
+绑定终端运行时写入，拒绝 input-stream 或超大帧，避免旁路写入。调用方继续
+拥有 dequeue/retry/dead-letter 策略，因而不会把传输语义硬编码到 L1。
+独立证据为 `tests/session/kernel_test_agent_loop_terminal.rs`。该片闭合
+R4 的最小 AgentLoop terminal substrate 接缝，但不创建 PTY、不探测 shell、
+不执行 provider/tool、不接管硬件输入、不授予生产 boot 或 R5 authority；
+下一优先级是将该值合同接到受限的 L2/TS protocol adapter，并补齐真实
+ProcessTable/PTY/reaper 与生产启动证据。
+
 ---
 
-**规划进行中。** 下一步优先进入 R4 host bootstrap 与真实宿主授权上下文
-切片，再推进 PTY/process-group/reaper、AgentLoop/provider/tool 接管和 R5
-clean cutover/recovery 证据。Rust 与 TS 在 R4/R5 完成前都不得成为默认路径；
+**规划进行中。** R4 host bootstrap、可信宿主上下文和普通命令 GateChain
+接线已完成候选闭合；当前优先级转为受限 L2/TS protocol adapter、真实
+ProcessTable/PTY/process-group/reaper 宿主证据，以及 AgentLoop/provider/tool
+策略接管前的观测与回滚设计。Rust 与 TS 在 R4/R5 完成前都不得成为默认路径；
 新内核不读取旧 Python 用户数据，也不以 Python 兼容替换为目标。

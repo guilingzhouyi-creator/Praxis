@@ -1025,6 +1025,26 @@ without inferring approval from wire metadata; settings and process
 admission remain independently authorized seams. Evidence is isolated in
 `tests/runtime/kernel_test_host_dispatch.rs`.
 
+The next AgentLoop terminal composition slice adds
+`agent_loop_terminal::AgentLoopTerminalBridge`. It is deliberately an
+adapter-facing composition rather than a second execution authority: the
+caller dequeues an opaque `TerminalFrame`, the bridge validates the
+loop/session/terminal triple and running states, and an injected decoder
+produces the `SessionInput` consumed by the existing
+`AgentLoopExecutionBridge`. Batch submission decodes all frames before
+runtime reservation and enforces a fixed upper bound, preserving all-or-none
+queue admission for decoder and correlation failures. Output/error frames use
+the same validated binding and are published through `TerminalBook` without
+letting input-stream frames or oversized payloads mutate the mailbox.
+
+This slice intentionally does not decode terminal bytes in Rust, choose a
+shell or encoding, dequeue on behalf of the transport, create PTYs, execute
+providers/tools, or switch production boot authority. It gives the future
+independent TS/L2 rewrite a narrow versioned value seam while leaving retry,
+rendering, protocol routing, and provider policy with their respective
+adapters. Evidence is isolated in
+`tests/session/kernel_test_agent_loop_terminal.rs`.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

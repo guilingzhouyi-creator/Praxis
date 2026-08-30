@@ -1696,6 +1696,30 @@ scope/audience filtering, staged progression, graph validation, checkpoint
 determinism, and concurrent access. This is a Rust-native mechanism slice, not
 a production skill authority or a Python compatibility layer.
 
+### Terminal-backed AgentLoop composition
+
+`agent_loop_terminal::AgentLoopTerminalBridge` is the explicit R4 composition
+seam between the opaque `TerminalBook` mailbox and the Rust-owned
+`AgentLoopExecutionBridge`. It validates the loop/session/terminal identity
+triple and both running states before admitting I/O. Terminal input remains a
+caller-owned `TerminalFrame`; an injected decoder converts it to `SessionInput`
+under panic containment, and the existing execution bridge remains responsible
+for runtime reservation, session sequencing, caller-owned provider/tool action,
+and structured failure. Grouped input decodes every frame before queue
+admission and applies a fixed batch bound, so decoder or correlation failures
+cannot partially enqueue work.
+
+The same bridge publishes opaque output/error frames only to the validated
+terminal and rejects input-stream misuse or oversized frames before mailbox
+mutation. Dequeue/retry policy stays with the transport adapter: callers
+normally obtain frames through `TerminalBook::take_input`, then transfer the
+frame to the bridge. No encoding, shell default, PATH lookup, PTY creation,
+provider execution, hardware input, or production boot authority crosses this
+boundary. The independent
+`tests/session/kernel_test_agent_loop_terminal.rs` target is the evidence
+slice; future TS/L2 code should consume this versioned correlation and frame
+contract rather than mirror Python classes.
+
 ## Key constants (params)
 
 - `PROCESS_DEFAULT_RING`, `PROCESS_AUDIT_MAX`, `PROCESS_TABLE_MAX`
