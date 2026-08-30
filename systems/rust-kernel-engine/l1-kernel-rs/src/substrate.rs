@@ -2,6 +2,8 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use serde::{Deserialize, Serialize};
+
 /// Generation-tagged process handle that prevents stale slot reuse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProcessHandle {
@@ -68,7 +70,7 @@ impl ShardPlan {
 }
 
 /// Snapshot of counters that must not require JSON allocation on hot paths.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueueMetricSnapshot {
     /// Number of accepted submissions.
     pub submitted: u64,

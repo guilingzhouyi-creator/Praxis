@@ -18,6 +18,8 @@ use crate::syscall::{
 
 /// Operation name for a Rust runtime metadata snapshot.
 pub const RUNTIME_SNAPSHOT_OPERATION: &str = "kernel.runtime.snapshot";
+/// Operation name for one consistent Rust runtime observation.
+pub const RUNTIME_OBSERVATION_OPERATION: &str = "kernel.runtime.observation";
 /// Operation name for a side-effect-free recovery decision read.
 pub const RUNTIME_RECOVERY_OPERATION: &str = "kernel.runtime.recovery";
 /// Operation name for capability-authority wiring status.
@@ -28,6 +30,8 @@ pub const CAPABILITY_STATUS_OPERATION: &str = "kernel.capability.status";
 pub struct RuntimeAdapterRegistration {
     /// Outcome for the runtime snapshot operation.
     pub runtime_snapshot: RegistrationOutcome,
+    /// Outcome for the consistent runtime observation operation.
+    pub runtime_observation: RegistrationOutcome,
     /// Outcome for the recovery decision operation.
     pub runtime_recovery: RegistrationOutcome,
     /// Outcome for the capability wiring status operation.
@@ -48,14 +52,25 @@ impl KernelSyscallAdapters {
         runtime: Arc<KernelRuntime>,
     ) -> Result<RuntimeAdapterRegistration, SyscallRegistrationError> {
         let snapshot_runtime = Arc::clone(&runtime);
+        let observation_runtime = Arc::clone(&runtime);
         let recovery_runtime = Arc::clone(&runtime);
         let capability = runtime.capability_authority();
-        let entries: [(String, SyscallHandler); 3] = [
+        let entries: [(String, SyscallHandler); 4] = [
             (
                 RUNTIME_SNAPSHOT_OPERATION.to_owned(),
                 Arc::new(move |request: &SyscallRequest| {
                     require_empty_args(request)?;
                     encode(&snapshot_runtime.snapshot())
+                }) as SyscallHandler,
+            ),
+            (
+                RUNTIME_OBSERVATION_OPERATION.to_owned(),
+                Arc::new(move |request: &SyscallRequest| {
+                    require_empty_args(request)?;
+                    let observation = observation_runtime.observation().map_err(|_| {
+                        SyscallFailure::new("EIO", "runtime observation unavailable")
+                    })?;
+                    encode(&observation)
                 }) as SyscallHandler,
             ),
             (
@@ -79,11 +94,16 @@ impl KernelSyscallAdapters {
                 }) as SyscallHandler,
             ),
         ];
-        let [runtime_snapshot, runtime_recovery, capability_status] =
-            dispatcher.register_batch(entries)?;
+        let [
+            runtime_snapshot,
+            runtime_observation,
+            runtime_recovery,
+            capability_status,
+        ] = dispatcher.register_batch(entries)?;
 
         Ok(RuntimeAdapterRegistration {
             runtime_snapshot,
+            runtime_observation,
             runtime_recovery,
             capability_status,
         })

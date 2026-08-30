@@ -371,6 +371,17 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   Explicit checkpoint and recovery-decision reads use the runtime admission
   barrier; shutdown and recovery acknowledgement call non-recursive locked
   helpers so lifecycle changes cannot cross their book snapshots.
+- `KernelRuntime::observation` provides the unified read-only runtime model for
+  an eventual L2/TypeScript bridge. Under the shared admission read barrier it
+  aggregates `RuntimeSnapshot`, an optional persistent `RecoveryDecision`,
+  scheduler `QueueMetricSnapshot`, and contention-only
+  `RuntimeLockWaitSnapshot`. Non-persistent runtimes serialize no recovery
+  document; persistent checkpoint read failures return `EIO` through the
+  separate `kernel.runtime.observation` syscall. Existing snapshot/recovery
+  operations are unchanged, and the observation path performs no boot,
+  recovery, submission, capability, provider, or AgentLoop side effect.
+  Independent runtime and syscall-adapter tests cover both persistence modes;
+  this remains an R4 read-model seam rather than production or R5 authority.
 - `KernelRuntime::submit_batch` reserves and records every handle before one
   grouped WorkerPool handoff, rolling back all prior reservations when one
   cannot be admitted. The separate `runtime.batch_submit_reap` runner and

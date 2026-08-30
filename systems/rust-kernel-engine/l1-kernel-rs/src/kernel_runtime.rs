@@ -31,7 +31,7 @@ use crate::session::SessionBook;
 use crate::settings::{SettingsRegistry, SettingsSnapshot};
 use crate::settings_adapter::ConfigStoreSettingsProvider;
 use crate::state_store::{StateStore, StateStoreError};
-use crate::substrate::ProcessHandle;
+use crate::substrate::{ProcessHandle, QueueMetricSnapshot};
 use crate::terminal::TerminalBook;
 use crate::worker::{TaskFn, TaskHandle, TaskHandleError, WorkerConfig, WorkerPool};
 
@@ -105,6 +105,24 @@ pub struct RuntimeSnapshot {
     pub worker_stats: BTreeMap<String, Value>,
 }
 
+/// Consistent read-only runtime observation for adapters and evidence.
+///
+/// The runtime snapshot, optional recovery decision, queue metrics, and
+/// benchmark-only lock-wait counters are collected under one shared admission
+/// barrier. Persistent runtimes include the current recovery decision;
+/// non-persistent runtimes leave it absent because they have no durable root.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeObservation {
+    /// Lifecycle and task/worker state observed at the admission boundary.
+    pub runtime: RuntimeSnapshot,
+    /// Durable recovery decision, when this runtime owns a persistent root.
+    pub recovery: Option<RecoveryDecision>,
+    /// Scheduler queue accounting observed at the same boundary.
+    pub queue_metrics: QueueMetricSnapshot,
+    /// Accumulated contention-only lock wait evidence.
+    pub lock_wait: RuntimeLockWaitSnapshot,
+}
+
 /// Result of one bounded caller-driven runtime reaper sweep.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeReapReport {
@@ -175,7 +193,7 @@ pub enum RuntimeError {
 /// Both counters accumulate only after a `try_read` or `try_lock` reports
 /// contention. The normal runtime submission path neither reads a clock nor
 /// updates these counters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeLockWaitSnapshot {
     /// Time blocked by the lifecycle/shutdown admission barrier.
     /// Nanoseconds spent waiting for queue admission.
@@ -914,6 +932,36 @@ impl KernelRuntime {
     /// Return benchmark-only runtime admission lock-wait counters.
     pub fn observed_lock_wait(&self) -> RuntimeLockWaitSnapshot {
         self.tasks.observed_wait()
+    }
+
+    /// Return one consistent, side-effect-free runtime observation.
+    ///
+    /// The shared admission barrier prevents lifecycle transitions and task
+    /// admission from interleaving with the collected runtime metadata.
+    /// Persistent recovery reads use the locked helper to avoid recursively
+    /// acquiring the barrier. This method never boots, recovers, submits work,
+    /// or invokes a provider, capability, tool, or AgentLoop.
+    ///
+    /// # Errors
+    ///
+    /// RuntimeError::ExecutionStore when a persistent checkpoint cannot be
+    /// read or decoded.
+    pub fn observation(&self) -> Result<RuntimeObservation, RuntimeError> {
+        let _admission = self
+            .admission
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        let recovery = if self.execution_store.is_some() {
+            Some(self.recovery_decision_locked()?)
+        } else {
+            None
+        };
+        Ok(RuntimeObservation {
+            runtime: self.snapshot(),
+            recovery,
+            queue_metrics: self.scheduler.queue_metrics(),
+            lock_wait: self.tasks.observed_wait(),
+        })
     }
 
     /// Submit one action, reserving a task and binding lifecycle.

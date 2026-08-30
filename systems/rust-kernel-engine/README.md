@@ -332,6 +332,17 @@ request-sized temporary buffer for rejected payloads. The independent target is
 `tests/runtime/kernel_test_syscall_adapters.rs`; process, event, and allocator
 side-effect operations remain future capability-gated adapters.
 
+`runtime::RuntimeObservation` is the next read-only aggregation seam. It
+captures the runtime snapshot, optional persistent recovery decision, scheduler
+queue metrics, and contention-only runtime lock-wait evidence under one shared
+admission read barrier. Non-persistent runtimes return no recovery document;
+persistent runtimes recompute the decision from the Rust execution checkpoint.
+The separate `kernel.runtime.observation` syscall adds this aggregate without
+changing the existing snapshot/recovery operations, and serialization failures
+return `EIO`. The method performs no boot, recovery, task submission,
+capability, provider, or AgentLoop side effect. Runtime and adapter tests cover
+both persistence modes; this remains an R4 read-model/TS-bridge candidate.
+
 The `boot` module is a declarative assembly candidate. `BootPlan` validates step
 names, rejects duplicate registrations unless replacement is explicit, supports
 a pre-execution lock, and resolves dependency-first order with fail-closed

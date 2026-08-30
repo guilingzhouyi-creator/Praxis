@@ -895,6 +895,19 @@ capability. Its independent
 `tests/runtime/kernel_test_syscall_adapters.rs` target covers the metadata
 reads and fail-closed non-persistent recovery path.
 
+The follow-on `runtime::KernelRuntime::observation` read model aggregates the
+runtime snapshot, optional persistent recovery decision, scheduler queue
+metrics, and contention-only runtime lock-wait counters behind one shared
+admission read barrier. Non-persistent runtimes expose `recovery: null` rather
+than inventing durable state; persistent roots return the current
+`RecoveryDecision` or a structured execution-store error. The new
+`kernel.runtime.observation` syscall keeps the existing snapshot/recovery
+operations backward-compatible and remains strictly side-effect-free: it does
+not boot, recover, submit, invoke capabilities, or route AgentLoop/provider
+work. Independent runtime and adapter tests cover both non-persistent and
+persistent serialization paths. This is an R4 read-model/TS-bridge seam, not
+production boot or R5 cutover authority.
+
 ### Port abstraction
 
 ```python

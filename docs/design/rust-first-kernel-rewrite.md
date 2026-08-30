@@ -494,6 +494,21 @@ semantics. Coverage lives in the independent
 `tests/runtime/kernel_test_syscall_adapters.rs` target; process/event/resource
 operation wiring remains a later capability-gated adapter decision.
 
+The runtime observability follow-on adds `RuntimeObservation` and
+`KernelRuntime::observation()`. It collects the `RuntimeSnapshot`, optional
+persistent `RecoveryDecision`, `QueueMetricSnapshot`, and
+`RuntimeLockWaitSnapshot` while holding the shared admission read barrier.
+That linearization point prevents lifecycle/task admission from interleaving
+with the read model, while the method remains side-effect-free and does not
+perform recovery or any provider/tool/AgentLoop execution. Non-persistent
+runtimes intentionally serialize `recovery` as absent; persistent runtimes
+recompute the current decision from their Rust-owned execution checkpoint and
+fail closed if it cannot be read. `kernel.runtime.observation` exposes this
+aggregate as a separate syscall so the existing snapshot and recovery wire
+contracts remain unchanged. The slice is an R4 read-model and future TS bridge
+preparation only; production boot, cross-book recovery actions, and R5 cutover
+authority remain open.
+
 The next L1 lifecycle slice is the Rust-native `watchdog` evaluator. It
 accepts an explicit `WatchdogPolicy`, host-supplied process observations, and
 interrupt counts. Its process scan combines zombie counting and idle

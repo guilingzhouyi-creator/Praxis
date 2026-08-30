@@ -8,6 +8,7 @@
 ### 新增
 
 - **Feat (rust)**: compose protocol host runtime adapter
+- **Feat (rust)**: add unified runtime observation seam
 - **Feat (rust)**: add host-authorized settings protocol endpoint
 - **Feat (rust)**: connect runtime settings adapter
 - **Feat (rust)**: add provider-backed settings facade
