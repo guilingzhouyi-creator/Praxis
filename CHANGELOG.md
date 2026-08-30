@@ -8,6 +8,7 @@
 ### 新增
 
 - **Feat (rust)**: add strict host bootstrap context
+- **Fix (rust)**: route registered commands through GateChain before execution
 - **Feat (rust)**: add runtime observation seam
 - **Feat (rust)**: compose protocol host runtime adapter
 - **Feat (rust)**: add host-authorized settings protocol endpoint

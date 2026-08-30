@@ -1016,6 +1016,15 @@ explicit fallback for non-strict adapters. The independent evidence target is
 wiring: it does not promote the stdio host, grant engineering-debug authority,
 start PTY/process-group or AgentLoop/provider work, or close R5.
 
+The follow-on host-dispatch hardening routes every registered non-system
+command through the same GateChain used by system commands. Registration
+updates the GateChain whitelist, the bound host context supplies the trusted
+ring, and a blocked G1-G5 result becomes a structured denial before the
+capability executor is invoked. This removes the ordinary-command bypass
+without inferring approval from wire metadata; settings and process
+admission remain independently authorized seams. Evidence is isolated in
+`tests/runtime/kernel_test_host_dispatch.rs`.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

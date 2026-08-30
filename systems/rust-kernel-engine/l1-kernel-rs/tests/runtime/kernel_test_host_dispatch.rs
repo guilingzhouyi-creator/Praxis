@@ -161,6 +161,51 @@ fn command_denied_by_executor_is_wrapped_as_failed_result() {
 }
 
 #[test]
+fn registered_command_is_adjudicated_by_gatechain_before_execution() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("hello");
+    wire_echo_executor(&router);
+    let responses = router
+        .route(command("hello", "s-1", 7))
+        .expect("dispatches");
+    assert_eq!(responses[0].payload["success"], json!(true));
+    let allowed = router
+        .audit()
+        .query(20, None)
+        .into_iter()
+        .find(|row| row.op == "dispatch.command" && row.success)
+        .expect("allowed command audit");
+    assert!(allowed.detail.contains("ring=1"));
+}
+
+#[test]
+fn high_danger_registered_command_is_blocked_before_executor() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("exec");
+    wire_echo_executor(&router);
+    let responses = router
+        .route(command("exec", "s-1", 7))
+        .expect("gate denial travels as an envelope");
+    assert_eq!(responses[0].payload["success"], json!(false));
+    let error = responses[0].payload["error"]
+        .as_str()
+        .expect("denial error");
+    assert!(error.contains("blocked by gatechain (BLOCK)"), "{error}");
+    let rows = router.audit().query(20, None);
+    let denied = rows
+        .iter()
+        .find(|row| row.op == "dispatch.command" && !row.success)
+        .expect("gate denial audit");
+    assert!(denied.error.contains("blocked by gatechain"));
+    assert!(
+        !rows
+            .iter()
+            .any(|row| row.op == "capability.invoke" && row.success),
+        "blocked command must not reach the executor"
+    );
+}
+
+#[test]
 fn unknown_command_answers_denial_envelope_and_is_audited() {
     let router = HostRouter::new(RouterConfig::default());
     let responses = router

@@ -295,7 +295,7 @@ impl HostRouter {
                 .append(&message.session_id, response.clone());
             return Ok(vec![response]);
         }
-        let (agent_id, _context) = self.authority_principal(&message.session_id)?;
+        let (agent_id, context) = self.authority_principal(&message.session_id)?;
         {
             let registered = self.lock_registered();
             if !registered.contains(&name) {
@@ -314,6 +314,24 @@ impl HostRouter {
                 return Ok(vec![response]);
             }
         }
+        let wire_ring = system_ring(&message.payload);
+        let ring = context.as_ref().map_or(wire_ring, |value| value.ring);
+        let mut gate_request = GateRequest::new(name.clone(), agent_id.clone());
+        gate_request.interactive = true;
+        gate_request.interactive_ring = ring;
+        gate_request.timestamp = Some(message.ts);
+        let verdict = self.gatechain.check(&gate_request);
+        if !verdict.allowed {
+            let reason = format!(
+                "command {name} blocked by gatechain ({})",
+                verdict.decision.as_str()
+            );
+            self.audit_dispatch("command", &agent_id, &name, ring, false, &reason);
+            let response = self.denial_envelope(&message, &reason);
+            self.lock_outboxes()
+                .append(&message.session_id, response.clone());
+            return Ok(vec![response]);
+        }
         let request = CapabilityRequest {
             agent_id: agent_id.clone(),
             name: name.clone(),
@@ -327,7 +345,7 @@ impl HostRouter {
             "command",
             &agent_id,
             &name,
-            0,
+            ring,
             result.success,
             &result.error,
         );
@@ -339,7 +357,9 @@ impl HostRouter {
 
     /// Register an additional command name for capability dispatch.
     pub fn register_command(&self, name: impl Into<String>) {
-        self.lock_registered().insert(name.into());
+        let name = name.into();
+        self.lock_registered().insert(name.clone());
+        self.gatechain.register_tools([name]);
     }
 
     /// Replace the wired capability executor; boot adapters are the caller.

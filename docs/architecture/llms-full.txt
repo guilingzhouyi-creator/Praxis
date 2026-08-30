@@ -815,6 +815,16 @@ AgentLoop work, or promote the Rust host to the production default.
 Independent coverage is in
 `tests/runtime/kernel_test_host_bootstrap.rs`.
 
+Host command registration now also populates the router's GateChain whitelist.
+Every registered non-system command is adjudicated with the trusted context
+ring before capability execution; a blocked verdict is returned as the normal
+R7 denial envelope and never reaches the executor. Wire metadata can provide
+only the existing ring input for non-strict adapters; a bound host context
+always wins, and no wire approval field is accepted. This closes the previous
+ordinary-command bypass while keeping settings authorization and process
+admission as separate explicit seams. Coverage is in
+`tests/runtime/kernel_test_host_dispatch.rs`.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

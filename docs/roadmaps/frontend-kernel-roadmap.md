@@ -1216,6 +1216,14 @@ settings endpoint，再在私有候选中完成整体装配，避免暴露半配
 候选，不改变生产默认，不启动 PTY/process-group、AgentLoop/provider，
 也不等于 R5 clean cutover。
 
+随后补齐普通命令的 GateChain 接线：`HostRouter::register_command` 同步更新
+GateChain 白名单，已注册的非系统命令在能力执行前使用绑定宿主上下文的
+可信 ring 完成 G1-G5 判定；BLOCK 统一返回 R7 denial envelope，并保证
+executor 不会被调用。未启用严格上下文的兼容 adapter 仍只把 wire ring
+作为 gate 输入，不能由 wire 伪造 approval。该片修复普通命令绕过系统门禁的
+路径，独立证据位于 `tests/runtime/kernel_test_host_dispatch.rs`；settings、
+ProcessTable/PTY/reaper 与生产 authority 仍保持各自显式边界。
+
 ---
 
 **规划进行中。** 下一步优先进入 R4 host bootstrap 与真实宿主授权上下文

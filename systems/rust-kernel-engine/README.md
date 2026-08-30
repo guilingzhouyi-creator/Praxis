@@ -579,6 +579,14 @@ grant engineering-debug authority, or start PTY/process-group, provider, or
 AgentLoop work. Evidence is isolated in
 `tests/runtime/kernel_test_host_bootstrap.rs`.
 
+Registered non-system commands now share the same GateChain path as system
+commands: `HostRouter::register_command` updates the whitelist, dispatch uses
+the bound context ring, and a BLOCK result is emitted before the capability
+executor is reached. This closes the ordinary-command bypass while keeping
+wire approval fields rejected and settings/process admission independently
+host-authorized. Evidence is isolated in
+`tests/runtime/kernel_test_host_dispatch.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,
