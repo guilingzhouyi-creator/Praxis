@@ -7,6 +7,7 @@
 
 ### 修复
 
+- **Fix (l2)**: align Rust request correlation and Python frame bounds
 - **Fix (l2)**: align Python host frame bytes and flush batching
 - **Fix (shell)**: reuse terminal history default
 - **Fix (rust)**: gate registered host commands
