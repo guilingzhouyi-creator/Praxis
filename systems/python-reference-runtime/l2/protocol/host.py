@@ -37,6 +37,11 @@ from l2.protocol.envelope import (
 MAX_FRAME_BYTES: int = 1024 * 1024
 
 
+def _frame_size_bytes(line: str) -> int:
+    """Return the UTF-8 byte length used by the cross-language frame cap."""
+    return len(line.encode("utf-8"))
+
+
 def _dispatch_text(text: str, session) -> dict:
     """Route one input line through the existing engine (unchanged)."""
     from l2.l2_shell import dispatch
@@ -91,7 +96,7 @@ class ProtocolHost:
 
     def handle(self, line: str) -> list[dict]:
         """Handle one input line; returns zero or more output envelopes."""
-        if len(line) > MAX_FRAME_BYTES:
+        if _frame_size_bytes(line) > MAX_FRAME_BYTES:
             return [self._emit(KIND_RESULT, {"success": False, "error": "frame too large"}, "-", record=False)]
         msg, err = decode_message(line)
         if err is not None:
@@ -175,17 +180,16 @@ class ProtocolHost:
             line = raw.strip()
             if not line:
                 continue
-            if len(line) > MAX_FRAME_BYTES:
-                # R5: oversize frames never reach the parser; handle()
-                # re-checks the length and answers a frame-too-large result.
-                for out in self.handle(line):
-                    stdout.write(encode_message(out) + "\n")
-                    stdout.flush()
-                continue
-            for out in self.handle(line):
+            frame_size = _frame_size_bytes(line)
+            outputs = self.handle(line)
+            for out in outputs:
                 stdout.write(encode_message(out) + "\n")
+            if outputs:
+                # One input may produce a result/event set plus an ack. Flush
+                # the complete response set once to reduce stdio syscalls.
                 stdout.flush()
-            count += 1
+            if frame_size <= MAX_FRAME_BYTES:
+                count += 1
         return count
 
 

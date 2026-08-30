@@ -100,8 +100,13 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 |---|---|
 | D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | ✅ `e2e.stdio` 按开关选择双 host；Rust 独立 e2e 覆盖 command/attach/recovery |
 | D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | ✅ fixture canonical lines 逐字节一致；Rust gate 与 Python reference 均纳入测试 |
-| D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | ✅ TS/Rust/Python 均为 1 MiB；TS 请求/响应边界测试已锁定 UTF-8 byte size |
+| D2.3 帧上限契约钉（Rust/Python/TS） | ✅ 三端均为 1 MiB UTF-8 字节上限；TS 请求/响应边界测试与 Python 参考 host 超限前置解析测试已锁定 |
 | D2.4 传输故障恢复语义 | ✅ child `error`/`exit`、stdio `close`、主动 `close()` 即时拒绝 pending；合成协议故障帧不再等待 ack；预算参数非法时构造即失败；重连仍由 `ConnectionManager` 显式触发 |
+
+2026-08-30 补齐 Python 参考 host 的对齐切片：`handle()` 与 `run()` 共用
+UTF-8 字节计量 helper，超限帧在进入 JSON 解码前即被拒绝；一条输入产生的
+完整响应集合（例如 result + ack）只触发一次 flush。该优化不改变 Python
+参考 host 的生产默认地位，也不提前满足 G5。
 
 ### G4 前置片（2026-08-26）
 

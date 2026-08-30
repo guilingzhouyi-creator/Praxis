@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Fix (l2)**: align Python host UTF-8 frame cap and batched flush
 - **Feat (l2-ts)**: bound frontend input queue backpressure
 - **Feat (l2-ts)**: add frontend input framing
 - **Feat (l2-ts)**: add frontend session adapter

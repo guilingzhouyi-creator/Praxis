@@ -157,7 +157,7 @@ i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册�
 
 | 优化 | 文件 | TS 重写对应 |
 |---|---|---|
-| `run()` 批量 flush（stdio I/O） | `host.py` | TS 无等价——直接批量写（天然继承） |
+| UTF-8 字节帧上限 + `run()` 批量 flush（stdio I/O） | `host.py` | TS `wire-types.ts` 负责 byte cap；TS 无 flush 等价——直接批量写 |
 | `_advance_shared_cursor` per-session 索引 | `host.py` | `interactive-session.ts` 视图索引同构（attach 即入索引） |
 | ws 桥 dict 直入（省 JSON 往返） | `host.py`/`ws_bridge.py` | TS 天然无 JSON 往返（对象直传） |
 | command args 直入（省 shlex.split） | `host.py`/`l2_shell/__init__.py` | TS 天然无 shlex——命令名/参数已结构化 |

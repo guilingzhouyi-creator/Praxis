@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 
+import l2.protocol.host as host_module
 from l2.protocol import (
     ENVELOPE_JSON_SCHEMA,
     KIND_ACK,
@@ -263,3 +264,46 @@ class TestHost:
         assert len(lines) == 2
         for line in lines:
             assert isinstance(json.loads(line), dict)
+
+    def test_frame_limit_counts_utf8_bytes_before_decode(self, monkeypatch) -> None:
+        """R5: the shared 1 MiB cap is measured in UTF-8 bytes, not characters."""
+        decode_calls = 0
+
+        def decode_probe(line: str):
+            nonlocal decode_calls
+            decode_calls += 1
+            return None, "decode probe"
+
+        monkeypatch.setattr(host_module, "decode_message", decode_probe)
+        host = ProtocolHost()
+        under = "界" * (host_module.MAX_FRAME_BYTES // len("界".encode()))
+        over = under + "界"
+
+        under_out = host.handle(under)
+        over_out = host.handle(over)
+
+        assert under_out[0]["payload"]["error"] == "decode probe"
+        assert over_out[0]["payload"]["error"] == "frame too large"
+        assert decode_calls == 1
+
+    def test_run_flushes_one_complete_response_set(self) -> None:
+        """A result plus ack for one input share one flush boundary."""
+
+        class CountingWriter(io.StringIO):
+            """String writer that records flush calls."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.flush_count = 0
+
+            def flush(self) -> None:
+                self.flush_count += 1
+                super().flush()
+
+        host = ProtocolHost()
+        stdin = io.StringIO(encode_message(make_message("s-1", 1, KIND_COMMAND, {"name": "lang"})) + "\n")
+        stdout = CountingWriter()
+
+        assert host.run(stdin, stdout) == 1
+        assert stdout.flush_count == 1
+        assert len([line for line in stdout.getvalue().splitlines() if line]) == 2
