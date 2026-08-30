@@ -131,9 +131,10 @@ decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry�
    发为 `l3a_send`，只有显式 Direct session 才将裸文本发为 tool；不改变
    `$`/`/`/pipeline 的顺序或 host authority。
 
-> 验收：新增 `routing-session.test.ts` 与 `terminal-shell.test.ts`，该切片
-> 25/25 通过；TS `typecheck` 通过。仍未满足 terminal REPL 终态、真实前端
-> 接入、G5 默认 Rust host 切换或 G6 移除 Python host。
+> 验收：新增 `routing-session.test.ts` 与 `terminal-shell.test.ts` 共 9
+> 例；连同 `conformance.test.ts` 路由回归切片 25/25 通过，TS `typecheck`
+> 通过。仍未满足 terminal REPL 终态、真实前端接入、G5 默认 Rust host
+> 切换或 G6 移除 Python host。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 

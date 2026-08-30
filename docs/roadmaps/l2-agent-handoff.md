@@ -110,12 +110,13 @@ construction: in_progress
 | `session-manager.ts` | ✅ 一会话 N 视图 + 非破坏性 ack + 共享水位=落后视图 + recovery 重放 |
 | transport 适配器 | ✅ `transports/`——共享引擎 `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio / http / ws / ssh（**readiness handshake：连接前写排队 + attach flush**）；异步契约 `(line) => Promise<string[]>` |
 | 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost` 打通：command 往返 + attach/replay |
-| 测试 | ✅ 9 文件 62 例（protocol 6 + engine 8 + session 9 + transports 7 + i18n 7 + selector/completer 10 + session-family 6 + session-manager 7 + e2e 2），tsc 干净 |
+| 测试 | ✅ 11 文件 71 例（既有 protocol/engine/session/transports/i18n/selector/completer/session-family/session-manager/e2e 62 例 + routing-session/terminal-shell 新增 9 例），tsc 干净 |
 
 新增方言切片：`tests/routing-session.test.ts`、`tests/terminal-shell.test.ts`
-覆盖 25 例（模式切换、ShellFamily 绑定、`$`/`/`/pipeline、Direct tool、
-L3A intent、history 边界）；它们只验证 TS 侧路由和 bridge 委托，不声称
-覆盖 L3 AgentLoop 或 L1 ProcessPort 的执行正确性。
+新增 9 例（模式切换、ShellFamily 绑定、`$`/`/`/pipeline、Direct tool、
+L3A intent、history 边界）；连同 conformance 路由回归切片共 25 例。它们
+只验证 TS 侧路由和 bridge 委托，不声称覆盖 L3 AgentLoop 或 L1 ProcessPort
+的执行正确性。
 
 协议镜像：`systems/typescript-shell-engine/src/{wire-envelope,wire-records}.ts`（与 Python3 逐字段对齐，§2.4）。
 i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwargs 替换）。
