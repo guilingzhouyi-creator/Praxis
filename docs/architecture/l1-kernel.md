@@ -565,6 +565,19 @@ replacement fails, the first replacement is restored and failed rename
 temporaries are removed. A rollback failure is reported as a distinct
 fail-closed error rather than being hidden.
 
+The Rust `settings` candidate now reconstructs the L1 settings facade as a
+Rust-native, provider-injected read/write boundary. It carries the semantic
+default catalog, bounded key/count validation, category reads, single and
+batch mutation, reset/reset-all, and the prompt-injection safety helper.
+Without a provider, a thread-safe fallback owns the defaults; an injected
+provider becomes authoritative only after its complete snapshot validates and
+retains persistence/authorization responsibility for its own mutations.
+Provider failures are explicit rather than silently switching sources, while
+prompt-injection reads fail safe to enabled. This candidate does not import
+Python settings, interpret engineering-debug policy, hot-reload services, or
+replace `ConfigStore` persistence. Its independent test target is
+`tests/storage/kernel_test_settings.rs`.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

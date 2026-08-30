@@ -1149,6 +1149,18 @@ NUL/身份校验和未知引用均在变更前 fail-closed；独立
 Card/TODO/AgentLoop 策略、L2/API 路由、Python 状态导入和 production
 authority 明确留在宿主，后续 TS/L2 只消费版本化值合同，不引入兼容替换。
 
+随后补齐 Rust `settings` 机制切片：`SettingsRegistry` 重建 Python
+`l1.kernel.settings` 的默认值目录、fallback 读写、分类查询、
+批量更新、reset/reset_all，以及 `prompt.inject.*` 的 fail-safe 读取。
+宿主可注入经过完整快照校验的 `SettingsProvider`；provider 自己持有
+持久化与授权，provider 失败不会静默退回旧值。设置 key 和总量均有
+Rust-native 上限，fallback 批量更新先 staged 再一次提交，避免半应用。
+独立 `tests/storage/kernel_test_settings.rs` 覆盖默认面、provider 转发、
+非法身份、快照拒绝与 prompt safety。该片补齐 L1 settings 语义机制，
+但不读取 Python 状态、不替代 `ConfigStore`、不热加载服务、不决定
+engineering-debug policy，也不授予 R4/R5 runtime authority；下一步优先
+将 settings facade 作为 Rust-owned runtime/TS 只读桥的显式 adapter 接线。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；

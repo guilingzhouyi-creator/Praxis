@@ -935,6 +935,18 @@ The optional priority-inheritance callback is advisory and is invoked behind a
 panic boundary; a callback failure cannot poison the lock or cross the Rust L1
 boundary.
 
+The next settings slice reconstructs the Python L1 facade without carrying
+Python state or class layout into Rust. `settings::SettingsRegistry` owns the
+semantic default catalog and a bounded fallback map, while an injected
+`SettingsProvider` is the explicit host seam for persistence and authorization.
+The facade validates every key and complete provider snapshot before exposure,
+supports single/batch writes, category reads, reset/reset-all, and preserves
+the prompt-injection safety rule that malformed reads stay enabled. Provider
+errors do not silently fall back to stale values. This closes the Rust-native
+settings mechanism but not `ConfigStore` persistence, engineering-debug policy,
+service hot reload, or R5 runtime authority; the independent
+`tests/storage/kernel_test_settings.rs` target is the evidence boundary.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

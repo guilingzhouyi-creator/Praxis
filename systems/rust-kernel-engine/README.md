@@ -510,6 +510,17 @@ rollback failure explicitly. Failed rename temporaries are removed.
 revisions, foreign roots, invalid keys, future-document rejection, paired
 rollback, and temporary-file cleanup through the public API.
 
+The `settings` module is the Rust-native L1 facade for the semantic settings
+surface. It owns the bounded default catalog and supports deterministic
+snapshot, lookup, category, single/batch write, reset, and prompt-injection
+reads. A host may inject a `SettingsProvider` only after its full snapshot
+passes the same key/count validation; the provider then owns persistence and
+authorization while provider failures remain explicit. The local fallback
+restores the Rust defaults and prompt-injection reads fail safe to enabled.
+This is a mechanism candidate, not a Python settings import, `ConfigStore`
+replacement, engineering-debug policy, or service hot-reload path. Its public
+behavior is isolated in `tests/storage/kernel_test_settings.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,
