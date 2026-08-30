@@ -14,7 +14,7 @@
 //!   - Policy adjudication (fail-closed gates): capability, gatechain, constitution, reputation, audit
 //!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
 //!   - Networking peers and transport edge: network, transport
-//!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, os, versioning, migration, assembly, state_layout, state_store, config_store, settings, persist, vfs
+//!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, os, versioning, migration, assembly, state_layout, state_store, config_store, settings, settings_adapter, persist, vfs
 //!   - Benchmark evidence: benchmark, benchmark_runner
 
 #![forbid(unsafe_code)]
@@ -327,6 +327,10 @@ pub mod config_store;
 /// Rust-native settings facade with injected-provider and fallback boundaries.
 #[path = "kernel_settings.rs"]
 pub mod settings;
+
+/// Rust-owned ConfigStore adapter for persistent settings semantics.
+#[path = "kernel_settings_adapter.rs"]
+pub mod settings_adapter;
 
 /// Rust candidate for the append-only kernel event journal.
 #[path = "kernel_persist.rs"]

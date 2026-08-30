@@ -1158,8 +1158,16 @@ Rust-native 上限，fallback 批量更新先 staged 再一次提交，避免半
 独立 `tests/storage/kernel_test_settings.rs` 覆盖默认面、provider 转发、
 非法身份、快照拒绝与 prompt safety。该片补齐 L1 settings 语义机制，
 但不读取 Python 状态、不替代 `ConfigStore`、不热加载服务、不决定
-engineering-debug policy，也不授予 R4/R5 runtime authority；下一步优先
-将 settings facade 作为 Rust-owned runtime/TS 只读桥的显式 adapter 接线。
+engineering-debug policy，也不授予 R4/R5 runtime authority。
+随后将 `settings_adapter::ConfigStoreSettingsProvider` 接到
+`KernelRuntime`：持久运行时通过 Rust-owned `ConfigStore` 提供默认值 overlay、
+单项/批量/重置写入和单调 revision，非持久运行时保留 bounded fallback；新的
+`settings_snapshot` 与 `set_runtime_setting` API 只暴露防御性值，不导入 Python
+或热重载服务。独立 `tests/storage/kernel_test_settings_adapter.rs` 与 runtime
+slice 证明持久化、revision 和 runtime ownership。TS 侧新增只读
+`RustSettingsProjection`，校验同一 key/count/source/revision 合同并拒绝同源
+回退 revision；该片仍是 R4 adapter/TS bridge 前置，未授予生产 boot、AgentLoop
+执行或 R5 cutover authority。
 
 ---
 

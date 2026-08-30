@@ -947,6 +947,19 @@ settings mechanism but not `ConfigStore` persistence, engineering-debug policy,
 service hot reload, or R5 runtime authority; the independent
 `tests/storage/kernel_test_settings.rs` target is the evidence boundary.
 
+The next adapter slice now installs `settings_adapter::ConfigStoreSettingsProvider`
+in persistent `KernelRuntime` instances. It overlays Rust defaults on the sparse
+`settings.json` document and maps single, batch, reset, and reset-all operations
+to atomic monotonic `ConfigStore` revisions. Non-persistent runtimes retain the
+bounded fallback, while `settings_snapshot` and `set_runtime_setting` provide a
+defensive runtime seam. The TS `RustSettingsProjection` is a read-only mirror
+that validates source/revision/key/count bounds and rejects stale same-source
+snapshots. This advances R4 adapter preparation but does not grant production
+boot, AgentLoop/provider/tool execution, authorization, or R5 cutover authority.
+The Rust adapter target is
+`tests/storage/kernel_test_settings_adapter.rs`; TS coverage is
+`tests/rust-settings-projection.test.ts`.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

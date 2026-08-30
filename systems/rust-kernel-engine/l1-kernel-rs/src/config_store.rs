@@ -333,6 +333,59 @@ impl ConfigStore {
         Ok(())
     }
 
+    /// Set several runtime settings and persist them as one document update.
+    ///
+    /// The caller supplies only the values to merge; existing values remain
+    /// unchanged. The in-memory document advances only after the full atomic
+    /// replacement succeeds.
+    pub fn set_settings(&mut self, values: &BTreeMap<String, Value>) -> Result<(), ConfigError> {
+        for key in values.keys() {
+            validate_key(key)?;
+        }
+        let mut next = self.settings.clone();
+        next.values.extend(values.clone());
+        next.revision = next.revision.saturating_add(1);
+        self.persist_document(SETTINGS_FILE, &next)?;
+        self.settings = next;
+        Ok(())
+    }
+
+    /// Restore one runtime setting to a default or remove an unknown key.
+    pub fn reset_setting(
+        &mut self,
+        key: impl Into<String>,
+        default: Option<Value>,
+    ) -> Result<(), ConfigError> {
+        let key = key.into();
+        validate_key(&key)?;
+        let mut next = self.settings.clone();
+        match default {
+            Some(value) => {
+                next.values.insert(key, value);
+            }
+            None => {
+                next.values.remove(&key);
+            }
+        }
+        next.revision = next.revision.saturating_add(1);
+        self.persist_document(SETTINGS_FILE, &next)?;
+        self.settings = next;
+        Ok(())
+    }
+
+    /// Replace the complete runtime settings document.
+    pub fn replace_settings(&mut self, values: BTreeMap<String, Value>) -> Result<(), ConfigError> {
+        for key in values.keys() {
+            validate_key(key)?;
+        }
+        let mut next = self.settings.clone();
+        next.values = values;
+        next.revision = next.revision.saturating_add(1);
+        self.persist_document(SETTINGS_FILE, &next)?;
+        self.settings = next;
+        Ok(())
+    }
+
     /// Atomically replace one config value and one setting value as a pair.
     ///
     /// The two documents are staged before either in-memory field changes.

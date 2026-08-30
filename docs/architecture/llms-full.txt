@@ -766,6 +766,18 @@ Python settings, interpret engineering-debug policy, hot-reload services, or
 replace `ConfigStore` persistence. Its independent test target is
 `tests/storage/kernel_test_settings.rs`.
 
+The `settings_adapter::ConfigStoreSettingsProvider` is the explicit persistent
+adapter above that facade. It overlays the Rust default catalog on the sparse
+`ConfigStore` settings document, maps every mutation to one atomic document
+revision, and keeps reset/reset-all semantics in the Rust-owned root. A
+persistent `KernelRuntime` installs this provider during construction and
+exposes `settings_snapshot`/`set_runtime_setting`; a non-persistent runtime
+keeps the bounded in-memory fallback. The adapter owns neither authorization
+nor service hot reload, and the TS `RustSettingsProjection` is read-only:
+it validates source/revision/key/count bounds and rejects stale same-source
+snapshots without writing back to Rust. Independent evidence lives in
+`tests/storage/kernel_test_settings_adapter.rs` plus the runtime settings slice.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

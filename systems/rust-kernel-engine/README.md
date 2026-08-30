@@ -521,6 +521,18 @@ This is a mechanism candidate, not a Python settings import, `ConfigStore`
 replacement, engineering-debug policy, or service hot-reload path. Its public
 behavior is isolated in `tests/storage/kernel_test_settings.rs`.
 
+The `settings_adapter` module is the explicit persistent bridge for that
+facade. `ConfigStoreSettingsProvider` overlays the Rust defaults on the sparse
+Rust-owned settings document, translates single/batch/reset/reset-all calls to
+atomic monotonic document revisions, and is installed automatically by
+`KernelRuntime::open_persistent`. Non-persistent runtimes keep the bounded
+fallback; `settings_snapshot` and `set_runtime_setting` expose defensive values
+without granting authorization or hot-reload authority. The TypeScript
+`RustSettingsProjection` validates the same source/revision/key/count contract
+and is strictly read-only. Independent evidence is in
+`tests/storage/kernel_test_settings_adapter.rs` and
+`systems/typescript-shell-engine/tests/rust-settings-projection.test.ts`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,
