@@ -423,6 +423,35 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   surfaced as a distinct fail-closed error. It never parses Python YAML,
   imports Python settings, executes migrations, or decides engineering debug
   policy; independent tests live in `tests/storage/kernel_test_config_store.rs`.
+- The Rust `settings` module is the in-memory semantic facade above that
+  persistence seam. It reconstructs the bounded default catalog and the
+  `get`/`all`/`category`/`set`/`set_l2`/`set_many`/`reset`/`reset_all` surface,
+  with a validated `SettingsProvider` injection point for a future Rust host.
+  Provider snapshots and fallback values are validated before exposure;
+  provider errors remain explicit, and prompt-injection reads default to
+  enabled on failure. The module owns no Python import, authorization,
+  persistence, service reload, or engineering-debug policy. Its isolated
+  mechanism target is `tests/storage/kernel_test_settings.rs`.
+- `settings_adapter::ConfigStoreSettingsProvider` is the explicit Rust-owned
+  persistence adapter. It overlays semantic defaults on the sparse settings
+  document and maps single, batch, reset, and reset-all mutations to atomic
+  monotonic revisions. `KernelRuntime::open_persistent` installs it while
+  non-persistent runtimes retain the in-memory fallback; the runtime exposes
+  defensive `settings_snapshot`/`set_runtime_setting` values only. The
+  TypeScript `RustSettingsProjection` validates the same bounded
+  source/revision/key contract and remains read-only, so neither side imports
+  Python or owns authorization/hot reload. Rust evidence is isolated in
+  `tests/storage/kernel_test_settings_adapter.rs`; TS evidence is
+  `tests/rust-settings-projection.test.ts`.
+- `protocol_host_runtime::ProtocolHostRuntime` composes the bounded JSONL
+  gate and `HostRouter` into one explicit Rust adapter. It preserves
+  transport-level frame/decode errors, turns router contract failures into a
+  denial result plus ack, and exposes explicit command and settings binding
+  hooks for a host bootstrapper. Its default construction leaves execution and
+  settings authority unwired; `rust-protocol-host` now uses this composition
+  without changing the default Python/Rust selection or enabling settings
+  implicitly. The independent evidence target is
+  `tests/runtime/kernel_test_protocol_host_runtime.rs`.
 - `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
   Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
   and the explicit `set_config`, `set_setting`, and paired mutation methods

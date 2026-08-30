@@ -29,6 +29,22 @@ describe("ConfigReader", () => {
     expect(await reader.getString("any")).toBe("from-value");
   });
 
+  it("reads a Rust settings command reply through its versioned values map", async () => {
+    const bridge = fakeBridge(async () => [{
+      payload: {
+        success: true,
+        operation: "settings_get",
+        revision: 2,
+        source: "fallback",
+        key: "theme",
+        value: "dark",
+        values: { theme: "dark" },
+      },
+    }]);
+    const reader = new ConfigReader(bridge);
+    expect(await reader.getString("theme")).toBe("dark");
+  });
+
   it("uses TTL cache", async () => {
     let calls = 0;
     const bridge = fakeBridge(async (k: string) => {

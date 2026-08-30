@@ -26,8 +26,13 @@ use crate::contract::{CapabilityRequest, CapabilityResult, JsonObject, JsonValue
 use crate::gatechain::{GateChain, GatePolicy, GateRequest};
 use crate::outbox_registry::OutboxRegistry;
 use crate::protocol::{MAX_SAFE_SEQUENCE, Message, MessageKind, ProtocolError, SessionCursor};
+use crate::runtime::KernelRuntime;
 use crate::session_identity::SessionIdentity;
 use crate::session_lifecycle::{SessionLifecycle, SessionRegistry};
+use crate::settings_protocol::{
+    RuntimeSettingsEndpoint, SETTINGS_GET_COMMAND, SETTINGS_SET_COMMAND, SettingsAuthorizer,
+    SettingsEndpointError,
+};
 
 /// Default bounded pending-intent queue capacity when no upstream is wired.
 pub const DEFAULT_INTENT_BUFFER_CAP: usize = 1024;
@@ -102,6 +107,7 @@ pub struct HostRouter {
     registered: Mutex<BTreeSet<String>>,
     pending_intents: Mutex<VecDeque<Message>>,
     upstream: Mutex<Option<Arc<dyn L3Upstream>>>,
+    settings_endpoint: Mutex<Option<Arc<RuntimeSettingsEndpoint>>>,
     /// Per-session response sequence counters (R2): monotonic per session,
     /// never process-global.
     response_seqs: Mutex<BTreeMap<String, u64>>,
@@ -132,6 +138,7 @@ impl HostRouter {
             registered: Mutex::new(registered),
             pending_intents: Mutex::new(VecDeque::new()),
             upstream: Mutex::new(None),
+            settings_endpoint: Mutex::new(None),
             response_seqs: Mutex::new(BTreeMap::new()),
         }
     }
@@ -158,7 +165,9 @@ impl HostRouter {
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                if SYSTEM_COMMANDS.contains(&name) {
+                if matches!(name, SETTINGS_GET_COMMAND | SETTINGS_SET_COMMAND) {
+                    self.dispatch_settings(message)
+                } else if SYSTEM_COMMANDS.contains(&name) {
                     self.dispatch_system(message)
                 } else {
                     self.dispatch_command(message)
@@ -346,6 +355,35 @@ impl HostRouter {
     /// Wire or detach the L3 upstream pipe for intent passthrough.
     pub fn set_upstream(&self, upstream: Option<Arc<dyn L3Upstream>>) {
         *self.lock_upstream() = upstream;
+    }
+
+    /// Attach a Rust-owned runtime settings endpoint.
+    ///
+    /// The host must inject both the runtime and an authorization policy. The
+    /// router never accepts approval fields from a command payload and the
+    /// endpoint remains absent until this explicit wiring call succeeds.
+    pub fn register_settings_endpoint(
+        &self,
+        runtime: Arc<KernelRuntime>,
+        authorizer: Arc<dyn SettingsAuthorizer>,
+    ) -> bool {
+        let mut endpoint = self
+            .settings_endpoint
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if endpoint.is_some() {
+            return false;
+        }
+        *endpoint = Some(Arc::new(RuntimeSettingsEndpoint::new(runtime, authorizer)));
+        true
+    }
+
+    /// Remove the settings endpoint during controlled shutdown or test reset.
+    pub fn clear_settings_endpoint(&self) {
+        *self
+            .settings_endpoint
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
     }
 
     /// Return the dispatch audit trail for inspection or journal wiring.
@@ -557,6 +595,70 @@ impl HostRouter {
         }
     }
 
+    /// Dispatch the settings commands through the host-injected endpoint.
+    ///
+    /// Settings argument, authorization, and runtime failures are returned as
+    /// result envelopes so clients do not stall on a semantic denial. The
+    /// endpoint itself is never auto-created and therefore remains fail-closed
+    /// until a host explicitly wires it.
+    fn dispatch_settings(&self, message: Message) -> Result<Vec<Message>, ProtocolError> {
+        let name = message
+            .payload
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let args = command_arg_strings(&message.payload)?;
+        let agent_id = self.agent_id_for(&message.session_id);
+        let endpoint = self
+            .settings_endpoint
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let result = match endpoint {
+            None => Err(SettingsEndpointError::Runtime(
+                "settings endpoint is not wired".to_owned(),
+            )),
+            Some(endpoint) => match name.as_str() {
+                SETTINGS_GET_COMMAND => endpoint.get(&agent_id, &args),
+                SETTINGS_SET_COMMAND => endpoint.set(&agent_id, &args),
+                _ => Err(SettingsEndpointError::InvalidArguments(format!(
+                    "unsupported settings command: {name}"
+                ))),
+            },
+        };
+        match result {
+            Ok(reply) => {
+                let payload = serde_json::to_value(reply)
+                    .map_err(|error| ProtocolError::Serialization(error.to_string()))?
+                    .as_object()
+                    .cloned()
+                    .ok_or_else(|| {
+                        ProtocolError::Serialization(
+                            "settings reply must serialize to an object".to_owned(),
+                        )
+                    })?
+                    .into_iter()
+                    .collect::<BTreeMap<_, _>>();
+                let mut payload = payload;
+                payload.insert("success".to_owned(), Value::Bool(true));
+                self.audit_dispatch("settings", &agent_id, &name, 0, true, "");
+                let response = self.envelope(&message, MessageKind::Result, payload);
+                self.lock_outboxes()
+                    .append(&message.session_id, response.clone());
+                Ok(vec![response])
+            }
+            Err(error) => {
+                let reason = error.to_string();
+                self.audit_dispatch("settings", &agent_id, &name, 0, false, &reason);
+                let response = self.denial_envelope(&message, &reason);
+                self.lock_outboxes()
+                    .append(&message.session_id, response.clone());
+                Ok(vec![response])
+            }
+        }
+    }
+
     fn lock_sessions(&self) -> MutexGuard<'_, SessionRegistry> {
         self.sessions.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -732,6 +834,26 @@ fn command_args(payload: &BTreeMap<String, Value>) -> JsonObject {
         );
     }
     args
+}
+
+fn command_arg_strings(payload: &BTreeMap<String, Value>) -> Result<Vec<String>, ProtocolError> {
+    let Some(args) = payload.get("args") else {
+        return Ok(Vec::new());
+    };
+    let Some(args) = args.as_array() else {
+        return Err(ProtocolError::InvalidContract(
+            "command payload args must be a string array".to_owned(),
+        ));
+    };
+    args.iter()
+        .map(|value| {
+            value.as_str().map(str::to_owned).ok_or_else(|| {
+                ProtocolError::InvalidContract(
+                    "command payload args must be a string array".to_owned(),
+                )
+            })
+        })
+        .collect()
 }
 
 fn system_ring(payload: &BTreeMap<String, Value>) -> u8 {

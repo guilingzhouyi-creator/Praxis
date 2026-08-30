@@ -510,6 +510,49 @@ rollback failure explicitly. Failed rename temporaries are removed.
 revisions, foreign roots, invalid keys, future-document rejection, paired
 rollback, and temporary-file cleanup through the public API.
 
+The `settings` module is the Rust-native L1 facade for the semantic settings
+surface. It owns the bounded default catalog and supports deterministic
+snapshot, lookup, category, single/batch write, reset, and prompt-injection
+reads. A host may inject a `SettingsProvider` only after its full snapshot
+passes the same key/count validation; the provider then owns persistence and
+authorization while provider failures remain explicit. The local fallback
+restores the Rust defaults and prompt-injection reads fail safe to enabled.
+This is a mechanism candidate, not a Python settings import, `ConfigStore`
+replacement, engineering-debug policy, or service hot-reload path. Its public
+behavior is isolated in `tests/storage/kernel_test_settings.rs`.
+
+The `settings_adapter` module is the explicit persistent bridge for that
+facade. `ConfigStoreSettingsProvider` overlays the Rust defaults on the sparse
+Rust-owned settings document, translates single/batch/reset/reset-all calls to
+atomic monotonic document revisions, and is installed automatically by
+`KernelRuntime::open_persistent`. Non-persistent runtimes keep the bounded
+fallback; `settings_snapshot` and `set_runtime_setting` expose defensive values
+without granting authorization or hot-reload authority. The TypeScript
+`RustSettingsProjection` validates the same source/revision/key/count contract
+and is strictly read-only. Independent evidence is in
+`tests/storage/kernel_test_settings_adapter.rs` and
+`systems/typescript-shell-engine/tests/rust-settings-projection.test.ts`.
+
+The `settings_protocol` module adds the opt-in host bridge for
+`settings_get`/`settings_set`. `RuntimeSettingsEndpoint` validates command
+arguments and bounded JSON values, asks an injected `SettingsAuthorizer` for
+read/write permission, and returns a versioned snapshot result; the wire cannot
+declare approval and an unwired endpoint fails closed. `HostRouter` records
+successes and semantic denials in its existing result/outbox path. The TS
+projection accepts only successful replies and `ConfigReader` reads the
+versioned values map. This is R4 adapter evidence only: the stdio binary,
+GateChain policy wiring, and production settings authority remain future work.
+
+The `protocol_host_runtime` module composes the bounded JSONL gate and
+`HostRouter` into one explicit adapter. `route_line` preserves the transport
+error boundary while converting router contract failures into a denial result
+and ack; `route_message` serves non-stdio callers that already own framing.
+Host bootstrappers can explicitly register command executors and a
+`RuntimeSettingsEndpoint`, while the default constructor leaves both
+authorities unwired. The `rust-protocol-host` binary uses this composition but
+does not infer a runtime, settings root, or authorization policy. Its evidence
+is isolated in `tests/runtime/kernel_test_protocol_host_runtime.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,

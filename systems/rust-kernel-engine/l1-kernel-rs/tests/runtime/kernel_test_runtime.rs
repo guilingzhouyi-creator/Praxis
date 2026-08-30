@@ -995,3 +995,43 @@ fn nonpersistent_runtime_cannot_claim_execution_checkpoint_ownership() {
         Err(RuntimeError::ExecutionStore(_))
     ));
 }
+
+#[test]
+fn runtime_settings_facade_uses_fallback_or_persistent_store_explicitly() {
+    let runtime = runtime(1, 1);
+    assert_eq!(
+        runtime
+            .settings()
+            .get("llm.provider")
+            .expect("fallback setting"),
+        Some(json!("ollama"))
+    );
+    let fallback = runtime
+        .set_runtime_setting("terminal.preferred", json!("bash"))
+        .expect("fallback mutation");
+    assert_eq!(
+        fallback.source,
+        l1_kernel_rs::settings::SettingsSource::Fallback
+    );
+    assert_eq!(fallback.revision, 1);
+
+    let root = temp_root();
+    let root_text = root.to_string_lossy().to_string();
+    let persistent = KernelRuntime::open_persistent(spec(root_text), config(1, 1), &root)
+        .expect("persistent runtime");
+    let snapshot = persistent
+        .settings_snapshot()
+        .expect("persistent settings snapshot");
+    assert_eq!(
+        snapshot.source,
+        l1_kernel_rs::settings::SettingsSource::Injected
+    );
+    assert_eq!(snapshot.revision, 0);
+    persistent
+        .set_runtime_setting("terminal.preferred", json!("pwsh"))
+        .expect("persistent mutation");
+    let documents = persistent.config_documents().expect("config documents");
+    assert_eq!(documents.1.values["terminal.preferred"], json!("pwsh"));
+    assert_eq!(documents.1.revision, 1);
+    std::fs::remove_dir_all(root).expect("remove test root");
+}

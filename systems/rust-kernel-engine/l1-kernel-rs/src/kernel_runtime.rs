@@ -28,6 +28,8 @@ use crate::lifecycle::{LifecycleRegistry, LifecycleState};
 use crate::recovery::{RecoveryAction, RecoveryDecision, RecoveryTrigger};
 use crate::scheduler::{KernelScheduler, SchedulerConfig, SchedulerError};
 use crate::session::SessionBook;
+use crate::settings::{SettingsRegistry, SettingsSnapshot};
+use crate::settings_adapter::ConfigStoreSettingsProvider;
 use crate::state_store::{StateStore, StateStoreError};
 use crate::substrate::ProcessHandle;
 use crate::terminal::TerminalBook;
@@ -148,6 +150,8 @@ pub enum RuntimeError {
     StateStore(String),
     /// The Rust-owned configuration root rejected or failed to open.
     ConfigStore(String),
+    /// The Rust-native settings facade or its provider rejected an operation.
+    Settings(String),
     /// The requested lifecycle operation is not valid in the current phase.
     InvalidLifecycle(LifecycleState),
     /// The task handle is absent or has already been reaped.
@@ -388,8 +392,9 @@ pub struct KernelRuntime {
     assembly: KernelAssembly,
     lifecycle: Arc<LifecycleRegistry>,
     state_store: Option<StdMutex<StateStore>>,
-    config_store: Option<StdMutex<ConfigStore>>,
+    config_store: Option<Arc<StdMutex<ConfigStore>>>,
     execution_store: Option<StdMutex<ExecutionStore>>,
+    settings: SettingsRegistry,
     sessions: SessionBook,
     terminals: TerminalBook,
     agent_loops: AgentLoopBook,
@@ -426,6 +431,7 @@ impl KernelRuntime {
             state_store: None,
             config_store: None,
             execution_store: None,
+            settings: SettingsRegistry::new(),
             sessions,
             terminals: TerminalBook::new(),
             agent_loops: AgentLoopBook::new(),
@@ -469,6 +475,13 @@ impl KernelRuntime {
             assembly_snapshot.config_manifest.contract_version,
         )
         .map_err(map_config_store_error)?;
+        let config_store = Arc::new(StdMutex::new(config_store));
+        let settings = SettingsRegistry::new();
+        settings
+            .set_provider(Arc::new(ConfigStoreSettingsProvider::new(Arc::clone(
+                &config_store,
+            ))))
+            .map_err(map_settings_error)?;
         let lifecycle = state_store.lifecycle_handle();
         let execution_store = ExecutionStore::open(root).map_err(map_execution_store_error)?;
         let execution_document = execution_store
@@ -496,8 +509,9 @@ impl KernelRuntime {
             assembly,
             lifecycle,
             state_store: Some(StdMutex::new(state_store)),
-            config_store: Some(StdMutex::new(config_store)),
+            config_store: Some(config_store),
             execution_store: Some(StdMutex::new(execution_store)),
+            settings,
             sessions: execution_state.sessions,
             terminals: execution_state.terminals,
             agent_loops: execution_state.loops,
@@ -539,6 +553,31 @@ impl KernelRuntime {
     /// Return the Rust-owned logical AgentLoop identity book.
     pub const fn agent_loops(&self) -> &AgentLoopBook {
         &self.agent_loops
+    }
+
+    /// Return the Rust-native settings facade owned by this runtime.
+    pub const fn settings(&self) -> &SettingsRegistry {
+        &self.settings
+    }
+
+    /// Return a defensive settings snapshot for a protocol or TS adapter.
+    pub fn settings_snapshot(&self) -> Result<SettingsSnapshot, RuntimeError> {
+        self.settings.snapshot().map_err(map_settings_error)
+    }
+
+    /// Mutate one runtime setting through the settings facade.
+    ///
+    /// Persistent runtimes route this operation through the Rust-owned
+    /// `ConfigStore` provider; non-persistent runtimes use the bounded
+    /// in-memory fallback.
+    pub fn set_runtime_setting(
+        &self,
+        key: impl Into<String>,
+        value: Value,
+    ) -> Result<SettingsSnapshot, RuntimeError> {
+        self.settings
+            .set(&key.into(), value)
+            .map_err(map_settings_error)
     }
 
     /// Return a defensive snapshot of the Rust-owned configuration documents.
@@ -1208,6 +1247,10 @@ fn map_state_store_error(error: StateStoreError) -> RuntimeError {
 
 fn map_config_store_error(error: ConfigError) -> RuntimeError {
     RuntimeError::ConfigStore(error.to_string())
+}
+
+fn map_settings_error(error: crate::settings::SettingsError) -> RuntimeError {
+    RuntimeError::Settings(error.to_string())
 }
 
 fn map_execution_store_error(error: ExecutionStoreError) -> RuntimeError {

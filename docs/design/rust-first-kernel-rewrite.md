@@ -935,6 +935,57 @@ The optional priority-inheritance callback is advisory and is invoked behind a
 panic boundary; a callback failure cannot poison the lock or cross the Rust L1
 boundary.
 
+The next settings slice reconstructs the Python L1 facade without carrying
+Python state or class layout into Rust. `settings::SettingsRegistry` owns the
+semantic default catalog and a bounded fallback map, while an injected
+`SettingsProvider` is the explicit host seam for persistence and authorization.
+The facade validates every key and complete provider snapshot before exposure,
+supports single/batch writes, category reads, reset/reset-all, and preserves
+the prompt-injection safety rule that malformed reads stay enabled. Provider
+errors do not silently fall back to stale values. This closes the Rust-native
+settings mechanism but not `ConfigStore` persistence, engineering-debug policy,
+service hot reload, or R5 runtime authority; the independent
+`tests/storage/kernel_test_settings.rs` target is the evidence boundary.
+
+The next adapter slice now installs `settings_adapter::ConfigStoreSettingsProvider`
+in persistent `KernelRuntime` instances. It overlays Rust defaults on the sparse
+`settings.json` document and maps single, batch, reset, and reset-all operations
+to atomic monotonic `ConfigStore` revisions. Non-persistent runtimes retain the
+bounded fallback, while `settings_snapshot` and `set_runtime_setting` provide a
+defensive runtime seam. The TS `RustSettingsProjection` is a read-only mirror
+that validates source/revision/key/count bounds and rejects stale same-source
+snapshots. This advances R4 adapter preparation but does not grant production
+boot, AgentLoop/provider/tool execution, authorization, or R5 cutover authority.
+The Rust adapter target is
+`tests/storage/kernel_test_settings_adapter.rs`; TS coverage is
+`tests/rust-settings-projection.test.ts`.
+
+The follow-on protocol slice adds `settings_protocol::RuntimeSettingsEndpoint`
+and an opt-in `HostRouter` binding for `settings_get`/`settings_set`. The endpoint
+serializes a versioned `{operation, key, value, revision, source, values}`
+reply from `KernelRuntime`, validates the JSON value bound, and records semantic
+failures as result envelopes. Read/write authorization is an injected
+`SettingsAuthorizer`; no approval field is accepted from the wire, and an
+unwired endpoint fails closed. TypeScript accepts only successful Rust settings
+replies through `parseRustSettingsReply`, while `ConfigReader` remains a local
+read cache. This closes the R4 protocol adapter seam only; it does not wire the
+production stdio host, GateChain policy, Python settings, or R5 cutover.
+
+The next R4 host-composition slice adds
+`protocol_host_runtime::ProtocolHostRuntime`. It combines the bounded JSONL
+gate and `HostRouter`, centralizes the response-plus-ack policy, and keeps
+router contract errors as structured denial envelopes while transport decode
+errors remain transport failures. Host adapters can explicitly register command
+executors and the settings endpoint through this object; the default
+constructor still leaves both authorities unwired. `rust-protocol-host` now
+uses the composition, but it does not infer a runtime, settings root,
+authorization policy, or production boot configuration. The independent
+`tests/runtime/kernel_test_protocol_host_runtime.rs` target proves settings
+binding, fail-closed defaults, ack behavior, and the transport/semantic error
+split. This advances R4 adapter wiring only; GateChain production identity,
+real PTY/process ownership, AgentLoop/provider/tool execution, and R5 clean
+cutover remain open.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

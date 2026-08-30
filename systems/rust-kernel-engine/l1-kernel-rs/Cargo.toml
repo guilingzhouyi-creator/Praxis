@@ -104,6 +104,22 @@ name = "config_store"
 path = "tests/storage/kernel_test_config_store.rs"
 
 [[test]]
+name = "settings"
+path = "tests/storage/kernel_test_settings.rs"
+
+[[test]]
+name = "settings_adapter"
+path = "tests/storage/kernel_test_settings_adapter.rs"
+
+[[test]]
+name = "settings_protocol"
+path = "tests/runtime/kernel_test_settings_protocol.rs"
+
+[[test]]
+name = "protocol_host_runtime"
+path = "tests/runtime/kernel_test_protocol_host_runtime.rs"
+
+[[test]]
 name = "conformance_vectors"
 path = "tests/protocol/conformance_vectors.rs"
 
