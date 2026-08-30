@@ -100,6 +100,21 @@ construction: in_progress
 > 验收：`tsc --noEmit` + Vitest 284 passed / 8 skipped（+30 新用例），
 > system-naming PASS。下一梯队：G5 切默认（Rust 前置）与 terminal REPL 终态。
 
+## 2b. Rust terminal-backed AgentLoop 投影（2026-08-30）
+
+`engine/rust-agent-loop-terminal.ts` 是受限的 TS/L2 read model，对应 Rust
+`agent_loop_terminal::AgentLoopTerminalBridge` 的保留值合同。它验证
+loop/session/terminal 三元绑定、生命周期状态、safe sequence、1 MiB 单帧
+和 256 帧批上限，接受 JSON `number[]` 及本地 `Uint8Array`，并在输出前
+复制字节。未绑定、稀疏数组、非法字节/流向、未知状态、超长身份和绑定
+漂移均 fail-closed。
+
+该模块不拥有 AgentLoop、session、terminal、mailbox 或持久化权威，不执行
+decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry。它只
+为未来 L2/前端渲染或转发提供可验证的值投影；TS 专测 4 个用例，Rust
+对应专测 5 个用例。G5/G6 的 host 切换条件和终端 REPL 终态不因该投影提前
+满足。
+
 ## 3. 铁律（与 handoff §2.3 一致）
 
 1. TS 不拥有最终 authority：outbox/ack/会话状态在 Python3 host。

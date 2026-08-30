@@ -1235,7 +1235,13 @@ panic 或拒绝会在运行时入队前转换为结构化失败。批量输入�
 独立证据为 `tests/session/kernel_test_agent_loop_terminal.rs`。该片闭合
 R4 的最小 AgentLoop terminal substrate 接缝，但不创建 PTY、不探测 shell、
 不执行 provider/tool、不接管硬件输入、不授予生产 boot 或 R5 authority；
-下一优先级是将该值合同接到受限的 L2/TS protocol adapter，并补齐真实
+下一步已在 TS 侧落地为受限的
+`engine/rust-agent-loop-terminal.ts` projection：只接受版本化绑定和不透明
+帧，固定 1 MiB/256 帧预算，拷贝 `number[]`/`Uint8Array`，在未绑定或身份
+漂移时 fail-closed。其专测为
+`systems/typescript-shell-engine/tests/rust-agent-loop-terminal.test.ts`；
+TS 不读取/写入 Rust mailbox，也不接管 dequeue/retry、解码、PTY/shell、
+AgentLoop/provider/tool 或持久化。下一优先级仍是补齐真实
 ProcessTable/PTY/reaper 与生产启动证据。
 
 ---

@@ -8,6 +8,7 @@
 ### 新增
 
 - **Feat (rust)**: add strict host bootstrap context
+- **Feat (l2-ts)**: add read-only Rust terminal-backed AgentLoop projection
 - **Fix (rust)**: route registered commands through GateChain before execution
 - **Feat (rust)**: add runtime observation seam
 - **Feat (rust)**: compose protocol host runtime adapter

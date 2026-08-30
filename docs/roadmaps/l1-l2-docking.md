@@ -122,6 +122,17 @@ candidate-only 状态；未构建 probe 时该进程级切片显式 skip，不�
 `execution_store` 测试和 TS codec 测试消费。该片仍不改变 Rust host 默认路径，
 也不把 read-only projection 误当作 R5 cutover authority。
 
+2026-08-30 补齐下一层 TS 终端投影：
+`rust-agent-loop-terminal.ts` 镜像 Rust
+`agent_loop_terminal::AgentLoopTerminalBridge` 的保留值合同，校验
+loop/session/terminal 三元绑定、终端状态、流向、safe sequence、1 MiB
+帧上限和 256 帧批上限，并复制 `number[]`/`Uint8Array`，避免前端别名
+污染。未建立绑定、稀疏数组、非法字节、方向混用和身份漂移均
+fail-closed。该投影只供 L2/前端渲染或转发，不读取/写入 Rust mailbox，
+不解码 shell，不创建 PTY，不执行 AgentLoop/provider/tool；专测为
+`tests/rust-agent-loop-terminal.test.ts`，Rust 证据仍为
+`tests/session/kernel_test_agent_loop_terminal.rs`。
+
 ### 分流路由原则（D1c 核心）
 
 | 流量 | 去向 |

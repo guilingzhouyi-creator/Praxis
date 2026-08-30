@@ -133,6 +133,16 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   references, lifecycle restrictions, ordering, and JavaScript safe-integer
   boundary, then exposes a defensive snapshot/refresh view. TS cannot recover
   sessions, rebind processes, or write the Rust checkpoint through this seam.
+- The Rust `agent_loop_terminal` composition is mirrored by the TS
+  `rust-agent-loop-terminal.ts` projection. TS accepts the versioned
+  loop/session/terminal binding and opaque JSON byte arrays or local
+  `Uint8Array` frames, with the Rust 1 MiB frame and 256-frame batch bounds.
+  Sparse arrays, invalid directions/sequences, oversized values, unsupported
+  states, and identity changes fail closed. The projection returns defensive
+  copies and requires an accepted binding before exposing direction-specific
+  frame views. It never owns mailbox dequeue/retry, terminal decoding, PTY or
+  shell selection, AgentLoop execution, or Rust persistence; its focused Vitest
+  target is `tests/rust-agent-loop-terminal.test.ts`.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report

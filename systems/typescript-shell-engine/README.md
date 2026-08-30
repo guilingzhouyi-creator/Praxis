@@ -29,3 +29,10 @@ toolchain with the committed `package-lock.json` for reproducible installs.
 The package may become the L2 session implementation only after the P0
 identity, persistence, sequencing, and recovery gates in
 `docs/roadmaps/agent-os-3x-closure.md` are green.
+
+The `engine/rust-agent-loop-terminal.ts` module is a read-only projection of
+the Rust terminal-backed AgentLoop value contract. It validates the binding
+and opaque frame budgets for L2/frontend rendering or forwarding; it does
+not own Rust mailbox state, terminal decoding, PTY/shell selection, AgentLoop
+execution, or persistence. Its focused test is
+`tests/rust-agent-loop-terminal.test.ts`.

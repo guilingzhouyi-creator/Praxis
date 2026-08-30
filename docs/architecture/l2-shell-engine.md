@@ -22,6 +22,17 @@ cross-book identity references, sorted identities, safe integers, and
 clean/unclean constraints, and can refresh from disk without exposing a write
 operation or recovery authority to TS.
 
+The `rust-agent-loop-terminal` projection is the next narrow TS/L2 seam above
+that metadata boundary. It accepts only the versioned Rust
+loop/session/terminal binding and opaque terminal frames, validates stream,
+sequence, identity, byte, and batch bounds, and returns defensive copies for
+rendering or forwarding. The projection rejects identity changes after the
+first accepted binding and refuses frame access before a binding exists. It
+does not decode terminal bytes, select a shell, create a PTY, dequeue or retry
+mailbox work, execute AgentLoop/provider/tool actions, or write Rust state.
+Rust remains authoritative for live execution; the focused evidence is
+`tests/rust-agent-loop-terminal.test.ts`.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation
