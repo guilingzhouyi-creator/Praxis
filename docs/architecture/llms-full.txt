@@ -778,6 +778,15 @@ it validates source/revision/key/count bounds and rejects stale same-source
 snapshots without writing back to Rust. Independent evidence lives in
 `tests/storage/kernel_test_settings_adapter.rs` plus the runtime settings slice.
 
+The `settings_protocol::RuntimeSettingsEndpoint` is the explicit R4 protocol
+bridge for `settings_get`/`settings_set`. `HostRouter` binds it only when a host
+injects both a `KernelRuntime` and `SettingsAuthorizer`; successful replies carry
+the operation, optional key/value, source, revision, and defensive values map.
+Argument and JSON-value bounds are enforced before mutation, wire approval fields
+are ignored/rejected, and an absent endpoint returns a fail-closed result. The
+TS projection accepts only successful replies, while `ConfigReader` remains a
+read-only cache. This does not wire production stdio, GateChain policy, or R5.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

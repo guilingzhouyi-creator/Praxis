@@ -7,6 +7,7 @@
 
 ### 变更
 
+- **Feat (rust)**: add host-authorized settings protocol endpoint
 - **Feat (rust)**: add bounded skill registry
 - **Test (infra)**: align runner with transport target
 - **Refactor (l2-ts)**: restore engine- prefix on event/health modules

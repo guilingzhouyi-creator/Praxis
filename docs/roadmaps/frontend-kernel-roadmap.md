@@ -1169,6 +1169,17 @@ slice 证明持久化、revision 和 runtime ownership。TS 侧新增只读
 回退 revision；该片仍是 R4 adapter/TS bridge 前置，未授予生产 boot、AgentLoop
 执行或 R5 cutover authority。
 
+本轮继续闭合 R4 settings adapter 的协议边界：新增
+`settings_protocol::RuntimeSettingsEndpoint` 与 `HostRouter` 的显式绑定，
+为 `settings_get`/`settings_set` 输出带 `operation/key/value/revision/source/values`
+的版本化 result envelope。参数和值大小在 Rust 侧有界校验，读写授权必须由宿主
+注入 `SettingsAuthorizer`，线上的 approval 字段不会被接受；未绑定 endpoint
+时保持 fail-closed。TS `parseRustSettingsReply` 只接受成功的 Rust reply，
+`ConfigReader` 读取该版本化 values map，但不向 Rust 回写。独立测试为
+`tests/runtime/kernel_test_settings_protocol.rs` 与 TS settings projection/config
+reader slices。该片是 R4 协议接缝证据，不等于 stdio host、GateChain 生产授权、
+真实服务热重载或 R5 cutover 完成。
+
 ---
 
 **规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；

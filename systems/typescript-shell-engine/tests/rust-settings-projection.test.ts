@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SETTINGS,
   RustSettingsProjection,
+  parseRustSettingsReply,
   parseRustSettingsSnapshot,
   projectRustSetting,
 } from "../src/engine/rust-settings-projection.ts";
@@ -47,5 +48,36 @@ describe("Rust settings projection", () => {
     expect(copy?.values).toEqual({ a: 0 });
     projection.clear();
     expect(projection.snapshot()).toBeNull();
+  });
+
+  it("accepts Rust command replies while rejecting failed or unknown operations", () => {
+    const reply = parseRustSettingsReply({
+      success: true,
+      operation: "settings_get",
+      revision: 7,
+      source: "injected",
+      key: "llm.model",
+      value: "rust-model",
+      values: { "llm.model": "rust-model" },
+    });
+    expect(reply?.values["llm.model"]).toBe("rust-model");
+    expect(
+      parseRustSettingsReply({
+        success: false,
+        operation: "settings_get",
+        revision: 7,
+        source: "injected",
+        values: {},
+      }),
+    ).toBeNull();
+    expect(
+      parseRustSettingsReply({
+        success: true,
+        operation: "settings_reset",
+        revision: 7,
+        source: "injected",
+        values: {},
+      }),
+    ).toBeNull();
   });
 });

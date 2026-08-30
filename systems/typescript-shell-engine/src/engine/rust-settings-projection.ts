@@ -17,6 +17,13 @@ export interface RustSettingsSnapshot {
   values: Readonly<Record<string, unknown>>;
 }
 
+/** Parse the result payload emitted by Rust `settings_get`/`settings_set`. */
+export function parseRustSettingsReply(input: unknown): RustSettingsSnapshot | null {
+  if (!isRecord(input) || input.success !== true) return null;
+  if (input.operation !== "settings_get" && input.operation !== "settings_set") return null;
+  return parseRustSettingsSnapshot(input);
+}
+
 /** Parse and validate one Rust settings payload. */
 export function parseRustSettingsSnapshot(input: unknown): RustSettingsSnapshot | null {
   if (!isRecord(input)) return null;

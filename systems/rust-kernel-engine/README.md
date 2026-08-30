@@ -533,6 +533,16 @@ and is strictly read-only. Independent evidence is in
 `tests/storage/kernel_test_settings_adapter.rs` and
 `systems/typescript-shell-engine/tests/rust-settings-projection.test.ts`.
 
+The `settings_protocol` module adds the opt-in host bridge for
+`settings_get`/`settings_set`. `RuntimeSettingsEndpoint` validates command
+arguments and bounded JSON values, asks an injected `SettingsAuthorizer` for
+read/write permission, and returns a versioned snapshot result; the wire cannot
+declare approval and an unwired endpoint fails closed. `HostRouter` records
+successes and semantic denials in its existing result/outbox path. The TS
+projection accepts only successful replies and `ConfigReader` reads the
+versioned values map. This is R4 adapter evidence only: the stdio binary,
+GateChain policy wiring, and production settings authority remain future work.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,

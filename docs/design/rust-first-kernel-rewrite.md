@@ -960,6 +960,17 @@ The Rust adapter target is
 `tests/storage/kernel_test_settings_adapter.rs`; TS coverage is
 `tests/rust-settings-projection.test.ts`.
 
+The follow-on protocol slice adds `settings_protocol::RuntimeSettingsEndpoint`
+and an opt-in `HostRouter` binding for `settings_get`/`settings_set`. The endpoint
+serializes a versioned `{operation, key, value, revision, source, values}`
+reply from `KernelRuntime`, validates the JSON value bound, and records semantic
+failures as result envelopes. Read/write authorization is an injected
+`SettingsAuthorizer`; no approval field is accepted from the wire, and an
+unwired endpoint fails closed. TypeScript accepts only successful Rust settings
+replies through `parseRustSettingsReply`, while `ConfigReader` remains a local
+read cache. This closes the R4 protocol adapter seam only; it does not wire the
+production stdio host, GateChain policy, Python settings, or R5 cutover.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、
