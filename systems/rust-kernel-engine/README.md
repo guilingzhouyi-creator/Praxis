@@ -543,6 +543,16 @@ projection accepts only successful replies and `ConfigReader` reads the
 versioned values map. This is R4 adapter evidence only: the stdio binary,
 GateChain policy wiring, and production settings authority remain future work.
 
+The `protocol_host_runtime` module composes the bounded JSONL gate and
+`HostRouter` into one explicit adapter. `route_line` preserves the transport
+error boundary while converting router contract failures into a denial result
+and ack; `route_message` serves non-stdio callers that already own framing.
+Host bootstrappers can explicitly register command executors and a
+`RuntimeSettingsEndpoint`, while the default constructor leaves both
+authorities unwired. The `rust-protocol-host` binary uses this composition but
+does not infer a runtime, settings root, or authorization policy. Its evidence
+is isolated in `tests/runtime/kernel_test_protocol_host_runtime.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,

@@ -443,6 +443,15 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   Python or owns authorization/hot reload. Rust evidence is isolated in
   `tests/storage/kernel_test_settings_adapter.rs`; TS evidence is
   `tests/rust-settings-projection.test.ts`.
+- `protocol_host_runtime::ProtocolHostRuntime` composes the bounded JSONL
+  gate and `HostRouter` into one explicit Rust adapter. It preserves
+  transport-level frame/decode errors, turns router contract failures into a
+  denial result plus ack, and exposes explicit command and settings binding
+  hooks for a host bootstrapper. Its default construction leaves execution and
+  settings authority unwired; `rust-protocol-host` now uses this composition
+  without changing the default Python/Rust selection or enabling settings
+  implicitly. The independent evidence target is
+  `tests/runtime/kernel_test_protocol_host_runtime.rs`.
 - `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
   Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
   and the explicit `set_config`, `set_setting`, and paired mutation methods

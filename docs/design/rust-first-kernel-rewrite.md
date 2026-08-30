@@ -971,6 +971,21 @@ replies through `parseRustSettingsReply`, while `ConfigReader` remains a local
 read cache. This closes the R4 protocol adapter seam only; it does not wire the
 production stdio host, GateChain policy, Python settings, or R5 cutover.
 
+The next R4 host-composition slice adds
+`protocol_host_runtime::ProtocolHostRuntime`. It combines the bounded JSONL
+gate and `HostRouter`, centralizes the response-plus-ack policy, and keeps
+router contract errors as structured denial envelopes while transport decode
+errors remain transport failures. Host adapters can explicitly register command
+executors and the settings endpoint through this object; the default
+constructor still leaves both authorities unwired. `rust-protocol-host` now
+uses the composition, but it does not infer a runtime, settings root,
+authorization policy, or production boot configuration. The independent
+`tests/runtime/kernel_test_protocol_host_runtime.rs` target proves settings
+binding, fail-closed defaults, ack behavior, and the transport/semantic error
+split. This advances R4 adapter wiring only; GateChain production identity,
+real PTY/process ownership, AgentLoop/provider/tool execution, and R5 clean
+cutover remain open.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

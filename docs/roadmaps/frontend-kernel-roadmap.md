@@ -1180,8 +1180,20 @@ slice 证明持久化、revision 和 runtime ownership。TS 侧新增只读
 reader slices。该片是 R4 协议接缝证据，不等于 stdio host、GateChain 生产授权、
 真实服务热重载或 R5 cutover 完成。
 
+本轮继续推进 R4 host composition：新增
+`protocol_host_runtime::ProtocolHostRuntime`，将 bounded JSONL gate 与
+`HostRouter` 组合为显式运行时壳，统一 `route_line` 的 transport/semantic
+错误分层，并保证每个已解码请求都有 ack。Host bootstrapper 可通过该壳
+显式注册 command executor 与 settings endpoint；默认构造不绑定任何执行或
+设置权威，`rust-protocol-host` 仅切换到该组合，不隐式打开 Rust settings 或
+生产入口。独立 `tests/runtime/kernel_test_protocol_host_runtime.rs` 覆盖
+正常路由、ack、语义拒绝、显式 settings 绑定和帧上限。该片把 R4
+protocol-host 接缝前移一层，但 GateChain 真实身份授权、PTY/reaper、
+AgentLoop/provider/tool 执行、生产 boot 与 R5 clean cutover 仍是高优先级开放门。
+
 ---
 
-**规划结束。** 下一步为 M1 剩余项与 R0/R1 并行：完成 Phase 4–5（会话收尾 + 底层边界留位标注；
-Phase 6 文档同步已完成），并建立 Rust-native substrate 与固定总量 benchmark schema。Rust 与 TS 在 R4/R5
-完成前都不得成为默认路径；新内核不读取旧 Python 用户数据，也不以 Python 兼容替换为目标。
+**规划进行中。** 下一步优先进入 R4 host bootstrap 与真实宿主授权上下文
+切片，再推进 PTY/process-group/reaper、AgentLoop/provider/tool 接管和 R5
+clean cutover/recovery 证据。Rust 与 TS 在 R4/R5 完成前都不得成为默认路径；
+新内核不读取旧 Python 用户数据，也不以 Python 兼容替换为目标。

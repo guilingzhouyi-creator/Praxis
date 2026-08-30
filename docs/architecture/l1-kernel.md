@@ -600,6 +600,18 @@ does not start the Rust protocol binary, invoke GateChain by itself, or become
 production settings authority. `tests/runtime/kernel_test_settings_protocol.rs`
 and the TS reply/projection tests cover this adapter seam.
 
+The `protocol_host_runtime::ProtocolHostRuntime` candidate now composes the
+bounded JSONL gate and `HostRouter` into one explicit adapter. `route_line`
+keeps frame/decode failures as transport errors while converting router
+contract failures into a denial result plus ack; non-stdio callers can use
+`route_message` after applying their own framing. Host adapters may register
+command executors and the Rust settings endpoint through this object, but the
+default constructor leaves all execution and settings authority unwired. The
+`rust-protocol-host` binary uses this composition without enabling settings,
+so protocol-host wiring is testable without changing the production default.
+Evidence is isolated in
+`tests/runtime/kernel_test_protocol_host_runtime.rs`.
+
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
 bindings and stores generation-tagged `ProcessHandle` values internally;

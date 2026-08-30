@@ -264,6 +264,9 @@ pub mod protocol;
 /// Bounded Rust JSONL protocol gate for the clean-break kernel.
 pub mod protocol_host;
 
+/// Explicit protocol-host/runtime composition with host-injected authority.
+pub mod protocol_host_runtime;
+
 /// Kind-by-kind host dispatch boundary for the Rust protocol host.
 pub mod host_dispatch;
 
