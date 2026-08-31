@@ -192,6 +192,7 @@ current slice contains:
 | `l3/routing/cross-cell-router.ts` | bounded Cell registry, validated cross-Cell input forwarding, and detached receipts | TS L3B coordination |
 | `l3/adapters/l2-session-projection.ts` | L3 lifecycle/result → protocol-v1 event/result envelopes with injected L2 sequence authority | L2/L3 data boundary |
 | `l3/coordinator/l3-coordinator.ts` | public L2 intent → Cell/AgentLoop/L3B facade, detached snapshots, and bounded route evidence | TS L3 integration boundary |
+| `l3/coordinator/l3-coordinator-host.ts` | composition root wiring runtime, replay ledger, L2 projection, and optional external event sink | TS L3 host boundary; injected L2/Rust seams |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,

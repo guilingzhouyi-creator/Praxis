@@ -75,6 +75,9 @@ registration, identity snapshot, and route-statistics values.
 - `systems/typescript-shell-engine/src/l3/adapters/l2-session-projection.ts`
   - L2 protocol-v1 output projection and injected sequence/fanout boundary;
   coordinator integration publishes successful and failed intent outcomes.
+- `systems/typescript-shell-engine/src/l3/coordinator/l3-coordinator-host.ts`
+  - host composition root that wires runtime, replay, projection, and optional
+  external event observation.
 
 ## Verification slice
 
@@ -93,14 +96,11 @@ handoff, provider cutover, or production-default activation.
 
 ## Remaining work
 
-1. Add a host-facing L2 session adapter that owns coordinator construction
-   and event-sink composition without making the TS L3 facade a transport
-   implementation.
-2. Reconcile coordinator route metrics with the L3B router's independent
+1. Reconcile coordinator route metrics with the L3B router's independent
    telemetry slice when that branch is merged, preserving one shared metric
    schema and avoiding double counting.
-3. Add fixed-work L3/Rust end-to-end evidence, CPU/RSS ceilings, and cutover
+2. Add fixed-work L3/Rust end-to-end evidence, CPU/RSS ceilings, and cutover
    reversal tests before any production-default switch.
-4. Keep this construction document `in_progress` until those external
+3. Keep this construction document `in_progress` until those external
    contracts have independent evidence; archive it through
    `docs/design/_outgoing/` only when closed.

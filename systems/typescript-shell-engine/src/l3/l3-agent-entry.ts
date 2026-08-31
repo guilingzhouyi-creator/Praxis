@@ -26,3 +26,4 @@ export * from "./adapters/l2-intent-adapter.ts";
 export * from "./adapters/rust-protocol-execution-port.ts";
 export * from "./adapters/l2-session-projection.ts";
 export * from "./coordinator/l3-coordinator.ts";
+export * from "./coordinator/l3-coordinator-host.ts";

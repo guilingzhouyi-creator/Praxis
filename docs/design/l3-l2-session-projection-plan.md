@@ -67,6 +67,9 @@ store is imported by this adapter.
   - optional result/failure projection for `submitIntent()`;
 - `systems/typescript-shell-engine/src/l3/l3-agent-entry.ts`
   - public adapter export;
+- `systems/typescript-shell-engine/src/l3/coordinator/l3-coordinator-host.ts`
+  - host composition root that wires replay, projection, and runtime event
+    fanout;
 - `systems/typescript-shell-engine/tests/l3-l2-session-projection.test.ts`
   - allocator bounds, envelope validation, alias isolation, fanout ordering,
     runtime event integration, and result/failure projections;
@@ -92,7 +95,7 @@ durable L2 outbox integration, Python/Rust full-suite coverage, or cutover.
 
 ## Remaining work
 
-1. Add a host-facing L2 session adapter that composes the projection with the
+1. Replace the in-memory sequence/replay pair with a host adapter over the
    authoritative session outbox and replay cursors.
 2. Reconcile the coordinator-level route evidence with the independent L3B
    router telemetry slice without double counting after that branch merges.
