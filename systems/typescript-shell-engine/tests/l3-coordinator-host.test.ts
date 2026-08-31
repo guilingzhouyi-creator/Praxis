@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeMessage, type Message } from "../src/protocol/wire-envelope.ts";
+import { L2SessionAuthority } from "../src/engine/l2-session-authority.ts";
 import {
   EventReplayLedger,
   SessionSequenceAllocator,
@@ -139,5 +140,53 @@ describe("TypeScript L3 coordinator host composition", () => {
     expect(host.replay).toBe(replay);
     expect(replay.snapshot(identity)).toMatchObject({ retainedEvents: 3, nextEventSeq: 4 });
     expect(messages).toHaveLength(4);
+  });
+
+  it("can bind the host directly to the L2 authoritative outbox and cursors", async () => {
+    const authority = new L2SessionAuthority({ outboxMaxlen: 8 });
+    const host = createL3CoordinatorHost({
+      sessionAuthority: authority,
+      runtime: {
+        decision: {
+          async decide() {
+            return { decisionId: "decision-1", actions: [], answer: "authoritative" };
+          },
+        },
+        execution: execution(),
+      },
+    });
+    host.coordinator.registerCell(identity.cellId);
+
+    await host.coordinator.submitIntent(
+      makeMessage(identity.sessionId, 1, "intent", { text: "authority" }, "trace-1"),
+      identity,
+    );
+    authority.attach(identity.sessionId, "view-1");
+
+    const replay = authority.replay(identity.sessionId, "view-1");
+    expect(replay.map((message) => `${message.kind}:${message.seq}`)).toEqual([
+      "event:1",
+      "event:2",
+      "event:3",
+      "result:4",
+    ]);
+    authority.ack(identity.sessionId, "view-1", 2);
+    expect(authority.replay(identity.sessionId, "view-1").map((message) => message.seq)).toEqual([3, 4]);
+    expect(host.projection).toBeDefined();
+  });
+
+  it("requires exactly one L2 projection source", () => {
+    expect(() =>
+      createL3CoordinatorHost({
+        runtime: {
+          decision: {
+            async decide() {
+              return { decisionId: "decision-1", actions: [] };
+            },
+          },
+          execution: execution(),
+        },
+      }),
+    ).toThrow(/exactly one/);
   });
 });

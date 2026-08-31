@@ -34,8 +34,10 @@ terminal implementation.
 
 Rust remains the sole authority for processes, terminals, capabilities, and
 hard constraints. L2 remains the authority for session delivery and sequence
-allocation. The replay ledger is an in-memory recovery projection only.
-Python is not imported and remains a semantic reference/rollback host.
+allocation. The `L2SessionAuthority` now provides the bounded in-memory host
+authority for that sequence and output window; the L3 replay ledger remains an
+independent lifecycle projection. Python is not imported and remains a
+semantic reference/rollback host.
 
 ## Contract and invariants
 
@@ -58,6 +60,8 @@ Python is not imported and remains a semantic reference/rollback host.
 - `systems/typescript-shell-engine/src/l3/coordinator/l3-coordinator-host.ts`
   - composition root, injected replay support, deterministic event fanout, and
     detached host surface;
+- `systems/typescript-shell-engine/src/engine/l2-session-authority.ts`
+  - optional L2-owned sequence/outbox/cursor authority used by the host;
 - `systems/typescript-shell-engine/src/l3/l3-agent-entry.ts`
   - public host export;
 - `systems/typescript-shell-engine/tests/l3-coordinator-host.test.ts`
@@ -90,8 +94,8 @@ coverage, or production cutover.
 
 ## Remaining work
 
-1. Replace the in-memory sequence/replay pair with the authoritative L2
-   session outbox and cursor ports in a separate integration slice.
+1. Replace the in-memory L2 authority with an injected durable outbox/cursor
+   implementation while preserving this host boundary and replay semantics.
 2. Reconcile coordinator route evidence with the L3B route-hardening telemetry
    branch without double counting.
 3. Add fixed-work TS/Rust process evidence, CPU/RSS ceilings, and reversal

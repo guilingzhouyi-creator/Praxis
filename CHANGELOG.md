@@ -291,6 +291,7 @@
 
 ### 新增
 
+- **Feat (l2-ts)**: add bounded authoritative session sequencing and replay
 - **Feat (l3-ts)**: compose the L3 coordinator host with replay and L2 session projection
 - **Feat (l3-ts)**: project L3 lifecycle and intent outcomes into L2 session envelopes
 - **Feat (l3-ts)**: add the clean-break L3 coordinator facade and bounded route evidence

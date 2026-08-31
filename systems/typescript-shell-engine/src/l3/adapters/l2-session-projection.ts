@@ -20,18 +20,14 @@ import {
 } from "../contracts/agent-contracts.ts";
 import type { AgentRunResult } from "../runtime/ts-agent-runtime.ts";
 import { L3_MAX_EVENT_DATA_BYTES, L3_MAX_REPLAY_EVENTS } from "../runtime/limits.ts";
+import type {
+  L2MessageSink,
+  L2SessionSequencePort,
+} from "../../engine/l2-session-authority.ts";
 
 const UTF8_ENCODER = new TextEncoder();
 
-/** Sink for protocol-v1 messages owned by an L2 session host. */
-export interface L2MessageSink {
-  publish(message: Message): void | Promise<void>;
-}
-
-/** Session sequence authority supplied by the L2 session layer. */
-export interface L2SessionSequencePort {
-  next(sessionId: string): number;
-}
+export type { L2MessageSink, L2SessionSequencePort } from "../../engine/l2-session-authority.ts";
 
 /** Projection configuration; the adapter itself owns no session state. */
 export interface L2SessionProjectionOptions {
