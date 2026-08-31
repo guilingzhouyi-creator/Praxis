@@ -7,6 +7,10 @@
 
 ### 文档
 
+- **Docs (l3-ts)**: record governance/evidence boundary mapping and follow-up seams
+- **L3 (typescript)**: add bounded sensitive, compression, review, verify, and evidence projections
+- **L3 (typescript)**: add durable evidence restart and rollback adapter
+- **L3 (typescript)**: add argv-only verification command port with bounded host evidence
 - **Docs (docs)**: restore pointer index registration
 - **Docs**: align l2 slice evidence
 - **Docs (stats)**: refresh judge dashboard
@@ -291,6 +295,10 @@
 
 ### 新增
 
+- **Feat (l2-ts)**: add bounded authoritative session sequencing and replay
+- **Feat (l3-ts)**: compose the L3 coordinator host with replay and L2 session projection
+- **Feat (l3-ts)**: project L3 lifecycle and intent outcomes into L2 session envelopes
+- **Feat (l3-ts)**: add the clean-break L3 coordinator facade and bounded route evidence
 - **Feat (l3-ts)**: add card and scheduler coordination seams
 - **Feat (l3-ts)**: add read-only context projection
 - **Feat (l3-ts)**: project tools through Rust authority

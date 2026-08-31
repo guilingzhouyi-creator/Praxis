@@ -68,6 +68,16 @@ by default), rejects new work at capacity, and releases the slot on both
 success and failure. This is frontend backpressure only; it does not introduce
 parallel host requests or move outbox, L3, or L1 authority into TypeScript.
 
+`engine/l2-session-authority.ts` is the explicit L2 host authority for the
+TypeScript rewrite. It reserves protocol-v1 output sequences per session,
+commits messages only after the contiguous prefix is available, keeps a
+bounded replay window, and tracks independent per-view cursors. A reserved but
+unpublished sequence remains visible as bounded pending evidence rather than
+being silently skipped. The implementation is an in-memory host/reference
+boundary; durable persistence, transport recovery, and Rust state remain
+injected external authorities. `SessionManager` and `SessionMultiplexer`
+continue to be client-side mirrors and never replace this boundary.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation
@@ -333,6 +343,7 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
 | execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |
 | `i18n.py` | `locale-catalog.ts` | same locale data |
+| `ProtocolHost` outbox/cursor | `engine/l2-session-authority.ts` | TypeScript host-side authority seam; in-memory now, durable adapter remains a follow-up |
 
 The TS engine is a *host-agnostic frontend of L3*: it never re-implements
 AgentLoop/Tool Pipeline/Workflow/Scheduler/Memory/Planning. The L3 host remains
@@ -363,6 +374,7 @@ display keys, value-locked to `locales/en.yaml` by a parity test.
 |---|---|
 | `connection-manager.ts` | Closeable transports are released on disconnect and when a failed probe is replaced (no lingering children/sockets); close is best-effort and idempotent |
 | `session-manager.ts` / `interactive-session.ts` | `SessionManager.detach` releases the per-session multiplexer when its last view leaves; `SessionView.ack`/`detach` complete the view lifecycle (monotonic ack, cursor reset) |
+| `l2-session-authority.ts` | `Outbox` + `SessionCursor` host authority | Per-session output sequencing, contiguous bounded replay, independent view cursors, detached snapshots; no durable or process authority |
 | `l3-bridge-interface.ts` | `IL3Bridge.session` domain completes the typed control plane (attach/detach/ack/replay/resume) |
 | `projection-cache.ts` | FIFO-bounded at 256 entries instead of unbounded growth |
 

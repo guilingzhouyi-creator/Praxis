@@ -30,7 +30,12 @@ construction: in_progress
 > `feature/l1-rust-host-bootstrap` (TS L2 intent → detached provider
 > context/tool projection → TS L3 coordinator → bounded Card/Scheduler,
 > AgentLoop/Cell, peer/replay, and cross-Cell routing ports → Rust protocol
-> execution port). This is an independent clean-break build; the Python3
+> execution port). The public `L3Coordinator` facade, bounded coordinator
+> route evidence, and host composition root are now implemented on
+> `feature/l3-ts-coordinator`; this is the integration seam over those
+> lower-level domains. The L2 session event/result projection is wired as an
+> explicit adapter in the same branch. This is an independent clean-break
+> build; the Python3
 > runtime remains the semantic reference and rollback path, not a dependency
 > of the TS system.
 
@@ -100,6 +105,34 @@ runtime except through the existing versioned protocol.
   identity/trace validation, hop and metadata limits, detached route receipts,
   and fail-closed target rejection are implemented without taking persistence
   or process/terminal authority.
+- `l3/coordinator/` now provides the public clean-break facade over L2 intent
+  ingress, Cell/AgentLoop admission, and L3B forwarding. It owns no Cell
+  handles outside its private registry, returns detached identity snapshots,
+  and records payload-free bounded route counters/quantiles.
+- `l3/adapters/l2-session-projection.ts` now projects lifecycle events and
+  bounded intent outcomes into L2 protocol-v1 envelopes. Session sequence
+  allocation remains an injected L2 authority; fanout to replay and frontend
+  sinks copies event values before delivery.
+- `l3/coordinator/l3-coordinator-host.ts` now composes the runtime, coordinator,
+  replay ledger, L2 projection, and optional external observer in one
+  injectable host boundary. Event fanout is ordered and detached per sink;
+  durable outbox, cursor, transport, and Rust authority remain external.
+- The host can now bind directly to the L2-owned
+  `engine/l2-session-authority.ts`, which provides per-session sequence
+  reservations, contiguous bounded replay, independent view cursors, and
+  detached snapshots. Durable persistence and cross-process recovery remain
+  explicit follow-up seams.
+- `l3/governance/` now provides bounded sensitive detection, compression
+  recursion/error-storm protection, review/edit-then-verify state, and a
+  tamper-evident evidence projection. Its optional `DurableEvidenceLedger`
+  persists versioned snapshots through an injected storage adapter with
+  restart validation and failed-commit rollback. It is an optional host
+  observer and never a second Rust execution or GateChain authority.
+- `l3/governance/verification-command-port.ts` now provides an explicit
+  argv-only, allowlisted verification seam with project-root cwd validation,
+  timeout/cancellation propagation, bounded UTF-8 output, and fail-closed
+  missing-port evidence. The executor remains injected by Host/Rust; TS never
+  invokes a shell, subprocess, PTY, or process handle.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -120,6 +153,13 @@ Rust cutover gates by itself.
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | ✅ first slice |
 | P2 | L3B cross-Cell routing | bounded Cell registry and direct validated `AgentInput` forwarding | detached receipts, identity/trace binding, hop/metadata bounds, fail-closed target errors | ✅ first slice |
 | P2 | Rust checkpoint/session projection | metadata-only Rust session/terminal/AgentLoop projection, generation fence, peer handoff | identity correlation; no payload/process-handle leakage; failed preflight leaves route unchanged | ✅ first slice |
+| P2 | L3 coordinator facade | L2 intent → registered Cell/AgentLoop → optional L3B route; detached snapshots and route evidence | coordinator-only boundary, no Python/process imports, bounded route stats, focused TS slices | ✅ first slice |
+| P2 | L2 session event/result projection | project L3 lifecycle events and intent outcomes into protocol-v1 `event`/`result` envelopes; keep sequence allocation in L2 | validated envelopes, detached fanout, bounded payloads, runtime/coordinator sink tests | ✅ first slice |
+| P2 | L3 host composition root | compose runtime, coordinator, replay projection, and L2 sink behind one injectable boundary | deterministic sink order, detached fanout isolation, injected replay retention, no transport/process ownership | ✅ first slice |
+| P2 | L2 authoritative session boundary | own per-session output sequence, bounded replay, and per-view cursors below L3 | contiguous commit, non-destructive ack, detached replay, fail-closed reservations, host integration | ✅ first slice |
+| P2 | Governance/evidence boundary | map sensitive/compression/review/verify/evidence semantics into bounded TS side channels | pattern/action bounds, breaker/reset semantics, review escalation, hash-chain verification, host observer isolation | ✅ first slice |
+| P2 | Durable evidence adapter | persist bounded evidence snapshots through an injected store and validate restart state | atomic commit/rollback, sequence/hash validation, file and in-memory restart tests | ✅ first slice |
+| P2 | Verification command port | validate argv/cwd and project a bounded host/Rust verification result into review/evidence | allowlist, project-root and byte bounds, timeout/cancellation, output cap, no direct process API | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 

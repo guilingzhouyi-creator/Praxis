@@ -218,6 +218,16 @@ TS L2 不应复制这些 Python3 CLI，也不应把性能报告当作会话协�
 authority。下一步仍是具体前端接线和真实 REPL 主循环，各前端不得绕过该
 控制器自行拼行。
 
+#### P4.2 L2 权威会话边界（2026-08-31，✅ 首片）
+
+`systems/typescript-shell-engine/src/engine/l2-session-authority.ts` now
+provides the TS host-side authority seam for per-session output sequences,
+bounded contiguous replay, and independent per-view cursors. It is injected
+into the L3 coordinator host as both sequence port and message sink. The
+existing `SessionManager`/`SessionMultiplexer` remain client-side mirrors.
+Durable persistence, cross-process recovery, and real transport attach/replay
+remain open follow-up work.
+
 #### P4.2 输入队列 backpressure（2026-08-30，✅）
 
 适配器现在对 chunk 提交采用默认 64 项的有界 Promise 队列；达到上限时

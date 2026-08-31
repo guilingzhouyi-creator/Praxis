@@ -62,6 +62,7 @@ explicit, non-authoritative folders:
 | `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing | TS coordination |
 | `systems/typescript-shell-engine/src/l3/recovery/` | bounded lifecycle-event replay and resync projection | TS recovery projection |
 | `systems/typescript-shell-engine/src/l3/routing/` | bounded L3B Cell registration and validated cross-Cell `AgentInput` forwarding | TS coordination |
+| `systems/typescript-shell-engine/src/l3/governance/` | sensitive detection, compression guard, review/verify cadence, and evidence projection | TS side-channel governance; injected durability |
 
 ## 3. Adjudications (2026-08-22 survey)
 
@@ -190,6 +191,16 @@ current slice contains:
 | `l3/recovery/rust-execution-projection.ts` | validated metadata-only projection of Rust execution checkpoints | Rust-owned state, TS read-only view |
 | `l3/recovery/l3a-session-resume.ts` | generation-fenced resume vectors and preflighted peer handoff | TS recovery coordination |
 | `l3/routing/cross-cell-router.ts` | bounded Cell registry, validated cross-Cell input forwarding, and detached receipts | TS L3B coordination |
+| `l3/adapters/l2-session-projection.ts` | L3 lifecycle/result → protocol-v1 event/result envelopes with injected L2 sequence authority | L2/L3 data boundary |
+| `l3/coordinator/l3-coordinator.ts` | public L2 intent → Cell/AgentLoop/L3B facade, detached snapshots, and bounded route evidence | TS L3 integration boundary |
+| `l3/coordinator/l3-coordinator-host.ts` | composition root wiring runtime, replay ledger, L2 projection, and optional external event sink | TS L3 host boundary; injected L2/Rust seams |
+| `l3/governance/sensitive-detector.ts` | bounded API-key/token/private-key/IP scan with report/redact/block action | TS side-channel policy; no execution authority |
+| `l3/governance/compression-safety-guard.ts` | recursive-compression threshold and error-storm breaker | TS coordination guard; no persistence authority |
+| `l3/governance/review-verifier.ts` | bounded peer-review verdict transition and edit-then-verify tracking | TS data-only review/cadence |
+| `l3/governance/evidence-ledger.ts` | bounded append-only hash-chain evidence projection and verification | injected evidence port; in-memory candidate |
+| `l3/governance/durable-evidence-ledger.ts` | transactional durable wrapper, restart validation, and atomic JSON host adapter | injected durability; no implicit L3 storage |
+| `l3/governance/verification-command-port.ts` | argv-only allowlist/cwd/timeout/output validation and host result projection | TS validation/evidence seam; Host/Rust owns execution |
+| `l3/governance/l3-governance.ts` | optional host observer composing governance side channels | TS observer; cannot alter Rust/L2 decisions |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,
@@ -197,6 +208,12 @@ PTY, tool handler, Python module, or Rust implementation. Card and Scheduler
 are now bounded coordination/data seams, not stores or policy engines. Tool
 Pipeline, Memory promotion, Prompt loading, durable recovery, and host
 persistence remain future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
+Governance/evidence projections are likewise side channels: they may report or
+block a caller's compression/review decision, but they do not duplicate Rust
+GateChain/Constitution authority or silently write Python/R5 state.
+`verification-command-port.ts` validates only detached argv/cwd values and
+projects bounded results; its executor is injected by Host/Rust, so TS cannot
+acquire shell, subprocess, PTY, or process authority.
 The AgentLoop, Cell, peer, and replay domains only own in-memory
 coordination/projection values and never become persistence or execution
 authority.

@@ -8,10 +8,15 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (7)
+## Active (12)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
+| `DESIGN-2026-08-31-115` | `DESIGN-2026-永久-115` | "TS L3 to L2 Session Projection Slice" | Define the detached TypeScript L3 lifecycle/result projection into the L2 protocol-v1 session data boundary. | `l3-l2-session-projection-plan.md` |
+| `DESIGN-2026-08-31-116` | `DESIGN-2026-永久-116` | "TS L3 Coordinator Host Composition Slice" | Compose the clean-break TypeScript L3 runtime, bounded replay ledger, and L2 session projection behind one injectable host boundary. | `l3-coordinator-host-plan.md` |
+| `DESIGN-2026-08-31-117` | `DESIGN-2026-永久-117` | "TS L2 Authoritative Session Boundary Slice" | Provide a bounded TypeScript L2 session authority for output sequencing, replay windows, and per-frontend cursors without taking L3 or Rust authority. | `l2-session-authority-plan.md` |
+| `DESIGN-2026-08-31-118` | `DESIGN-2026-永久-118` | "TS L3 Governance and Evidence Boundary Slice" | Map Python L3 governance semantics into bounded TypeScript side-channel projections while Rust remains execution authority. | `l3-ts-governance-boundary-plan.md` |
+| `DESIGN-2026-08-31-114` | `DESIGN-2026-永久-114` | "TS L3 Coordinator Facade Slice" | Define the clean-break TypeScript L3 coordinator facade joining L2 intent ingress, Cell admission, and bounded cross-Cell route evidence. | `l3-coordinator-plan.md` |
 | `DESIGN-2026-08-31-113` | `DESIGN-2026-永久-113` | "TS L3B Cross-Cell Routing Slice" | Define the bounded TypeScript L3B cross-Cell routing registry and detached handoff receipt for the clean-break rewrite. | `l3b-cross-cell-routing-plan.md` |
 | `DESIGN-2026-08-31-111` | `DESIGN-2026-永久-111` | "TS L3A Peer Routing and Event Replay Slice" | Define the bounded TypeScript L3A peer routing and event replay domains for clean-break session resume. | `l3a-peer-replay-plan.md` |
 | `DESIGN-2026-08-31-112` | `DESIGN-2026-永久-112` | "TS L3A Rust-Fenced Session Resume Slice" | Define the Rust-fenced TypeScript L3A session resume projection, generation fence, replay join, and atomic peer handoff. | `l3a-session-resume-plan.md` |
