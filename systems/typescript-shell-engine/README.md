@@ -31,15 +31,18 @@ The package may become the L2 session implementation only after the P0
 identity, persistence, sequencing, and recovery gates in
 `docs/roadmaps/agent-os-3x-closure.md` are green.
 
-The `l3/` directory is the first clean-break TypeScript L3 coordinator slice.
-`ts-agent-runtime.ts` validates bounded inputs/actions, isolates identities, emits
-defensive lifecycle data, and delegates every side effect through the injected
-`RustKernelExecutionPort`. `adapters/rust-protocol-execution-port.ts` carries
+The `l3/` directory is the clean-break TypeScript L3 coordinator. In addition
+to `ts-agent-runtime.ts`, the `card/` and `scheduler/` domains validate bounded,
+identity-bound lifecycle/scheduling values and use explicit injected ports for
+detached receipts. They do not own stores, queue fairness, or process
+authority. The runtime still delegates every process, terminal, capability,
+and hard-constraint side effect through the injected
+`RustKernelExecutionPort`; `adapters/rust-protocol-execution-port.ts` carries
 that request over `ProtocolBridge.commandPayload()` and maps a Rust `result`
-envelope to a receipt. This is candidate-only: provider, prompt, Tool
-Pipeline, Memory, Card, Scheduler, Cell/L3A, and recovery domains remain
-planned in `docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the
-reference and rollback implementation.
+envelope to a receipt. Provider, prompt loading, Tool Pipeline, Memory
+promotion, Cell/L3A, and recovery remain future slices in
+`docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the reference
+and rollback implementation.
 
 `l3/providers/decision-provider.ts` is the bounded provider boundary for the
 next rewrite slice. It passes detached input/history, a deadline and budget

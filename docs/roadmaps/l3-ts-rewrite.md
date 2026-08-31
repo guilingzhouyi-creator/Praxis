@@ -24,10 +24,11 @@ construction: in_progress
 
 # L3 TypeScript rewrite — Agent coordination over Rust execution
 
-> Status: P0 contract/ingress and the first three P1 boundary slices are
-> implemented on `feature/l1-rust-host-bootstrap` (TS L2 intent → detached
-> provider context/tool projection → TS L3 coordinator → Rust protocol execution
-> port). This
+> Status: P0 contract/ingress, the first three P1 boundary slices, and the
+> first P2 Card/Scheduler coordination slice are implemented on
+> `feature/l1-rust-host-bootstrap` (TS L2 intent → detached provider
+> context/tool projection → TS L3 coordinator → bounded Card/Scheduler ports →
+> Rust protocol execution port). This
 > is an independent clean-break build; the Python3 runtime remains the
 > semantic reference and rollback path, not a dependency of the TS system.
 
@@ -76,6 +77,10 @@ runtime except through the existing versioned protocol.
 - Read-only Memory/Prompt context is represented as identity-bound digest
   references with aggregate byte and count limits. Providers see no source
   text or storage handle; real memory/prompt loaders remain host adapters.
+- Card lifecycle intents and scheduling requests are represented as bounded,
+  identity-bound TypeScript values. Skill/TODO/evidence links remain IDs, and
+  injected coordination ports return detached receipts without acquiring
+  process, terminal, or capability authority.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -90,7 +95,8 @@ Rust cutover gates by itself.
 | P1 | Provider adapter | provider-neutral decision port with timeout/budget metadata | detached context; deadline/cancel; telemetry; no direct process/tool imports | ✅ complete |
 | P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding | ✅ complete |
 | P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets | ✅ complete |
-| P2 | Card and scheduler coordination | card lifecycle intents and bounded scheduling requests | card/skill/TODO links remain protocol values, not shared stores | planned |
+| P2 | Card coordination | bounded card lifecycle intents and detached receipts | card/skill/TODO/evidence links remain protocol values, not shared stores | ✅ first slice |
+| P2 | Scheduler coordination | bounded priority/time/scope requests and detached queue receipts | queue ownership and fairness remain injected host policy | ✅ first slice |
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | planned |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |

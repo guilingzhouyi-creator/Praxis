@@ -15,3 +15,4 @@ export type {
 } from "../contracts/agent-contracts.ts";
 
 export type { AgentContextProjection, ReadOnlyContextPort } from "../context/context-projection.ts";
+export type { L3CoordinationPorts } from "./coordination-ports.ts";

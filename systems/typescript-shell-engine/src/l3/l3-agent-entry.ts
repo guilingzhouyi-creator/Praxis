@@ -12,5 +12,8 @@ export * from "./runtime/ts-agent-runtime.ts";
 export * from "./providers/decision-provider.ts";
 export * from "./tools/tool-projection.ts";
 export * from "./context/context-projection.ts";
+export * from "./card/card-coordination.ts";
+export * from "./scheduler/scheduler-coordination.ts";
+export * from "./ports/coordination-ports.ts";
 export * from "./adapters/l2-intent-adapter.ts";
 export * from "./adapters/rust-protocol-execution-port.ts";

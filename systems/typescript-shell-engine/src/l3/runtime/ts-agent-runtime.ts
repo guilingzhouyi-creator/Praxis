@@ -42,6 +42,25 @@ import {
 } from "../tools/tool-projection.ts";
 import type { AgentContextProjection, ReadOnlyContextPort } from "../context/context-projection.ts";
 import { copyContextProjection } from "../context/context-projection.ts";
+import type {
+  CardIntentReceipt,
+  CardIntentAction,
+} from "../card/card-coordination.ts";
+import {
+  cardIntentFromAction,
+  copyCardIntentReceipt,
+  validateCardIntentActionShape,
+} from "../card/card-coordination.ts";
+import type {
+  ScheduleReceipt,
+  ScheduleRequestAction,
+} from "../scheduler/scheduler-coordination.ts";
+import {
+  copyScheduleReceipt,
+  scheduleRequestFromAction,
+  validateScheduleRequestActionShape,
+} from "../scheduler/scheduler-coordination.ts";
+import type { L3CoordinationPorts } from "../ports/coordination-ports.ts";
 import {
   DEFAULT_AGENT_RUNTIME_LIMITS,
   resolveAgentRuntimeLimits,
@@ -54,6 +73,8 @@ export interface AgentRuntimeOptions {
     decide(input: AgentInput, context: AgentDecisionContext): Promise<AgentDecision>;
   };
   readonly execution: RustKernelExecutionPort;
+  /** Optional data-only Card/Scheduler coordination port for P2 actions. */
+  readonly coordination?: L3CoordinationPorts;
   /** Handler-free tool definitions exposed to providers and validated calls. */
   readonly tools?: readonly ToolSpecProjection[];
   /** Optional identity-scoped, read-only Memory/Prompt context loader. */
@@ -73,6 +94,8 @@ export interface AgentRunResult {
   readonly actions: number;
   readonly receipts: readonly RustExecutionReceipt[];
   readonly toolResults: readonly ToolResultProjection[];
+  readonly cardReceipts: readonly CardIntentReceipt[];
+  readonly scheduleReceipts: readonly ScheduleReceipt[];
 }
 
 interface MutableAgentState {
@@ -214,6 +237,14 @@ function validateAction(action: AgentAction, seen: Set<string>): void {
     validateJsonObject(action.data, "event action data");
     return;
   }
+  if (action.kind === "card_intent") {
+    validateCardIntentActionShape(action as CardIntentAction);
+    return;
+  }
+  if (action.kind === "schedule_request") {
+    validateScheduleRequestActionShape(action as ScheduleRequestAction);
+    return;
+  }
   throw new AgentRuntimeError("invalid_decision", "unknown agent action kind");
 }
 
@@ -285,6 +316,12 @@ export class AgentRuntime {
     if (options.execution.authority !== "rust") {
       throw new AgentRuntimeError("execution_failed", "L3 execution authority must be Rust");
     }
+    if (options.coordination?.card && options.coordination.card.authority !== "typescript") {
+      throw new AgentRuntimeError("coordination_failed", "L3 card coordination authority must be TypeScript");
+    }
+    if (options.coordination?.scheduler && options.coordination.scheduler.authority !== "typescript") {
+      throw new AgentRuntimeError("coordination_failed", "L3 scheduler coordination authority must be TypeScript");
+    }
     this.events = options.events ?? EMPTY_EVENTS;
     this.limits = resolveAgentRuntimeLimits(options.limits);
     this.clock = options.clock ?? (() => Date.now() / 1000);
@@ -344,6 +381,8 @@ export class AgentRuntime {
     state.lastError = undefined;
     const receipts: RustExecutionReceipt[] = [];
     const toolResults: ToolResultProjection[] = [];
+    const cardReceipts: CardIntentReceipt[] = [];
+    const scheduleReceipts: ScheduleReceipt[] = [];
     let actionCount = 0;
 
     try {
@@ -454,6 +493,74 @@ export class AgentRuntime {
           if (!toolResult.success) {
             throw new AgentRuntimeError("execution_rejected", toolResult.error ?? "Rust rejected the tool request");
           }
+        } else if (action.kind === "card_intent") {
+          const cardPort = this.options.coordination?.card;
+          if (!cardPort) {
+            throw new AgentRuntimeError("coordination_failed", "card intent port is not configured");
+          }
+          const intent = cardIntentFromAction(
+            action,
+            admittedInput.identity,
+            admittedInput.traceId,
+          );
+          await this.emit(state, admittedInput, "card_intent_submitted", {
+            intent_id: intent.intentId,
+            card_id: intent.cardId,
+            operation: intent.operation,
+          });
+          let receipt: CardIntentReceipt;
+          try {
+            receipt = await cardPort.submitCardIntent(intent, signal);
+          } catch (error) {
+            throw asRuntimeError(error, "coordination_failed", "card coordination failed");
+          }
+          const detachedReceipt = copyCardIntentReceipt(receipt, intent);
+          cardReceipts.push(detachedReceipt);
+          await this.emit(state, admittedInput, "card_intent_completed", {
+            intent_id: detachedReceipt.intentId,
+            card_id: detachedReceipt.cardId,
+            status: detachedReceipt.status,
+            accepted: detachedReceipt.accepted,
+          });
+          if (!detachedReceipt.accepted) {
+            throw new AgentRuntimeError("coordination_rejected", detachedReceipt.error ?? "card intent rejected");
+          }
+        } else if (action.kind === "schedule_request") {
+          const schedulerPort = this.options.coordination?.scheduler;
+          if (!schedulerPort) {
+            throw new AgentRuntimeError("coordination_failed", "schedule request port is not configured");
+          }
+          const request = scheduleRequestFromAction(
+            action,
+            admittedInput.identity,
+            admittedInput.traceId,
+          );
+          await this.emit(state, admittedInput, "schedule_request_submitted", {
+            request_id: request.requestId,
+            task_id: request.taskId,
+            queue: request.queue,
+          });
+          let receipt: ScheduleReceipt;
+          try {
+            receipt = await schedulerPort.submitScheduleRequest(request, signal);
+          } catch (error) {
+            throw asRuntimeError(error, "coordination_failed", "schedule coordination failed");
+          }
+          const detachedReceipt = copyScheduleReceipt(receipt, request);
+          scheduleReceipts.push(detachedReceipt);
+          await this.emit(state, admittedInput, "schedule_request_completed", {
+            request_id: detachedReceipt.requestId,
+            task_id: detachedReceipt.taskId,
+            status: detachedReceipt.status,
+            accepted: detachedReceipt.accepted,
+            position: detachedReceipt.position ?? null,
+          });
+          if (!detachedReceipt.accepted) {
+            throw new AgentRuntimeError(
+              "coordination_rejected",
+              detachedReceipt.error ?? "schedule request rejected",
+            );
+          }
         } else {
           await this.emitEventAction(state, admittedInput, action);
         }
@@ -481,6 +588,8 @@ export class AgentRuntime {
         actions: actionCount,
         receipts,
         toolResults,
+        cardReceipts,
+        scheduleReceipts,
       };
     } catch (error) {
       const runtimeError = asRuntimeError(error, "execution_failed", "agent runtime failed");

@@ -9,6 +9,8 @@
 import type { JsonObject, JsonValue } from "../../protocol/wire-records.ts";
 import type { ToolSpecProjection } from "../tools/tool-projection.ts";
 import type { AgentContextProjection } from "../context/context-projection.ts";
+import type { CardIntentAction, CardIntentReceipt } from "../card/card-coordination.ts";
+import type { ScheduleRequestAction, ScheduleReceipt } from "../scheduler/scheduler-coordination.ts";
 
 /** Version of the TypeScript L3 agent coordination contract. */
 export const L3_AGENT_CONTRACT_VERSION = 1 as const;
@@ -17,7 +19,7 @@ export const L3_AGENT_CONTRACT_VERSION = 1 as const;
 export type AgentRuntimeState = "idle" | "waiting" | "running" | "completed" | "failed" | "stopped";
 
 /** Action kinds a decision provider may return to the runtime. */
-export type AgentActionKind = "kernel_request" | "tool_call" | "emit";
+export type AgentActionKind = "kernel_request" | "tool_call" | "emit" | "card_intent" | "schedule_request";
 
 /** Runtime lifecycle event names emitted to the L2/event projection boundary. */
 export type AgentRuntimeEventType =
@@ -27,6 +29,10 @@ export type AgentRuntimeEventType =
   | "kernel_request_completed"
   | "tool_call_submitted"
   | "tool_result_completed"
+  | "card_intent_submitted"
+  | "card_intent_completed"
+  | "schedule_request_submitted"
+  | "schedule_request_completed"
   | "event_emitted"
   | "run_completed"
   | "run_failed";
@@ -99,7 +105,12 @@ export interface EventAction {
 }
 
 /** Union of actions accepted from an injected decision provider. */
-export type AgentAction = KernelRequestAction | ToolCallAction | EventAction;
+export type AgentAction =
+  | KernelRequestAction
+  | ToolCallAction
+  | EventAction
+  | CardIntentAction
+  | ScheduleRequestAction;
 
 /** Provider output for one agent input. */
 export interface AgentDecision {
@@ -182,6 +193,11 @@ export type AgentRuntimeErrorCode =
   | "tool_result_limit"
   | "context_failed"
   | "context_limit"
+  | "invalid_coordination"
+  | "coordination_failed"
+  | "coordination_rejected"
+  | "card_limit"
+  | "schedule_limit"
   | "action_limit"
   | "event_limit"
   | "decision_failed"

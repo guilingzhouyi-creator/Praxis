@@ -149,8 +149,9 @@ implemented and tested (62+ tests, tsc clean):
 | `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
 
 **Not mirrored in the L2 engine (Python3-only authority):**
-Tool Pipeline, Workflow, Scheduler, Memory promotion, Skill mutation,
-Card lifecycle, and Config write authority.
+Tool Pipeline, Workflow, Memory promotion, Skill mutation, and Config write
+authority. Card and Scheduler now have bounded data-only coordination seams,
+but their stores, policy, fairness, and durable authority remain host-injected.
 
 ## 9. TS L3 Coordinator Candidate
 
@@ -168,10 +169,13 @@ current slice contains:
 | `l3/providers/decision-provider.ts` | detached provider context, deadline/cancel, budget metadata, payload-free telemetry | provider adapter |
 | `l3/tools/tool-projection.ts` | handler-free ToolSpec/ToolResult projection and `tool.invoke` request mapping | TS data boundary; Rust admission |
 | `l3/context/context-projection.ts` | identity-bound Memory/Prompt digest references with count/byte bounds | TS read-only context boundary |
+| `l3/card/card-coordination.ts` | bounded card lifecycle intents, link IDs, and detached receipts | TS card coordination values; host policy |
+| `l3/scheduler/scheduler-coordination.ts` | bounded priority/time/scope scheduling requests and detached receipts | TS scheduler coordination values; host queue policy |
+| `l3/ports/coordination-ports.ts` | explicit Card/Scheduler data ports | injected TS coordination boundary |
 
-The coordinator may only request side effects through
-`RustKernelExecutionPort`; it never imports a process API, PTY, tool handler,
-Python module, or Rust implementation. Tool Pipeline, Memory, Prompt, Card,
-Scheduler, Cell/L3A, and recovery domains remain future slices tracked by
-`docs/roadmaps/l3-ts-rewrite.md`; the provider adapter and tool projection are
-bounded coordination/data seams, not an LLM or tool implementation.
+The coordinator may only request process, terminal, capability, or hard-policy
+side effects through `RustKernelExecutionPort`; it never imports a process API,
+PTY, tool handler, Python module, or Rust implementation. Card and Scheduler
+are now bounded coordination/data seams, not stores or policy engines. Tool
+Pipeline, Memory promotion, Prompt loading, Cell/L3A, and recovery remain
+future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
