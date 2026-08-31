@@ -25,6 +25,7 @@ import {
   type CrossCellRouteRequest,
 } from "../routing/cross-cell-router.ts";
 import { intentFromL2 } from "../adapters/l2-intent-adapter.ts";
+import type { L2SessionProjection } from "../adapters/l2-session-projection.ts";
 import {
   L3_MAX_CROSS_CELL_HOPS,
   L3_MAX_REGISTERED_CELLS,
@@ -67,6 +68,8 @@ export interface L3CoordinatorOptions {
   readonly maxPendingInputs?: number;
   readonly maxRouteLatencySamples?: number;
   readonly clock?: () => number;
+  /** Optional L2 output projection for completed or failed intents. */
+  readonly sessionProjection?: Pick<L2SessionProjection, "publishResult" | "publishFailure">;
 }
 
 function quantile(sorted: readonly number[], fraction: number): number | null {
@@ -177,6 +180,7 @@ export class L3Coordinator {
   private readonly cells = new Map<string, AgentCell>();
   private readonly maxPendingInputs?: number;
   private readonly routeMetrics: CoordinatorRouteMetrics;
+  private readonly sessionProjection?: Pick<L2SessionProjection, "publishResult" | "publishFailure">;
 
   constructor(options: L3CoordinatorOptions) {
     if (!options || typeof options !== "object" || !options.runtime) {
@@ -194,6 +198,7 @@ export class L3Coordinator {
     );
     this.routeMetrics = new CoordinatorRouteMetrics(maxSamples, options.clock ?? (() => performance.now()));
     this.maxPendingInputs = options.maxPendingInputs;
+    this.sessionProjection = options.sessionProjection;
   }
 
   /** Register a Cell, constructing a bounded Cell on first registration. */
@@ -246,10 +251,28 @@ export class L3Coordinator {
     signal?: AbortSignal,
   ): Promise<AgentRunResult> {
     try {
-      return this.submit(intentFromL2(message, copyAgentIdentity(identity)), signal);
+      const input = intentFromL2(message, copyAgentIdentity(identity));
+      return this.submitIntentWithProjection(input, signal);
     } catch (error) {
       return Promise.reject(error);
     }
+  }
+
+  private async submitIntentWithProjection(
+    input: AgentInput,
+    signal?: AbortSignal,
+  ): Promise<AgentRunResult> {
+    let result: AgentRunResult;
+    try {
+      result = await this.submit(input, signal);
+    } catch (error) {
+      if (this.sessionProjection && error instanceof AgentRuntimeError) {
+        await this.sessionProjection.publishFailure(input, error);
+      }
+      throw error;
+    }
+    if (this.sessionProjection) await this.sessionProjection.publishResult(input, result);
+    return result;
   }
 
   /** Forward one validated input through the bounded L3B router. */

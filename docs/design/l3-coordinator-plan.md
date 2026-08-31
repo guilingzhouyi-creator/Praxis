@@ -72,6 +72,9 @@ registration, identity snapshot, and route-statistics values.
   - coordinator ownership and module inventory;
 - `docs/roadmaps/l3-ts-rewrite.md`
   - P2 coordinator-facade status and next integration seam.
+- `systems/typescript-shell-engine/src/l3/adapters/l2-session-projection.ts`
+  - L2 protocol-v1 output projection and injected sequence/fanout boundary;
+  coordinator integration publishes successful and failed intent outcomes.
 
 ## Verification slice
 
@@ -82,14 +85,17 @@ The independent verification domain is:
 /home/guiling/.local/node/bin/node /home/guiling/dev/praxis/systems/typescript-shell-engine/node_modules/vitest/vitest.mjs run tests/l3-coordinator.test.ts tests/l3-agent-loop-cell.test.ts tests/l3-cross-cell-routing.test.ts --pool=threads --maxWorkers=3
 ```
 
-Observed result: TypeScript typecheck clean; 3 test files and 15 tests pass.
+Observed result: TypeScript typecheck clean; the coordinator-focused subset
+(3 test files, 17 tests) passes. The combined L3A recovery/projection slice
+(4 test files, 26 tests) is also green.
 This slice does not claim Python or Rust full-suite coverage, durable route
 handoff, provider cutover, or production-default activation.
 
 ## Remaining work
 
 1. Add a host-facing L2 session adapter that owns coordinator construction
-   without making the TS L3 facade a transport implementation.
+   and event-sink composition without making the TS L3 facade a transport
+   implementation.
 2. Reconcile coordinator route metrics with the L3B router's independent
    telemetry slice when that branch is merged, preserving one shared metric
    schema and avoiding double counting.

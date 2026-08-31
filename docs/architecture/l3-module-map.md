@@ -190,6 +190,7 @@ current slice contains:
 | `l3/recovery/rust-execution-projection.ts` | validated metadata-only projection of Rust execution checkpoints | Rust-owned state, TS read-only view |
 | `l3/recovery/l3a-session-resume.ts` | generation-fenced resume vectors and preflighted peer handoff | TS recovery coordination |
 | `l3/routing/cross-cell-router.ts` | bounded Cell registry, validated cross-Cell input forwarding, and detached receipts | TS L3B coordination |
+| `l3/adapters/l2-session-projection.ts` | L3 lifecycle/result → protocol-v1 event/result envelopes with injected L2 sequence authority | L2/L3 data boundary |
 | `l3/coordinator/l3-coordinator.ts` | public L2 intent → Cell/AgentLoop/L3B facade, detached snapshots, and bounded route evidence | TS L3 integration boundary |
 
 The coordinator may only request process, terminal, capability, or hard-policy

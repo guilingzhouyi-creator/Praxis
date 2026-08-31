@@ -291,6 +291,7 @@
 
 ### 新增
 
+- **Feat (l3-ts)**: project L3 lifecycle and intent outcomes into L2 session envelopes
 - **Feat (l3-ts)**: add the clean-break L3 coordinator facade and bounded route evidence
 - **Feat (l3-ts)**: add card and scheduler coordination seams
 - **Feat (l3-ts)**: add read-only context projection

@@ -32,8 +32,9 @@ construction: in_progress
 > AgentLoop/Cell, peer/replay, and cross-Cell routing ports → Rust protocol
 > execution port). The public `L3Coordinator` facade and bounded coordinator
 > route evidence are now implemented on `feature/l3-ts-coordinator`; this is
-> the next integration seam over those lower-level domains. This is an
-> independent clean-break build; the Python3
+> the next integration seam over those lower-level domains. The L2 session
+> event/result projection is also now wired as an explicit adapter in the same
+> branch. This is an independent clean-break build; the Python3
 > runtime remains the semantic reference and rollback path, not a dependency
 > of the TS system.
 
@@ -107,6 +108,10 @@ runtime except through the existing versioned protocol.
   ingress, Cell/AgentLoop admission, and L3B forwarding. It owns no Cell
   handles outside its private registry, returns detached identity snapshots,
   and records payload-free bounded route counters/quantiles.
+- `l3/adapters/l2-session-projection.ts` now projects lifecycle events and
+  bounded intent outcomes into L2 protocol-v1 envelopes. Session sequence
+  allocation remains an injected L2 authority; fanout to replay and frontend
+  sinks copies event values before delivery.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -128,6 +133,7 @@ Rust cutover gates by itself.
 | P2 | L3B cross-Cell routing | bounded Cell registry and direct validated `AgentInput` forwarding | detached receipts, identity/trace binding, hop/metadata bounds, fail-closed target errors | ✅ first slice |
 | P2 | Rust checkpoint/session projection | metadata-only Rust session/terminal/AgentLoop projection, generation fence, peer handoff | identity correlation; no payload/process-handle leakage; failed preflight leaves route unchanged | ✅ first slice |
 | P2 | L3 coordinator facade | L2 intent → registered Cell/AgentLoop → optional L3B route; detached snapshots and route evidence | coordinator-only boundary, no Python/process imports, bounded route stats, focused TS slices | ✅ first slice |
+| P2 | L2 session event/result projection | project L3 lifecycle events and intent outcomes into protocol-v1 `event`/`result` envelopes; keep sequence allocation in L2 | validated envelopes, detached fanout, bounded payloads, runtime/coordinator sink tests | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 

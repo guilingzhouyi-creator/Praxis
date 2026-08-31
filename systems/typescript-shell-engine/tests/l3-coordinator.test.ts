@@ -4,6 +4,8 @@ import {
   AgentRuntime,
   L3Coordinator,
   AgentRuntimeError,
+  L2SessionProjection,
+  SessionSequenceAllocator,
   type AgentDecisionPort,
   type AgentIdentity,
   type AgentInput,
@@ -210,5 +212,65 @@ describe("TypeScript L3 coordinator facade", () => {
     await expect(coordinator.submit(input(source))).resolves.toMatchObject({ identity: source });
     expect(coordinator.unregisterCell("cell-a")).toBe(true);
     expect(coordinator.snapshot(source)).toBeNull();
+  });
+
+  it("projects coordinator intent outcomes back to the L2 session sink", async () => {
+    const messages: Array<{ kind: string; seq: number; success?: boolean }> = [];
+    const projection = new L2SessionProjection({
+      sequence: new SessionSequenceAllocator(),
+      sink: {
+        publish(message) {
+          messages.push({
+            kind: message.kind,
+            seq: message.seq,
+            success: typeof message.payload.success === "boolean" ? message.payload.success : undefined,
+          });
+        },
+      },
+    });
+    const coordinator = new L3Coordinator({
+      runtime: runtime(),
+      sessionProjection: projection,
+    });
+    coordinator.registerCell("cell-a");
+
+    const message = makeMessage("session-source", 1, "intent", { text: "project result" }, "trace-1");
+    await coordinator.submitIntent(message, source);
+
+    expect(messages).toEqual([{ kind: "result", seq: 1, success: true }]);
+  });
+
+  it("projects failed intent admission without changing the runtime error", async () => {
+    const messages: Array<{ kind: string; seq: number; success?: boolean }> = [];
+    const projection = new L2SessionProjection({
+      sequence: new SessionSequenceAllocator(),
+      sink: {
+        publish(message) {
+          messages.push({
+            kind: message.kind,
+            seq: message.seq,
+            success: typeof message.payload.success === "boolean" ? message.payload.success : undefined,
+          });
+        },
+      },
+    });
+    const coordinator = new L3Coordinator({
+      runtime: new AgentRuntime({
+        decision: {
+          async decide() {
+            throw new AgentRuntimeError("decision_failed", "decision unavailable");
+          },
+        },
+        execution: execution(),
+      }),
+      sessionProjection: projection,
+    });
+    coordinator.registerCell("cell-a");
+
+    const message = makeMessage("session-source", 1, "intent", { text: "project failure" }, "trace-1");
+    await expect(coordinator.submitIntent(message, source)).rejects.toMatchObject({
+      code: "decision_failed",
+    });
+    expect(messages).toEqual([{ kind: "result", seq: 1, success: false }]);
   });
 });
