@@ -5,6 +5,20 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **Feat (l3-ts)**: add verification command boundary
+- **Feat (l3-ts)**: add durable evidence recovery
+- **Feat (l3-ts)**: add governance evidence boundary
+- **Feat (l2-ts)**: add authoritative session boundary
+- **Feat (l3-ts)**: compose coordinator host boundary
+- **Feat (l3-ts)**: project session outcomes to l2
+- **Feat (l3-ts)**: add coordinator facade
+- **Feat (l3-ts)**: add bounded cross-cell routing
+- **Feat (l3-ts)**: add Rust-fenced session resume projection
+- **Feat (l3-ts)**: add peer recovery domains
+- **Feat (l3-ts)**: register bounded AgentLoop and Cell domains
+
 ### 文档
 
 - **Docs (l3-ts)**: record governance/evidence boundary mapping and follow-up seams
