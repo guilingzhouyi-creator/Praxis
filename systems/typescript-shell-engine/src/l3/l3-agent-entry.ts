@@ -32,4 +32,5 @@ export * from "./governance/sensitive-detector.ts";
 export * from "./governance/compression-safety-guard.ts";
 export * from "./governance/review-verifier.ts";
 export * from "./governance/evidence-ledger.ts";
+export * from "./governance/durable-evidence-ledger.ts";
 export * from "./governance/l3-governance.ts";

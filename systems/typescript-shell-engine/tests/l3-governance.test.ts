@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   CompressionGuard,
+  DurableEvidenceLedger,
   InMemoryEvidenceLedger,
+  JsonFileEvidenceStorage,
+  MemoryEvidenceStorage,
   ReviewVerifier,
   SensitiveDetector,
   type AgentRuntimeEvent,
@@ -141,5 +147,65 @@ describe("TypeScript L3 governance projections", () => {
     const point = ledger.query({ limit: 1 })[0] as { raw: { [key: string]: unknown } };
     point.raw.tampered = true;
     expect(ledger.verify().valid).toBe(true);
+  });
+
+  it("recovers durable evidence across restart and rolls back failed commits", () => {
+    const storage = new MemoryEvidenceStorage();
+    const first = new DurableEvidenceLedger({
+      storage,
+      ledgerOptions: { maxPoints: 8, maxChains: 4, clock: () => 1 },
+    });
+    const chainId = first.record({
+      phase: "runtime",
+      decision: "WARN",
+      target: "session-1",
+      raw: { step: 1 },
+    });
+    first.closeChain(chainId, "test complete");
+
+    const restarted = new DurableEvidenceLedger({
+      storage,
+      ledgerOptions: { maxPoints: 8, maxChains: 4, clock: () => 2 },
+    });
+    expect(restarted.query({ limit: 1 })[0]).toMatchObject({
+      phase: "runtime",
+      decision: "WARN",
+      chainId,
+    });
+    expect(restarted.chains()[0]).toMatchObject({ chainId, closed: 1, reason: "test complete" });
+    expect(restarted.verify()).toMatchObject({ valid: true, checked: 1 });
+
+    const failingStorage = {
+      load: () => storage.load(),
+      commit: () => {
+        throw new Error("storage unavailable");
+      },
+    };
+    expect(() => new DurableEvidenceLedger({ storage: failingStorage }).record({
+      phase: "runtime",
+      decision: "BLOCK",
+    })).toThrow("storage unavailable");
+    expect(restarted.query({ limit: 1 })[0]?.decision).toBe("WARN");
+  });
+
+  it("uses an atomic JSON snapshot adapter and rejects tampered restart state", () => {
+    const root = mkdtempSync(join(tmpdir(), "praxis-l3-evidence-"));
+    const path = join(root, "evidence.json");
+    try {
+      const storage = new JsonFileEvidenceStorage(path);
+      const first = new DurableEvidenceLedger({ storage });
+      first.record({ phase: "runtime", decision: "ALLOW", raw: { value: "ok" } });
+
+      const restarted = new DurableEvidenceLedger({ storage });
+      expect(restarted.query({ limit: 1 })[0]?.raw).toEqual({ value: "ok" });
+      expect(restarted.verify()).toMatchObject({ valid: true, checked: 1 });
+
+      const document = JSON.parse(readFileSync(path, "utf8")) as { lastHash: string };
+      document.lastHash = "tampered";
+      writeFileSync(path, JSON.stringify(document), "utf8");
+      expect(() => new DurableEvidenceLedger({ storage })).toThrow(/last hash|row hash|predecessor/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

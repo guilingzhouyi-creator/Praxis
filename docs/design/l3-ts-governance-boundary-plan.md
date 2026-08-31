@@ -52,7 +52,7 @@ L2 session data layer → Rust L1 capability / terminal / process authority
 | `l3/agent/compression_guard.py` | `l3/governance/compression-safety-guard.ts` | TS coordination guard; Rust owns resource/capability limits | first slice | Per-process durable breaker state and PMU linkage require a durable host adapter | `l3-governance.test.ts`: recursion threshold, error storm, reset/window |
 | `l3/agent/review.py` | `l3/governance/review-verifier.ts` | Injected reviewer/provider returns data-only verdict | first slice | Peer transport, prompt library, LLM invocation, and card write remain host seams | `l3-governance.test.ts`: verdict normalization and retry/escalation |
 | `l3/agent/verify_cadence.py` | `ReviewVerifier` cadence surface | Host/Rust process port runs commands; TS stores only evidence | first slice | TS does not execute shell commands or validate cwd; a future host port must be allowlisted and fail closed | `l3-governance.test.ts`: edit tracking, nudge, verification evidence |
-| `l3/tool_system/security_evidence/{models,core}.py` | `l3/governance/evidence-ledger.ts` | Injected evidence port; in-memory implementation is test/host projection | first slice | JSONL durability, reload, metadata sidecar, and R5 graph edge are not silently recreated | `l3-governance.test.ts`: bounded chain/query/fixity |
+| `l3/tool_system/security_evidence/{models,core}.py` | `l3/governance/evidence-ledger.ts` + `durable-evidence-ledger.ts` | Injected evidence port; in-memory and atomic snapshot implementations are host projections | first durable slice | JSONL metadata sidecar and R5 graph edge remain explicit adapters; no second GateChain | `l3-governance.test.ts`: bounded chain/query/fixity/restart/tamper |
 | Python `security_evidence.record_from_metric` | `L3GovernanceBoundary.publish` + `recordRuntimeEvent` | Rust metric sink remains external; TS only projects selected runtime outcomes | first slice | No second GateChain or constitution; no implicit allow on missing evidence | `l3-coordinator-host.test.ts` + governance slice |
 | `l3/cell/peers/l3a/session_compress.py` | `scanSensitive` + `checkCompression` | Caller decides whether to proceed; TS cannot perform compression side effects | planned integration | Session compression/storage and R1–R5 persistence remain future L2/R4 adapters | boundary APIs and fail-closed tests |
 | `l3/agent/prompts.py`, `prompt_library.py`, `prompt_monitor.py` | existing context projection + future prompt port | Host-provided read-only context | partial | Versioned prompt loading/mutation and bypass monitor need a separate slice | existing context projection tests |
@@ -101,8 +101,19 @@ run a command.
   without copying event payloads.
 
 `EvidencePort` is the replacement seam for a future durable outbox/JSONL/R5
-adapter. The in-memory implementation must not be mistaken for production
-durability.
+adapter. `DurableEvidenceLedger` now wraps the same append-only projection with
+an injected `DurableEvidenceStorage`, commits complete versioned documents,
+rolls back failed commits, and validates state before restart. The default
+`MemoryEvidenceStorage` is test-only; `JsonFileEvidenceStorage` is an explicit
+host adapter and is never created implicitly by L3.
+
+### Durable evidence adapter
+
+The durable document contains the retained points, chain summaries, sequence
+counters, predecessor anchor, and latest hash. A restart reconstructs the
+in-memory projection only after row, predecessor, raw-hash, and sequence
+validation. Storage failure restores the pre-operation document, so a failed
+commit cannot leave the live projection ahead of durable state.
 
 ### Host composition
 
@@ -143,16 +154,16 @@ Run from the TypeScript engine directory with the Linux Node toolchain:
   tests/l3-coordinator.test.ts
 ```
 
-Observed slice evidence: typecheck clean; 3 files and 19 tests pass. This is
-not full-suite or durable crash/restart evidence.
+Observed slice evidence: typecheck clean; the governance slice passes 8 tests,
+including memory/file restart, commit rollback, and tamper rejection. The
+broader L3 slice remains separate evidence and this is not full-suite,
+cross-process locking, or Rust-owned crash evidence.
 
 ## Next construction seams
 
-1. Add an injected durable `EvidencePort` implementation with crash/restart
-   recovery and a cross-process monotonic sequence.
-2. Add a host-injected verification command port with allowlisted argv,
+1. Add a host-injected verification command port with allowlisted argv,
    project-root validation, timeout, and evidence projection.
-3. Mirror versioned prompt-library reads and bypass telemetry without allowing
+2. Mirror versioned prompt-library reads and bypass telemetry without allowing
    TS to mutate Python/R5 stores.
-4. Add fixed-work governance and L2 outbox performance baselines
+3. Add fixed-work governance and L2 outbox performance baselines
    (throughput, p50/p95/p99, RSS, queue contention, rejection counts).

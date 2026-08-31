@@ -198,6 +198,7 @@ current slice contains:
 | `l3/governance/compression-safety-guard.ts` | recursive-compression threshold and error-storm breaker | TS coordination guard; no persistence authority |
 | `l3/governance/review-verifier.ts` | bounded peer-review verdict transition and edit-then-verify tracking | TS data-only review/cadence |
 | `l3/governance/evidence-ledger.ts` | bounded append-only hash-chain evidence projection and verification | injected evidence port; in-memory candidate |
+| `l3/governance/durable-evidence-ledger.ts` | transactional durable wrapper, restart validation, and atomic JSON host adapter | injected durability; no implicit L3 storage |
 | `l3/governance/l3-governance.ts` | optional host observer composing governance side channels | TS observer; cannot alter Rust/L2 decisions |
 
 The coordinator may only request process, terminal, capability, or hard-policy

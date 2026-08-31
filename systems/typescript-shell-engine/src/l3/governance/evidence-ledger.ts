@@ -89,6 +89,20 @@ export interface EvidenceVerification {
   readonly evidenceId?: string;
 }
 
+/** Versioned durable document exchanged with a storage adapter. */
+export const EVIDENCE_LEDGER_DOCUMENT_VERSION = 1 as const;
+
+/** Complete bounded ledger state required for crash/restart recovery. */
+export interface EvidenceLedgerDocument {
+  readonly version: typeof EVIDENCE_LEDGER_DOCUMENT_VERSION;
+  readonly sequence: number;
+  readonly chainSequence: number;
+  readonly lastHash: string;
+  readonly baseHash: string;
+  readonly points: readonly EvidencePoint[];
+  readonly chains: readonly EvidenceChain[];
+}
+
 /** Read-only ledger contract that host adapters can replace with durability. */
 export interface EvidencePort {
   record(input: EvidenceInput): string;
@@ -418,6 +432,38 @@ export class InMemoryEvidenceLedger implements EvidencePort {
     };
   }
 
+  /** Export a detached, versioned document for a durable adapter. */
+  exportDocument(): EvidenceLedgerDocument {
+    return {
+      version: EVIDENCE_LEDGER_DOCUMENT_VERSION,
+      sequence: this.sequence,
+      chainSequence: this.chainSequence,
+      lastHash: this.lastHash,
+      baseHash: this.baseHash,
+      points: this.points.map((point) => this.clonePoint(point)),
+      chains: [...this.chainMap.values()].map((chain) => this.toChain(chain)),
+    };
+  }
+
+  /** Restore a validated document after a crash/restart or transaction rollback. */
+  importDocument(document: EvidenceLedgerDocument): void {
+    this.validateDocument(document);
+    this.points.length = 0;
+    this.chainMap.clear();
+    this.openKinds.clear();
+    this.sequence = document.sequence;
+    this.chainSequence = document.chainSequence;
+    this.lastHash = document.lastHash;
+    this.baseHash = document.baseHash;
+    for (const point of document.points) this.points.push(this.clonePoint(point));
+    for (const chain of document.chains) {
+      this.chainMap.set(chain.chainId, {
+        ...chain,
+      });
+      if (chain.closed === null) this.openKinds.set(chain.kind, chain.chainId);
+    }
+  }
+
   private hashFor(point: EvidencePoint): string {
     return sha256(canonicalJson(rowFields(point)));
   }
@@ -440,6 +486,71 @@ export class InMemoryEvidenceLedger implements EvidencePort {
       reason: chain.reason,
       evidenceCount: chain.evidenceCount,
     };
+  }
+
+  private validateDocument(document: EvidenceLedgerDocument): void {
+    if (!document || document.version !== EVIDENCE_LEDGER_DOCUMENT_VERSION) {
+      throw new TypeError("unsupported evidence ledger document version");
+    }
+    if (
+      !Number.isSafeInteger(document.sequence)
+      || document.sequence < 0
+      || !Number.isSafeInteger(document.chainSequence)
+      || document.chainSequence < 0
+    ) {
+      throw new TypeError("evidence ledger sequence values must be non-negative safe integers");
+    }
+    if (!Array.isArray(document.points) || document.points.length > this.maxPoints) {
+      throw new TypeError("evidence ledger points exceed the configured bound");
+    }
+    if (!Array.isArray(document.chains) || document.chains.length > this.maxChains) {
+      throw new TypeError("evidence ledger chains exceed the configured bound");
+    }
+    const chains = new Map(document.chains.map((chain) => [chain.chainId, chain]));
+    let previous = document.baseHash;
+    let lastSequence = 0;
+    for (const point of document.points) {
+      if (
+        !point
+        || !Number.isSafeInteger(point.sequence)
+        || point.sequence <= lastSequence
+        || point.sequence > document.sequence
+        || !chains.has(point.chainId)
+      ) {
+        throw new TypeError(`invalid evidence point sequence or chain: ${point?.evidenceId ?? "unknown"}`);
+      }
+      if (point.prevHash !== previous) {
+        throw new TypeError(`evidence predecessor mismatch at ${point.evidenceId}`);
+      }
+      const expected = this.hashFor(point);
+      if (expected.slice(0, L3_GOVERNANCE_HASH_PREFIX_LENGTH) !== point.hashPrefix) {
+        throw new TypeError(`evidence row hash mismatch at ${point.evidenceId}`);
+      }
+      if (sha256(canonicalJson(point.raw)) !== point.rawHash && point.rawSize <= L3_GOVERNANCE_MAX_EVIDENCE_RAW_BYTES) {
+        throw new TypeError(`evidence raw hash mismatch at ${point.evidenceId}`);
+      }
+      previous = expected;
+      lastSequence = point.sequence;
+    }
+    if (document.points.length > 0 && document.lastHash !== previous) {
+      throw new TypeError("evidence ledger last hash does not match retained points");
+    }
+    if (document.points.length === 0 && document.lastHash !== document.baseHash) {
+      throw new TypeError("empty evidence ledger must use base hash as last hash");
+    }
+    for (const chain of document.chains) {
+      if (
+        !chain
+        || !chain.chainId
+        || !chain.kind
+        || !Number.isFinite(chain.opened)
+        || (chain.closed !== null && !Number.isFinite(chain.closed))
+        || !Number.isSafeInteger(chain.evidenceCount)
+        || chain.evidenceCount < 0
+      ) {
+        throw new TypeError("invalid evidence chain summary");
+      }
+    }
   }
 
   private pruneChains(): void {
