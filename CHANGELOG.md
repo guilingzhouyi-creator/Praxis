@@ -291,6 +291,7 @@
 
 ### 新增
 
+- **Feat (l3-ts)**: add the clean-break L3 coordinator facade and bounded route evidence
 - **Feat (l3-ts)**: add card and scheduler coordination seams
 - **Feat (l3-ts)**: add read-only context projection
 - **Feat (l3-ts)**: project tools through Rust authority
