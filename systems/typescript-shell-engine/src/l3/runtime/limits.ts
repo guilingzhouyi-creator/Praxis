@@ -15,6 +15,8 @@ export const L3_MAX_HISTORY_ENTRIES = 128;
 export const L3_MAX_EVENT_DATA_BYTES = 16 * 1024;
 /** Maximum queued (not currently executing) inputs for one AgentLoop. */
 export const L3_MAX_PENDING_INPUTS = 32;
+/** Maximum retained lifecycle events per identity in the in-memory replay ledger. */
+export const L3_MAX_REPLAY_EVENTS = 256;
 
 /** Tunable runtime bounds accepted by the coordinator. */
 export interface AgentRuntimeLimits {

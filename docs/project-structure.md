@@ -27,6 +27,8 @@ physically explicit:
 |------|-------------|
 | `systems/typescript-shell-engine/src/l3/loop/` | Bounded per-identity AgentLoop queues, cancellation, lifecycle, and detached snapshots |
 | `systems/typescript-shell-engine/src/l3/cell/` | Cell-level routing across independent full-identity AgentLoops |
+| `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing delegated to AgentCell |
+| `systems/typescript-shell-engine/src/l3/recovery/` | Bounded lifecycle-event replay window, cursor paging, and resync projection |
 
 ## 构建环境 (build environment) — external tooling that guides the build
 

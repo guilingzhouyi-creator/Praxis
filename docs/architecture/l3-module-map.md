@@ -52,6 +52,16 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 
 ¹ `.py` count including `__init__.py`; regenerate per header command.
 
+The clean-break TypeScript L3 candidate keeps its coordination domains in
+explicit, non-authoritative folders:
+
+| TS path | Responsibility | Authority |
+|---|---|---|
+| `systems/typescript-shell-engine/src/l3/loop/` | bounded per-identity AgentLoop queues | TS coordination |
+| `systems/typescript-shell-engine/src/l3/cell/` | full-identity Cell routing | TS coordination |
+| `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing | TS coordination |
+| `systems/typescript-shell-engine/src/l3/recovery/` | bounded lifecycle-event replay and resync projection | TS recovery projection |
+
 ## 3. Adjudications (2026-08-22 survey)
 
 | Suspected duplicate | Verdict |
@@ -174,13 +184,15 @@ current slice contains:
 | `l3/ports/coordination-ports.ts` | explicit Card/Scheduler data ports | injected TS coordination boundary |
 | `l3/loop/agent-loop-queue.ts` | bounded per-identity FIFO admission, cancellation, stop/drain, and snapshots | TS AgentLoop coordination |
 | `l3/cell/agent-cell.ts` | full-identity routing to independent AgentLoops | TS Cell coordination |
+| `l3/peer/l3a-peer-router.ts` | identity-bound L3A peer attach/detach, conflict checks, and delegated routing | TS peer coordination |
+| `l3/recovery/event-replay-ledger.ts` | bounded contiguous event window, cursor paging, and resync signaling | TS recovery projection |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,
 PTY, tool handler, Python module, or Rust implementation. Card and Scheduler
 are now bounded coordination/data seams, not stores or policy engines. Tool
-Pipeline, Memory promotion, Prompt loading, L3A peer routing, durable recovery,
-and host persistence remain future slices tracked by
-`docs/roadmaps/l3-ts-rewrite.md`. The AgentLoop and Cell domains only own
-in-memory coordination values and never become persistence or execution
+Pipeline, Memory promotion, Prompt loading, durable recovery, and host
+persistence remain future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
+The AgentLoop, Cell, peer, and replay domains only own in-memory
+coordination/projection values and never become persistence or execution
 authority.

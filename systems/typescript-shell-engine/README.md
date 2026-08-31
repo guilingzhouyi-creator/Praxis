@@ -40,8 +40,8 @@ and hard-constraint side effect through the injected
 `RustKernelExecutionPort`; `adapters/rust-protocol-execution-port.ts` carries
 that request over `ProtocolBridge.commandPayload()` and maps a Rust `result`
 envelope to a receipt. Provider, prompt loading, Tool Pipeline, Memory
-promotion, Cell/L3A, and recovery remain future slices in
-`docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the reference
+promotion, durable Cell/L3A persistence, and host recovery remain future slices
+in `docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the reference
 and rollback implementation.
 
 `l3/providers/decision-provider.ts` is the bounded provider boundary for the
@@ -65,8 +65,16 @@ coordination slice. `AgentLoop` serializes inputs for the complete
 propagates cancellation, and exposes detached progress snapshots.
 `AgentCell` lazily routes identities to independent loops so sibling identities
 can progress concurrently. These modules do not own Rust execution, PTY or
-process state, persistence, or L3A recovery; those authorities remain injected
-or are tracked as future slices in `docs/roadmaps/l3-ts-rewrite.md`.
+process state, persistence, or durable L3A recovery; those authorities remain
+injected or are tracked as future slices in `docs/roadmaps/l3-ts-rewrite.md`.
+
+`l3/peer/l3a-peer-router.ts` binds one attached L3A peer to the same complete
+identity tuple and delegates admitted input to `AgentCell`. It rejects peer
+conflicts, identity spoofing, stale routes, and detached peers without owning
+session persistence or terminal state. `l3/recovery/event-replay-ledger.ts`
+keeps a bounded contiguous lifecycle-event window with cursor pagination and
+explicit `requiresResync` responses; it records projections only and never
+replays side effects.
 
 `l3/context/context-projection.ts` is the read-only Memory/Prompt seam. It
 passes only identity-bound digest references, source labels, and byte counts
