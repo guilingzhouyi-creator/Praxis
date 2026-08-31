@@ -171,10 +171,10 @@ export class ReviewVerifier {
     this.edited.add(bounded);
   }
 
-  /** Record a check; recognized verifier commands clear pending edits. */
+  /** Record a check; only a passing recognized verifier clears pending edits. */
   recordCheck(command: string, result?: Omit<VerificationEvidence, "command">): void {
     const boundedCommand = boundedText(command, L3_GOVERNANCE_MAX_VERIFY_TEXT);
-    if (this.isVerifying(boundedCommand)) this.edited.clear();
+    if (result?.passed && this.isVerifying(boundedCommand)) this.edited.clear();
     if (!result || this.evidence.length >= this.maxVerifyEvidence) return;
     this.evidence.push({
       command: boundedCommand,

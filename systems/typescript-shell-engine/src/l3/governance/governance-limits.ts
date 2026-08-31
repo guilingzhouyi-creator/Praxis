@@ -37,5 +37,17 @@ export const L3_GOVERNANCE_MAX_VERIFY_PATHS = 256;
 export const L3_GOVERNANCE_MAX_VERIFY_EVIDENCE = 256;
 /** Maximum characters retained for one verification command/evidence string. */
 export const L3_GOVERNANCE_MAX_VERIFY_TEXT = 500;
+/** Maximum argv entries accepted by one verification request. */
+export const L3_GOVERNANCE_MAX_VERIFY_ARGS = 32;
+/** Maximum UTF-8 bytes accepted for one verifier argv entry. */
+export const L3_GOVERNANCE_MAX_VERIFY_ARG_BYTES = 4 * 1024;
+/** Maximum UTF-8 bytes retained for verifier stdout/stderr projections. */
+export const L3_GOVERNANCE_MAX_VERIFY_OUTPUT_BYTES = 8 * 1024;
+/** Maximum UTF-8 bytes accepted for the verifier working directory. */
+export const L3_GOVERNANCE_MAX_VERIFY_CWD_BYTES = 1_024;
+/** Default verifier timeout in milliseconds. */
+export const L3_GOVERNANCE_DEFAULT_VERIFY_TIMEOUT_MS = 60_000;
+/** Maximum verifier timeout in milliseconds. */
+export const L3_GOVERNANCE_MAX_VERIFY_TIMEOUT_MS = 300_000;
 /** Prefix length used for evidence chain and point identifiers. */
 export const L3_GOVERNANCE_HASH_PREFIX_LENGTH = 16;

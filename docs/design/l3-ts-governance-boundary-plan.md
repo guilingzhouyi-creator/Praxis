@@ -51,7 +51,7 @@ L2 session data layer → Rust L1 capability / terminal / process authority
 | `l3/agent/sensitive_detect.py` | `l3/governance/sensitive-detector.ts` | TS side-channel policy; Rust still owns execution gates | first slice | SettingsCenter/file persistence and secret-vault semantics stay host-injected; detector remains heuristic | `l3-governance.test.ts`: pattern, redaction, block, bounds |
 | `l3/agent/compression_guard.py` | `l3/governance/compression-safety-guard.ts` | TS coordination guard; Rust owns resource/capability limits | first slice | Per-process durable breaker state and PMU linkage require a durable host adapter | `l3-governance.test.ts`: recursion threshold, error storm, reset/window |
 | `l3/agent/review.py` | `l3/governance/review-verifier.ts` | Injected reviewer/provider returns data-only verdict | first slice | Peer transport, prompt library, LLM invocation, and card write remain host seams | `l3-governance.test.ts`: verdict normalization and retry/escalation |
-| `l3/agent/verify_cadence.py` | `ReviewVerifier` cadence surface | Host/Rust process port runs commands; TS stores only evidence | first slice | TS does not execute shell commands or validate cwd; a future host port must be allowlisted and fail closed | `l3-governance.test.ts`: edit tracking, nudge, verification evidence |
+| `l3/agent/verify_cadence.py` | `ReviewVerifier` + `VerificationCommandPort` | Host/Rust executor runs commands; TS validates the request and stores only bounded evidence | first command-port slice | TS never invokes shell/process APIs; physical cwd, process handles, and capability policy remain host/Rust responsibilities | `l3-governance.test.ts`: argv/cwd allowlist, cancellation/timeout, output and evidence bounds |
 | `l3/tool_system/security_evidence/{models,core}.py` | `l3/governance/evidence-ledger.ts` + `durable-evidence-ledger.ts` | Injected evidence port; in-memory and atomic snapshot implementations are host projections | first durable slice | JSONL metadata sidecar and R5 graph edge remain explicit adapters; no second GateChain | `l3-governance.test.ts`: bounded chain/query/fixity/restart/tamper |
 | Python `security_evidence.record_from_metric` | `L3GovernanceBoundary.publish` + `recordRuntimeEvent` | Rust metric sink remains external; TS only projects selected runtime outcomes | first slice | No second GateChain or constitution; no implicit allow on missing evidence | `l3-coordinator-host.test.ts` + governance slice |
 | `l3/cell/peers/l3a/session_compress.py` | `scanSensitive` + `checkCompression` | Caller decides whether to proceed; TS cannot perform compression side effects | planned integration | Session compression/storage and R1–R5 persistence remain future L2/R4 adapters | boundary APIs and fail-closed tests |
@@ -87,6 +87,13 @@ coordination boundary:
 retry/escalation transition. The same object tracks edited paths, emits a
 bounded nudge, and stores command-result evidence. It intentionally does not
 run a command.
+
+`VerificationCommandPort` is the explicit host-injected command seam. It accepts
+only detached argv values, checks an allowlist and project-root cwd boundary,
+propagates timeout/cancellation, and bounds stdout/stderr by UTF-8 bytes. The
+executor is supplied by the host or Rust adapter; this module never imports a
+shell, subprocess, PTY, or process handle. A missing port is a fail-closed
+result that is still projected into the review/evidence side channels.
 
 ### Evidence ledger
 
@@ -133,8 +140,9 @@ change a Rust receipt or L2 result.
 4. Every report, queue, reason, label, and raw snapshot is bounded.
 5. An unrecognized review verdict becomes `NEEDS_CHANGES`; a blocked
    compression check remains blocked until explicit reset.
-6. Durable recovery, R5 graph linkage, SettingsCenter hydration, and command
-   execution require explicit injected ports in later slices.
+6. Durable recovery, R5 graph linkage, SettingsCenter hydration, and the
+   physical command executor require explicit injected ports; the TS command
+   port is validation/evidence only.
 
 ## Verification slice
 
@@ -154,16 +162,15 @@ Run from the TypeScript engine directory with the Linux Node toolchain:
   tests/l3-coordinator.test.ts
 ```
 
-Observed slice evidence: typecheck clean; the governance slice passes 8 tests,
-including memory/file restart, commit rollback, and tamper rejection. The
-broader L3 slice remains separate evidence and this is not full-suite,
-cross-process locking, or Rust-owned crash evidence.
+Observed slice evidence: typecheck clean; the governance slice passes 12 tests,
+including memory/file restart, commit rollback, tamper rejection, command
+allowlist/cwd bounds, cancellation/timeout, output caps, and fail-closed
+missing-port evidence. The broader L3 slice remains separate evidence and this
+is not full-suite, cross-process locking, or Rust-owned crash evidence.
 
 ## Next construction seams
 
-1. Add a host-injected verification command port with allowlisted argv,
-   project-root validation, timeout, and evidence projection.
-2. Mirror versioned prompt-library reads and bypass telemetry without allowing
+1. Mirror versioned prompt-library reads and bypass telemetry without allowing
    TS to mutate Python/R5 stores.
-3. Add fixed-work governance and L2 outbox performance baselines
+2. Add fixed-work governance and L2 outbox performance baselines
    (throughput, p50/p95/p99, RSS, queue contention, rejection counts).

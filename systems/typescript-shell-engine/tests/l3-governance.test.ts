@@ -10,6 +10,8 @@ import {
   MemoryEvidenceStorage,
   ReviewVerifier,
   SensitiveDetector,
+  VerificationCommandPort,
+  L3GovernanceBoundary,
   type AgentRuntimeEvent,
 } from "../src/l3/l3-agent-entry.ts";
 
@@ -104,6 +106,17 @@ describe("TypeScript L3 governance projections", () => {
       evidence: "clean",
     });
     expect(verifier.evidenceLog()).toHaveLength(1);
+  });
+
+  it("keeps edits pending after a failed verification command", () => {
+    const verifier = new ReviewVerifier();
+    verifier.recordEdit("src/a.ts");
+    verifier.recordCheck("tsc --noEmit", {
+      exitCode: 1,
+      passed: false,
+      evidence: "typecheck failed",
+    });
+    expect(verifier.canClose()).toMatchObject({ allowed: false, pending: ["src/a.ts"] });
   });
 
   it("keeps an append-only evidence hash chain and runtime metadata projection", () => {
@@ -207,5 +220,86 @@ describe("TypeScript L3 governance projections", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("validates argv/cwd boundaries before invoking the verification executor", async () => {
+    const calls: string[][] = [];
+    const port = new VerificationCommandPort({
+      projectRoot: "/workspace/praxis",
+      executor: {
+        async execute(argv) {
+          calls.push([...argv]);
+          return { exitCode: 0, stdout: "ok", stderr: "" };
+        },
+      },
+    });
+
+    const allowed = await port.run({ argv: ["tsc", "--noEmit"], cwd: "systems" });
+    expect(allowed).toMatchObject({ accepted: true, passed: true, exitCode: 0 });
+    expect(calls).toEqual([["tsc", "--noEmit"]]);
+
+    const rejectedCommand = await port.run({ argv: ["sh", "-c", "echo unsafe"] });
+    expect(rejectedCommand).toMatchObject({ accepted: false, passed: false });
+    const rejectedCwd = await port.run({ argv: ["tsc"], cwd: "../escape" });
+    expect(rejectedCwd).toMatchObject({ accepted: false, passed: false });
+    const rejectedArg = await port.run({ argv: ["tsc", "x".repeat(4097)] });
+    expect(rejectedArg).toMatchObject({ accepted: false, passed: false });
+    const rejectedLongCwd = await port.run({ argv: ["tsc"], cwd: "x".repeat(1025) });
+    expect(rejectedLongCwd).toMatchObject({ accepted: false, passed: false });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("propagates timeout/cancellation and projects bounded verification evidence", async () => {
+    let aborted = false;
+    const port = new VerificationCommandPort({
+      projectRoot: "/workspace/praxis",
+      maxOutputBytes: 32,
+      executor: {
+        async execute(_argv, options) {
+          return new Promise((resolve) => {
+            options.signal.addEventListener("abort", () => {
+              aborted = true;
+              resolve({ exitCode: null, stdout: "x".repeat(100), stderr: "timed" });
+            }, { once: true });
+          });
+        },
+      },
+    });
+    const timedOut = await port.run({ argv: ["tsc"], timeoutMs: 5 });
+    expect(timedOut).toMatchObject({ accepted: true, passed: false, timedOut: true });
+    expect(aborted).toBe(true);
+    expect(new TextEncoder().encode(timedOut.stdout).byteLength).toBeLessThanOrEqual(32);
+
+    const controller = new AbortController();
+    controller.abort();
+    const cancelled = await port.run({ argv: ["tsc"] }, controller.signal);
+    expect(cancelled).toMatchObject({ accepted: false, cancelled: true, passed: false });
+  });
+
+  it("feeds verification results into the governance review and evidence side channels", async () => {
+    const governance = new L3GovernanceBoundary({
+      verification: new VerificationCommandPort({
+        projectRoot: "/workspace/praxis",
+        executor: {
+          async execute() {
+            return { exitCode: 0, stdout: "clean", stderr: "" };
+          },
+        },
+      }),
+    });
+    governance.recordEdit("src/example.ts");
+    const result = await governance.runVerification({ argv: ["tsc", "--noEmit"] });
+    expect(result.passed).toBe(true);
+    expect(governance.canCloseVerification().allowed).toBe(true);
+    expect(governance.queryEvidence({ phase: "verify_cadence" }).length).toBeGreaterThan(0);
+  });
+
+  it("records a fail-closed evidence point when no verification port is configured", async () => {
+    const governance = new L3GovernanceBoundary();
+    governance.recordEdit("src/example.ts");
+    const result = await governance.runVerification({ argv: ["tsc"] });
+    expect(result).toMatchObject({ accepted: false, passed: false });
+    expect(governance.queryEvidence({ phase: "verify_cadence" })).not.toHaveLength(0);
+    expect(governance.canCloseVerification().allowed).toBe(false);
   });
 });

@@ -128,6 +128,11 @@ runtime except through the existing versioned protocol.
   persists versioned snapshots through an injected storage adapter with
   restart validation and failed-commit rollback. It is an optional host
   observer and never a second Rust execution or GateChain authority.
+- `l3/governance/verification-command-port.ts` now provides an explicit
+  argv-only, allowlisted verification seam with project-root cwd validation,
+  timeout/cancellation propagation, bounded UTF-8 output, and fail-closed
+  missing-port evidence. The executor remains injected by Host/Rust; TS never
+  invokes a shell, subprocess, PTY, or process handle.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -154,6 +159,7 @@ Rust cutover gates by itself.
 | P2 | L2 authoritative session boundary | own per-session output sequence, bounded replay, and per-view cursors below L3 | contiguous commit, non-destructive ack, detached replay, fail-closed reservations, host integration | ✅ first slice |
 | P2 | Governance/evidence boundary | map sensitive/compression/review/verify/evidence semantics into bounded TS side channels | pattern/action bounds, breaker/reset semantics, review escalation, hash-chain verification, host observer isolation | ✅ first slice |
 | P2 | Durable evidence adapter | persist bounded evidence snapshots through an injected store and validate restart state | atomic commit/rollback, sequence/hash validation, file and in-memory restart tests | ✅ first slice |
+| P2 | Verification command port | validate argv/cwd and project a bounded host/Rust verification result into review/evidence | allowlist, project-root and byte bounds, timeout/cancellation, output cap, no direct process API | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 

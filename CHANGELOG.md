@@ -10,6 +10,7 @@
 - **Docs (l3-ts)**: record governance/evidence boundary mapping and follow-up seams
 - **L3 (typescript)**: add bounded sensitive, compression, review, verify, and evidence projections
 - **L3 (typescript)**: add durable evidence restart and rollback adapter
+- **L3 (typescript)**: add argv-only verification command port with bounded host evidence
 - **Docs (docs)**: restore pointer index registration
 - **Docs**: align l2 slice evidence
 - **Docs (stats)**: refresh judge dashboard

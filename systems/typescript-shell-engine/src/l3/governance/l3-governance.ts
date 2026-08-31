@@ -36,6 +36,11 @@ import {
   type SensitiveDetectorOptions,
   type SensitiveScanResult,
 } from "./sensitive-detector.ts";
+import {
+  type VerificationCommandRequest,
+  type VerificationCommandResult,
+  type VerificationPort,
+} from "./verification-command-port.ts";
 
 /** Options for the composed governance observer. */
 export interface L3GovernanceOptions {
@@ -43,6 +48,7 @@ export interface L3GovernanceOptions {
   readonly sensitive?: SensitiveDetectorOptions;
   readonly compression?: CompressionGuardOptions;
   readonly review?: ReviewVerifierOptions;
+  readonly verification?: VerificationPort;
 }
 
 /** Detached aggregate status for operator-facing diagnostics. */
@@ -58,6 +64,7 @@ export class L3GovernanceBoundary implements AgentEventSink {
   readonly sensitive: SensitiveDetector;
   readonly compression: CompressionGuard;
   readonly review: ReviewVerifier;
+  readonly verification?: VerificationPort;
 
   constructor(options: L3GovernanceOptions = {}) {
     this.evidence = options.evidence ?? new InMemoryEvidenceLedger();
@@ -75,6 +82,7 @@ export class L3GovernanceBoundary implements AgentEventSink {
         }),
       });
     this.review = new ReviewVerifier(options.review);
+    this.verification = options.verification;
   }
 
   /** Observe selected runtime events without retaining event payloads. */
@@ -184,6 +192,62 @@ export class L3GovernanceBoundary implements AgentEventSink {
         tags: { command: command.slice(0, 128), exit_code: String(result.exitCode) },
       });
     }
+  }
+
+  /** Execute one allowlisted verification request through an injected port. */
+  async runVerification(
+    request: VerificationCommandRequest,
+    signal?: AbortSignal,
+  ): Promise<VerificationCommandResult> {
+    if (!this.verification) {
+      const result: VerificationCommandResult = {
+        accepted: false,
+        passed: false,
+        timedOut: false,
+        cancelled: false,
+        exitCode: -1,
+        argv: [],
+        cwd: ".",
+        timeoutMs: 0,
+        stdout: "",
+        stderr: "verification command port is not configured",
+        evidence: "rejected: verification command port is not configured",
+        error: "verification command port is not configured",
+      };
+      this.recordCheck(result.argv.join(" "), {
+        exitCode: result.exitCode,
+        passed: result.passed,
+        evidence: result.evidence,
+      });
+      this.safeEvidence({
+        phase: "verify_cadence",
+        gate: "command_port",
+        decision: "BLOCK",
+        target: "verification",
+        source: "ts-l3-governance",
+        tags: { accepted: "false", configured: "false" },
+      });
+      return result;
+    }
+    const result = await this.verification.run(request, signal);
+    this.recordCheck(result.argv.join(" "), {
+      exitCode: result.exitCode,
+      passed: result.passed,
+      evidence: result.evidence,
+    });
+    this.safeEvidence({
+      phase: "verify_cadence",
+      gate: "command_port",
+      decision: result.passed ? "ALLOW" : "BLOCK",
+      target: result.argv[0] ?? "verification",
+      source: "ts-l3-governance",
+      tags: {
+        accepted: String(result.accepted),
+        timed_out: String(result.timedOut),
+        cancelled: String(result.cancelled),
+      },
+    });
+    return result;
   }
 
   /** Return a bounded nudge for unverified edits. */

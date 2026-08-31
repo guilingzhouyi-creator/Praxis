@@ -199,6 +199,7 @@ current slice contains:
 | `l3/governance/review-verifier.ts` | bounded peer-review verdict transition and edit-then-verify tracking | TS data-only review/cadence |
 | `l3/governance/evidence-ledger.ts` | bounded append-only hash-chain evidence projection and verification | injected evidence port; in-memory candidate |
 | `l3/governance/durable-evidence-ledger.ts` | transactional durable wrapper, restart validation, and atomic JSON host adapter | injected durability; no implicit L3 storage |
+| `l3/governance/verification-command-port.ts` | argv-only allowlist/cwd/timeout/output validation and host result projection | TS validation/evidence seam; Host/Rust owns execution |
 | `l3/governance/l3-governance.ts` | optional host observer composing governance side channels | TS observer; cannot alter Rust/L2 decisions |
 
 The coordinator may only request process, terminal, capability, or hard-policy
@@ -210,6 +211,9 @@ persistence remain future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
 Governance/evidence projections are likewise side channels: they may report or
 block a caller's compression/review decision, but they do not duplicate Rust
 GateChain/Constitution authority or silently write Python/R5 state.
+`verification-command-port.ts` validates only detached argv/cwd values and
+projects bounded results; its executor is injected by Host/Rust, so TS cannot
+acquire shell, subprocess, PTY, or process authority.
 The AgentLoop, Cell, peer, and replay domains only own in-memory
 coordination/projection values and never become persistence or execution
 authority.
