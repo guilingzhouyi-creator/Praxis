@@ -11,5 +11,6 @@ export * from "./runtime/limits.ts";
 export * from "./runtime/ts-agent-runtime.ts";
 export * from "./providers/decision-provider.ts";
 export * from "./tools/tool-projection.ts";
+export * from "./context/context-projection.ts";
 export * from "./adapters/l2-intent-adapter.ts";
 export * from "./adapters/rust-protocol-execution-port.ts";

@@ -56,6 +56,12 @@ sent to Rust as `tool.invoke`; Rust receipts are folded into bounded
 ToolResult values. No Python handler, middleware, or executable object crosses
 the boundary.
 
+`l3/context/context-projection.ts` is the read-only Memory/Prompt seam. It
+passes only identity-bound digest references, source labels, and byte counts
+to a provider, with duplicate-reference and aggregate-budget checks. The
+candidate deliberately has no storage loader or prompt text; those remain
+host adapters for a later cutover slice.
+
 The `engine/rust-agent-loop-terminal.ts` module is a read-only projection of
 the Rust terminal-backed AgentLoop value contract. It validates the binding
 and opaque frame budgets for L2/frontend rendering or forwarding; it does

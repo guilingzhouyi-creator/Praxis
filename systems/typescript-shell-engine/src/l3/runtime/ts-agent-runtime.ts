@@ -40,6 +40,8 @@ import {
   toolInvocationToKernelRequest,
   toolResultFromReceipt,
 } from "../tools/tool-projection.ts";
+import type { AgentContextProjection, ReadOnlyContextPort } from "../context/context-projection.ts";
+import { copyContextProjection } from "../context/context-projection.ts";
 import {
   DEFAULT_AGENT_RUNTIME_LIMITS,
   resolveAgentRuntimeLimits,
@@ -54,6 +56,8 @@ export interface AgentRuntimeOptions {
   readonly execution: RustKernelExecutionPort;
   /** Handler-free tool definitions exposed to providers and validated calls. */
   readonly tools?: readonly ToolSpecProjection[];
+  /** Optional identity-scoped, read-only Memory/Prompt context loader. */
+  readonly context?: ReadOnlyContextPort;
   readonly events?: AgentEventSink;
   readonly limits?: Partial<AgentRuntimeLimits>;
   readonly clock?: () => number;
@@ -344,13 +348,29 @@ export class AgentRuntime {
 
     try {
       await this.emit(state, admittedInput, "run_started", { input_seq: admittedInput.inputSeq });
-      const context: AgentDecisionContext = {
+      let context: AgentDecisionContext = {
         identity: copyAgentIdentity(admittedInput.identity),
         input: copyAgentInput(admittedInput),
         history: state.history.map((record) => ({ ...record })),
         tools: this.toolList,
         signal,
       };
+      if (this.options.context) {
+        let projection: AgentContextProjection;
+        try {
+          projection = await this.options.context.load(
+            copyAgentIdentity(admittedInput.identity),
+            copyAgentInput(admittedInput),
+            signal,
+          );
+        } catch (error) {
+          throw asRuntimeError(error, "context_failed", "read-only context load failed");
+        }
+        context = {
+          ...context,
+          context: copyContextProjection(projection, admittedInput.identity),
+        };
+      }
       let decision: AgentDecision;
       try {
         decision = await this.options.decision.decide(copyAgentInput(admittedInput), context);

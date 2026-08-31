@@ -8,6 +8,7 @@
 
 import type { JsonObject, JsonValue } from "../../protocol/wire-records.ts";
 import type { ToolSpecProjection } from "../tools/tool-projection.ts";
+import type { AgentContextProjection } from "../context/context-projection.ts";
 
 /** Version of the TypeScript L3 agent coordination contract. */
 export const L3_AGENT_CONTRACT_VERSION = 1 as const;
@@ -16,7 +17,7 @@ export const L3_AGENT_CONTRACT_VERSION = 1 as const;
 export type AgentRuntimeState = "idle" | "waiting" | "running" | "completed" | "failed" | "stopped";
 
 /** Action kinds a decision provider may return to the runtime. */
-export type AgentActionKind = "kernel_request" | "emit";
+export type AgentActionKind = "kernel_request" | "tool_call" | "emit";
 
 /** Runtime lifecycle event names emitted to the L2/event projection boundary. */
 export type AgentRuntimeEventType =
@@ -113,6 +114,7 @@ export interface AgentDecisionContext {
   readonly input: AgentInput;
   readonly history: readonly AgentTurnRecord[];
   readonly tools?: readonly ToolSpecProjection[];
+  readonly context?: AgentContextProjection;
   readonly signal?: AbortSignal;
 }
 
@@ -178,6 +180,8 @@ export type AgentRuntimeErrorCode =
   | "decision_timeout"
   | "tool_limit"
   | "tool_result_limit"
+  | "context_failed"
+  | "context_limit"
   | "action_limit"
   | "event_limit"
   | "decision_failed"
@@ -245,6 +249,16 @@ export function copyAgentDecisionContext(context: AgentDecisionContext): AgentDe
         properties: copyJsonObject(tool.returns.properties),
       },
     })),
+    context: context.context
+      ? {
+        ...context.context,
+        identity: copyAgentIdentity(context.context.identity),
+        refs: context.context.refs.map((ref) => ({
+          ...ref,
+          metadata: ref.metadata ? copyJsonObject(ref.metadata) : undefined,
+        })),
+      }
+      : undefined,
     signal: context.signal,
   };
 }

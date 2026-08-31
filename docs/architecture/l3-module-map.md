@@ -167,6 +167,7 @@ current slice contains:
 | `l3/ports/runtime-ports.ts` | provider/execution/event dependency seams | explicit injected ports |
 | `l3/providers/decision-provider.ts` | detached provider context, deadline/cancel, budget metadata, payload-free telemetry | provider adapter |
 | `l3/tools/tool-projection.ts` | handler-free ToolSpec/ToolResult projection and `tool.invoke` request mapping | TS data boundary; Rust admission |
+| `l3/context/context-projection.ts` | identity-bound Memory/Prompt digest references with count/byte bounds | TS read-only context boundary |
 
 The coordinator may only request side effects through
 `RustKernelExecutionPort`; it never imports a process API, PTY, tool handler,

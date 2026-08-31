@@ -24,7 +24,7 @@ construction: in_progress
 
 # L3 TypeScript rewrite — Agent coordination over Rust execution
 
-> Status: P0 contract/ingress and the first two P1 boundary slices are
+> Status: P0 contract/ingress and the first three P1 boundary slices are
 > implemented on `feature/l1-rust-host-bootstrap` (TS L2 intent → detached
 > provider context/tool projection → TS L3 coordinator → Rust protocol execution
 > port). This
@@ -73,6 +73,9 @@ runtime except through the existing versioned protocol.
   actions resolve ring/danger from the registered projection and cross Rust as
   `tool.invoke`. Rust receipts fold into bounded `ToolResult` values without
   exposing handlers or executable objects.
+- Read-only Memory/Prompt context is represented as identity-bound digest
+  references with aggregate byte and count limits. Providers see no source
+  text or storage handle; real memory/prompt loaders remain host adapters.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -86,7 +89,7 @@ Rust cutover gates by itself.
 | P0 | Rust execution seam | protocol-backed `RustKernelExecutionPort` | ring/danger/request-id mapping; denial and missing-result tests | ✅ complete |
 | P1 | Provider adapter | provider-neutral decision port with timeout/budget metadata | detached context; deadline/cancel; telemetry; no direct process/tool imports | ✅ complete |
 | P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding | ✅ complete |
-| P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets | planned |
+| P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets | ✅ complete |
 | P2 | Card and scheduler coordination | card lifecycle intents and bounded scheduling requests | card/skill/TODO links remain protocol values, not shared stores | planned |
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | planned |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
