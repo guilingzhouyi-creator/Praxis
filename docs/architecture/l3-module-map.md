@@ -186,6 +186,8 @@ current slice contains:
 | `l3/cell/agent-cell.ts` | full-identity routing to independent AgentLoops | TS Cell coordination |
 | `l3/peer/l3a-peer-router.ts` | identity-bound L3A peer attach/detach, conflict checks, and delegated routing | TS peer coordination |
 | `l3/recovery/event-replay-ledger.ts` | bounded contiguous event window, cursor paging, and resync signaling | TS recovery projection |
+| `l3/recovery/rust-execution-projection.ts` | validated metadata-only projection of Rust execution checkpoints | Rust-owned state, TS read-only view |
+| `l3/recovery/l3a-session-resume.ts` | generation-fenced resume vectors and preflighted peer handoff | TS recovery coordination |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,

@@ -152,6 +152,46 @@ export class L3APeerRouter {
     if (options.stop) this.cell.stop(binding.identity);
   }
 
+  /**
+   * Atomically transfer one identity binding to a new peer ID.
+   *
+   * The source remains as a detached tombstone and the underlying AgentCell
+   * loop is intentionally reused. No persistence, terminal, or Rust state is
+   * mutated by this operation.
+   */
+  handoff(fromPeerId: string, toPeerId: string, identity: AgentIdentity): L3APeerBinding {
+    requirePeerId(fromPeerId);
+    requirePeerId(toPeerId);
+    requireIdentity(identity);
+    if (fromPeerId === toPeerId) {
+      throw new AgentRuntimeError("peer_conflict", "handoff source and target peers must differ");
+    }
+    const source = this.peers.get(fromPeerId);
+    if (!source) {
+      throw new AgentRuntimeError("peer_not_found", `unknown peer: ${fromPeerId}`);
+    }
+    if (source.state !== "attached") {
+      throw new AgentRuntimeError("peer_detached", `peer is detached: ${fromPeerId}`);
+    }
+    if (agentIdentityKey(identity) !== agentIdentityKey(source.identity)) {
+      throw new AgentRuntimeError("peer_conflict", "handoff identity does not match the source binding");
+    }
+    const target = this.peers.get(toPeerId);
+    if (target?.state === "attached") {
+      throw new AgentRuntimeError("peer_conflict", `peer is already attached: ${toPeerId}`);
+    }
+    source.state = "detached";
+    this.identities.delete(agentIdentityKey(source.identity));
+    const binding: MutablePeerBinding = {
+      peerId: toPeerId,
+      identity: copyAgentIdentity(source.identity),
+      state: "attached",
+    };
+    this.peers.set(toPeerId, binding);
+    this.identities.set(agentIdentityKey(binding.identity), toPeerId);
+    return copyBinding(binding);
+  }
+
   /** Drain one peer's admitted inputs and then detach it. */
   async drain(peerId: string): Promise<void> {
     requirePeerId(peerId);

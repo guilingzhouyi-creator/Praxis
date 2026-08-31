@@ -91,6 +91,10 @@ runtime except through the existing versioned protocol.
   `l3/recovery/` retains a bounded, contiguous event window with cursor
   pagination and explicit resync signals; neither domain owns persistence or
   replays side effects.
+- `l3/recovery/` now validates the Rust-owned execution checkpoint, correlates
+  session/terminal/AgentLoop metadata by the complete identity, fences
+  generation regressions, and returns a detached L3A resume vector. Peer
+  handoff is preflighted against Rust and replay state before the binding moves.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -109,6 +113,7 @@ Rust cutover gates by itself.
 | P2 | Scheduler coordination | bounded priority/time/scope requests and detached queue receipts | queue ownership and fairness remain injected host policy | ✅ first slice |
 | P2 | AgentLoop/Cell ingress | bounded per-identity FIFO queues and Cell routing | monotonic input sequence, cancellation, stop/drain, sibling isolation | ✅ first slice |
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | ✅ first slice |
+| P2 | Rust checkpoint/session projection | metadata-only Rust session/terminal/AgentLoop projection, generation fence, peer handoff | identity correlation; no payload/process-handle leakage; failed preflight leaves route unchanged | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 

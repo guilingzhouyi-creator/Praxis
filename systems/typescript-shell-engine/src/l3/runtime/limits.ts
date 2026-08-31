@@ -17,6 +17,8 @@ export const L3_MAX_EVENT_DATA_BYTES = 16 * 1024;
 export const L3_MAX_PENDING_INPUTS = 32;
 /** Maximum retained lifecycle events per identity in the in-memory replay ledger. */
 export const L3_MAX_REPLAY_EVENTS = 256;
+/** Maximum Rust sessions, terminals, and loops accepted by one projection parse. */
+export const L3_MAX_RUST_PROJECTION_ENTITIES = 4096;
 
 /** Tunable runtime bounds accepted by the coordinator. */
 export interface AgentRuntimeLimits {

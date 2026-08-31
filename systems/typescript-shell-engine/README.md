@@ -74,7 +74,14 @@ conflicts, identity spoofing, stale routes, and detached peers without owning
 session persistence or terminal state. `l3/recovery/event-replay-ledger.ts`
 keeps a bounded contiguous lifecycle-event window with cursor pagination and
 explicit `requiresResync` responses; it records projections only and never
-replays side effects.
+replays side effects. `l3/recovery/rust-execution-projection.ts` validates a
+metadata-only Rust execution checkpoint and correlates the complete
+session/terminal/AgentLoop identity without exposing message bodies or process
+handles. `l3/recovery/l3a-session-resume.ts` joins that projection with replay
+cursors and the peer router, fences generation regressions, reports
+`requires_reactivation` for unclean state, and preflights asynchronous state
+before an atomic peer handoff. The recovery folder is a TS L3 coordination
+domain; it does not read persistence or become a Rust compatibility layer.
 
 `l3/context/context-projection.ts` is the read-only Memory/Prompt seam. It
 passes only identity-bound digest references, source labels, and byte counts
