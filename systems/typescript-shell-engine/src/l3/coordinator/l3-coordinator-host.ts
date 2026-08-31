@@ -26,6 +26,7 @@ import {
   L3Coordinator,
   type L3CoordinatorOptions,
 } from "./l3-coordinator.ts";
+import type { L3GovernanceBoundary } from "../governance/l3-governance.ts";
 
 /** Runtime options accepted by the host adapter; event fanout is owned here. */
 export type L3CoordinatorHostRuntimeOptions = Omit<AgentRuntimeOptions, "events"> & {
@@ -40,6 +41,8 @@ export interface L3CoordinatorHostOptions {
   };
   /** Optional L2 authority; when supplied it provides both sequence and sink. */
   readonly sessionAuthority?: L2SessionAuthority;
+  /** Optional non-blocking governance/evidence observer. */
+  readonly governance?: L3GovernanceBoundary;
   readonly replay?: EventReplayLedger;
   readonly replayOptions?: EventReplayLedgerOptions;
   readonly coordinator?: Omit<L3CoordinatorOptions, "runtime" | "sessionProjection">;
@@ -51,6 +54,7 @@ export interface L3CoordinatorHost {
   readonly coordinator: L3Coordinator;
   readonly projection: L2SessionProjection;
   readonly replay: EventReplayLedger;
+  readonly governance?: L3GovernanceBoundary;
 }
 
 /**
@@ -74,6 +78,7 @@ export function createL3CoordinatorHost(options: L3CoordinatorHostOptions): L3Co
       : options.sessionProjection!,
   );
   const sinks: AgentEventSink[] = [replay, projection];
+  if (options.governance) sinks.push(options.governance);
   if (options.runtime.events) sinks.push(options.runtime.events);
   const runtime = new AgentRuntime({
     ...options.runtime,
@@ -84,5 +89,5 @@ export function createL3CoordinatorHost(options: L3CoordinatorHostOptions): L3Co
     runtime,
     sessionProjection: projection,
   });
-  return { runtime, coordinator, projection, replay };
+  return { runtime, coordinator, projection, replay, governance: options.governance };
 }

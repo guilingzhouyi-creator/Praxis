@@ -1,5 +1,28 @@
 [
   {
+    "pointer": "DESIGN-2026-08-31-118",
+    "archive_number": "DESIGN-2026-永久-118",
+    "fonds": "DESIGN",
+    "year": 2026,
+    "retention": "永久",
+    "title": "TS L3 Governance and Evidence Boundary Slice",
+    "author": "Codex",
+    "formation_date": "2026-08-31",
+    "carrier": "md",
+    "classification": "内部",
+    "pages": "96",
+    "archivist": "L3",
+    "reviewer": "L3",
+    "archive_date": "2026-08-31",
+    "source": "design",
+    "keywords": "[typescript, l3, governance, evidence, sensitive, compression]",
+    "abstract": "Map Python L3 governance semantics into bounded TypeScript side-channel projections while Rust remains execution authority.",
+    "construction": "in_progress",
+    "file": "l3-ts-governance-boundary-plan.md",
+    "type": "design-active",
+    "status": "active"
+  },
+  {
     "pointer": "DESIGN-2026-08-31-116",
     "archive_number": "DESIGN-2026-永久-116",
     "fonds": "DESIGN",

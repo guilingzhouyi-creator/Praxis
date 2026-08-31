@@ -3,6 +3,7 @@ import { makeMessage, type Message } from "../src/protocol/wire-envelope.ts";
 import { L2SessionAuthority } from "../src/engine/l2-session-authority.ts";
 import {
   EventReplayLedger,
+  L3GovernanceBoundary,
   SessionSequenceAllocator,
   createL3CoordinatorHost,
   type AgentIdentity,
@@ -173,6 +174,59 @@ describe("TypeScript L3 coordinator host composition", () => {
     authority.ack(identity.sessionId, "view-1", 2);
     expect(authority.replay(identity.sessionId, "view-1").map((message) => message.seq)).toEqual([3, 4]);
     expect(host.projection).toBeDefined();
+  });
+
+  it("attaches governance as a non-blocking observer after replay and L2 projection", async () => {
+    const messages: Message[] = [];
+    const governance = new L3GovernanceBoundary();
+    const host = createL3CoordinatorHost({
+      governance,
+      runtime: {
+        decision: {
+          async decide() {
+            return {
+              decisionId: "decision-failed",
+              actions: [{
+                kind: "kernel_request",
+                actionId: "request-denied",
+                operation: "terminal.submit",
+                args: {},
+                ring: 1,
+                danger: 0,
+              }],
+            };
+          },
+        },
+        execution: {
+          authority: "rust",
+          async submit(request) {
+            return {
+              receiptId: "receipt-denied",
+              requestId: request.requestId,
+              accepted: false,
+              status: "rejected" as const,
+              traceId: request.traceId,
+              error: "denied",
+            };
+          },
+        },
+      },
+      sessionProjection: {
+        sequence: new SessionSequenceAllocator(),
+        sink: { publish: (message) => messages.push(message) },
+      },
+    });
+    host.coordinator.registerCell(identity.cellId);
+
+    await expect(host.coordinator.submitIntent(
+      makeMessage(identity.sessionId, 2, "intent", { text: "deny" }, "trace-2"),
+      identity,
+    )).rejects.toMatchObject({ code: "execution_rejected" });
+
+    expect(messages.at(-1)?.kind).toBe("result");
+    expect(messages.at(-1)?.payload).toMatchObject({ success: false, error: "denied" });
+    expect(governance.queryEvidence({ decision: "BLOCK" }).length).toBeGreaterThan(0);
+    expect(host.replay.resume({ identity, afterEventSeq: 0 }).events.at(-1)?.type).toBe("run_failed");
   });
 
   it("requires exactly one L2 projection source", () => {

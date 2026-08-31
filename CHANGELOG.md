@@ -7,6 +7,8 @@
 
 ### 文档
 
+- **Docs (l3-ts)**: record governance/evidence boundary mapping and follow-up seams
+- **L3 (typescript)**: add bounded sensitive, compression, review, verify, and evidence projections
 - **Docs (docs)**: restore pointer index registration
 - **Docs**: align l2 slice evidence
 - **Docs (stats)**: refresh judge dashboard

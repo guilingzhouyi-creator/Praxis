@@ -122,6 +122,10 @@ runtime except through the existing versioned protocol.
   reservations, contiguous bounded replay, independent view cursors, and
   detached snapshots. Durable persistence and cross-process recovery remain
   explicit follow-up seams.
+- `l3/governance/` now provides bounded sensitive detection, compression
+  recursion/error-storm protection, review/edit-then-verify state, and a
+  tamper-evident in-memory evidence projection. It is an optional host
+  observer and never a second Rust execution or GateChain authority.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -146,6 +150,7 @@ Rust cutover gates by itself.
 | P2 | L2 session event/result projection | project L3 lifecycle events and intent outcomes into protocol-v1 `event`/`result` envelopes; keep sequence allocation in L2 | validated envelopes, detached fanout, bounded payloads, runtime/coordinator sink tests | ✅ first slice |
 | P2 | L3 host composition root | compose runtime, coordinator, replay projection, and L2 sink behind one injectable boundary | deterministic sink order, detached fanout isolation, injected replay retention, no transport/process ownership | ✅ first slice |
 | P2 | L2 authoritative session boundary | own per-session output sequence, bounded replay, and per-view cursors below L3 | contiguous commit, non-destructive ack, detached replay, fail-closed reservations, host integration | ✅ first slice |
+| P2 | Governance/evidence boundary | map sensitive/compression/review/verify/evidence semantics into bounded TS side channels | pattern/action bounds, breaker/reset semantics, review escalation, hash-chain verification, host observer isolation | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 
