@@ -5,147 +5,9 @@
 
 ## [Unreleased]
 
-### 修复
-
-- **Fix (l2)**: align Rust request correlation and Python frame bounds
-- **Fix (l2)**: align Python host frame bytes and flush batching
-- **Fix (shell)**: reuse terminal history default
-- **Fix (rust)**: gate registered host commands
-- **Fix (infra)**: harden doc archive batch archival and gate whitelist
-- **Fix (infra)**: correct coverage verdict and add skip distribution
-- **Fix (l2-ts)**: reset the history sequence on clear
-- **Fix (l2-ts)**: align the en dictionary with authoritative locales
-- **Fix (l2-ts)**: bound the projection cache against unbounded growth
-- **Fix (l2-ts)**: release transport resources across reconnects
-- **Fix (l2-ts)**: correct catalog cache invalidation and session routing
-- **Fix (rust)**: reject nul Constitution boundaries
-- **Fix (rust)**: serialize persistent runtime observations
-- **Fix (rust)**: validate execution state before recovery
-- **Fix (rust)**: validate config before recovery side effects
-- **Fix (rust)**: demote clean checkpoint on state failure
-- **Fix (rust)**: harden state checkpoint rollback
-- **Fix (rust)**: add config pair rollback boundary
-- **Fix (rust)**: stage config mutations before publish
-- **Fix (rust)**: make state persistence rollback-safe
-- **Fix (rust)**: validate discovery read boundary
-- **Fix (rust)**: harden discovery admission
-- **Fix (rust)**: expose lock ipc panic evidence
-- **Fix (rust)**: validate event schema identities
-- **Fix (rust)**: harden EventBus callback boundaries
-- **Fix (rust)**: contain registry hook panics
-- **Fix (rust)**: contain priority callback panics
-- **Fix (rust)**: fail closed on rule checker panics
-- **Fix (rust)**: contain upstream dispatch panics
-- **Fix (rust)**: contain process signal adapter panics
-- **Fix (rust)**: contain host input adapter panics
-- **Fix (rust)**: harden gated and host input admission
-- **Fix (scripts)**: route local-merge commit audit through gate policy verb
-- **Fix (rust)**: gate persistent recovery boot
-- **Fix (l2)**: close safe wire and target session boundaries
-- **Fix (l2)**: reject unsafe wire sequence numbers
-- **Fix (l2)**: bound bridge sequence wraparound
-- **Fix (l2)**: harden rust host transport recovery
-- **Fix (services)**: add i18n keys for model reasoning caps errors
-- **Fix (scripts)**: align complexity doc and single-source node validator
-- **Fix (audit)**: bypass detection cache in gate context
-- **Fix (scripts)**: record waived net-delta distinctly in judge runs
-- **Fix (git)**: single-source imperative verb list in commits registry
-- **Fix (scripts)**: support merge gate waiver in verify-main-merge-gate.sh
-- **Fix (judge)**: normalize conftest imports and bound judge workers
-- **Fix (scripts)**: fix table row position in handoff rotation script
-- **Fix (scripts)**: enforce imperative mood and strict EOF trailer sentinel
-- **Fix (scripts)**: require check-content flag before inspecting staged files
-- **Fix (hooks)**: enforce runtime introspection and anti-impersonation
-- **Fix (judge)**: harden scorecard metrics and mode rate tracking
-- **Fix (judge)**: exclude checks-all-zero no-op runs from dashboard
-- **Fix (rust)**: close outbox cursor filter and r4 decode gaps
-- **Fix (rust)**: restore session tests and relocate fsm vectors
-- **Fix (rust)**: make Outbox ack non-destructive cursor advance
-- **Fix (infra)**: clear detect_agent cache between test modules
-- **Fix (infra)**: restore conftest _RESETS, guard content checks on empty index
-- **Fix**: validate retry config and guard connect exhaustion
-- **Fix (infra)**: ttl cache + deterministic test ordering
-- **Fix (infra)**: enforce subject length on custom merge messages
-- **Fix (hooks)**: python fallback restores gates when node absent
-- **Fix (kernel)**: zero-deadline sweep must not terminate live children
-- **Fix (infra)**: guard hunk audit and count dash-prefixed lines
-- **Fix (infra)**: restore generated commit policy mirror
-- **Fix (infra)**: harden sensitive merge audit
-- **Fix (scripts)**: allow empty staged diff in node validator
-- **Fix (tests)**: make shared-file registration a strict gate
-- **Fix (scripts)**: run judge coverage serially on WSL
-- **Fix (l3a)**: enforce session identity lifecycle and loud reload
-- **Fix (infra)**: audit sensitive merge hunks
-- **Fix (kernel)**: clarify group admission rollback
-- **Fix (infra)**: synchronize singleton scanner path
-- **Fix (infra)**: retain snake case singleton scanner
-- **Fix (scripts)**: run judge tests per-slice on WSL
-- **Fix (tests)**: push-time format fallback for no-verify commits
-- **Fix (tests)**: harden commit gates — template, bypass, env self-check
-- **Fix (tests)**: fire the type-to-file gate at commit time
-- **Fix (memory)**: let the injection gate own offensive-skill posture
-- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
-- **Fix (l2)**: pin six dispatch-path defects behind regression tests
-- **Fix (ws)**: isolate envelope errors and advertise envelope support
-- **Fix (infra)**: guard empty python and warn on merge-gate skip
-- **Fix (l2)**: restore coauth gate and batch the stdio host flush
-- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
-- **Fix (l2)**: repair memory filter bridge symbol and params baseline
-- **Fix (l2)**: capture handler stdout in protocol host
-- **Fix (l2)**: advance shared outbox watermark on ack
-- **Fix (l2)**: localize all bare f-string shell errors
-- **Fix (l2)**: localize skills update-speed usage string
-- **Fix (llm)**: make cache refresh cheap and effective
-- **Fix (git)**: relax refactor type-content rules to allow scripts/
-- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
-- **Fix (l3)**: clear mypy debt and layer-baseline drift
-- **Fix (skill)**: address code review findings on tier/scope/cadence
-- **Fix (skill)**: persist register to custom tier, protect it, add update API
-- **Fix (kernel)**: isolate audit persist tests from shared event store
-- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
-- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
-- **Fix (kernel)**: add busy_timeout to persist write connection
-- **Fix (api)**: coerce identity definition input to str
-- **Fix (cell)**: exclude disabled departments from lookup indexes
-- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
-- **Fix (l3)**: violation-monitor switch lands on the settings key
-- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
-- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
-- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
-- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
-- **Fix (memory)**: comply with truncation constants and layer-import allowlist
-- **Fix (judge)**: count only full-mode records as COMPLETE in stats
-- **Fix (agent)**: harness cache must not re-cache during reset
-- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
-- **Fix (scripts)**: count kebab-case command keys and normalize handler names
-- **Fix (memory)**: snapshot persistence path during writes
-- **Fix (kernel)**: harden transport shutdown and persistence status
-- **Fix (l3)**: harden approval persistence paths
-- **Fix (memory)**: serialize candidate skill lifecycle
-- **Fix (kernel)**: serialize autosave lifecycle
-- **Fix (memory)**: disable empty persistence paths
-- **Fix (l3a)**: prevent session history lock reentry
-- **Fix (bench)**: calculate nearest-rank latency percentiles
-- **Fix (kernel)**: make identity-binding persistence concurrent
-- **Fix (kernel)**: adapt shutdown callbacks for signals
-- **Fix (kernel)**: declare mixin host contracts
-- **Fix (shell)**: preserve read-only ci commands
-- **Fix (memory)**: preserve candidate policy across boot
-- **Fix (skill)**: enforce candidate lifecycle transitions
-- **Fix (scripts)**: match docs(changelog) prefix in skip regex
-- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
-- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
-- **Fix (ports)**: complete handles on rejection, translate OSError
-- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
-- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
-- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
-- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
-- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
-- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
-- **Fix (test)**: align githooks COAUTH fixture
-
 ### 新增
 
+- **Feat (l3-ts)**: add bounded decision provider boundary
 - **Feat (l2-ts)**: bound frontend input queue backpressure
 - **Feat (l2-ts)**: add frontend input framing
 - **Feat (l2-ts)**: add frontend session adapter
@@ -331,6 +193,145 @@
 - **Feat (tool-presentation)**: reclaim per-Cell run_code cache on Cell shutdown
 - **Feat (tool-presentation)**: add Code Mode / PTC presentation layer
 - **Feat**: baseline — fresh single-commit repository
+
+### 修复
+
+- **Fix (l2)**: align Rust request correlation and Python frame bounds
+- **Fix (l2)**: align Python host frame bytes and flush batching
+- **Fix (shell)**: reuse terminal history default
+- **Fix (rust)**: gate registered host commands
+- **Fix (infra)**: harden doc archive batch archival and gate whitelist
+- **Fix (infra)**: correct coverage verdict and add skip distribution
+- **Fix (l2-ts)**: reset the history sequence on clear
+- **Fix (l2-ts)**: align the en dictionary with authoritative locales
+- **Fix (l2-ts)**: bound the projection cache against unbounded growth
+- **Fix (l2-ts)**: release transport resources across reconnects
+- **Fix (l2-ts)**: correct catalog cache invalidation and session routing
+- **Fix (rust)**: reject nul Constitution boundaries
+- **Fix (rust)**: serialize persistent runtime observations
+- **Fix (rust)**: validate execution state before recovery
+- **Fix (rust)**: validate config before recovery side effects
+- **Fix (rust)**: demote clean checkpoint on state failure
+- **Fix (rust)**: harden state checkpoint rollback
+- **Fix (rust)**: add config pair rollback boundary
+- **Fix (rust)**: stage config mutations before publish
+- **Fix (rust)**: make state persistence rollback-safe
+- **Fix (rust)**: validate discovery read boundary
+- **Fix (rust)**: harden discovery admission
+- **Fix (rust)**: expose lock ipc panic evidence
+- **Fix (rust)**: validate event schema identities
+- **Fix (rust)**: harden EventBus callback boundaries
+- **Fix (rust)**: contain registry hook panics
+- **Fix (rust)**: contain priority callback panics
+- **Fix (rust)**: fail closed on rule checker panics
+- **Fix (rust)**: contain upstream dispatch panics
+- **Fix (rust)**: contain process signal adapter panics
+- **Fix (rust)**: contain host input adapter panics
+- **Fix (rust)**: harden gated and host input admission
+- **Fix (scripts)**: route local-merge commit audit through gate policy verb
+- **Fix (rust)**: gate persistent recovery boot
+- **Fix (l2)**: close safe wire and target session boundaries
+- **Fix (l2)**: reject unsafe wire sequence numbers
+- **Fix (l2)**: bound bridge sequence wraparound
+- **Fix (l2)**: harden rust host transport recovery
+- **Fix (services)**: add i18n keys for model reasoning caps errors
+- **Fix (scripts)**: align complexity doc and single-source node validator
+- **Fix (audit)**: bypass detection cache in gate context
+- **Fix (scripts)**: record waived net-delta distinctly in judge runs
+- **Fix (git)**: single-source imperative verb list in commits registry
+- **Fix (scripts)**: support merge gate waiver in verify-main-merge-gate.sh
+- **Fix (judge)**: normalize conftest imports and bound judge workers
+- **Fix (scripts)**: fix table row position in handoff rotation script
+- **Fix (scripts)**: enforce imperative mood and strict EOF trailer sentinel
+- **Fix (scripts)**: require check-content flag before inspecting staged files
+- **Fix (hooks)**: enforce runtime introspection and anti-impersonation
+- **Fix (judge)**: harden scorecard metrics and mode rate tracking
+- **Fix (judge)**: exclude checks-all-zero no-op runs from dashboard
+- **Fix (rust)**: close outbox cursor filter and r4 decode gaps
+- **Fix (rust)**: restore session tests and relocate fsm vectors
+- **Fix (rust)**: make Outbox ack non-destructive cursor advance
+- **Fix (infra)**: clear detect_agent cache between test modules
+- **Fix (infra)**: restore conftest _RESETS, guard content checks on empty index
+- **Fix**: validate retry config and guard connect exhaustion
+- **Fix (infra)**: ttl cache + deterministic test ordering
+- **Fix (infra)**: enforce subject length on custom merge messages
+- **Fix (hooks)**: python fallback restores gates when node absent
+- **Fix (kernel)**: zero-deadline sweep must not terminate live children
+- **Fix (infra)**: guard hunk audit and count dash-prefixed lines
+- **Fix (infra)**: restore generated commit policy mirror
+- **Fix (infra)**: harden sensitive merge audit
+- **Fix (scripts)**: allow empty staged diff in node validator
+- **Fix (tests)**: make shared-file registration a strict gate
+- **Fix (scripts)**: run judge coverage serially on WSL
+- **Fix (l3a)**: enforce session identity lifecycle and loud reload
+- **Fix (infra)**: audit sensitive merge hunks
+- **Fix (kernel)**: clarify group admission rollback
+- **Fix (infra)**: synchronize singleton scanner path
+- **Fix (infra)**: retain snake case singleton scanner
+- **Fix (scripts)**: run judge tests per-slice on WSL
+- **Fix (tests)**: push-time format fallback for no-verify commits
+- **Fix (tests)**: harden commit gates — template, bypass, env self-check
+- **Fix (tests)**: fire the type-to-file gate at commit time
+- **Fix (memory)**: let the injection gate own offensive-skill posture
+- **Fix (kernel)**: clear two pre-existing mypy errors and refresh changelog
+- **Fix (l2)**: pin six dispatch-path defects behind regression tests
+- **Fix (ws)**: isolate envelope errors and advertise envelope support
+- **Fix (infra)**: guard empty python and warn on merge-gate skip
+- **Fix (l2)**: restore coauth gate and batch the stdio host flush
+- **Fix (l2)**: sync ts outbox mirror with non-destructive ack
+- **Fix (l2)**: repair memory filter bridge symbol and params baseline
+- **Fix (l2)**: capture handler stdout in protocol host
+- **Fix (l2)**: advance shared outbox watermark on ack
+- **Fix (l2)**: localize all bare f-string shell errors
+- **Fix (l2)**: localize skills update-speed usage string
+- **Fix (llm)**: make cache refresh cheap and effective
+- **Fix (git)**: relax refactor type-content rules to allow scripts/
+- **Fix (git)**: relax type-content rules for feat/fix + scope-content advisory
+- **Fix (l3)**: clear mypy debt and layer-baseline drift
+- **Fix (skill)**: address code review findings on tier/scope/cadence
+- **Fix (skill)**: persist register to custom tier, protect it, add update API
+- **Fix (kernel)**: isolate audit persist tests from shared event store
+- **Fix (tests)**: wait for L3A pool shutdown to stop thread leak
+- **Fix (tests)**: make audit persist and model strategy tests parallel-safe
+- **Fix (kernel)**: add busy_timeout to persist write connection
+- **Fix (api)**: coerce identity definition input to str
+- **Fix (cell)**: exclude disabled departments from lookup indexes
+- **Fix (infra)**: soft-degrade optional score metrics; temp identity state
+- **Fix (l3)**: violation-monitor switch lands on the settings key
+- **Fix (cell)**: register prebuild pool lifecycle with singleton resets
+- **Fix (l3a)**: budget-cap test-matrix injection; document decision center
+- **Fix (shell)**: skip rc-loading in interactive shells; bound judge workers
+- **Fix (memory)**: drop orphan MEMORY_COMPACTION_LLM_TIMEOUT param
+- **Fix (memory)**: comply with truncation constants and layer-import allowlist
+- **Fix (judge)**: count only full-mode records as COMPLETE in stats
+- **Fix (agent)**: harness cache must not re-cache during reset
+- **Fix (tool-presentation)**: point docstring at centralized roadmap paths
+- **Fix (scripts)**: count kebab-case command keys and normalize handler names
+- **Fix (memory)**: snapshot persistence path during writes
+- **Fix (kernel)**: harden transport shutdown and persistence status
+- **Fix (l3)**: harden approval persistence paths
+- **Fix (memory)**: serialize candidate skill lifecycle
+- **Fix (kernel)**: serialize autosave lifecycle
+- **Fix (memory)**: disable empty persistence paths
+- **Fix (l3a)**: prevent session history lock reentry
+- **Fix (bench)**: calculate nearest-rank latency percentiles
+- **Fix (kernel)**: make identity-binding persistence concurrent
+- **Fix (kernel)**: adapt shutdown callbacks for signals
+- **Fix (kernel)**: declare mixin host contracts
+- **Fix (shell)**: preserve read-only ci commands
+- **Fix (memory)**: preserve candidate policy across boot
+- **Fix (skill)**: enforce candidate lifecycle transitions
+- **Fix (scripts)**: match docs(changelog) prefix in skip regex
+- **Fix (scripts)**: skip docs(changelog) commits in changelog scan
+- **Fix (l3a)**: adapt _DISPATCHERS to heterogeneous handler signatures
+- **Fix (ports)**: complete handles on rejection, translate OSError
+- **Fix (tests)**: register new singleton resets in conftest _RESETS (CI full-run pollution)
+- **Fix (judge)**: correct scan-singletons script name in CompletionJudge
+- **Fix (session)**: wire 3.3 management into production runs + full terminal reset + docs
+- **Fix (api)**: wire memory handlers + guard switch parsing + digest scan (review findings)
+- **Fix (prompts)**: wire prompt architecture end-to-end (review gaps)
+- **Fix (tool-presentation)**: replace SIGALRM timeout with worker-thread join; sync docs
+- **Fix (test)**: align githooks COAUTH fixture
 
 ### 文档
 
