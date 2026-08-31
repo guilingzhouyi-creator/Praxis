@@ -7,6 +7,7 @@
  */
 
 import type { JsonObject, JsonValue } from "../../protocol/wire-records.ts";
+import type { ToolSpecProjection } from "../tools/tool-projection.ts";
 
 /** Version of the TypeScript L3 agent coordination contract. */
 export const L3_AGENT_CONTRACT_VERSION = 1 as const;
@@ -23,6 +24,8 @@ export type AgentRuntimeEventType =
   | "decision_ready"
   | "kernel_request_submitted"
   | "kernel_request_completed"
+  | "tool_call_submitted"
+  | "tool_result_completed"
   | "event_emitted"
   | "run_completed"
   | "run_failed";
@@ -78,6 +81,14 @@ export interface KernelRequestAction {
   readonly danger: number;
 }
 
+/** A handler-free tool call whose authority is resolved from the TS registry. */
+export interface ToolCallAction {
+  readonly kind: "tool_call";
+  readonly actionId: string;
+  readonly toolName: string;
+  readonly args: JsonObject;
+}
+
 /** A decision action that publishes a data-only L3 event. */
 export interface EventAction {
   readonly kind: "emit";
@@ -87,7 +98,7 @@ export interface EventAction {
 }
 
 /** Union of actions accepted from an injected decision provider. */
-export type AgentAction = KernelRequestAction | EventAction;
+export type AgentAction = KernelRequestAction | ToolCallAction | EventAction;
 
 /** Provider output for one agent input. */
 export interface AgentDecision {
@@ -101,6 +112,7 @@ export interface AgentDecisionContext {
   readonly identity: AgentIdentity;
   readonly input: AgentInput;
   readonly history: readonly AgentTurnRecord[];
+  readonly tools?: readonly ToolSpecProjection[];
   readonly signal?: AbortSignal;
 }
 
@@ -164,6 +176,8 @@ export type AgentRuntimeErrorCode =
   | "busy"
   | "cancelled"
   | "decision_timeout"
+  | "tool_limit"
+  | "tool_result_limit"
   | "action_limit"
   | "event_limit"
   | "decision_failed"
@@ -222,6 +236,15 @@ export function copyAgentDecisionContext(context: AgentDecisionContext): AgentDe
     identity: copyAgentIdentity(context.identity),
     input: copyAgentInput(context.input),
     history: context.history.map((record) => ({ ...record })),
+    tools: context.tools?.map((tool) => ({
+      ...tool,
+      gates: [...tool.gates],
+      parameters: tool.parameters.map((parameter) => ({ ...parameter })),
+      returns: {
+        ...tool.returns,
+        properties: copyJsonObject(tool.returns.properties),
+      },
+    })),
     signal: context.signal,
   };
 }

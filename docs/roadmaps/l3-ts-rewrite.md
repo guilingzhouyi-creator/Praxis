@@ -24,9 +24,10 @@ construction: in_progress
 
 # L3 TypeScript rewrite — Agent coordination over Rust execution
 
-> Status: P0 contract/ingress and the first P1 provider-boundary slice are
+> Status: P0 contract/ingress and the first two P1 boundary slices are
 > implemented on `feature/l1-rust-host-bootstrap` (TS L2 intent → detached
-> provider context → TS L3 coordinator → Rust protocol execution port). This
+> provider context/tool projection → TS L3 coordinator → Rust protocol execution
+> port). This
 > is an independent clean-break build; the Python3 runtime remains the
 > semantic reference and rollback path, not a dependency of the TS system.
 
@@ -67,6 +68,11 @@ runtime except through the existing versioned protocol.
   detached context/history, input/history budget metadata, and payload-free
   latency telemetry. Provider timeout/cancellation cannot grant Rust authority
   or mutate the admitted input.
+- Handler-free `ToolSpec` projection accepts Python-style registry JSON with
+  deterministic ordering and bounded descriptions/parameters; `tool_call`
+  actions resolve ring/danger from the registered projection and cross Rust as
+  `tool.invoke`. Rust receipts fold into bounded `ToolResult` values without
+  exposing handlers or executable objects.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -79,7 +85,7 @@ Rust cutover gates by itself.
 | P0 | Contract and ingress | freeze identity/input/action/receipt/event values | TS typecheck; malformed and cross-session inputs fail closed | ✅ complete |
 | P0 | Rust execution seam | protocol-backed `RustKernelExecutionPort` | ring/danger/request-id mapping; denial and missing-result tests | ✅ complete |
 | P1 | Provider adapter | provider-neutral decision port with timeout/budget metadata | detached context; deadline/cancel; telemetry; no direct process/tool imports | ✅ complete |
-| P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding | next |
+| P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding | ✅ complete |
 | P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets | planned |
 | P2 | Card and scheduler coordination | card lifecycle intents and bounded scheduling requests | card/skill/TODO links remain protocol values, not shared stores | planned |
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | planned |

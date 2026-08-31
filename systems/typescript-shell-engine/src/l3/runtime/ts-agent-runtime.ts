@@ -33,6 +33,13 @@ import {
   copyJsonObject,
 } from "../contracts/agent-contracts.ts";
 import type { JsonObject, JsonValue } from "../../protocol/wire-records.ts";
+import type { ToolResultProjection, ToolSpecProjection } from "../tools/tool-projection.ts";
+import {
+  copyToolSpecProjection,
+  projectToolRegistry,
+  toolInvocationToKernelRequest,
+  toolResultFromReceipt,
+} from "../tools/tool-projection.ts";
 import {
   DEFAULT_AGENT_RUNTIME_LIMITS,
   resolveAgentRuntimeLimits,
@@ -45,6 +52,8 @@ export interface AgentRuntimeOptions {
     decide(input: AgentInput, context: AgentDecisionContext): Promise<AgentDecision>;
   };
   readonly execution: RustKernelExecutionPort;
+  /** Handler-free tool definitions exposed to providers and validated calls. */
+  readonly tools?: readonly ToolSpecProjection[];
   readonly events?: AgentEventSink;
   readonly limits?: Partial<AgentRuntimeLimits>;
   readonly clock?: () => number;
@@ -59,6 +68,7 @@ export interface AgentRunResult {
   readonly answer: string;
   readonly actions: number;
   readonly receipts: readonly RustExecutionReceipt[];
+  readonly toolResults: readonly ToolResultProjection[];
 }
 
 interface MutableAgentState {
@@ -190,6 +200,11 @@ function validateAction(action: AgentAction, seen: Set<string>): void {
     }
     return;
   }
+  if (action.kind === "tool_call") {
+    requireText(action.toolName, "toolName");
+    validateJsonObject(action.args, "tool call args");
+    return;
+  }
   if (action.kind === "emit") {
     requireText(action.eventType, "eventType");
     validateJsonObject(action.data, "event action data");
@@ -198,7 +213,11 @@ function validateAction(action: AgentAction, seen: Set<string>): void {
   throw new AgentRuntimeError("invalid_decision", "unknown agent action kind");
 }
 
-function validateDecision(decision: AgentDecision, maxActions: number): void {
+function validateDecision(
+  decision: AgentDecision,
+  maxActions: number,
+  tools: ReadonlyMap<string, ToolSpecProjection>,
+): void {
   if (!isRecord(decision)) {
     throw new AgentRuntimeError("invalid_decision", "agent decision must be an object");
   }
@@ -213,7 +232,12 @@ function validateDecision(decision: AgentDecision, maxActions: number): void {
     throw new AgentRuntimeError("invalid_decision", "decision answer must be a string");
   }
   const seen = new Set<string>();
-  for (const action of decision.actions) validateAction(action, seen);
+  for (const action of decision.actions) {
+    validateAction(action, seen);
+    if (action.kind === "tool_call" && !tools.has(action.toolName)) {
+      throw new AgentRuntimeError("invalid_decision", `tool is not registered: ${action.toolName}`);
+    }
+  }
 }
 
 function validateReceipt(receipt: RustExecutionReceipt, request: KernelExecutionRequest): void {
@@ -248,6 +272,8 @@ export class AgentRuntime {
   private readonly events: AgentEventSink;
   private readonly limits: AgentRuntimeLimits;
   private readonly clock: () => number;
+  private readonly tools: ReadonlyMap<string, ToolSpecProjection>;
+  private readonly toolList: readonly ToolSpecProjection[];
 
   constructor(
     private readonly options: AgentRuntimeOptions,
@@ -258,6 +284,9 @@ export class AgentRuntime {
     this.events = options.events ?? EMPTY_EVENTS;
     this.limits = resolveAgentRuntimeLimits(options.limits);
     this.clock = options.clock ?? (() => Date.now() / 1000);
+    const projectedTools = projectToolRegistry(options.tools ?? []);
+    this.toolList = projectedTools.map(copyToolSpecProjection);
+    this.tools = new Map(this.toolList.map((tool) => [tool.name, tool]));
   }
 
   /** Return a defensive snapshot for one identity, or null when unregistered. */
@@ -310,6 +339,7 @@ export class AgentRuntime {
     state.state = "waiting";
     state.lastError = undefined;
     const receipts: RustExecutionReceipt[] = [];
+    const toolResults: ToolResultProjection[] = [];
     let actionCount = 0;
 
     try {
@@ -318,6 +348,7 @@ export class AgentRuntime {
         identity: copyAgentIdentity(admittedInput.identity),
         input: copyAgentInput(admittedInput),
         history: state.history.map((record) => ({ ...record })),
+        tools: this.toolList,
         signal,
       };
       let decision: AgentDecision;
@@ -326,7 +357,7 @@ export class AgentRuntime {
       } catch (error) {
         throw asRuntimeError(error, "decision_failed", "agent decision failed");
       }
-      validateDecision(decision, this.limits.maxActionsPerInput);
+      validateDecision(decision, this.limits.maxActionsPerInput, this.tools);
       state.state = "running";
       await this.emit(state, admittedInput, "decision_ready", {
         decision_id: decision.decisionId,
@@ -368,6 +399,41 @@ export class AgentRuntime {
           if (!receipt.accepted) {
             throw new AgentRuntimeError("execution_rejected", receipt.error ?? "Rust rejected the request");
           }
+        } else if (action.kind === "tool_call") {
+          const spec = this.tools.get(action.toolName);
+          if (!spec) {
+            throw new AgentRuntimeError("invalid_decision", `tool is not registered: ${action.toolName}`);
+          }
+          const invocation = {
+            callId: action.actionId,
+            toolName: action.toolName,
+            args: copyJsonObject(action.args),
+            identity: copyAgentIdentity(admittedInput.identity),
+            traceId: admittedInput.traceId,
+          };
+          const request = toolInvocationToKernelRequest(invocation, spec);
+          await this.emit(state, admittedInput, "tool_call_submitted", {
+            call_id: request.requestId,
+            tool_name: spec.name,
+          });
+          let receipt: RustExecutionReceipt;
+          try {
+            receipt = await this.options.execution.submit(request, signal);
+          } catch (error) {
+            throw asRuntimeError(error, "execution_failed", "Rust tool execution failed");
+          }
+          validateReceipt(receipt, request);
+          const toolResult = toolResultFromReceipt(receipt, invocation);
+          toolResults.push(toolResult);
+          await this.emit(state, admittedInput, "tool_result_completed", {
+            call_id: toolResult.callId,
+            tool_name: toolResult.toolName,
+            status: toolResult.status,
+            success: toolResult.success,
+          });
+          if (!toolResult.success) {
+            throw new AgentRuntimeError("execution_rejected", toolResult.error ?? "Rust rejected the tool request");
+          }
         } else {
           await this.emitEventAction(state, admittedInput, action);
         }
@@ -394,6 +460,7 @@ export class AgentRuntime {
         answer,
         actions: actionCount,
         receipts,
+        toolResults,
       };
     } catch (error) {
       const runtimeError = asRuntimeError(error, "execution_failed", "agent runtime failed");

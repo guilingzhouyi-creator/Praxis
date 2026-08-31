@@ -32,6 +32,7 @@ export interface DecisionProviderRequest {
     readonly maxLatencyMs: number;
     readonly inputBytes: number;
     readonly historyEntries: number;
+    readonly toolCount: number;
   };
 }
 
@@ -49,6 +50,7 @@ export interface DecisionProviderTelemetry {
   readonly outcome: DecisionProviderOutcome;
   readonly inputBytes: number;
   readonly historyEntries: number;
+  readonly toolCount: number;
 }
 
 /** Adapter configuration for deadlines, clocks, and diagnostics. */
@@ -119,11 +121,12 @@ export function createBoundedDecisionPort(
       };
       const inputBytes = utf8Bytes(detachedInput.text);
       const historyEntries = providerContext.history.length;
+      const toolCount = providerContext.tools?.length ?? 0;
       const request: DecisionProviderRequest = {
         input: detachedInput,
         context: providerContext,
         deadlineAt: clock() + maxLatencyMs / 1000,
-        budget: { maxLatencyMs, inputBytes, historyEntries },
+        budget: { maxLatencyMs, inputBytes, historyEntries, toolCount },
       };
 
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
@@ -176,6 +179,7 @@ export function createBoundedDecisionPort(
           outcome,
           inputBytes,
           historyEntries,
+          toolCount,
         });
       }
     },

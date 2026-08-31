@@ -45,6 +45,17 @@ gated, and executed (plus the security evidence chain,
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
 | `dvg.py` | Declarative prerequisite DAG; cycle-safe execution plans for tool admission |
 
+### Cross-runtime projection
+
+`ToolSpec.to_data_only()` is the Python reference serializer for the public
+tool contract. It returns detached name/description/category/ring/danger,
+gates, parameter, return, parallel-safety, and sandbox fields while excluding
+handlers, middleware, plugin state, and arbitrary metadata. The independent
+TypeScript L3 projection (`l3/tools/tool-projection.ts`) consumes that shape,
+sorts and bounds the registry, and maps provider `tool_call` values to the Rust
+`tool.invoke` capability seam. Rust receipts fold back into bounded
+`ToolResult` data; neither runtime shares executable tool objects.
+
 ### Pipeline (9 steps)
 
 ```

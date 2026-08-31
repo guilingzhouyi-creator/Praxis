@@ -48,6 +48,14 @@ payload-free latency outcomes. A provider can only return data-only actions;
 Rust remains the sole process, terminal, capability, and hard-constraint
 authority.
 
+`l3/tools/tool-projection.ts` is the handler-free tool boundary. It accepts
+Python-style registry projections, applies deterministic count/description/
+parameter bounds, and exposes only public ToolSpec fields to providers. A
+`tool_call` action resolves ring/danger from the registered projection and is
+sent to Rust as `tool.invoke`; Rust receipts are folded into bounded
+ToolResult values. No Python handler, middleware, or executable object crosses
+the boundary.
+
 The `engine/rust-agent-loop-terminal.ts` module is a read-only projection of
 the Rust terminal-backed AgentLoop value contract. It validates the binding
 and opaque frame budgets for L2/frontend rendering or forwarding; it does

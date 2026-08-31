@@ -202,6 +202,39 @@ class ToolSpec:
             "sandbox_profile": self.sandbox_profile,
         }
 
+    def to_data_only(self) -> dict:
+        """Return a detached handler-free projection for cross-runtime consumers.
+
+        The projection preserves the public tool contract needed by a future
+        TypeScript coordinator while excluding handlers, middleware, plugin
+        objects, and arbitrary metadata. Nested values are rebuilt so callers
+        cannot mutate the live reference registry through the returned dict.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "ring": self.ring,
+            "danger": self.danger,
+            "gates": list(self.gates),
+            "parameters": [
+                {
+                    "name": parameter.name,
+                    "type": parameter.type,
+                    "required": parameter.required,
+                    "description": parameter.description,
+                }
+                for parameter in self.parameters
+            ],
+            "returns": {
+                "type": self.returns.type,
+                "description": self.returns.description,
+                "properties": dict(self.returns.properties),
+            },
+            "parallel_safe": self.parallel_safe,
+            "sandbox_profile": self.sandbox_profile,
+        }
+
 
 # ── ToolSpecBase — unified registry architecture compat layer ──
 

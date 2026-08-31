@@ -366,6 +366,58 @@ fn structured_command_payload_preserves_args_trace_and_request_correlation() {
 }
 
 #[test]
+fn tool_invoke_command_keeps_tool_metadata_inside_rust_capability_boundary() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("tool.invoke");
+    let seen = Arc::new(Mutex::new(None::<CapabilityRequest>));
+    let captured = Arc::clone(&seen);
+    router.register_executor(move |request| {
+        *captured.lock().unwrap() = Some(request.clone());
+        CapabilityResult {
+            success: true,
+            error: String::new(),
+            capability: request.name.clone(),
+            data: BTreeMap::from([("accepted".to_owned(), JsonValue::Bool(true))]),
+        }
+    });
+
+    let message = Message::new(
+        "s-tool",
+        3,
+        MessageKind::Command,
+        BTreeMap::from([
+            ("name".to_owned(), json!("tool.invoke")),
+            (
+                "args".to_owned(),
+                json!([r#"{"tool_name":"read_file","arguments":{"path":"README.md"}}"#]),
+            ),
+            ("ring".to_owned(), json!(1)),
+            ("danger".to_owned(), json!(0)),
+            ("request_id".to_owned(), json!("call-1")),
+        ]),
+        "trace-tool",
+        100.0,
+    );
+
+    let responses = router.route(message).expect("tool invocation dispatches");
+    let request = seen
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("executor captured tool invocation");
+    assert_eq!(request.name, "tool.invoke");
+    assert_eq!(
+        request.args["args"],
+        JsonValue::Array(vec![JsonValue::String(
+            r#"{"tool_name":"read_file","arguments":{"path":"README.md"}}"#.to_owned(),
+        )])
+    );
+    assert_eq!(responses[0].payload["success"], json!(true));
+    assert_eq!(responses[0].payload["request_id"], json!("call-1"));
+    assert_eq!(responses[0].trace_id.as_deref(), Some("trace-tool"));
+}
+
+#[test]
 fn system_ring1_is_safe_when_executor_is_wired() {
     let router = HostRouter::new(RouterConfig::default());
     wire_echo_executor(&router);

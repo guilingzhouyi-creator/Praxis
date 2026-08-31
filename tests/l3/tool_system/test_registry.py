@@ -57,6 +57,31 @@ class TestToolRegistry:
         assert "a" in names
         assert "b" in names
 
+    def test_to_json_uses_handler_free_tool_projection(self):
+        import json
+
+        from l3.tool_system.tool_registry import register, reset_registry
+        from l3.tool_system.tool_spec import ParamSpec, ToolSpec
+
+        reset_registry()
+        register(
+            ToolSpec(
+                name="read_file",
+                description="Read",
+                category="files",
+                ring=RING_1,
+                danger=0,
+                parameters=[ParamSpec("path", required=True)],
+                handler=lambda args, agent: {"success": True},
+            )
+        )
+
+        from l3.tool_system.tool_registry import get_registry
+
+        payload = json.loads(get_registry().to_json())
+        assert payload["read_file"]["parameters"][0]["name"] == "path"
+        assert "handler" not in payload["read_file"]
+
 
 class TestToolRegistryMute:
     """ToolRegistry mute/unmute system."""

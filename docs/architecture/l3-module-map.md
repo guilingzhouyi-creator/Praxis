@@ -166,10 +166,11 @@ current slice contains:
 | `l3/adapters/rust-protocol-execution-port.ts` | command payload and receipt mapping | Rust execution boundary |
 | `l3/ports/runtime-ports.ts` | provider/execution/event dependency seams | explicit injected ports |
 | `l3/providers/decision-provider.ts` | detached provider context, deadline/cancel, budget metadata, payload-free telemetry | provider adapter |
+| `l3/tools/tool-projection.ts` | handler-free ToolSpec/ToolResult projection and `tool.invoke` request mapping | TS data boundary; Rust admission |
 
 The coordinator may only request side effects through
 `RustKernelExecutionPort`; it never imports a process API, PTY, tool handler,
 Python module, or Rust implementation. Tool Pipeline, Memory, Prompt, Card,
 Scheduler, Cell/L3A, and recovery domains remain future slices tracked by
-`docs/roadmaps/l3-ts-rewrite.md`; the provider adapter is bounded and
-coordination-only, not an LLM or tool implementation.
+`docs/roadmaps/l3-ts-rewrite.md`; the provider adapter and tool projection are
+bounded coordination/data seams, not an LLM or tool implementation.
