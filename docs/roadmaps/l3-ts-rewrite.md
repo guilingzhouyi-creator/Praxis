@@ -24,10 +24,11 @@ construction: in_progress
 
 # L3 TypeScript rewrite — Agent coordination over Rust execution
 
-> Status: first integration slice landed on `feature/l1-rust-host-bootstrap`
-> (TS L2 intent → TS L3 coordinator → Rust protocol execution port). This is
-> an independent clean-break build; the Python3 runtime remains the semantic
-> reference and rollback path, not a dependency of the TS system.
+> Status: P0 contract/ingress and the first P1 provider-boundary slice are
+> implemented on `feature/l1-rust-host-bootstrap` (TS L2 intent → detached
+> provider context → TS L3 coordinator → Rust protocol execution port). This
+> is an independent clean-break build; the Python3 runtime remains the
+> semantic reference and rollback path, not a dependency of the TS system.
 
 ## 1. Scope and authority
 
@@ -47,7 +48,7 @@ The three systems remain independent: TS never imports Python runtime modules,
 Rust never imports TS or Python, and Python remains untouched by the new
 runtime except through the existing versioned protocol.
 
-## 2. Delivered slice (P0)
+## 2. Delivered slices (P0/P1)
 
 - Versioned TS L3 agent contracts with separate identity, input, action,
   receipt, history, snapshot, and lifecycle-event values.
@@ -62,24 +63,28 @@ runtime except through the existing versioned protocol.
   runtime state after admission. Provider callbacks receive a detached input
   copy, so identity and trace fields used for Rust requests cannot be
   rewritten after validation.
+- Bounded provider adapter with an explicit deadline, propagated cancellation,
+  detached context/history, input/history budget metadata, and payload-free
+  latency telemetry. Provider timeout/cancellation cannot grant Rust authority
+  or mutate the admitted input.
 
-This slice is candidate-only. It is not the L2 production default, does not
-replace Python AgentLoop/provider/tool execution, and does not satisfy the
+These slices are candidate-only. They are not the L2 production default, do not
+replace Python AgentLoop/provider/tool execution, and do not satisfy the
 Rust cutover gates by itself.
 
 ## 3. Prioritized construction plan
 
-| Priority | Slice | Deliverable | Exit evidence |
-|---|---|---|---|
-| P0 | Contract and ingress | freeze identity/input/action/receipt/event values | TS typecheck; malformed and cross-session inputs fail closed |
-| P0 | Rust execution seam | protocol-backed `RustKernelExecutionPort` | ring/danger/request-id mapping; denial and missing-result tests |
-| P1 | Provider adapter | provider-neutral decision port with timeout/budget metadata | deterministic decision fixture; no direct process/tool imports |
-| P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding |
-| P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets |
-| P2 | Card and scheduler coordination | card lifecycle intents and bounded scheduling requests | card/skill/TODO links remain protocol values, not shared stores |
-| P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust |
-| P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema |
-| P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence |
+| Priority | Slice | Deliverable | Exit evidence | Status |
+|---|---|---|---|---|
+| P0 | Contract and ingress | freeze identity/input/action/receipt/event values | TS typecheck; malformed and cross-session inputs fail closed | ✅ complete |
+| P0 | Rust execution seam | protocol-backed `RustKernelExecutionPort` | ring/danger/request-id mapping; denial and missing-result tests | ✅ complete |
+| P1 | Provider adapter | provider-neutral decision port with timeout/budget metadata | detached context; deadline/cancel; telemetry; no direct process/tool imports | ✅ complete |
+| P1 | Tool pipeline projection | data-only ToolSpec/ToolResult envelopes | Rust gate remains the only side-effect path; bounded result folding | next |
+| P1 | Memory and prompt context | read-only context ports and digest references | no Python object crossing; per-agent isolation and byte budgets | planned |
+| P2 | Card and scheduler coordination | card lifecycle intents and bounded scheduling requests | card/skill/TODO links remain protocol values, not shared stores | planned |
+| P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | planned |
+| P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
+| P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |
 
 ## 4. Invariants and optimization rules
 
@@ -103,6 +108,8 @@ Rust cutover gates by itself.
 Each slice runs as an independent test domain. At minimum, record:
 
 - TS `tsc --noEmit` and focused Vitest leaves;
+- provider deadline/cancellation tests must run independently from Rust
+  process/terminal tests; telemetry assertions contain counts/timing only;
 - Rust focused protocol/AgentLoop/host tests;
 - Python protocol reference tests for any wire-path change;
 - `git diff --check`, naming/layer-boundary checks, and attribution before

@@ -163,6 +163,7 @@ export type AgentRuntimeErrorCode =
   | "invalid_receipt"
   | "busy"
   | "cancelled"
+  | "decision_timeout"
   | "action_limit"
   | "event_limit"
   | "decision_failed"
@@ -204,4 +205,23 @@ export function copyJsonValue(value: JsonValue): JsonValue {
 /** Return a defensive copy of a validated JSON object. */
 export function copyJsonObject(value: JsonObject): JsonObject {
   return copyJsonValue(value) as JsonObject;
+}
+
+/** Return a defensive copy of one admitted L3 input. */
+export function copyAgentInput(input: AgentInput): AgentInput {
+  return {
+    ...input,
+    identity: copyAgentIdentity(input.identity),
+    metadata: input.metadata ? copyJsonObject(input.metadata) : undefined,
+  };
+}
+
+/** Return a detached provider context with no caller-owned aliases. */
+export function copyAgentDecisionContext(context: AgentDecisionContext): AgentDecisionContext {
+  return {
+    identity: copyAgentIdentity(context.identity),
+    input: copyAgentInput(context.input),
+    history: context.history.map((record) => ({ ...record })),
+    signal: context.signal,
+  };
 }

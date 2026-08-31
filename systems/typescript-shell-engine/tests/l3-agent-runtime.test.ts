@@ -4,13 +4,16 @@ import type { JsonObject } from "../src/protocol/wire-records.ts";
 import {
   AgentRuntime,
   AgentRuntimeError,
+  createBoundedDecisionPort,
   createRustProtocolExecutionPort,
   intentFromL2,
+  type AgentDecisionContext,
   type AgentDecisionPort,
   type AgentEventSink,
   type AgentIdentity,
   type AgentInput,
   type KernelExecutionRequest,
+  type DecisionProviderRequest,
   type RustExecutionReceipt,
   type RustKernelExecutionPort,
 } from "../src/l3/l3-agent-entry.ts";
@@ -282,7 +285,7 @@ describe("independent TypeScript L3 agent runtime", () => {
     await expect(runtime.run(input("session-1:4"))).rejects.toMatchObject({
       code: "invalid_decision",
     });
-    expect(events).toEqual(["run_started"]);
+    expect(events).toEqual(["run_started", "run_failed"]);
   });
 });
 
@@ -386,5 +389,92 @@ describe("Rust protocol execution port", () => {
       identity,
       traceId: "trace-1",
     })).rejects.toMatchObject({ code: "execution_failed" });
+  });
+});
+
+describe("bounded TypeScript L3 decision provider", () => {
+  it("passes detached context with deadline and bounded work metadata", async () => {
+    const observed: DecisionProviderRequest[] = [];
+    const original = input("session-1:9");
+    const context: AgentDecisionContext = {
+      identity,
+      input: original,
+      history: [],
+    };
+    const port = createBoundedDecisionPort({
+      async decide(request) {
+        observed.push(request);
+        (request.input as { text: string }).text = "provider-local";
+        (request.context.identity as { sessionId: string }).sessionId = "provider-local";
+        return { decisionId: "provider-decision", actions: [] };
+      },
+    }, {
+      maxLatencyMs: 50,
+      clock: () => 100,
+    });
+
+    const decision = await port.decide(original, context);
+
+    expect(decision.decisionId).toBe("provider-decision");
+    expect(observed[0]).toMatchObject({
+      deadlineAt: 100.05,
+      budget: {
+        maxLatencyMs: 50,
+        inputBytes: new TextEncoder().encode(original.text).byteLength,
+        historyEntries: 0,
+      },
+    });
+    expect(original.text).toBe("inspect the workspace");
+    expect(original.identity).toEqual(identity);
+    expect(context.identity).toEqual(identity);
+  });
+
+  it("fails closed at the provider deadline and emits bounded telemetry", async () => {
+    const telemetry: Array<{ outcome: string; elapsedMs: number }> = [];
+    const port = createBoundedDecisionPort({
+      async decide() {
+        return new Promise(() => undefined);
+      },
+    }, {
+      maxLatencyMs: 5,
+      onTelemetry(event) {
+        telemetry.push({ outcome: event.outcome, elapsedMs: event.elapsedMs });
+      },
+    });
+
+    await expect(port.decide(input("session-1:10"), {
+      identity,
+      input: input("session-1:10"),
+      history: [],
+    })).rejects.toMatchObject({ code: "decision_timeout" });
+    expect(telemetry).toHaveLength(1);
+    expect(telemetry[0]?.outcome).toBe("timeout");
+    expect(telemetry[0]?.elapsedMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("propagates caller cancellation to the provider signal", async () => {
+    const controller = new AbortController();
+    let providerAborted = false;
+    const port = createBoundedDecisionPort({
+      async decide(request) {
+        return new Promise((resolve) => {
+          request.context.signal?.addEventListener("abort", () => {
+            providerAborted = true;
+            resolve({ decisionId: "cancelled", actions: [] });
+          }, { once: true });
+        });
+      },
+    }, { maxLatencyMs: 500 });
+
+    const pending = port.decide(input("session-1:11"), {
+      identity,
+      input: input("session-1:11"),
+      history: [],
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ code: "cancelled" });
+    expect(providerAborted).toBe(true);
   });
 });

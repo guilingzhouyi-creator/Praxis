@@ -5,7 +5,8 @@
 > SAME commit. Status claims without a matching tree state are drift.
 >
 > Survey basis: main @ `32035cec` (2026-08-23), post `l2-ts-advanced-optimize` polish (simple-array Outbox, FIFO middleware, direct-sort dispatcher).
-> **TS mirror status**: `systems/typescript-shell-engine/` — 29 modules, 77+ tests, tsc clean. See §8.
+> **TS mirror status**: `systems/typescript-shell-engine/` — independent L2
+> engine plus clean-break L3 candidate. See §8–§9.
 > Regenerate counts anytime with:
 >
 > ```bash
@@ -164,9 +165,11 @@ current slice contains:
 | `l3/adapters/l2-intent-adapter.ts` | protocol-v1 intent normalization | TS ingress |
 | `l3/adapters/rust-protocol-execution-port.ts` | command payload and receipt mapping | Rust execution boundary |
 | `l3/ports/runtime-ports.ts` | provider/execution/event dependency seams | explicit injected ports |
+| `l3/providers/decision-provider.ts` | detached provider context, deadline/cancel, budget metadata, payload-free telemetry | provider adapter |
 
 The coordinator may only request side effects through
 `RustKernelExecutionPort`; it never imports a process API, PTY, tool handler,
-Python module, or Rust implementation. Provider, Tool Pipeline, Memory,
-Prompt, Card, Scheduler, Cell/L3A, and recovery domains remain future slices
-tracked by `docs/roadmaps/l3-ts-rewrite.md`.
+Python module, or Rust implementation. Tool Pipeline, Memory, Prompt, Card,
+Scheduler, Cell/L3A, and recovery domains remain future slices tracked by
+`docs/roadmaps/l3-ts-rewrite.md`; the provider adapter is bounded and
+coordination-only, not an LLM or tool implementation.

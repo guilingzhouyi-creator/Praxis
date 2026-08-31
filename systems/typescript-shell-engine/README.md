@@ -41,6 +41,13 @@ Pipeline, Memory, Card, Scheduler, Cell/L3A, and recovery domains remain
 planned in `docs/roadmaps/l3-ts-rewrite.md`; the Python AgentLoop remains the
 reference and rollback implementation.
 
+`l3/providers/decision-provider.ts` is the bounded provider boundary for the
+next rewrite slice. It passes detached input/history, a deadline and budget
+metadata to an injected provider, propagates caller cancellation, and emits
+payload-free latency outcomes. A provider can only return data-only actions;
+Rust remains the sole process, terminal, capability, and hard-constraint
+authority.
+
 The `engine/rust-agent-loop-terminal.ts` module is a read-only projection of
 the Rust terminal-backed AgentLoop value contract. It validates the binding
 and opaque frame budgets for L2/frontend rendering or forwarding; it does

@@ -29,6 +29,7 @@ import {
   AgentRuntimeError,
   L3_AGENT_CONTRACT_VERSION,
   copyAgentIdentity,
+  copyAgentInput,
   copyJsonObject,
 } from "../contracts/agent-contracts.ts";
 import type { JsonObject, JsonValue } from "../../protocol/wire-records.ts";
@@ -167,14 +168,6 @@ function validateInput(input: AgentInput, limits: AgentRuntimeLimits): void {
   if (utf8Bytes(input.text) > limits.maxInputBytes) {
     throw new AgentRuntimeError("invalid_input", "agent input exceeds the configured byte bound");
   }
-}
-
-function copyAgentInput(input: AgentInput): AgentInput {
-  return {
-    ...input,
-    identity: copyAgentIdentity(input.identity),
-    metadata: input.metadata ? copyJsonObject(input.metadata) : undefined,
-  };
 }
 
 function validateAction(action: AgentAction, seen: Set<string>): void {
