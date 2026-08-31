@@ -19,6 +19,14 @@ export const L3_MAX_PENDING_INPUTS = 32;
 export const L3_MAX_REPLAY_EVENTS = 256;
 /** Maximum Rust sessions, terminals, and loops accepted by one projection parse. */
 export const L3_MAX_RUST_PROJECTION_ENTITIES = 4096;
+/** Maximum Cell registrations held by one TypeScript L3B router. */
+export const L3_MAX_REGISTERED_CELLS = 256;
+/** Maximum number of cross-Cell forwarding hops admitted for one route. */
+export const L3_MAX_CROSS_CELL_HOPS = 8;
+/** Maximum UTF-8 bytes in a cross-Cell route identifier. */
+export const L3_MAX_ROUTE_ID_BYTES = 128;
+/** Maximum UTF-8 bytes in optional cross-Cell route metadata. */
+export const L3_MAX_ROUTE_METADATA_BYTES = 8 * 1024;
 
 /** Tunable runtime bounds accepted by the coordinator. */
 export interface AgentRuntimeLimits {

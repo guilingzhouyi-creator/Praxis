@@ -8,10 +8,11 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (6)
+## Active (7)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
+| `DESIGN-2026-08-31-113` | `DESIGN-2026-永久-113` | "TS L3B Cross-Cell Routing Slice" | Define the bounded TypeScript L3B cross-Cell routing registry and detached handoff receipt for the clean-break rewrite. | `l3b-cross-cell-routing-plan.md` |
 | `DESIGN-2026-08-31-111` | `DESIGN-2026-永久-111` | "TS L3A Peer Routing and Event Replay Slice" | Define the bounded TypeScript L3A peer routing and event replay domains for clean-break session resume. | `l3a-peer-replay-plan.md` |
 | `DESIGN-2026-08-31-112` | `DESIGN-2026-永久-112` | "TS L3A Rust-Fenced Session Resume Slice" | Define the Rust-fenced TypeScript L3A session resume projection, generation fence, replay join, and atomic peer handoff. | `l3a-session-resume-plan.md` |
 | `DESIGN-2026-08-31-109` | `DESIGN-2026-永久-109` | "TS L3 Card and Scheduler Coordination Slice" | Define the first clean-break TypeScript L3 Card and Scheduler data-only coordination seams. | `l3-card-scheduler-coordination-plan.md` |

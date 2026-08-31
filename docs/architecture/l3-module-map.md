@@ -61,6 +61,7 @@ explicit, non-authoritative folders:
 | `systems/typescript-shell-engine/src/l3/cell/` | full-identity Cell routing | TS coordination |
 | `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing | TS coordination |
 | `systems/typescript-shell-engine/src/l3/recovery/` | bounded lifecycle-event replay and resync projection | TS recovery projection |
+| `systems/typescript-shell-engine/src/l3/routing/` | bounded L3B Cell registration and validated cross-Cell `AgentInput` forwarding | TS coordination |
 
 ## 3. Adjudications (2026-08-22 survey)
 
@@ -188,6 +189,7 @@ current slice contains:
 | `l3/recovery/event-replay-ledger.ts` | bounded contiguous event window, cursor paging, and resync signaling | TS recovery projection |
 | `l3/recovery/rust-execution-projection.ts` | validated metadata-only projection of Rust execution checkpoints | Rust-owned state, TS read-only view |
 | `l3/recovery/l3a-session-resume.ts` | generation-fenced resume vectors and preflighted peer handoff | TS recovery coordination |
+| `l3/routing/cross-cell-router.ts` | bounded Cell registry, validated cross-Cell input forwarding, and detached receipts | TS L3B coordination |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,

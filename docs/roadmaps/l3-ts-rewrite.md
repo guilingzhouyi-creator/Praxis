@@ -25,13 +25,14 @@ construction: in_progress
 # L3 TypeScript rewrite — Agent coordination over Rust execution
 
 > Status: P0 contract/ingress, the first three P1 boundary slices, the first
-> P2 Card/Scheduler and AgentLoop/Cell slices, and the first L3A peer/replay
-> recovery slice are implemented on `feature/l1-rust-host-bootstrap` (TS L2
-> intent → detached provider context/tool projection → TS L3 coordinator →
-> bounded Card/Scheduler, AgentLoop/Cell, peer, and replay ports → Rust
-> protocol execution port). This is an independent clean-break build; the
-> Python3 runtime remains the semantic reference and rollback path, not a
-> dependency of the TS system.
+> P2 Card/Scheduler and AgentLoop/Cell slices, the L3A peer/replay recovery
+> slice, and the bounded L3B cross-Cell routing slice are implemented on
+> `feature/l1-rust-host-bootstrap` (TS L2 intent → detached provider
+> context/tool projection → TS L3 coordinator → bounded Card/Scheduler,
+> AgentLoop/Cell, peer/replay, and cross-Cell routing ports → Rust protocol
+> execution port). This is an independent clean-break build; the Python3
+> runtime remains the semantic reference and rollback path, not a dependency
+> of the TS system.
 
 ## 1. Scope and authority
 
@@ -95,6 +96,10 @@ runtime except through the existing versioned protocol.
   session/terminal/AgentLoop metadata by the complete identity, fences
   generation regressions, and returns a detached L3A resume vector. Peer
   handoff is preflighted against Rust and replay state before the binding moves.
+- `l3/routing/` now provides a bounded L3B cross-Cell router. Registration,
+  identity/trace validation, hop and metadata limits, detached route receipts,
+  and fail-closed target rejection are implemented without taking persistence
+  or process/terminal authority.
 
 These slices are candidate-only. They are not the L2 production default, do not
 replace Python AgentLoop/provider/tool execution, and do not satisfy the
@@ -113,6 +118,7 @@ Rust cutover gates by itself.
 | P2 | Scheduler coordination | bounded priority/time/scope requests and detached queue receipts | queue ownership and fairness remain injected host policy | ✅ first slice |
 | P2 | AgentLoop/Cell ingress | bounded per-identity FIFO queues and Cell routing | monotonic input sequence, cancellation, stop/drain, sibling isolation | ✅ first slice |
 | P2 | Cell/L3A and recovery | session resume, event replay, Cell peer routing | identity and sequence vectors across TS/Rust | ✅ first slice |
+| P2 | L3B cross-Cell routing | bounded Cell registry and direct validated `AgentInput` forwarding | detached receipts, identity/trace binding, hop/metadata bounds, fail-closed target errors | ✅ first slice |
 | P2 | Rust checkpoint/session projection | metadata-only Rust session/terminal/AgentLoop projection, generation fence, peer handoff | identity correlation; no payload/process-handle leakage; failed preflight leaves route unchanged | ✅ first slice |
 | P3 | Performance hardening | fixed-work TS/Rust slices and queue/lock telemetry | p95/p99, CPU/RSS, rejection/error counts under the shared schema | planned |
 | P3 | Cutover decision | explicit opt-in → reversal matrix → default switch | G1–G6 gates green; Python host retirement only after evidence | planned |

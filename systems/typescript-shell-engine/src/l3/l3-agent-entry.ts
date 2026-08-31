@@ -11,6 +11,7 @@ export * from "./runtime/limits.ts";
 export * from "./runtime/ts-agent-runtime.ts";
 export * from "./loop/agent-loop-queue.ts";
 export * from "./cell/agent-cell.ts";
+export * from "./routing/cross-cell-router.ts";
 export * from "./peer/l3a-peer-router.ts";
 export * from "./recovery/event-replay-ledger.ts";
 export * from "./recovery/rust-execution-projection.ts";
