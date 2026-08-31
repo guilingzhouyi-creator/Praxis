@@ -22,6 +22,52 @@ cross-book identity references, sorted identities, safe integers, and
 clean/unclean constraints, and can refresh from disk without exposing a write
 operation or recovery authority to TS.
 
+The `rust-agent-loop-terminal` projection is the next narrow TS/L2 seam above
+that metadata boundary. It accepts only the versioned Rust
+loop/session/terminal binding and opaque terminal frames, validates stream,
+sequence, identity, byte, and batch bounds, and returns defensive copies for
+rendering or forwarding. The projection rejects identity changes after the
+first accepted binding and refuses frame access before a binding exists. It
+does not decode terminal bytes, select a shell, create a PTY, dequeue or retry
+mailbox work, execute AgentLoop/provider/tool actions, or write Rust state.
+Rust remains authoritative for live execution; the focused evidence is
+`tests/rust-agent-loop-terminal.test.ts`.
+
+The TS L2 dialect boundary now has a concrete terminal slice:
+`engine/routing-session.ts` stores only `L3A`/`DIRECT` routing identity, while
+`engine/terminal-shell.ts` classifies and executes one input line through the
+existing dispatcher and protocol bridge. Bare text becomes an `l3a_send`
+request in the default mode and a direct tool request only after an explicit
+Direct target is set. `$` system commands, `/` engine commands, pipelines,
+aliases, terminal conveniences, and bounded command history are represented as
+data or bridge calls; no TS code spawns a process, invokes a tool handler, or
+stores an AgentLoop/Cell handle. The slice is covered by
+`tests/routing-session.test.ts` and `tests/terminal-shell.test.ts`; interactive
+REPL input remains frontend work. `engine/terminal-renderer.ts` now provides a
+pure, REPL-neutral `{ role, text }` line-record projection for banner, help,
+tools, intent, scout, system, tool, history, stream, event, and generic
+success/error results; it performs no I/O or execution and leaves styling and
+transport to the consuming frontend.
+
+`engine/frontend-session-adapter.ts` composes the session view, terminal
+dialect, renderer, and existing web/TUI/desktop/VSCode projections behind one
+thin lifecycle contract (`attach`/`sync`/`ack`/`detach`/`submit`). The mobile
+SSH identity intentionally reuses the TUI projection; the adapter does not
+create a channel, spawn a process, or become a host endpoint.
+
+`engine/terminal-input-controller.ts` is the frontend-neutral input boundary:
+it receives text chunks, frames LF/CRLF/CR-delimited lines across chunk
+boundaries, flushes one final unterminated line at EOF, and enforces a bounded
+UTF-8 line budget. `FrontendSessionAdapter.feedInput` and `finishInput`
+serialize framed submissions so concrete Web/TUI/Desktop/VSCode/SSH/REPL
+frontends share the same ordering and limit semantics. The controller never
+reads stdin, creates a PTY, starts an SSH server, or executes a command;
+`TerminalShell` remains responsible for trimming and routing each complete line.
+The adapter also bounds its serialized chunk-submission queue (64 operations
+by default), rejects new work at capacity, and releases the slot on both
+success and failure. This is frontend backpressure only; it does not introduce
+parallel host requests or move outbox, L3, or L1 authority into TypeScript.
+
 ## Responsibility boundary
 
 L2 is the **kernel-adjacent system-interaction and command-interpretation
@@ -206,6 +252,10 @@ or child exits, and `close()` is idempotent; reconnection remains an explicit
 Synthetic protocol-fault results on the `"-"` session also close a pending
 line request without an ack; `ProtocolBridge` then surfaces the session error
 instead of converting a malformed frame into a timeout.
+The Python reference host measures the complete JSONL frame after removing only
+the CR/LF terminator, so surrounding whitespace counts toward the same 1 MiB
+UTF-8 cap. It batches each input's response set into one write and one flush;
+this is a reference-path syscall optimization, not a new authority boundary.
 
 ### Protocol v1 conformance rulings (2026-08, normative)
 
@@ -221,7 +271,7 @@ vectors are frozen from the TS engine, not from the Python host.
 | R2 | `seq` is monotonic **per session**. Response sequence counters are per-session state, never process-global. | envelope contract "Monotonic session sequence"; restart aliasing |
 | R3 | `ts` must be a finite number. Encoders reject non-finite values (`allow_nan=False` / serde finite check / `Number.isFinite`). | Python stdlib JSON otherwise accepts/emits `NaN`, producing frames Rust/TS cannot parse |
 | R4 | Host-derived authorization fields (`approved`, `pre_approved`, `full_power`, `harness_auto_approved`) are **forbidden in inbound payloads**; ring/danger MAY be declared inbound as gate inputs but confer no authority. Decoders reject banned fields. | GateRequest authorization inputs are adapter-derived; wire self-approval defeats G4 |
-| R5 | Frame limit is 1 MiB per JSONL line on every host (Rust and Python alike). Oversize frames are rejected before parse. | DoS bound; parity with `ProtocolHostConfig::max_frame_bytes` |
+| R5 | Frame limit is 1 MiB per JSONL line on every host (Rust and Python alike), measured in UTF-8 bytes. Oversize frames are rejected before parse. | DoS bound; parity with `ProtocolHostConfig::max_frame_bytes` |
 | R6 | Dialect routing order: `$` system → `/` engine command → `\|` pipeline → direct tool → L3A intent. Argument splitting is quote-aware (shlex-compatible subset). | a `\|` inside a quoted argument or command payload must not misroute into the pipeline |
 | R7 | Gate denials, unregistered commands, and unwired executors produce `result{success:false}` envelopes on the wire — not transport-level errors. Only undecodable/oversized frames fail at the transport layer. | clients must receive structured rejections; fail-closed |
 | R8 | Wire-contract constants (`PROTOCOL_VERSION`, `OUTBOX_MAXLEN`, frame limits, kind sets) are exempt from the params rule and inlined identically in all three implementations. | contract constants mirror across languages by design |
@@ -277,8 +327,8 @@ L2 itself performs no direct filesystem writes, no network I/O, no
 | Today (Python) | TS module | Notes |
 |---|---|---|
 | `dispatch` + `shlex` | `parser.ts` + `dispatcher.ts` | pure; no side effects |
-| `ShellSession` / `ShellFamily` | `interactive-session.ts` (state machine) | JSON-serializable |
-| `shells/*` | `adapters/*.ts` | per frontend |
+| `ShellSession` / `ShellFamily` | `engine/routing-session.ts` + `engine/session-family.ts` (SessionView remains the protocol projection) | JSON-serializable routing state; no upper-layer handles |
+| `shells/*` | `engine/terminal-shell.ts` + `engine/terminal-renderer.ts` + `engine/frontend-session-adapter.ts` + `engine/transports/*` + `interactive-session.ts` projections | dialect, renderer, and frontend lifecycle contract are landed; real UI/host adapters and REPL input loop remain |
 | `commands/*` built-ins | `builtins/*.ts` | pure functions over session |
 | `l2_shell/state.py`, `completer.py` | `state.ts`, `complete.ts` | — |
 | execution calls (L3/L1) | `bridge.ts` (single client) | speaks protocol v1 to the Python L3 host (stdio/WebSocket/HTTP); **L3 Agent logic stays Python** |

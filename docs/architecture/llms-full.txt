@@ -114,7 +114,7 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 18,613 lines |
-| L2 Shell | 44 files / 6,608 lines |
+| L2 Shell | 44 files / 6,617 lines |
 | L3 Cell | 351 files / 79,495 lines |
 | L4 Bridge | 113 files / 23,470 lines |
 | L5 User | 2 files / 599 lines |
@@ -799,6 +799,31 @@ default constructor leaves all execution and settings authority unwired. The
 so protocol-host wiring is testable without changing the production default.
 Evidence is isolated in
 `tests/runtime/kernel_test_protocol_host_runtime.rs`.
+
+The `host_authorization::HostAuthorizationContext` and
+`host_bootstrap::HostBootstrap` candidates provide the next R4 seam. A
+context carries bounded trusted principal/session identity, authorization ring,
+identity-verification status, and engineering-debug posture; it is injected by
+the host and cannot be declared on the wire. `HostBootstrap` validates all
+command names and optional authority bindings before assembling a strict
+`ProtocolHostRuntime`, so invalid input cannot expose a partially wired
+router. Strict dispatch rejects missing contexts and unverified high-ring
+contexts; settings endpoints can consume the full context through
+`SettingsAuthorizer::authorize_context`. This is still adapter evidence: it
+does not infer terminal configuration, grant debug mode, start providers or
+AgentLoop work, or promote the Rust host to the production default.
+Independent coverage is in
+`tests/runtime/kernel_test_host_bootstrap.rs`.
+
+Host command registration now also populates the router's GateChain whitelist.
+Every registered non-system command is adjudicated with the trusted context
+ring before capability execution; a blocked verdict is returned as the normal
+R7 denial envelope and never reaches the executor. Wire metadata can provide
+only the existing ring input for non-strict adapters; a bound host context
+always wins, and no wire approval field is accepted. This closes the previous
+ordinary-command bypass while keeping settings authorization and process
+admission as separate explicit seams. Coverage is in
+`tests/runtime/kernel_test_host_dispatch.rs`.
 
 The Rust `terminal` candidate is the lower-layer substrate for future upper
 layer AgentLoop terminals. `TerminalBook` owns unique terminal/session/process
@@ -1670,6 +1695,30 @@ independent `tests/policy/kernel_test_skill.rs` target covers bounded mutation,
 scope/audience filtering, staged progression, graph validation, checkpoint
 determinism, and concurrent access. This is a Rust-native mechanism slice, not
 a production skill authority or a Python compatibility layer.
+
+### Terminal-backed AgentLoop composition
+
+`agent_loop_terminal::AgentLoopTerminalBridge` is the explicit R4 composition
+seam between the opaque `TerminalBook` mailbox and the Rust-owned
+`AgentLoopExecutionBridge`. It validates the loop/session/terminal identity
+triple and both running states before admitting I/O. Terminal input remains a
+caller-owned `TerminalFrame`; an injected decoder converts it to `SessionInput`
+under panic containment, and the existing execution bridge remains responsible
+for runtime reservation, session sequencing, caller-owned provider/tool action,
+and structured failure. Grouped input decodes every frame before queue
+admission and applies a fixed batch bound, so decoder or correlation failures
+cannot partially enqueue work.
+
+The same bridge publishes opaque output/error frames only to the validated
+terminal and rejects input-stream misuse or oversized frames before mailbox
+mutation. Dequeue/retry policy stays with the transport adapter: callers
+normally obtain frames through `TerminalBook::take_input`, then transfer the
+frame to the bridge. No encoding, shell default, PATH lookup, PTY creation,
+provider execution, hardware input, or production boot authority crosses this
+boundary. The independent
+`tests/session/kernel_test_agent_loop_terminal.rs` target is the evidence
+slice; future TS/L2 code should consume this versioned correlation and frame
+contract rather than mirror Python classes.
 
 ## Key constants (params)
 
@@ -2575,6 +2624,17 @@ gated, and executed (plus the security evidence chain,
 | `tool_mode.py` | global read/write mode (write = all rings, read = Ring 1 only) |
 | `tool_config.py` | `tools.yaml`-driven definitions; three-ring integration chain-filter API |
 | `dvg.py` | Declarative prerequisite DAG; cycle-safe execution plans for tool admission |
+
+### Cross-runtime projection
+
+`ToolSpec.to_data_only()` is the Python reference serializer for the public
+tool contract. It returns detached name/description/category/ring/danger,
+gates, parameter, return, parallel-safety, and sandbox fields while excluding
+handlers, middleware, plugin state, and arbitrary metadata. The independent
+TypeScript L3 projection (`l3/tools/tool-projection.ts`) consumes that shape,
+sorts and bounds the registry, and maps provider `tool_call` values to the Rust
+`tool.invoke` capability seam. Rust receipts fold back into bounded
+`ToolResult` data; neither runtime shares executable tool objects.
 
 ### Pipeline (9 steps)
 

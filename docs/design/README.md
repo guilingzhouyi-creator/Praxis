@@ -8,15 +8,19 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (3)
+## Active (7)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
+| `DESIGN-2026-08-31-113` | `DESIGN-2026-永久-113` | "TS L3B Cross-Cell Routing Slice" | Define the bounded TypeScript L3B cross-Cell routing registry and detached handoff receipt for the clean-break rewrite. | `l3b-cross-cell-routing-plan.md` |
+| `DESIGN-2026-08-31-111` | `DESIGN-2026-永久-111` | "TS L3A Peer Routing and Event Replay Slice" | Define the bounded TypeScript L3A peer routing and event replay domains for clean-break session resume. | `l3a-peer-replay-plan.md` |
+| `DESIGN-2026-08-31-112` | `DESIGN-2026-永久-112` | "TS L3A Rust-Fenced Session Resume Slice" | Define the Rust-fenced TypeScript L3A session resume projection, generation fence, replay join, and atomic peer handoff. | `l3a-session-resume-plan.md` |
+| `DESIGN-2026-08-31-109` | `DESIGN-2026-永久-109` | "TS L3 Card and Scheduler Coordination Slice" | Define the first clean-break TypeScript L3 Card and Scheduler data-only coordination seams. | `l3-card-scheduler-coordination-plan.md` |
 | `DESIGN-2026-08-27-004` | `DESIGN-2026-永久-104` | "Kernel Rewrite Readiness Pack | Rust is the approved direction for a cle | `kernel-rewrite-readiness-package.md` |
 | `DESIGN-2026-08-29-007` | `DESIGN-2026-永久-107` | "Rust-First Kernel Rewrite Dec | The future Praxis kernel is a clean-brea | `rust-first-kernel-rewrite.md` |
 | `DESIGN-2026-08-29-108` | `DESIGN-2026-permanent-108` | "Edge Case Test | This is an automated end-to-end test for the pre-storage gate | `edge-case-test.md` |
 
-## Archived DESIGN (001) — 22
+## Archived DESIGN (001) — 23
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
@@ -25,6 +29,7 @@
 | `ARCH-DESIGN-2026-08-29-020` | `DESIGN-2026-永久-020` | "ErrorLog Bus Architecture Des | Merge ~190 scattered exception capture p | `archive/001-design/2026/永久/DESIGN-2026-永久-020_error-bus-design.md` |
 | `ARCH-DESIGN-2026-08-29-021` | `DESIGN-2026-永久-021` | "L1↔L2 对接执行计划（施工级）" | main ──┬─→ feature/l1l2-integration（集成分 | `archive/001-design/2026/永久/DESIGN-2026-永久-021_l1l2-docking-execution-plan.md` |
 | `ARCH-DESIGN-2026-08-29-022` | `DESIGN-2026-永久-022` | "Praxis 负载自适应线程池设计" | `ThreadPoolWorker`（`systems/python-refer | `archive/001-design/2026/永久/DESIGN-2026-永久-022_load-adaptive-pool-design.md` |
+| `ARCH-DESIGN-2026-08-31-023` | `DESIGN-2026-永久-023` | "TS L3 AgentLoop and Cell Coordination Slice" | Define the bounded TypeScript L3 AgentLoop and Cell coordination domains for the clean-break rewrite. | `archive/001-design/2026/永久/DESIGN-2026-永久-023_l3-agent-loop-cell-plan.md` |
 | `ARCH-DESIGN-2026-07-21-001` | `DESIGN-2026-永久-001` | NOMOS Praxis — Non-Chat UI/UX  | Negate the premises of Chat UI, establis | `archive/001-design/2026/永久/DESIGN-2026-永久-001_ui-design.md` |
 | `ARCH-DESIGN-2026-07-22-002` | `DESIGN-2026-永久-002` | NOMOS Praxis Complete Architec | Define Praxis as the Agent OS Desktop Sh | `archive/001-design/2026/永久/DESIGN-2026-永久-002_architecture-complete.md` |
 | `ARCH-DESIGN-2026-07-22-003` | `DESIGN-2026-永久-003` | Praxis Complete Architecture — | Define the conceptual system of Agent OS | `archive/001-design/2026/永久/DESIGN-2026-永久-003_architecture-design.md` |

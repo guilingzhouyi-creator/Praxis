@@ -47,11 +47,11 @@ construction: in_progress
 | `protocol/envelope.py` | `Outbox`/`SessionCursor`/`make_message`/`validate_message` | `systems/typescript-shell-engine/src/wire-envelope.ts` | ✅ 已有（镜像，非破坏性 ack） |
 | `protocol/records.py` | `SessionIdentity` | `systems/typescript-shell-engine/src/wire-records.ts` | ✅ 已有 |
 | `protocol/host.py` | `ProtocolHost.handle`/`_emit`/`_advance_shared_cursor` | `engine/bridge.ts`（客户端）+ `interactive-session.ts`（SessionView） | 🟡 部分：客户端/投影已有；host 权威留 Python3 |
-| `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` | 🟡 部分：解析/分派已有；alias 反查、`_l3a_intent` 路由未映射 |
-| `shells/base.py` | `Shell(ABC)` / `run` | `engine/interactive-session.ts`（SessionView） | 🟡 部分：会话视图已有；Shell 方言抽象未映射 |
-| `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/interactive-session.ts`（前端绑定） | ⏳ 需重写（前端→方言解析） |
-| `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/interactive-session.ts`（SessionView 快照） | 🟡 部分 |
-| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/builtins.ts` + 桥转发 + `engine/terminal-view.ts`（结果形状投影，Phase A） | 🟡 部分：方言语法 `$`/`/`/tool 分派已映射；REPL 循环与渲染留前端 |
+| `l2_shell/__init__.py` | `dispatch(text)` / `_l3a_intent` / `_lookup_alias` | `engine/parser.ts` + `engine/dispatcher.ts` + `engine/route.ts` | ✅ 路由、alias、本地/bridge/L3A 分流已映射；权威执行留 host |
+| `shells/base.py` | `Shell(ABC)` / `run` | `engine/terminal-shell.ts`（方言适配器合同） | ✅ `classify`/`run`/session 工厂已落地；renderer 输出合同已落地 |
+| `shells/family.py` | `ShellFamily.register/bind/resolve` | `engine/session-family.ts` | ✅ 已实现（注册、绑定、配置、revision、snapshot） |
+| `shells/session.py` | `ShellSession`（direct/l3a 切换） | `engine/routing-session.ts` | ✅ 已实现（路由态快照；无 L3/L1 句柄） |
+| `shells/terminal.py` | `TerminalShell.run/loop` / `intent_direct` / `scout_commission` | `engine/terminal-shell.ts` + `engine/terminal-view.ts` + `engine/terminal-renderer.ts` + `engine/frontend-session-adapter.ts` | 🟡 方言、history、无 I/O renderer 与五前端 session 组合层已映射；真实输入循环、UI 和 host 端点仍留前端/宿主 |
 | `commands.py` | `CommandRegistry`（system/user 分离、YAML 加载、revision） | `engine/dispatcher.ts`（注册表 + listCommands） + `engine/command-catalog.ts`（YAML 元数据 + alias 索引，Phase A） | 🟡 部分：注册/查询 + 元数据面已有；handler 注册与 system/user 分离留 host |
 | `selector.py` | `select`/`preconnect`/`_scan_injection` | `engine/agent-selector.ts`（选择投影 + preconnectImpact/riskLevelOf，Phase A） | ✅ 投影面已映射（扫描与 LLM reviewer 权威留 Python3） |
 | `shells/family.py` | `ShellFamily`（register/bind/resolve/loadConfig/revision/snapshot） | `engine/session-family.ts`（前端→方言解析，首注册为默认） | ✅ 已实现 |
@@ -99,6 +99,109 @@ construction: in_progress
 
 > 验收：`tsc --noEmit` + Vitest 284 passed / 8 skipped（+30 新用例），
 > system-naming PASS。下一梯队：G5 切默认（Rust 前置）与 terminal REPL 终态。
+
+## 2b. Rust terminal-backed AgentLoop 投影（2026-08-30）
+
+`engine/rust-agent-loop-terminal.ts` 是受限的 TS/L2 read model，对应 Rust
+`agent_loop_terminal::AgentLoopTerminalBridge` 的保留值合同。它验证
+loop/session/terminal 三元绑定、生命周期状态、safe sequence、1 MiB 单帧
+和 256 帧批上限，接受 JSON `number[]` 及本地 `Uint8Array`，并在输出前
+复制字节。未绑定、稀疏数组、非法字节/流向、未知状态、超长身份和绑定
+漂移均 fail-closed。
+
+该模块不拥有 AgentLoop、session、terminal、mailbox 或持久化权威，不执行
+decoder/provider/tool，不创建 PTY、不选 shell、不决定 dequeue/retry。它只
+为未来 L2/前端渲染或转发提供可验证的值投影；TS 专测 4 个用例，Rust
+对应专测 5 个用例。G5/G6 的 host 切换条件和终端 REPL 终态不因该投影提前
+满足。
+
+## 2c. 第五批（2026-08-30，TS terminal dialect/session ✅）
+
+本批把 Python3 `Shell`/`ShellSession`/`TerminalShell.run` 的**输入边界**
+迁移为独立 TS 方言适配器，同时保留 Python3/Rust host 的执行权：
+
+1. `engine/routing-session.ts`：对齐 `L3A`/`DIRECT` 路由态、`cell_id` /
+   `agent_id` / `session_id` 快照；只保存字符串值，不持有 Cell、AgentLoop、
+   terminal、outbox 或 capability。
+2. `engine/terminal-shell.ts`：复用 `parseRoute`、`Dispatcher`、`ProtocolBridge`
+   实现空输入、`help`/`tools`/`status`/`history`、`$` system、pipeline、
+   `/` engine、Direct tool 和 L3A intent；history 使用有界
+   `CommandHistory`，结果返回解码后的协议消息。
+3. `engine/route.ts`：补上 Python3 兼容的模式分流——默认 L3A 将裸文本
+   发为 `l3a_send`，只有显式 Direct session 才将裸文本发为 tool；不改变
+   `$`/`/`/pipeline 的顺序或 host authority。
+
+> 验收：新增 `routing-session.test.ts` 与 `terminal-shell.test.ts` 共 9
+> 例；连同 `conformance.test.ts` 路由回归切片 25/25 通过，TS `typecheck`
+> 通过。仍未满足 terminal REPL 终态、真实前端接入、G5 默认 Rust host
+> 切换或 G6 移除 Python host。
+
+## 2d. 第六批（2026-08-30，REPL-neutral terminal renderer ✅）
+
+本批把 Python3 `TerminalShell._render_banner` / `_render` 的展示语义提取为
+独立 TS 行记录合同，供 REPL、TUI、IDE、HTTP 或 SSH 前端消费：
+
+1. `engine/terminal-renderer.ts`：将 `TerminalRunResult`、`result`、
+   `stream_chunk`、`event` 响应投影为 `{ role, text }` 行记录；覆盖
+   banner、help、tools、intent、scout、system、tool、history、generic
+   success/error，结果键排序与字段/输出上限保持有界。
+2. renderer 只做纯格式化：不写 stdout、不读 stdin、不创建 PTY、不执行
+   OS/工具、不持有 L3/L1 对象句柄；`I18n` 可注入，默认使用 TS `en`
+   字典，前端可自行决定颜色、布局和传输。
+3. `tests/terminal-renderer.test.ts` 新增 7 个切片用例；与
+   `terminal-view` / `terminal-shell` 回归切片合计 25/25，通过 TS
+   `typecheck`。真实 REPL 输入循环、五前端接入、G5 Rust 默认切换和 G6
+   Python host 移除仍未完成。
+
+## 2e. 第七批（2026-08-30，frontend session adapter ✅）
+
+本批把 `SessionView`、`TerminalShell`、renderer 和既有投影形状组合为一个
+前端薄适配层：
+
+1. `engine/frontend-session-adapter.ts`：统一 `web`、`tui`、`desktop`、
+   `vscode`、`ssh` 五种前端身份，提供 attach/replay、sync、ack、detach、
+   单行 submit、banner 和本地快照；适配器只编排既有模块，不拥有 host
+   outbox、AgentLoop、Cell、工具或进程状态。
+2. `ssh` 复用 `tui` 的 session projection，避免为移动终端复制新的协议或
+   执行路径；具体 SSH channel 仍由 `transports/ssh.ts` 和宿主端点负责。
+3. `tests/frontend-session-adapter.test.ts` 新增 3 个切片用例；与
+   renderer、terminal-shell、session projection 回归切片合计 31/31，
+   `typecheck` 通过。真实 Web/TUI/Desktop/VSCode/SSH UI 和 REPL 输入循环
+   仍未接入。
+
+## 2f. 第八批（2026-08-30，REPL-neutral input framing ✅）
+
+本批把“前端输入源”与“终端方言执行”之间的边界固定为可复用的纯分片
+控制器，便于后续 Web/TUI/Desktop/VSCode/SSH/REPL 各自接入，而不把
+`stdin`、PTY 或 OS 进程带入 TS L2：
+
+1. `engine/terminal-input-controller.ts`：接收任意文本 chunk，稳定组装
+   `LF`、`CRLF`、跨 chunk 的 `CR` 和 EOF 未终止行；保留空行，输入文本不
+   擅自 trim，交由 `TerminalShell` 决定语义。
+2. 控制器按 UTF-8 字节而非 JS UTF-16 长度执行有界输入（默认复用协议
+   `MAX_FRAME_BYTES`，允许测试/前端收紧）；超限 fail-closed 并清空未完成
+   行。`finish()` 关闭当前输入边界，`reset()` 用于恢复。
+3. `FrontendSessionAdapter.feedInput()` / `finishInput()` 复用该控制器，
+   对同时到达的 chunk 串行提交完整行，返回既有 `FrontendRunResult[]`；
+   `localSnapshot()` 暴露 detached input 状态，仍不持有 host/L3/L1 权威。
+
+> 验收：新增 `tests/terminal-input-controller.test.ts` 5 例，并扩展
+> `frontend-session-adapter.test.ts`；`tsc --noEmit` + 4 文件定向切片
+> **23 passed**。这不是具体前端 UI、真实 stdin/PTY、SSH server 或 REPL
+> 主循环；它只冻结所有前端必须共享的输入 framing 合同。
+
+## 2g. 第九批（2026-08-30，bounded input backpressure ✅）
+
+在第八批的 framing 之上，`FrontendSessionAdapter` 为 `feedInput()` /
+`finishInput()` 增加有界串行队列（默认最多 64 个 active + queued 操作）：
+队列满时立即拒绝，不继续占用 Promise 链；`localSnapshot()` 暴露当前与
+最大 pending 数。队列尾部在成功或失败后都会释放计数，单次前端故障不会
+毒化后续输入。
+
+> 验收：`frontend-session-adapter.test.ts` 新增队列满与配置校验用例；
+> 与输入控制器、terminal-shell、renderer 切片合计 **25 passed**，
+> `tsc --noEmit` 通过。该上限只约束 TS 前端提交排队，不改变 host
+> outbox、L3 AgentLoop 或 L1 执行权威。
 
 ## 3. 铁律（与 handoff §2.3 一致）
 

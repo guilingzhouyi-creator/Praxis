@@ -564,6 +564,29 @@ authorities unwired. The `rust-protocol-host` binary uses this composition but
 does not infer a runtime, settings root, or authorization policy. Its evidence
 is isolated in `tests/runtime/kernel_test_protocol_host_runtime.rs`.
 
+The `host_authorization` and `host_bootstrap` modules close the next R4
+composition seam. `HostAuthorizationContext` is a bounded, adapter-injected
+principal/session/ring/identity/debug record; it never travels in a wire
+payload. `HostBootstrap` validates the complete command, executor, context,
+and settings binding specification before exposing a strict
+`ProtocolHostRuntime`, so a failed preflight cannot leak partial wiring.
+Strict routers fail closed when a context is absent or when a high-ring
+context is unverified. Settings authorizers may override
+`authorize_context` to consume the trusted record, while legacy
+principal-only adapters remain explicit fallback behavior. This remains an
+R4 candidate: it does not make the stdio binary a production entrypoint,
+grant engineering-debug authority, or start PTY/process-group, provider, or
+AgentLoop work. Evidence is isolated in
+`tests/runtime/kernel_test_host_bootstrap.rs`.
+
+Registered non-system commands now share the same GateChain path as system
+commands: `HostRouter::register_command` updates the whitelist, dispatch uses
+the bound context ring, and a BLOCK result is emitted before the capability
+executor is reached. This closes the ordinary-command bypass while keeping
+wire approval fields rejected and settings/process admission independently
+host-authorized. Evidence is isolated in
+`tests/runtime/kernel_test_host_dispatch.rs`.
+
 The `terminal` module supplies the lower-layer substrate for future
 AgentLoop-backed terminals. `TerminalBook` enforces unique terminal/session/
 process bindings, stores generation-tagged `ProcessHandle` values internally,
@@ -969,3 +992,15 @@ cargo test --workspace --manifest-path systems/rust-kernel-engine/Cargo.toml
 cargo fmt --manifest-path systems/rust-kernel-engine/Cargo.toml --all -- --check
 cargo clippy --manifest-path systems/rust-kernel-engine/Cargo.toml --workspace --all-targets --all-features -- -D warnings
 ```
+
+The `agent_loop_terminal` candidate is the narrow terminal substrate seam for
+the future independent TS/L2 rewrite. `AgentLoopTerminalBridge` validates the
+loop/session/terminal triple and running states, decodes caller-owned opaque
+input frames through an injected callback, and delegates admission to
+`AgentLoopExecutionBridge`. Batch decode happens before bounded runtime
+reservation; decoder panics, invalid frames, and mismatches fail closed without
+session mutation. Opaque output/error frames use the same binding and the
+existing `TerminalBook` mailbox. The caller retains dequeue/retry policy, while
+Rust does not choose shell paths, encodings, PATH behavior, PTYs, provider/tool
+execution, or production boot authority. Evidence is isolated in
+`tests/session/kernel_test_agent_loop_terminal.rs`.

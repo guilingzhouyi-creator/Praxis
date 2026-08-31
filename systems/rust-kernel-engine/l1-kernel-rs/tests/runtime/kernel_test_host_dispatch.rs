@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use l1_kernel_rs::contract::{CapabilityResult, JsonValue};
+use l1_kernel_rs::contract::{CapabilityRequest, CapabilityResult, JsonValue};
 use l1_kernel_rs::host_dispatch::{HostRouter, L3Upstream, RouterConfig, SYSTEM_COMMANDS};
 use l1_kernel_rs::protocol::{Message, MessageKind, ProtocolError, decode_message, encode_message};
 use l1_kernel_rs::session_lifecycle::SessionLifecycle;
@@ -161,6 +161,51 @@ fn command_denied_by_executor_is_wrapped_as_failed_result() {
 }
 
 #[test]
+fn registered_command_is_adjudicated_by_gatechain_before_execution() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("hello");
+    wire_echo_executor(&router);
+    let responses = router
+        .route(command("hello", "s-1", 7))
+        .expect("dispatches");
+    assert_eq!(responses[0].payload["success"], json!(true));
+    let allowed = router
+        .audit()
+        .query(20, None)
+        .into_iter()
+        .find(|row| row.op == "dispatch.command" && row.success)
+        .expect("allowed command audit");
+    assert!(allowed.detail.contains("ring=1"));
+}
+
+#[test]
+fn high_danger_registered_command_is_blocked_before_executor() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("exec");
+    wire_echo_executor(&router);
+    let responses = router
+        .route(command("exec", "s-1", 7))
+        .expect("gate denial travels as an envelope");
+    assert_eq!(responses[0].payload["success"], json!(false));
+    let error = responses[0].payload["error"]
+        .as_str()
+        .expect("denial error");
+    assert!(error.contains("blocked by gatechain (BLOCK)"), "{error}");
+    let rows = router.audit().query(20, None);
+    let denied = rows
+        .iter()
+        .find(|row| row.op == "dispatch.command" && !row.success)
+        .expect("gate denial audit");
+    assert!(denied.error.contains("blocked by gatechain"));
+    assert!(
+        !rows
+            .iter()
+            .any(|row| row.op == "capability.invoke" && row.success),
+        "blocked command must not reach the executor"
+    );
+}
+
+#[test]
 fn unknown_command_answers_denial_envelope_and_is_audited() {
     let router = HostRouter::new(RouterConfig::default());
     let responses = router
@@ -268,6 +313,108 @@ fn declared_ring_danger_still_route_as_gate_inputs() {
     let responses = router.route(message).expect("declaration routes");
     // Unwired executor → fail-closed denial envelope, NOT transport error.
     assert_eq!(responses[0].payload["success"], json!(false));
+}
+
+#[test]
+fn structured_command_payload_preserves_args_trace_and_request_correlation() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("terminal.submit");
+    let seen = Arc::new(Mutex::new(None::<CapabilityRequest>));
+    let captured = Arc::clone(&seen);
+    router.register_executor(move |request| {
+        *captured.lock().unwrap() = Some(request.clone());
+        CapabilityResult {
+            success: true,
+            error: String::new(),
+            capability: request.name.clone(),
+            data: BTreeMap::from([(
+                "echo".to_owned(),
+                JsonValue::String("terminal-submit".to_owned()),
+            )]),
+        }
+    });
+    let message = Message::new(
+        "s-rust",
+        7,
+        MessageKind::Command,
+        BTreeMap::from([
+            ("name".to_owned(), json!("terminal.submit")),
+            ("args".to_owned(), json!([r#"{"bytes":3}"#])),
+            ("ring".to_owned(), json!(1)),
+            ("danger".to_owned(), json!(0)),
+            ("request_id".to_owned(), json!("action-1")),
+        ]),
+        "trace-rust",
+        100.0,
+    );
+
+    let responses = router
+        .route(message)
+        .expect("structured request dispatches");
+    let request = seen
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("executor captured request");
+    assert_eq!(request.name, "terminal.submit");
+    assert_eq!(
+        request.args["args"],
+        JsonValue::Array(vec![JsonValue::String(r#"{"bytes":3}"#.to_owned()),])
+    );
+    assert_eq!(responses[0].payload["request_id"], json!("action-1"));
+    assert_eq!(responses[0].trace_id.as_deref(), Some("trace-rust"));
+}
+
+#[test]
+fn tool_invoke_command_keeps_tool_metadata_inside_rust_capability_boundary() {
+    let router = HostRouter::new(RouterConfig::default());
+    router.register_command("tool.invoke");
+    let seen = Arc::new(Mutex::new(None::<CapabilityRequest>));
+    let captured = Arc::clone(&seen);
+    router.register_executor(move |request| {
+        *captured.lock().unwrap() = Some(request.clone());
+        CapabilityResult {
+            success: true,
+            error: String::new(),
+            capability: request.name.clone(),
+            data: BTreeMap::from([("accepted".to_owned(), JsonValue::Bool(true))]),
+        }
+    });
+
+    let message = Message::new(
+        "s-tool",
+        3,
+        MessageKind::Command,
+        BTreeMap::from([
+            ("name".to_owned(), json!("tool.invoke")),
+            (
+                "args".to_owned(),
+                json!([r#"{"tool_name":"read_file","arguments":{"path":"README.md"}}"#]),
+            ),
+            ("ring".to_owned(), json!(1)),
+            ("danger".to_owned(), json!(0)),
+            ("request_id".to_owned(), json!("call-1")),
+        ]),
+        "trace-tool",
+        100.0,
+    );
+
+    let responses = router.route(message).expect("tool invocation dispatches");
+    let request = seen
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("executor captured tool invocation");
+    assert_eq!(request.name, "tool.invoke");
+    assert_eq!(
+        request.args["args"],
+        JsonValue::Array(vec![JsonValue::String(
+            r#"{"tool_name":"read_file","arguments":{"path":"README.md"}}"#.to_owned(),
+        )])
+    );
+    assert_eq!(responses[0].payload["success"], json!(true));
+    assert_eq!(responses[0].payload["request_id"], json!("call-1"));
+    assert_eq!(responses[0].trace_id.as_deref(), Some("trace-tool"));
 }
 
 #[test]

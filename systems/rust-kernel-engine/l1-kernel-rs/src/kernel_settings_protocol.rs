@@ -13,6 +13,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::host_authorization::HostAuthorizationContext;
 use crate::runtime::{KernelRuntime, RuntimeError};
 use crate::settings::{SettingsSnapshot, SettingsSource};
 
@@ -46,6 +47,21 @@ pub trait SettingsAuthorizer: Send + Sync {
         operation: SettingsOperation,
         key: Option<&str>,
     ) -> Result<(), String>;
+
+    /// Authorize one operation using trusted host context.
+    ///
+    /// Existing adapter implementations remain valid because the default
+    /// bridge delegates only the validated principal string. Context-aware
+    /// hosts may override this method to enforce session, ring, identity, or
+    /// engineering-debug policy without trusting wire fields.
+    fn authorize_context(
+        &self,
+        context: &HostAuthorizationContext,
+        operation: SettingsOperation,
+        key: Option<&str>,
+    ) -> Result<(), String> {
+        self.authorize(&context.principal, operation, key)
+    }
 }
 
 /// Small explicit authorizer useful for adapters and isolated tests.
@@ -202,6 +218,24 @@ impl RuntimeSettingsEndpoint {
         agent_id: &str,
         args: &[String],
     ) -> Result<SettingsReply, SettingsEndpointError> {
+        self.get_authorized(agent_id, None, args)
+    }
+
+    /// Dispatch a read with a trusted host context.
+    pub fn get_with_context(
+        &self,
+        context: &HostAuthorizationContext,
+        args: &[String],
+    ) -> Result<SettingsReply, SettingsEndpointError> {
+        self.get_authorized(&context.principal, Some(context), args)
+    }
+
+    fn get_authorized(
+        &self,
+        agent_id: &str,
+        context: Option<&HostAuthorizationContext>,
+        args: &[String],
+    ) -> Result<SettingsReply, SettingsEndpointError> {
         if args.len() > 1 {
             return Err(SettingsEndpointError::InvalidArguments(
                 "settings_get accepts zero or one key".to_owned(),
@@ -209,9 +243,9 @@ impl RuntimeSettingsEndpoint {
         }
         let key = args.first().filter(|value| !value.is_empty()).cloned();
         if let Some(key) = key.as_deref() {
-            self.authorize(agent_id, SettingsOperation::Read, Some(key))?;
+            self.authorize(agent_id, context, SettingsOperation::Read, Some(key))?;
         } else {
-            self.authorize(agent_id, SettingsOperation::Read, None)?;
+            self.authorize(agent_id, context, SettingsOperation::Read, None)?;
         }
         let snapshot = self.runtime.settings_snapshot()?;
         let value = key
@@ -235,6 +269,24 @@ impl RuntimeSettingsEndpoint {
         agent_id: &str,
         args: &[String],
     ) -> Result<SettingsReply, SettingsEndpointError> {
+        self.set_authorized(agent_id, None, args)
+    }
+
+    /// Dispatch a write with a trusted host context.
+    pub fn set_with_context(
+        &self,
+        context: &HostAuthorizationContext,
+        args: &[String],
+    ) -> Result<SettingsReply, SettingsEndpointError> {
+        self.set_authorized(&context.principal, Some(context), args)
+    }
+
+    fn set_authorized(
+        &self,
+        agent_id: &str,
+        context: Option<&HostAuthorizationContext>,
+        args: &[String],
+    ) -> Result<SettingsReply, SettingsEndpointError> {
         if args.len() != 2 {
             return Err(SettingsEndpointError::InvalidArguments(
                 "settings_set requires <key> <json-value>".to_owned(),
@@ -246,7 +298,7 @@ impl RuntimeSettingsEndpoint {
                 "settings_set key must be non-empty".to_owned(),
             ));
         }
-        self.authorize(agent_id, SettingsOperation::Write, Some(key))?;
+        self.authorize(agent_id, context, SettingsOperation::Write, Some(key))?;
         if args[1].len() > MAX_SETTINGS_VALUE_BYTES {
             return Err(SettingsEndpointError::ValueTooLarge {
                 actual_bytes: args[1].len(),
@@ -272,12 +324,15 @@ impl RuntimeSettingsEndpoint {
     fn authorize(
         &self,
         agent_id: &str,
+        context: Option<&HostAuthorizationContext>,
         operation: SettingsOperation,
         key: Option<&str>,
     ) -> Result<(), SettingsEndpointError> {
-        self.authorizer
-            .authorize(agent_id, operation, key)
-            .map_err(SettingsEndpointError::Unauthorized)
+        let result = match context {
+            Some(context) => self.authorizer.authorize_context(context, operation, key),
+            None => self.authorizer.authorize(agent_id, operation, key),
+        };
+        result.map_err(SettingsEndpointError::Unauthorized)
     }
 }
 

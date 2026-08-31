@@ -40,6 +40,10 @@ name = "agent_loop_execution"
 path = "tests/runtime/kernel_test_agent_loop_execution.rs"
 
 [[test]]
+name = "agent_loop_terminal"
+path = "tests/session/kernel_test_agent_loop_terminal.rs"
+
+[[test]]
 name = "allocator"
 path = "tests/core/kernel_test_allocator.rs"
 
@@ -118,6 +122,10 @@ path = "tests/runtime/kernel_test_settings_protocol.rs"
 [[test]]
 name = "protocol_host_runtime"
 path = "tests/runtime/kernel_test_protocol_host_runtime.rs"
+
+[[test]]
+name = "host_bootstrap"
+path = "tests/runtime/kernel_test_host_bootstrap.rs"
 
 [[test]]
 name = "conformance_vectors"

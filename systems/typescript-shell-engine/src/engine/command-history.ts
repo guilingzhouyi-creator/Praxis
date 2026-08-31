@@ -79,6 +79,11 @@ export class CommandHistory<T = unknown> {
     return this.entries.length;
   }
 
+  /** Return a detached oldest-first snapshot for a history view. */
+  all(): readonly HistoryEntry<T>[] {
+    return [...this.entries];
+  }
+
   /** Clear all history entries. */
   clear(): void {
     this.entries.length = 0;

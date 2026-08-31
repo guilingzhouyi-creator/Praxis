@@ -1001,6 +1001,50 @@ split. This advances R4 adapter wiring only; GateChain production identity,
 real PTY/process ownership, AgentLoop/provider/tool execution, and R5 clean
 cutover remain open.
 
+The next host-bootstrap slice adds
+`host_authorization::HostAuthorizationContext` and
+`host_bootstrap::HostBootstrap`. The context is a bounded, host-injected
+principal/session/ring/identity/debug record and is never accepted from wire
+JSON. `HostBootstrap` validates every command name and optional authority
+binding before assembling a strict `ProtocolHostRuntime`; a failed preflight
+therefore cannot expose a partially wired router. Strict dispatch rejects
+missing contexts and unverified contexts at ring two or above. Settings
+adapters may override `SettingsAuthorizer::authorize_context` to consume the
+full trusted record, while legacy principal-only authorization remains an
+explicit fallback for non-strict adapters. The independent evidence target is
+`tests/runtime/kernel_test_host_bootstrap.rs`. This is still R4 candidate
+wiring: it does not promote the stdio host, grant engineering-debug authority,
+start PTY/process-group or AgentLoop/provider work, or close R5.
+
+The follow-on host-dispatch hardening routes every registered non-system
+command through the same GateChain used by system commands. Registration
+updates the GateChain whitelist, the bound host context supplies the trusted
+ring, and a blocked G1-G5 result becomes a structured denial before the
+capability executor is invoked. This removes the ordinary-command bypass
+without inferring approval from wire metadata; settings and process
+admission remain independently authorized seams. Evidence is isolated in
+`tests/runtime/kernel_test_host_dispatch.rs`.
+
+The next AgentLoop terminal composition slice adds
+`agent_loop_terminal::AgentLoopTerminalBridge`. It is deliberately an
+adapter-facing composition rather than a second execution authority: the
+caller dequeues an opaque `TerminalFrame`, the bridge validates the
+loop/session/terminal triple and running states, and an injected decoder
+produces the `SessionInput` consumed by the existing
+`AgentLoopExecutionBridge`. Batch submission decodes all frames before
+runtime reservation and enforces a fixed upper bound, preserving all-or-none
+queue admission for decoder and correlation failures. Output/error frames use
+the same validated binding and are published through `TerminalBook` without
+letting input-stream frames or oversized payloads mutate the mailbox.
+
+This slice intentionally does not decode terminal bytes in Rust, choose a
+shell or encoding, dequeue on behalf of the transport, create PTYs, execute
+providers/tools, or switch production boot authority. It gives the future
+independent TS/L2 rewrite a narrow versioned value seam while leaving retry,
+rendering, protocol routing, and provider policy with their respective
+adapters. Evidence is isolated in
+`tests/session/kernel_test_agent_loop_terminal.rs`.
+
 ### 4.7 终端探测与 Agent 进程硬约束
 
 L1 的终端基础必须支持传统 OS 的命令终端，但不能把开发机的 shell 路径、

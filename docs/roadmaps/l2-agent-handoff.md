@@ -100,6 +100,8 @@ construction: in_progress
 | `interactive-session.ts` | ✅ `SessionView`（attach/replay/投影）+ `projectWeb/Tui/Desktop/Vscode`（VSCode 增量 diff 流 + watermark） |
 | `builtins.ts` | ✅ `registerBuiltins`（lang 支持 locale 切换 / help / clear） |
 | `route.ts` | ✅ 方言路由：pipeline / `$` system / `/` engine / tool / L3A 回退（纯 parseRoute + async route） |
+| `routing-session.ts` | ✅ `ShellSession` 路由态（L3A/DIRECT + cell/agent/session 快照），只保存值不持有上层句柄 |
+| `terminal-shell.ts` + `terminal-renderer.ts` + `frontend-session-adapter.ts` | 🟡 方言运行、REPL-neutral 行记录 renderer 与五前端 session 组合层；真实输入循环、UI 和宿主端点仍由前端/宿主负责 |
 | `agent-selector.ts` | ✅ preselect / selectByAgentId / selectByRole（零对象句柄，dict 数据 API） |
 | `command-completion.ts` | ✅ 候选集（工具 + builtins + 别名）+ 前缀匹配 + 空格后文件路径部分 |
 | `command-groups.ts` | ✅ settings / system / memory / model / selector 五域注册 |
@@ -108,7 +110,13 @@ construction: in_progress
 | `session-manager.ts` | ✅ 一会话 N 视图 + 非破坏性 ack + 共享水位=落后视图 + recovery 重放 |
 | transport 适配器 | ✅ `transports/`——共享引擎 `line-transport.ts`（ack 边界 + 超时/行上限 + 并发拒绝）+ stdio / http / ws / ssh（**readiness handshake：连接前写排队 + attach flush**）；异步契约 `(line) => Promise<string[]>` |
 | 端到端 | ✅ `tests/e2e.stdio.test.ts`——spawn 真实 Python3 `ProtocolHost` 打通：command 往返 + attach/replay |
-| 测试 | ✅ 9 文件 62 例（protocol 6 + engine 8 + session 9 + transports 7 + i18n 7 + selector/completer 10 + session-family 6 + session-manager 7 + e2e 2），tsc 干净 |
+| 测试 | ✅ 11 文件 71 例（既有 protocol/engine/session/transports/i18n/selector/completer/session-family/session-manager/e2e 62 例 + routing-session/terminal-shell 新增 9 例），tsc 干净 |
+
+新增方言切片：`tests/routing-session.test.ts`、`tests/terminal-shell.test.ts`
+新增 9 例（模式切换、ShellFamily 绑定、`$`/`/`/pipeline、Direct tool、
+L3A intent、history 边界）；连同 conformance 路由回归切片共 25 例。它们
+只验证 TS 侧路由和 bridge 委托，不声称覆盖 L3 AgentLoop 或 L1 ProcessPort
+的执行正确性。
 
 协议镜像：`systems/typescript-shell-engine/src/{wire-envelope,wire-records}.ts`（与 Python3 逐字段对齐，§2.4）。
 i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册表 en/ja/ko/zh-CN + t() 点号查找 + kwargs 替换）。
@@ -149,7 +157,7 @@ i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册�
 
 | 优化 | 文件 | TS 重写对应 |
 |---|---|---|
-| `run()` 批量 flush（stdio I/O） | `host.py` | TS 无等价——直接批量写（天然继承） |
+| UTF-8 字节帧上限 + `run()` 批量 flush（stdio I/O） | `host.py` | TS `wire-types.ts` 负责 byte cap；TS 无 flush 等价——直接批量写 |
 | `_advance_shared_cursor` per-session 索引 | `host.py` | `interactive-session.ts` 视图索引同构（attach 即入索引） |
 | ws 桥 dict 直入（省 JSON 往返） | `host.py`/`ws_bridge.py` | TS 天然无 JSON 往返（对象直传） |
 | command args 直入（省 shlex.split） | `host.py`/`l2_shell/__init__.py` | TS 天然无 shlex——命令名/参数已结构化 |
@@ -257,7 +265,9 @@ i18n：`systems/typescript-shell-engine/src/locale-catalog.ts`（locale 注册�
 
 ## 4. 下一步清单（按依赖顺序）
 
-1. **P3 收尾**：真实 SSH 端点接入（远端 stdio host 已通，按需）+ 五前端矩阵真实接入。
+1. **P3 收尾**：terminal dialect/session、REPL-neutral renderer 与前端
+   session adapter 已落地；剩余真实 SSH 端点接入（远端 stdio host 已通，
+   按需）+ 五前端矩阵真实 UI 接入 + REPL 输入循环终态。
 2. ✅ **协议 host 优化**（python-perf + l2-perf-hotpath 已合入 main）：per-session 水位索引、ws 桥 dict 直入、command args 直入、会话类缓存、常量化配置驱动——全景见 §1.9。
 3. **P4 重型/移动**：VSCode 共生平台（投影 + diff 流 + 多路会话）、移动 SSH 适配器。
 4. ✅ **合入**：恢复分支（21a118cf + 三批 + P4 扩展）已合入本地 main（2026-08-25 复核）；双推 `make push-both` 由操作员择机执行。

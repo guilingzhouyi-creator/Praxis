@@ -133,6 +133,16 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   references, lifecycle restrictions, ordering, and JavaScript safe-integer
   boundary, then exposes a defensive snapshot/refresh view. TS cannot recover
   sessions, rebind processes, or write the Rust checkpoint through this seam.
+- The Rust `agent_loop_terminal` composition is mirrored by the TS
+  `rust-agent-loop-terminal.ts` projection. TS accepts the versioned
+  loop/session/terminal binding and opaque JSON byte arrays or local
+  `Uint8Array` frames, with the Rust 1 MiB frame and 256-frame batch bounds.
+  Sparse arrays, invalid directions/sequences, oversized values, unsupported
+  states, and identity changes fail closed. The projection returns defensive
+  copies and requires an accepted binding before exposing direction-specific
+  frame views. It never owns mailbox dequeue/retry, terminal decoding, PTY or
+  shell selection, AgentLoop execution, or Rust persistence; its focused Vitest
+  target is `tests/rust-agent-loop-terminal.test.ts`.
 - The session hot path uses hash indexes for duplicate admission while sorting
   only snapshot output for deterministic wire order. `run_session_book` and
   `rust-session-bench` provide a fixed-total `session.book.admission` report
@@ -463,6 +473,17 @@ the historical `@praxis/protocol-ts` name is not used for new development.
   without changing the default Python/Rust selection or enabling settings
   implicitly. The independent evidence target is
   `tests/runtime/kernel_test_protocol_host_runtime.rs`.
+- `host_authorization::HostAuthorizationContext` and
+  `host_bootstrap::HostBootstrap` add the next R4 composition seam. The
+  context is a bounded, host-injected principal/session/ring/identity/debug
+  record and is never accepted from wire JSON. Bootstrap validates the full
+  command/executor/settings specification before assembling a strict router;
+  missing contexts and unverified high-ring contexts fail closed. A settings
+  authorizer may consume the full context through `authorize_context`, while
+  principal-only adapters remain an explicit fallback. The independent target
+  is `tests/runtime/kernel_test_host_bootstrap.rs`; this remains candidate
+  wiring and does not change the production default or grant PTY/AgentLoop
+  authority.
 - `KernelRuntime::open_persistent` attaches that `ConfigStore` to the same
   Rust-owned runtime boundary. `config_documents` returns defensive snapshots,
   and the explicit `set_config`, `set_setting`, and paired mutation methods
@@ -804,3 +825,14 @@ compatibility entry points have been removed.
 The independent Rust test targets are
 `tests/terminal/kernel_test_terminal_probe.rs` and `tests/process/kernel_test_process_constraints.rs`; no TS/L2/provider/
 runtime authority is added.
+
+The `agent_loop_terminal` slice is the next narrow Rust/TS docking seam. Rust
+validates a versioned loop/session/terminal correlation, accepts only opaque
+input frames supplied by the caller, invokes an injected panic-contained
+decoder, and delegates session admission and worker reservation to the
+existing Rust AgentLoop execution bridge. Batches are decoded before bounded
+all-or-none runtime reservation. Output/error frames are published through the
+Rust terminal mailbox only after the same binding check. The caller owns
+dequeue/retry policy and TS owns rendering/protocol policy; neither side
+chooses a shell, reads PATH, creates PTYs, or imports Python state. Evidence is
+isolated in `tests/session/kernel_test_agent_loop_terminal.rs`.

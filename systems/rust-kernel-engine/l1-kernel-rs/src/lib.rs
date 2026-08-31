@@ -12,7 +12,7 @@
 //!   - Process ownership: process, process_adapter, managed_process, process_bridge, process_constraints, process_group, process_group_runtime, host_process_group_signal, process_table_group_runtime
 //!   - Resource accounting: allocator
 //!   - Policy adjudication (fail-closed gates): capability, gatechain, constitution, reputation, audit
-//!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, host_dispatch, input_activity, snapshot
+//!   - Session truth & protocol host: session, session_identity, session_lifecycle, session_store, execution_store, terminal, terminal_probe, agent_loop, agent_loop_execution, outbox_registry, protocol, protocol_host, protocol_host_runtime, host_authorization, host_bootstrap, host_dispatch, input_activity, snapshot
 //!   - Networking peers and transport edge: network, transport
 //!   - Lifecycle, state & persistence: boot, entry, preflight, recovery, lifecycle, os, versioning, migration, assembly, state_layout, state_store, config_store, settings, settings_adapter, settings_protocol, persist, vfs
 //!   - Benchmark evidence: benchmark, benchmark_runner
@@ -254,6 +254,9 @@ pub mod agent_loop;
 /// Bounded AgentLoop execution admission bridge for the Rust runtime.
 pub mod agent_loop_execution;
 
+/// Explicit terminal-to-AgentLoop composition bridge for the Rust L1 boundary.
+pub mod agent_loop_terminal;
+
 /// Bounded per-session outbox registry, per-view ack cursors, and eviction metrics mirroring `ProtocolHost.
 pub mod outbox_registry;
 
@@ -266,6 +269,12 @@ pub mod protocol_host;
 
 /// Explicit protocol-host/runtime composition with host-injected authority.
 pub mod protocol_host_runtime;
+
+/// Trusted host identity and posture context injected outside the wire.
+pub mod host_authorization;
+
+/// One-shot protocol-host bootstrap coordination.
+pub mod host_bootstrap;
 
 /// Kind-by-kind host dispatch boundary for the Rust protocol host.
 pub mod host_dispatch;

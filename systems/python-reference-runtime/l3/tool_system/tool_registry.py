@@ -170,9 +170,12 @@ class ToolRegistry:
         return self._registry.stats()
 
     def to_json(self) -> str:
-        """Serialize the full registry to a JSON string."""
+        """Serialize a handler-free registry projection to JSON."""
         return _j.dumps(
-            {name: spec.to_dict() for name, spec in self._registry._items.items()},
+            {
+                name: (spec.to_data_only() if hasattr(spec, "to_data_only") else spec.to_dict())
+                for name, spec in self._registry._items.items()
+            },
             indent=2,
             default=str,
         )

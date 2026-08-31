@@ -100,8 +100,26 @@ D0 语义修复 ──→ D1 Rust 协议主机 ──→ D2 TS↔Rust 缝合 ─
 |---|---|
 | D2.1 `PRAXIS_RUST_HOST` 开关 + e2e 反转矩阵（TS engine spawn rust-host bin） | ✅ `e2e.stdio` 按开关选择双 host；Rust 独立 e2e 覆盖 command/attach/recovery |
 | D2.2 三方向量互验：Py-host / TS / Rust 同输入等价 envelope 流 | ✅ fixture canonical lines 逐字节一致；Rust gate 与 Python reference 均纳入测试 |
-| D2.3 帧上限契约钉（Rust 1MB vs Python 未验证） | ✅ TS/Rust/Python 均为 1 MiB；TS 请求/响应边界测试已锁定 UTF-8 byte size |
+| D2.3 帧上限契约钉（Rust/Python/TS） | ✅ 三端均为 1 MiB UTF-8 字节上限；TS 请求/响应边界测试与 Python 参考 host 超限前置解析测试已锁定 |
 | D2.4 传输故障恢复语义 | ✅ child `error`/`exit`、stdio `close`、主动 `close()` 即时拒绝 pending；合成协议故障帧不再等待 ack；预算参数非法时构造即失败；重连仍由 `ConnectionManager` 显式触发 |
+
+2026-08-30 补齐 Python 参考 host 的对齐切片：`handle()` 与 `run()` 共用
+UTF-8 字节计量 helper，超限帧在进入 JSON 解码前即被拒绝；一条输入产生的
+完整响应集合（例如 result + ack）只触发一次批量写出和 flush。`run()` 只
+移除 CR/LF 行终止符后计量，因此合法 JSON 前后的空白也计入 1 MiB 上限，
+不能借填充绕过 R5。该优化不改变 Python 参考 host 的生产默认地位，也不
+提前满足 G5。
+
+同日新增独立 TS L3 首片：L2 intent → `AgentRuntime` → 注入的
+`RustKernelExecutionPort`。该片只建立协调与 receipt 线缆，不把 L3
+AgentLoop/provider/tool 权威提前搬入 TS，也不改变 D2 的 Python 默认
+host 或 Rust candidate-only 状态；后续范围与优先级由
+`docs/roadmaps/l3-ts-rewrite.md` 管理。
+
+随后补齐 request correlation：TS 在线路上声明的 `request_id` 由 Rust
+result/denial envelope 回显，TS receipt 适配器对回显值做等值校验；provider
+回调则只接收 admitted input 的 detached copy，避免 identity/trace 在 Rust
+请求形成前被外部 alias 改写。该片仍是候选机制，不改变生产 host 选择。
 
 ### G4 前置片（2026-08-26）
 
@@ -121,6 +139,17 @@ candidate-only 状态；未构建 probe 时该进程级切片显式 skip，不�
 共享 fixture `tests/fixtures/kernel_execution_store_document.json` 同时由 Rust
 `execution_store` 测试和 TS codec 测试消费。该片仍不改变 Rust host 默认路径，
 也不把 read-only projection 误当作 R5 cutover authority。
+
+2026-08-30 补齐下一层 TS 终端投影：
+`rust-agent-loop-terminal.ts` 镜像 Rust
+`agent_loop_terminal::AgentLoopTerminalBridge` 的保留值合同，校验
+loop/session/terminal 三元绑定、终端状态、流向、safe sequence、1 MiB
+帧上限和 256 帧批上限，并复制 `number[]`/`Uint8Array`，避免前端别名
+污染。未建立绑定、稀疏数组、非法字节、方向混用和身份漂移均
+fail-closed。该投影只供 L2/前端渲染或转发，不读取/写入 Rust mailbox，
+不解码 shell，不创建 PTY，不执行 AgentLoop/provider/tool；专测为
+`tests/rust-agent-loop-terminal.test.ts`，Rust 证据仍为
+`tests/session/kernel_test_agent_loop_terminal.rs`。
 
 ### 分流路由原则（D1c 核心）
 

@@ -106,8 +106,8 @@ flowchart TB
 | Metric | Value |
 |--------|-------|
 | L1 Kernel | 66 files / 18,613 lines |
-| L2 Shell | 44 files / 6,608 lines |
-| L3 Cell | 351 files / 79,495 lines |
+| L2 Shell | 44 files / 6,617 lines |
+| L3 Cell | 351 files / 79,531 lines |
 | L4 Bridge | 113 files / 23,470 lines |
 | L5 User | 2 files / 599 lines |
 | L3A (peers) | 26 files / 7,367 lines |

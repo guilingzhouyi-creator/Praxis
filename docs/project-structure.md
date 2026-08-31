@@ -20,6 +20,16 @@ the system or perimeter it belongs to:
 | `systems/typescript-shell-engine/` | Independent TypeScript formal shell/protocol engine; its package and source names are TypeScript-native and do not mirror Python module names |
 | `systems/rust-kernel-engine/` | Independent Rust formal kernel engine: `l1-kernel-rs/` implements high-performance L1 primitives. Its integration tests are explicitly grouped under `l1-kernel-rs/tests/<domain>/`, and the candidate remains independent of the Python runtime. |
 
+The TypeScript L3 rewrite keeps its newly registered coordination domains
+physically explicit:
+
+| Path | Description |
+|------|-------------|
+| `systems/typescript-shell-engine/src/l3/loop/` | Bounded per-identity AgentLoop queues, cancellation, lifecycle, and detached snapshots |
+| `systems/typescript-shell-engine/src/l3/cell/` | Cell-level routing across independent full-identity AgentLoops |
+| `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing delegated to AgentCell |
+| `systems/typescript-shell-engine/src/l3/recovery/` | Bounded lifecycle-event replay window, cursor paging, and resync projection |
+
 ## 构建环境 (build environment) — external tooling that guides the build
 
 Never imported by a runtime system; never migrated into another system's

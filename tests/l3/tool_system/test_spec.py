@@ -116,6 +116,33 @@ class TestToolSpec:
         assert d["ring"] == RING_1
         assert "handler" not in d
 
+    def test_to_data_only_detaches_public_contract(self):
+        from l3.tool_system.tool_spec import ParamSpec, ReturnSpec, ToolSpec
+
+        spec = ToolSpec(
+            name="read_file",
+            description="Read a file",
+            category="files",
+            ring=RING_1,
+            danger=0,
+            parameters=[ParamSpec("path", required=True, description="Path")],
+            returns=ReturnSpec(properties={"success": "bool"}),
+            handler=lambda args, agent: {"success": True},
+            metadata={"private": object()},
+        )
+
+        projection = spec.to_data_only()
+        projection["parameters"][0]["name"] = "mutated"
+        projection["returns"]["properties"]["success"] = "changed"
+
+        assert projection["name"] == "read_file"
+        assert projection["parameters"][0]["required"] is True
+        assert projection["returns"]["properties"] == {"success": "changed"}
+        assert spec.parameters[0].name == "path"
+        assert spec.returns.properties == {"success": "bool"}
+        assert "handler" not in projection
+        assert "metadata" not in projection
+
 
 class TestToolRing:
     """ToolRing constants."""

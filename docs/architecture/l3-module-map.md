@@ -5,7 +5,8 @@
 > SAME commit. Status claims without a matching tree state are drift.
 >
 > Survey basis: main @ `32035cec` (2026-08-23), post `l2-ts-advanced-optimize` polish (simple-array Outbox, FIFO middleware, direct-sort dispatcher).
-> **TS mirror status**: `systems/typescript-shell-engine/` — 29 modules, 77+ tests, tsc clean. See §8.
+> **TS mirror status**: `systems/typescript-shell-engine/` — independent L2
+> engine plus clean-break L3 candidate. See §8–§9.
 > Regenerate counts anytime with:
 >
 > ```bash
@@ -50,6 +51,17 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | `tools/` | 22 | concrete tool handlers (`_*.py`) registered via `tools.yaml` | T |
 
 ¹ `.py` count including `__init__.py`; regenerate per header command.
+
+The clean-break TypeScript L3 candidate keeps its coordination domains in
+explicit, non-authoritative folders:
+
+| TS path | Responsibility | Authority |
+|---|---|---|
+| `systems/typescript-shell-engine/src/l3/loop/` | bounded per-identity AgentLoop queues | TS coordination |
+| `systems/typescript-shell-engine/src/l3/cell/` | full-identity Cell routing | TS coordination |
+| `systems/typescript-shell-engine/src/l3/peer/` | L3A peer attach/detach and identity-safe routing | TS coordination |
+| `systems/typescript-shell-engine/src/l3/recovery/` | bounded lifecycle-event replay and resync projection | TS recovery projection |
+| `systems/typescript-shell-engine/src/l3/routing/` | bounded L3B Cell registration and validated cross-Cell `AgentInput` forwarding | TS coordination |
 
 ## 3. Adjudications (2026-08-22 survey)
 
@@ -109,7 +121,7 @@ Cross-domain shared infrastructure (single-writer, changes announced):
 | A2/A3 | runtime-subsystems counts + README registration | **Complete** |
 
 
-## 8. TS Mirror Status (`systems/typescript-shell-engine/`)
+## 8. TS L2 Mirror Status (`systems/typescript-shell-engine/`)
 
 The L2 TS engine is under active rewrite. The following modules are
 implemented and tested (62+ tests, tsc clean):
@@ -147,6 +159,44 @@ implemented and tested (62+ tests, tsc clean):
 | `locale-catalog.ts` | 64 | Locale data consumption | ✅ |
 | `transports/*` | 4 adapters | stdio/http/ws/ssh | ✅ |
 
-**Not mirrored (Python3-only authority):**
-AgentLoop, Tool Pipeline, Workflow, Scheduler, Memory promotion,
-Skill mutation, Card lifecycle, Config write authority.
+**Not mirrored in the L2 engine (Python3-only authority):**
+Tool Pipeline, Workflow, Memory promotion, Skill mutation, and Config write
+authority. Card and Scheduler now have bounded data-only coordination seams,
+but their stores, policy, fairness, and durable authority remain host-injected.
+
+## 9. TS L3 Coordinator Candidate
+
+`systems/typescript-shell-engine/src/l3/` is an independent clean-break L3
+coordination candidate, not a mechanical import of the Python AgentLoop. The
+current slice contains:
+
+| Path | Responsibility | Authority |
+|---|---|---|
+| `l3/contracts/agent-contracts.ts` | identity, input, action, receipt, event, snapshot values | TS data contract |
+| `l3/runtime/ts-agent-runtime.ts` | per-identity decision sequencing, bounded history, lifecycle events | TS coordination |
+| `l3/adapters/l2-intent-adapter.ts` | protocol-v1 intent normalization | TS ingress |
+| `l3/adapters/rust-protocol-execution-port.ts` | command payload and receipt mapping | Rust execution boundary |
+| `l3/ports/runtime-ports.ts` | provider/execution/event dependency seams | explicit injected ports |
+| `l3/providers/decision-provider.ts` | detached provider context, deadline/cancel, budget metadata, payload-free telemetry | provider adapter |
+| `l3/tools/tool-projection.ts` | handler-free ToolSpec/ToolResult projection and `tool.invoke` request mapping | TS data boundary; Rust admission |
+| `l3/context/context-projection.ts` | identity-bound Memory/Prompt digest references with count/byte bounds | TS read-only context boundary |
+| `l3/card/card-coordination.ts` | bounded card lifecycle intents, link IDs, and detached receipts | TS card coordination values; host policy |
+| `l3/scheduler/scheduler-coordination.ts` | bounded priority/time/scope scheduling requests and detached receipts | TS scheduler coordination values; host queue policy |
+| `l3/ports/coordination-ports.ts` | explicit Card/Scheduler data ports | injected TS coordination boundary |
+| `l3/loop/agent-loop-queue.ts` | bounded per-identity FIFO admission, cancellation, stop/drain, and snapshots | TS AgentLoop coordination |
+| `l3/cell/agent-cell.ts` | full-identity routing to independent AgentLoops | TS Cell coordination |
+| `l3/peer/l3a-peer-router.ts` | identity-bound L3A peer attach/detach, conflict checks, and delegated routing | TS peer coordination |
+| `l3/recovery/event-replay-ledger.ts` | bounded contiguous event window, cursor paging, and resync signaling | TS recovery projection |
+| `l3/recovery/rust-execution-projection.ts` | validated metadata-only projection of Rust execution checkpoints | Rust-owned state, TS read-only view |
+| `l3/recovery/l3a-session-resume.ts` | generation-fenced resume vectors and preflighted peer handoff | TS recovery coordination |
+| `l3/routing/cross-cell-router.ts` | bounded Cell registry, validated cross-Cell input forwarding, and detached receipts | TS L3B coordination |
+
+The coordinator may only request process, terminal, capability, or hard-policy
+side effects through `RustKernelExecutionPort`; it never imports a process API,
+PTY, tool handler, Python module, or Rust implementation. Card and Scheduler
+are now bounded coordination/data seams, not stores or policy engines. Tool
+Pipeline, Memory promotion, Prompt loading, durable recovery, and host
+persistence remain future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
+The AgentLoop, Cell, peer, and replay domains only own in-memory
+coordination/projection values and never become persistence or execution
+authority.

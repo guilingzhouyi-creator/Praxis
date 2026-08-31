@@ -15,7 +15,7 @@ import {
   type Message, type MessageKind,
 } from "../protocol/wire-envelope.ts";
 import { MAX_SAFE_SEQUENCE } from "../protocol/wire-types.ts";
-import type { JsonValue } from "../protocol/wire-records.ts";
+import type { JsonObject, JsonValue } from "../protocol/wire-records.ts";
 
 export type Transport = (line: string) => Promise<string[]>;
 
@@ -69,6 +69,29 @@ export class ProtocolBridge {
   /** Send a command envelope; returns the host's result envelopes. */
   async command(name: string, args: readonly string[] = []): Promise<Message[]> {
     const message = makeMessage(this.opts.sessionId, this.nextSeq(), "command", { name, args: [...args] });
+    return (await this.roundTrip(message)).messages;
+  }
+
+  /**
+   * Send a command with structured, non-authority payload fields.
+   *
+   * This is the typed seam for Rust-owned requests that need gate inputs
+   * such as `ring`/`danger` alongside string command arguments. Host-derived
+   * approval fields are still rejected by the shared envelope validator.
+   */
+  async commandPayload(
+    name: string,
+    payload: JsonObject = {},
+    sessionId = this.opts.sessionId,
+    traceId = "",
+  ): Promise<Message[]> {
+    const message = makeMessage(
+      sessionId,
+      this.nextSeq(),
+      "command",
+      { ...payload, name },
+      traceId,
+    );
     return (await this.roundTrip(message)).messages;
   }
 
