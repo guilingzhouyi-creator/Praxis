@@ -81,6 +81,8 @@ describe("TypeScript L3 tool projection", () => {
   it("rejects duplicate or over-sized registry projections", () => {
     expect(() => projectToolRegistry([tool, tool])).toThrowError(AgentRuntimeError);
     expect(() => projectToolRegistry([tool], { maxTools: 0 })).toThrowError(AgentRuntimeError);
+    expect(() => projectToolRegistry([{ ...tool, ring: "RING_UNKNOWN" }])).toThrowError(AgentRuntimeError);
+    expect(() => projectToolRegistry([{ ...tool, parallelSafe: undefined, parallel_safe: "yes" }])).toThrowError(AgentRuntimeError);
   });
 
   it("uses registered ring and danger metadata when creating a Rust tool request", () => {

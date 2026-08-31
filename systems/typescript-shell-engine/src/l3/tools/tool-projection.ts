@@ -140,15 +140,19 @@ function readField(record: Record<string, unknown>, camel: string, snake: string
 
 function ringNumber(ring: string): number {
   const normalized = ring.toLowerCase().replace(/-/g, "_");
-  if (normalized.includes("2_5") || normalized.includes("2.5")) return 2;
-  if (normalized.endsWith("3") || normalized === "3") return 3;
-  if (normalized.endsWith("2") || normalized === "2") return 2;
-  return 1;
+  if (normalized === "ring_1" || normalized === "1") return 1;
+  if (normalized === "ring_2_5" || normalized === "ring_2.5" || normalized === "2_5" || normalized === "2.5") return 2;
+  if (normalized === "ring_2" || normalized === "2") return 2;
+  if (normalized === "ring_3" || normalized === "3") return 3;
+  throw new AgentRuntimeError("invalid_decision", `unsupported tool ring: ${ring}`);
 }
 
 function projectParameter(raw: unknown, index: number): ToolParameterProjection {
   if (!isRecord(raw)) {
     throw new AgentRuntimeError("invalid_decision", `tool parameter ${index} must be an object`);
+  }
+  if (raw.required !== undefined && typeof raw.required !== "boolean") {
+    throw new AgentRuntimeError("invalid_decision", `tool parameter ${index}.required must be a boolean`);
   }
   return {
     name: requireText(raw.name, `tool parameter ${index}.name`),
@@ -206,21 +210,27 @@ export function projectToolSpec(
   if (!Array.isArray(gatesRaw) || gatesRaw.some((gate) => typeof gate !== "string" || gate.length === 0 || gate.includes("\0"))) {
     throw new AgentRuntimeError("invalid_decision", "tool gates must be non-empty strings");
   }
+  const parallelSafe = readField(raw, "parallelSafe", "parallel_safe");
+  if (parallelSafe !== undefined && typeof parallelSafe !== "boolean") {
+    throw new AgentRuntimeError("invalid_decision", "tool parallel_safe must be a boolean");
+  }
   const danger = requireSafeInteger(raw.danger, "tool danger");
   const sandboxProfile = readField(raw, "sandboxProfile", "sandbox_profile");
   if (sandboxProfile !== null && sandboxProfile !== undefined && typeof sandboxProfile !== "string") {
     throw new AgentRuntimeError("invalid_decision", "tool sandbox profile must be a string or null");
   }
+  const ring = requireText(raw.ring, "tool ring");
+  ringNumber(ring);
   return {
     name: requireText(raw.name, "tool name"),
     description,
     category: requireText(raw.category ?? "", "tool category", true),
-    ring: requireText(raw.ring, "tool ring"),
+    ring,
     danger,
     gates: [...gatesRaw],
     parameters,
     returns: projectReturns(raw.returns),
-    parallelSafe: readField(raw, "parallelSafe", "parallel_safe") === true,
+    parallelSafe: parallelSafe === true,
     sandboxProfile: (sandboxProfile ?? null) as string | null,
   };
 }
