@@ -7,6 +7,7 @@
 
 ### 新增
 
+- **Feat (l3-ts)**: project tools through Rust authority
 - **Feat (l3-ts)**: add bounded decision provider boundary
 - **Feat (l2-ts)**: bound frontend input queue backpressure
 - **Feat (l2-ts)**: add frontend input framing
