@@ -1,5 +1,5 @@
 ---
-pointer: DESIGN-2026-08-31-001
+pointer: DESIGN-2026-08-31-109
 archive_number: DESIGN-2026-永久-109
 fonds: DESIGN
 year: 2026
@@ -9,13 +9,13 @@ author: Codex
 formation_date: 2026-08-31
 carrier: md
 classification: 内部
-pages: 8
+pages: 60
 archivist: L3
 reviewer: L3
 archive_date: 2026-08-31
 source: design
 keywords: [typescript, l3, card, scheduler, coordination]
-abstract: Define the first clean-break TypeScript L3 Card and Scheduler data-only coordination seams.
+abstract: "Define the first clean-break TypeScript L3 Card and Scheduler data-only coordination seams."
 series: active
 date: 2026-08-31
 status: active
