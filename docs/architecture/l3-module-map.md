@@ -172,10 +172,15 @@ current slice contains:
 | `l3/card/card-coordination.ts` | bounded card lifecycle intents, link IDs, and detached receipts | TS card coordination values; host policy |
 | `l3/scheduler/scheduler-coordination.ts` | bounded priority/time/scope scheduling requests and detached receipts | TS scheduler coordination values; host queue policy |
 | `l3/ports/coordination-ports.ts` | explicit Card/Scheduler data ports | injected TS coordination boundary |
+| `l3/loop/agent-loop-queue.ts` | bounded per-identity FIFO admission, cancellation, stop/drain, and snapshots | TS AgentLoop coordination |
+| `l3/cell/agent-cell.ts` | full-identity routing to independent AgentLoops | TS Cell coordination |
 
 The coordinator may only request process, terminal, capability, or hard-policy
 side effects through `RustKernelExecutionPort`; it never imports a process API,
 PTY, tool handler, Python module, or Rust implementation. Card and Scheduler
 are now bounded coordination/data seams, not stores or policy engines. Tool
-Pipeline, Memory promotion, Prompt loading, Cell/L3A, and recovery remain
-future slices tracked by `docs/roadmaps/l3-ts-rewrite.md`.
+Pipeline, Memory promotion, Prompt loading, L3A peer routing, durable recovery,
+and host persistence remain future slices tracked by
+`docs/roadmaps/l3-ts-rewrite.md`. The AgentLoop and Cell domains only own
+in-memory coordination values and never become persistence or execution
+authority.

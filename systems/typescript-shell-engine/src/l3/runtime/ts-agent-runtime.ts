@@ -410,6 +410,10 @@ export class AgentRuntime {
           context: copyContextProjection(projection, admittedInput.identity),
         };
       }
+      // The event/context boundaries above are await points. A loop stop or
+      // caller cancellation can arrive while they are pending, so re-check
+      // before invoking provider code with an already-cancelled signal.
+      throwIfAborted(signal);
       let decision: AgentDecision;
       try {
         decision = await this.options.decision.decide(copyAgentInput(admittedInput), context);

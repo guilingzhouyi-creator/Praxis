@@ -9,6 +9,8 @@ export * from "./contracts/agent-contracts.ts";
 export * from "./ports/runtime-ports.ts";
 export * from "./runtime/limits.ts";
 export * from "./runtime/ts-agent-runtime.ts";
+export * from "./loop/agent-loop-queue.ts";
+export * from "./cell/agent-cell.ts";
 export * from "./providers/decision-provider.ts";
 export * from "./tools/tool-projection.ts";
 export * from "./context/context-projection.ts";

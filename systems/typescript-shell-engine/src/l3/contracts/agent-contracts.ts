@@ -200,6 +200,8 @@ export type AgentRuntimeErrorCode =
   | "schedule_limit"
   | "action_limit"
   | "event_limit"
+  | "loop_queue_full"
+  | "loop_stopped"
   | "decision_failed"
   | "execution_failed"
   | "execution_rejected"

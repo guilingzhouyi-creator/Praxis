@@ -13,6 +13,8 @@ export const L3_MAX_ACTIONS_PER_INPUT = 64;
 export const L3_MAX_HISTORY_ENTRIES = 128;
 /** Maximum serialized event data bytes emitted by one action. */
 export const L3_MAX_EVENT_DATA_BYTES = 16 * 1024;
+/** Maximum queued (not currently executing) inputs for one AgentLoop. */
+export const L3_MAX_PENDING_INPUTS = 32;
 
 /** Tunable runtime bounds accepted by the coordinator. */
 export interface AgentRuntimeLimits {

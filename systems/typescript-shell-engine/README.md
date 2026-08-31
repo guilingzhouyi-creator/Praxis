@@ -59,6 +59,15 @@ sent to Rust as `tool.invoke`; Rust receipts are folded into bounded
 ToolResult values. No Python handler, middleware, or executable object crosses
 the boundary.
 
+The `l3/loop/` and `l3/cell/` domains provide the first bounded AgentLoop/Cell
+coordination slice. `AgentLoop` serializes inputs for the complete
+`agent/cell/session/terminal` identity tuple, enforces a pending-input bound,
+propagates cancellation, and exposes detached progress snapshots.
+`AgentCell` lazily routes identities to independent loops so sibling identities
+can progress concurrently. These modules do not own Rust execution, PTY or
+process state, persistence, or L3A recovery; those authorities remain injected
+or are tracked as future slices in `docs/roadmaps/l3-ts-rewrite.md`.
+
 `l3/context/context-projection.ts` is the read-only Memory/Prompt seam. It
 passes only identity-bound digest references, source labels, and byte counts
 to a provider, with duplicate-reference and aggregate-budget checks. The

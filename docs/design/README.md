@@ -8,10 +8,11 @@
 
 - `abstract` is now distinct from `title` (generated from first paragraph, not duplicated)
 
-## Active (4)
+## Active (5)
 
 | pointer | archive_number | title | abstract | file |
 |---------|----------------|-------|----------|------|
+| `DESIGN-2026-08-31-110` | `DESIGN-2026-永久-110` | "TS L3 AgentLoop and Cell Coordination Slice" | Define the bounded TypeScript L3 AgentLoop and Cell coordination domains for the clean-break rewrite. | `l3-agent-loop-cell-plan.md` |
 | `DESIGN-2026-08-31-109` | `DESIGN-2026-永久-109` | "TS L3 Card and Scheduler Coordination Slice" | Define the first clean-break TypeScript L3 Card and Scheduler data-only coordination seams. | `l3-card-scheduler-coordination-plan.md` |
 | `DESIGN-2026-08-27-004` | `DESIGN-2026-永久-104` | "Kernel Rewrite Readiness Pack | Rust is the approved direction for a cle | `kernel-rewrite-readiness-package.md` |
 | `DESIGN-2026-08-29-007` | `DESIGN-2026-永久-107` | "Rust-First Kernel Rewrite Dec | The future Praxis kernel is a clean-brea | `rust-first-kernel-rewrite.md` |
